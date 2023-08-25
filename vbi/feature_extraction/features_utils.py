@@ -1,9 +1,60 @@
 import vbi
 import scipy
+import torch
 import numpy as np
+from typing import Union
 import scipy.stats as stats
 from scipy.signal import butter, detrend, filtfilt, hilbert
 from vbi.feature_extraction.features_settings import load_json
+
+
+def slice_features(x:Union[np.ndarray,torch.Tensor], feature_names:list, info:dict):
+    """
+    Slice features from a feature list
+    
+    Parameters
+    ----------
+    x: array-like
+    features: list of strings 
+        list of features
+    info: dict 
+        features's colum indices in x 
+
+    Returns
+    -------
+    x_: array-like
+        sliced features
+    """
+    if isinstance(x, (list, tuple)):
+        x = np.array(x)
+
+    if x.ndim == 1:
+        x = x.reshape(1, -1)
+
+    is_tensor = isinstance(x, torch.Tensor)
+    if is_tensor:
+        x_ = torch.Tensor([])
+    else:
+        x_ = np.array([])
+
+    if len(feature_names) == 0:
+        return x_
+
+    for f_name in feature_names:
+        if f_name in info:
+            coli, colf = info[f_name]['index'][0], info[f_name]['index'][1]
+            if is_tensor:
+                x_ = torch.cat((x_, x[:, coli:colf]), dim=1)
+            else:
+                if x_.size == 0:
+                    x_ = x[:, coli:colf]
+                else:
+                    x_ = np.concatenate((x_, x[:, coli:colf]), axis=1)
+        else:
+            raise ValueError(f"{f_name} not in info")
+
+    return x_
+
 
 
 def preprocess(ts, fs=None, preprocess_dict={}, **kwargs):
