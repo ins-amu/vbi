@@ -1,0 +1,3 @@
+import vbi 
+
+vbi.tests()
