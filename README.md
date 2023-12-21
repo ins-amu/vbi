@@ -9,6 +9,7 @@
 - Scipy
 - numpy
 - C++ >= 11
+- jidt [optional]  
 
 ```sh
 conda env create --file environment.yml --name vbi
@@ -24,6 +25,9 @@ make
 # you need to install swig if you get an error and probably write the version of 
 # python you are using at makefile
 PYTHON_VERSION = 3.8 # or whatever version you have
+
+# optional 
+conda install -c conda-forge jpype1
 ```
 
 you need to have install swig on you machine to compile C++ codes.
