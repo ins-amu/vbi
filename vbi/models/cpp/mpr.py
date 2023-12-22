@@ -1,6 +1,5 @@
 
 import os
-from typing import Any
 import tqdm
 import numpy as np
 from os.path import join
@@ -162,7 +161,7 @@ class MPR_sde:
         
     # -------------------------------------------------------------------------
 
-    def simulate(self, par={}, x0=None, verbose=False):
+    def run(self, par={}, x0=None, verbose=False):
         '''
         Integrate the MPR model with the given parameters.
 

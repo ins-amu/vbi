@@ -74,7 +74,7 @@ class DO_cpp:
         return params
 
     # ---------------------------------------------------------------
-    def simulate(self, par={}):
+    def run(self, par={}):
         '''
         Integrate the damp oscillator system of equations
 

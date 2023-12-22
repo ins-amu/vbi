@@ -200,7 +200,7 @@ class JR_sde_cpp:
         self.initial_state = np.asarray(self.initial_state)
 
     # -------------------------------------------------------------------------
-    def simulate(self, par={}, x0=None, verbose=False):
+    def run(self, par={}, x0=None, verbose=False):
         '''
         Integrate the system of equations for Jansen-Rit sde model.
 
@@ -436,7 +436,7 @@ class JR_sdde_cpp:
         self.delays = np.asarray(self.delays)
     # -------------------------------------------------------------------------
 
-    def simulate(self, par={}, x0=None, verbose=False):
+    def run(self, par={}, x0=None, verbose=False):
         '''
         Integrate the system of equations for Jansen-Rit model.
         '''

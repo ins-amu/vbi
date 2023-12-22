@@ -37,7 +37,7 @@ control_dict = {
 
 obj = JR_sde_cpp(par_dict)
 print(obj())
-data = obj.simulate(control_dict)
+data = obj.run(control_dict)
 
 fig, ax = plt.subplots(1, 2, figsize=(10, 4))
 plot_ts_pxx(data, par_dict, [ax[0], ax[1]], alpha=0.6, lw=1)

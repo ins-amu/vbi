@@ -43,7 +43,7 @@ control_dict = {
 
 obj = MPR_sde(parameters)
 # print(obj())
-sol = obj.simulate(par=control_dict)
+sol = obj.run(par=control_dict)
 print(obj.eta)
 
 t = sol["t"]
@@ -53,10 +53,27 @@ print(f"t.shape = {t.shape}")
 print(f"x.shape = {x.shape}")
 
 if x.ndim == 2:
+    pass
     fig, ax = plt.subplots(1, figsize=(10, 3))
     ax.set_xlabel("Time [s]")
     ax.set_ylabel("BOLD")
     plt.plot(t/1000, x.T, alpha=0.8, lw=2)
     plt.margins(0,0.1)
     plt.tight_layout()
-    plt.show()
+    plt.savefig("output/mpr_sde_ts.png", dpi=300)
+    plt.close()
+else:
+    exit(0)
+
+
+# Feature extraction ------------------------------------------------
+from vbi.feature_extraction.features_settings import *
+from vbi.feature_extraction.calc_features import *
+
+fs = 1/(parameters["dt_bold"]) / 1000
+cfg = get_features_by_domain(domain="statistical")
+# report_cfg(cfg)
+data = dataframe_feature_extractor([x], fs, fea_dict=cfg, n_workers=1)
+print(data.values)
+
+

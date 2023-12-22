@@ -19,7 +19,7 @@ parameters = {
 ode = DO_cpp(parameters)
 print(ode())
 
-sol = ode.simulate()
+sol = ode.run()
 t = sol["t"]
 x = sol["x"]
 

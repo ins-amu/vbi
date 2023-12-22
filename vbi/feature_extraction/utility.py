@@ -21,23 +21,27 @@ class Load_Data_Sample(object):
             os.path.dirname(os.path.abspath(__file__)))
         self.nn = nn
 
-    def get_weights(self):
+    def get_weights(self, normalize=True):
         nn = self.nn
-        SC_name = join(self.root_dir, 'hbt', 'dataset',
+        SC_name = join(self.root_dir, 'dataset',
                        f'connectivity_{nn}', "weights.txt")
         SC = np.loadtxt(SC_name)
+        np.fill_diagonal(SC, 0.0)
+        if normalize:
+            SC /= SC.max()
+        SC[SC < 0] = 0.0
         return SC
 
     def get_lengths(self):
         nn = self.nn
         tract_lenghts_name = join(
-            self.root_dir, 'hbt', 'dataset', f'connectivity_{nn}', "tract_lengths.txt")
+            self.root_dir, 'dataset', f'connectivity_{nn}', "tract_lengths.txt")
         tract_lengths = np.loadtxt(tract_lenghts_name)
         return tract_lengths
 
     def get_bold(self):
         nn = self.nn
-        bold_name = join(self.root_dir, 'hbt', 'dataset',
+        bold_name = join(self.root_dir, 'vbi', 'dataset',
                          f'connectivity_{nn}', "Bold.npz")
         bold = np.load(bold_name)['Bold']
         return bold.T
@@ -113,7 +117,7 @@ def prepare_input(ts):
     return ts
 
 
-def check_input(ts, label=None):
+def check_input(ts):
 
     if not isinstance(ts, np.ndarray):
         ts = np.array(ts)

@@ -4,10 +4,11 @@
 *.pdf
 __pycache__/
 build/
+_build/
 .vscode/
 vbi.egg-info/
 html/
-*/CPPModels/*.py
+*/cpp/_src*.py
 .ipynb_checkpoints/
 latex/
 html/

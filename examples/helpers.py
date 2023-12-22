@@ -2,6 +2,7 @@ import numpy as np
 from scipy import signal
 from numpy.fft import fft
 import matplotlib.pyplot as plt
+from copy import deepcopy, copy
 
 
 def fft_signal(x, t):
@@ -56,3 +57,35 @@ def plot_ts(data, par, ax, **kwargs):
         ax[i].tick_params(labelsize=14)
 
     plt.tight_layout()
+
+def sl_visualize(data, params, **kwargs):
+
+    x = data['x']
+    t = data['t']
+    
+    mosaic = """
+    AAB
+    """
+
+    fs = 1/(params['dt']*params['record_step'])
+    fig = plt.figure(constrained_layout=True, figsize=(12, 3))
+    ax = fig.subplot_mosaic(mosaic)
+    
+    x_avg = np.mean(x, axis=0)
+    ax['A'].plot(t, x_avg.T, label="x", **kwargs)
+    ax['A'].set_ylabel(r"$\sum$ Real $Z$", fontsize=16)
+
+    freq, pxx = signal.welch(x, fs=fs, nperseg=4096)
+    # pxx /= np.max(pxx)
+    pxx_avg = np.average(pxx, axis=0)
+    ax['B'].plot(freq, pxx_avg, **kwargs)
+    ax['B'].set_xlabel("Frequency [Hz]", fontsize=16)
+    ax['B'].set_ylabel("Power", fontsize=16)
+    ax['B'].set_xlim(0, 60)
+    ti = params['t_transition']
+    tf = params['t_end']
+    ax['A'].set_xlim(tf-2, tf)
+    ax['A'].set_xlabel("Time [s]", fontsize=16)
+
+    idx = np.argmax(pxx_avg)
+    print(f"fmax = {freq[idx]} Hz, Pxx = {pxx_avg[idx]}")

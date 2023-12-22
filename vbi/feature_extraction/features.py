@@ -7,6 +7,13 @@ from sklearn.decomposition import PCA
 from scipy.stats import moment, skew, kurtosis
 from vbi.feature_extraction.utility import *
 
+
+try:
+    import ssm
+except:
+    pass
+
+
 ########################### TEMPORAL ####################################
 
 
@@ -29,7 +36,7 @@ def abs_energy(ts):
 
     """
 
-    info, n = check_input(ts, "abs_energy")
+    info, n = check_input(ts)
     if not info:
         return [np.nan]*n, [f"abs_energy_{i}" for i in range(n)]
     else:
@@ -59,7 +66,7 @@ def average_power(ts, fs):
 
     """
 
-    info, n = check_input(ts, "average_power")
+    info, n = check_input(ts)
     if not info:
         return [np.nan]*n, [f"average_power_{i}" for i in range(n)]
     else:
@@ -153,7 +160,7 @@ def calc_std(ts):
         labels of the features
     """
 
-    info, n = check_input(ts, "std")
+    info, n = check_input(ts)
     if not info:
         return [np.nan] * n, [f"std_{i}" for i in range(n)]
     else:
@@ -180,7 +187,7 @@ def calc_mean(ts):
 
     """
 
-    info, n = check_input(ts, "mean")
+    info, n = check_input(ts)
     if not info:
         return [np.nan]*n, [f"mean_{i}" for i in range(n)]
     else:
@@ -206,7 +213,7 @@ def calc_centroid(ts, fs):
         Temporal centroid
 
     """
-    info, n = check_input(ts, "centroid")
+    info, n = check_input(ts)
     if not info:
         return [np.nan]*n, [f"centroid_{i}" for i in range(n)]
     else:
@@ -243,7 +250,7 @@ def calc_kurtosis(ts):
 
     """
 
-    info, n = check_input(ts, "kurtosis")
+    info, n = check_input(ts)
     if not info:
         return [np.nan]*n, [f"kurtosis_{i}" for i in range(n)]
     else:
@@ -271,7 +278,7 @@ def calc_skewness(ts):
 
     """
 
-    info, n = check_input(ts, "skewness")
+    info, n = check_input(ts)
     if not info:
         return [np.nan]*n, [f"skewness_{i}" for i in range(n)]
     else:
@@ -299,7 +306,7 @@ def calc_max(ts):
 
     """
 
-    info, n = check_input(ts, "max")
+    info, n = check_input(ts)
     if not info:
         return [np.nan]*n, [f"max_{i}" for i in range(n)]
     else:
@@ -327,7 +334,7 @@ def calc_min(ts):
 
     """
 
-    info, n = check_input(ts, "min")
+    info, n = check_input(ts)
     if not info:
         return [np.nan]*n, [f"min_{i}" for i in range(n)]
     else:
@@ -355,7 +362,7 @@ def calc_median(ts):
 
     """
 
-    info, n = check_input(ts, "median")
+    info, n = check_input(ts)
     if not info:
         return [np.nan]*n, [f"median_{i}" for i in range(n)]
     else:
@@ -383,7 +390,7 @@ def mean_abs_deviation(ts):
 
     """
 
-    info, n = check_input(ts, "mean_abs_deviation")
+    info, n = check_input(ts)
     if not info:
         return [np.nan]*n, [f"mean_abs_deviation_{i}" for i in range(n)]
     else:
@@ -412,7 +419,7 @@ def median_abs_deviation(ts):
 
     """
 
-    info, n = check_input(ts, "median_abs_deviation")
+    info, n = check_input(ts)
     if not info:
         return [np.nan]*n, [f"median_abs_deviation_{i}" for i in range(n)]
     else:
@@ -441,7 +448,7 @@ def rms(ts):
 
     """
 
-    info, n = check_input(ts, "rms")
+    info, n = check_input(ts)
     if not info:
         return [np.nan]*n, [f"rms_{i}" for i in range(n)]
     else:
@@ -469,7 +476,7 @@ def interq_range(ts):
 
     """
 
-    info, n = check_input(ts, "interq_range")
+    info, n = check_input(ts)
     if not info:
         return [np.nan]*n, [f"interq_range_{i}" for i in range(n)]
     else:
@@ -496,7 +503,7 @@ def zero_crossing(ts):
         labels of the features
 
     """
-    info, n = check_input(ts, "zero_crossing")
+    info, n = check_input(ts)
     if not info:
         return [np.nan]*n, [f"zero_crossing_{i}" for i in range(n)]
     else:
@@ -519,7 +526,7 @@ def calc_rss(ts, percentile=95):
             Percentile of RSS
     """
 
-    info, n = check_input(ts, "rss")
+    info, n = check_input(ts)
     if not info:
         return [np.nan]*n, [f"rss_{i}" for i in range(n)]
     else:
@@ -555,7 +562,7 @@ def fc_sum(x, positive=False):
         if x.shape[1] < 2:
             return 0.0, label
 
-    info, n = check_input(x, label)
+    info, n = check_input(x)
     if not info:
         return np.nan, label
 
@@ -611,7 +618,6 @@ def fc_stat(x,
 
     if masks is None:
         masks = {"full": np.ones((x.shape[0], x.shape[0]))}
-
 
     if method == "corr":
         FC = np.corrcoef(x)
@@ -890,7 +896,7 @@ def fcd_stat(ts,
     Labels = []
 
     k = int(win_len/TR)
-    fcd = get_fcd(ts=ts, TR=TR, win_len=win_len, 
+    fcd = get_fcd(ts=ts, TR=TR, win_len=win_len,
                   positive=positive, masks=masks)
     for key in fcd.keys():
         values, labels = matrix_stat(fcd[key],
@@ -1155,7 +1161,7 @@ def calc_entropy_bin(ts, prob="standard", average=False):
         else:
             return -np.sum(p * np.log2(p)) / np.log2(len(ts))
 
-    info, n = check_input(ts, "entropy_bin")
+    info, n = check_input(ts)
     if not info:
         return [np.nan]*n, [f"entropy_bin_{i}" for i in range(n)]
     else:
@@ -1196,7 +1202,7 @@ def spectrum_stats(ts, fs, method='fft'):
         labels of the features
     """
 
-    info, n = check_input(ts, "spectrum_stats")
+    info, n = check_input(ts)
     if not info:
         return [np.nan]*n, [f"spectrum_stats_{i}" for i in range(n)]
     else:
@@ -1296,7 +1302,7 @@ def wavelet_abs_mean(ts, function=scipy.signal.ricker, widths=np.arange(1, 10)):
         labels of the features
     '''
 
-    info, n = check_input(ts, "wavelet_abs_mean")
+    info, n = check_input(ts)
     if not info:
         return [np.nan]*n, [f"wavelet_abs_mean_{i}" for i in range(n)]
     else:
@@ -1336,7 +1342,7 @@ def wavelet_std(ts, function=scipy.signal.ricker, widths=np.arange(1, 10)):
 
     '''
 
-    info, n = check_input(ts, "wavelet_std")
+    info, n = check_input(ts)
     if not info:
         return [np.nan]*n, [f"wavelet_std_{i}" for i in range(n)]
     else:
@@ -1406,7 +1412,7 @@ def wavelet_energy(ts, function=scipy.signal.ricker, widths=np.arange(1, 10)):
 
     '''
 
-    info, n = check_input(ts, "wavelet_energy")
+    info, n = check_input(ts)
     if not info:
         return [np.nan]*n, [f"wavelet_energy_{i}" for i in range(n)]
     else:
@@ -1421,3 +1427,118 @@ def wavelet_energy(ts, function=scipy.signal.ricker, widths=np.arange(1, 10)):
                   for i in range(len(values))
                   for j in range(len(widths))]
         return values, labels
+
+
+def state_duration(hmm_z, n_states, avg=True):
+    ''' 
+    Measure the duration of each state 
+
+    Parameters
+    ----------
+    hmm_z : nd-array [n_samples]
+        The most likely states for each time point
+    n_states : int
+        The number of states
+    avg : bool
+        If True, the average duration of each state is returned.
+        Otherwise, the duration of each state is returned.
+
+    Returns
+    -------
+    stat_vec : array-like
+        The duration of each state
+
+    '''
+    infered_state = hmm_z.astype(int)
+    inferred_state_list, inferred_durations = ssm.util.rle(infered_state)
+
+    inf_durs_stacked = []
+    for s in range(n_states):
+        inf_durs_stacked.append(inferred_durations[inferred_state_list == s])
+
+    stat_vec = []
+    for s in range(n_states):
+        value, count = np.unique(inf_durs_stacked[s], return_counts=True)
+        _dur = []
+        for v in range(1, n_states+1):
+            if v in value:
+                _dur.append(count[np.where(value == v)][0])
+            else:
+                _dur.append(0)
+        stat_vec.append(_dur)
+
+    stat_vec = np.array(stat_vec, dtype=int)
+    if avg:
+        return stat_vec.mean(axis=0)
+    else:
+        return stat_vec.flatten()
+# -----------------------------------------------------------------------------
+
+
+def hmm_stat(ts,
+             node_indices=None,
+             n_states=4,
+             subname="",
+             n_iter=100,
+             seed=None,
+             observations="gaussian",
+             method="em"
+             ):
+    """
+    Calculate the state duration of the HMM.
+
+    Parameters
+    ----------
+    ts : nd-array [n_regions x n_samples]
+        Input from which HMM is computed
+    node_indices : list
+        List of node indices to be used for HMM
+    n_states : int
+        Number of states
+    subname : str
+        subname for the labels
+    n_iter : int
+        Number of iterations
+    seed : int
+        Random seed
+    observations : str
+        Observation distribution
+    method : str
+        Method to fit the HMM
+
+    Returns
+    -------
+    stat_vec : array-like
+        HMM features
+    labels : array-like
+        labels of the features
+
+    """
+
+    if seed is not None:
+        np.random.seed(seed)
+
+    info, n = check_input(ts)
+    if not info:
+        return [np.nan]*n, [f"hmm_dur_{i}" for i in range(n)]
+    else:
+        ts = n
+
+        if node_indices is None:
+            node_indices = np.arange(ts.shape[0])
+
+        obs = ts[node_indices, :].T
+        nt, obs_dim = obs.shape
+        model = ssm.HMM(n_states, obs_dim, observations=observations)
+        model_lls = model.fit(obs, method=method, num_iters=n_iter, verbose=0)
+        hmm_z = model.most_likely_states(obs)
+        # emmision_hmm_z, emmision_hmm_y = model.sample(nt) #!TODO: check if need to be used
+        # hmm_x = model.smooth(obs)
+        # upper = np.triu_indices(n_states, 0)
+        # transition_mat = model.transitions.transition_matrix[upper]
+
+        stat_duration = state_duration(hmm_z, n_states, avg=True)
+        labels = [f"hmm{subname}_dur_{i}" for i in range(len(stat_duration))]
+        stat_vec = stat_duration
+
+        return stat_vec, labels

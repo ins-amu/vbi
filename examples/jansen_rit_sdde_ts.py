@@ -43,7 +43,7 @@ control_dict = {
 
 
 obj = JR_sdde_cpp(param)
-data = obj.simulate()
+data = obj.run()
 t = data['t']
 x = data['x']
 sti = data['sti']
