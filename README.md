@@ -1,5 +1,6 @@
-# Virtual Brain Inference (VBI)
 
+# Virtual Brain Inference (VBI)
+![logo](./vbi_logo.png "Title")
 ## installation
 
 ### Requirements
