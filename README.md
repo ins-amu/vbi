@@ -1,6 +1,8 @@
-
 # Virtual Brain Inference (VBI)
-![logo](./vbi_logo.png "Title")
+<p align="center">
+<img src="https://github.com/Ziaeemehr/vbi_paper/blob/main/vbi_log.png"  width="250">
+</p>
+
 ## installation
 
 ### Requirements
