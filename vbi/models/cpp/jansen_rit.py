@@ -134,11 +134,9 @@ class JR_sde_cpp:
         '''
         Set initial state for the system of JR equations with N nodes.
         '''
-
-        N = self.num_nodes
-        y = set_initial_state(N)
+        
+        self.initial_state = set_initial_state(self.num_nodes, self.seed)
         self.INITIAL_STATE_SET = True
-        return y
 
     # -------------------------------------------------------------------------
 
@@ -224,8 +222,7 @@ class JR_sde_cpp:
 
         if x0 is None:
             if not self.INITIAL_STATE_SET:
-                self.initial_state = self.set_initial_state()
-                self.INITIAL_STATE_SET = True
+                self.set_initial_state()
                 if verbose:
                     print("initial state set by default")
         else:
@@ -378,11 +375,8 @@ class JR_sdde_cpp:
         '''
         set initial state for the system of JR equations with N nodes.
         '''
-
-        N = self.num_nodes
-        y = set_initial_state(N)
+        self.initial_state = set_initial_state(self.num_nodes, self.seed)
         self.INITIAL_STATE_SET = True
-        return y
     # -------------------------------------------------------------------------
 
     def set_C(self, label, val_dict):
@@ -443,8 +437,7 @@ class JR_sdde_cpp:
 
         if x0 is None:
             if not self.INITIAL_STATE_SET:
-                self.initial_state = self.set_initial_state()
-                self.INITIAL_STATE_SET = True
+                self.set_initial_state()
                 if verbose:
                     print("initial state set by default")
         else:

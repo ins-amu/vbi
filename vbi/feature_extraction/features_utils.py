@@ -190,7 +190,7 @@ def get_fc(ts, masks=None, positive=False):
         masks = {
             "full": np.ones((n_noes, n_noes))
         }
-    
+
     FCs = {}
     FC = np.corrcoef(ts)
     for _, key in enumerate(masks.keys()):
@@ -201,7 +201,7 @@ def get_fc(ts, masks=None, positive=False):
         fc = fc * mask
         fc = fc - np.diag(np.diagonal(fc))
         FCs[key] = fc
-    
+
     return FCs
 
 
@@ -255,7 +255,7 @@ def get_fcd(ts,
     n_windows = windowed_data.shape[0]
     fc_stream = np.asarray(
         [np.corrcoef(windowed_data[i, :, :], rowvar=False) for i in range(n_windows)])
-    
+
     if positive:
         fc_stream *= fc_stream > 0
 
@@ -760,7 +760,7 @@ def matrix_stat(A, demean=False, k=1, PCA_n_components=3):
 
     # A_TRIU = np.triu(A, k=k)
     ut_idx = np.triu_indices_from(A, k=k)
-    A_ut =A[ut_idx[0], ut_idx[1]]
+    A_ut = A[ut_idx[0], ut_idx[1]]
 
     eigen_vals_A, _ = LA.eig(A)
     pca = PCA(n_components=PCA_n_components)
@@ -1173,3 +1173,51 @@ def wavelet(signal, function=scipy.signal.ricker, widths=np.arange(1, 10)):
     cwt = scipy.signal.cwt(signal, function, widths)
 
     return cwt
+
+
+def km_order(ts, indices=None, avg=True):
+    '''
+    Calculate the (local) Kuramoto order parameter (KOP) of the given time series
+
+    Parameters
+    ----------
+    ts: np.ndarray (2d)
+        input array
+    indices: list
+        list of indices of the regions of interest  
+    avg: bool
+        if True, average the KOP across time
+
+    Returns
+    -------
+    values: np.ndarray (1d) or float  
+        feature values
+
+    '''
+
+    if not isinstance(ts, np.ndarray):
+        ts = np.array(ts)
+
+    if ts.ndim == 1:
+        raise ValueError("Input array must be 2d")
+
+    if indices is None:
+        indices = np.arange(ts.shape[0])
+
+    if max(indices) >= ts.shape[0]:
+        raise ValueError("Invalid indices")
+
+    if not all(isinstance(i, int) for i in indices):
+        raise ValueError("Indices must be integers")
+
+    if len(indices) < 2:
+        raise ValueError("At least two indices are required")
+
+    ts = ts[indices, :]
+
+    nn, nt = ts.shape
+    r = np.abs(np.sum(np.exp(1j * ts), axis=0) / nn)
+    if avg:
+        return np.mean(r)
+    else:
+        return r

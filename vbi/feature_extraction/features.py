@@ -537,6 +537,23 @@ def calc_rss(ts, percentile=95):
             z = np.power(np.outer(ts[:, t], ts[:, t]), 2)
             rss[t] = np.sqrt(np.einsum('ij->', z))
         return np.percentile(rss, percentile), ['RSS th']
+    
+
+def kop(ts, indices=None):
+    '''
+    Calculate the Kuramoto order parameter (KOP)
+    
+    '''
+
+    info, n = check_input(ts)
+    if not info:
+        return [np.nan], ["kop"]
+    else:
+        ts = n 
+        R = km_order(ts, indices=indices, avg=True)
+        return R, ['kop']
+
+    
 
 ########################### CONNECTIVITY ####################################
 

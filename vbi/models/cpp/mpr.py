@@ -49,7 +49,8 @@ class MPR_sde:
     # -------------------------------------------------------------------------
             
     def set_initial_state(self):
-        return set_initial_state(self.num_nodes, self.seed)
+        self.initial_state = set_initial_state(self.num_nodes, self.seed)
+        self.INITIAL_STATE_SET = True
 
     def __str__(self) -> str:
         return f"MPR sde model."
@@ -182,12 +183,11 @@ class MPR_sde:
 
         if x0 is None:
             if not self.INITIAL_STATE_SET:
-                self.initial_state = self.set_initial_state()
-                self.INITIAL_STATE_SET = True
+                self.set_initial_state()
                 if verbose:
                     print("initial state set by default")
         else:
-            assert (len(x0) == self.num_nodes * self.dim)
+            assert (len(x0) == self.num_nodes * 2)
             self.initial_state = x0
             self.INITIAL_STATE_SET = True
 
