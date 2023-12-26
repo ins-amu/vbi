@@ -2,7 +2,7 @@ import vbi
 import numpy as np
 import networkx as nx
 import matplotlib.pyplot as plt
-from helpers import sl_visualize
+from helpers import plot_ts_pxx_sl
 from vbi.models.cpp.sl import SL_sdde
 
 seed = 2
@@ -38,5 +38,5 @@ params = {
 obj = SL_sdde(params)
 data = obj.run()
 
-sl_visualize(data, params, color="k")
+plot_ts_pxx_sl(data, params, color="k")
 plt.show()

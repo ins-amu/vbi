@@ -58,7 +58,7 @@ sti = data['sti']
 # plt.show()
 
 fig, ax = plt.subplots(1, 2, figsize=(9, 4))
-plot_ts(data, param, [ax[0], ax[1]], alpha=0.6, lw=1)
+plot_ts_jr(data, param, [ax[0], ax[1]], alpha=0.6, lw=1)
 plt.show()
 
 

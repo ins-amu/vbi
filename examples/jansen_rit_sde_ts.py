@@ -40,7 +40,7 @@ print(obj())
 data = obj.run(control_dict)
 
 fig, ax = plt.subplots(1, 2, figsize=(10, 4))
-plot_ts_pxx(data, par_dict, [ax[0], ax[1]], alpha=0.6, lw=1)
+plot_ts_pxx_jr(data, par_dict, [ax[0], ax[1]], alpha=0.6, lw=1)
 ax[0].set_xlim(2000, 2500)
 plt.tight_layout()
 plt.show()
