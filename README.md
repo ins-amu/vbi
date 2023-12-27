@@ -42,10 +42,3 @@ sudo apt-get install python3-dev # or [python3.9-dev] depends the default versio
 # unless you get an error which says: fatal error,  Python.h not found.
 ```
 
-- documentation:
-
-```sh
-cd docs 
-doxygen Doxyfile
-make latexpdf      # for pdf file
-```
