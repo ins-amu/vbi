@@ -1181,7 +1181,7 @@ def km_order(ts, indices=None, avg=True):
 
     Parameters
     ----------
-    ts: np.ndarray (2d)
+    ts: np.ndarray (2d) [n_regions, n_timepoints]
         input array
     indices: list
         list of indices of the regions of interest  
@@ -1202,12 +1202,12 @@ def km_order(ts, indices=None, avg=True):
         raise ValueError("Input array must be 2d")
 
     if indices is None:
-        indices = np.arange(ts.shape[0])
+        indices = np.arange(ts.shape[0], dtype=int)
 
     if max(indices) >= ts.shape[0]:
         raise ValueError("Invalid indices")
 
-    if not all(isinstance(i, int) for i in indices):
+    if not all(isinstance(i, (int, np.int64)) for i in indices):
         raise ValueError("Indices must be integers")
 
     if len(indices) < 2:
