@@ -339,7 +339,7 @@ class MPR_sde:
         y[:nn, :] = (y[:nn] > 0) * y[:nn]  # set zero if negative
         y[nn:, :] += dW_v
 
-    def _integrator(self):
+    def set_integrator(self):
         if self.method == "euler":
             return self.eulerStochastic
         elif self.method == "heun":
@@ -355,16 +355,10 @@ class MPR_sde:
         else:
             pass
 
-    def get_(self, x, engine="cpu", dtype="f"):
-        if engine == "gpu":
-            return x.get().astype(dtype)
-        else:
-            return x.astype(dtype)
-
     def run(self, verbose=True):
 
         self.prepare_input()
-        integrator = self._integrator()
+        integrator = self.set_integrator()
         dt = self.dt
         xp = self.xp
         ns = self.num_sim
@@ -403,7 +397,7 @@ class MPR_sde:
             if (it % rs) == 0:  # and (it >= i_cut):
 
                 if self.RECORD_TS and (it >= i_cut):
-                    rv_d[ii, :, :] = self.get_(y0, engine, "f")
+                    rv_d[ii, :, :] = get_(y0, engine, "f")
                     rv_t.append(t)
                     ii += 1
 
@@ -411,7 +405,7 @@ class MPR_sde:
                 self.sync_(engine)
 
             if it % (dec*rs) == 0:
-                fmri_d[jj, :, :] = self.get_(fmri_i, engine, "f")
+                fmri_d[jj, :, :] = get_(fmri_i, engine, "f")
                 jj += 1
                 fmri_t.append(t)
 

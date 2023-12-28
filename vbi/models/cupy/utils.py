@@ -82,6 +82,7 @@ def repmat_vec(vec, ns, engine):
     vec = move_data(vec, engine)
     return vec
 
+
 def is_seq(x):
     '''
     check if x is a sequence
@@ -98,6 +99,7 @@ def is_seq(x):
 
     '''
     return hasattr(x, '__iter__')
+
 
 def prepare_vec(x, ns, engine, dtype="float"):
     '''
@@ -132,3 +134,9 @@ def prepare_vec(x, ns, engine, dtype="float"):
             raise ValueError("x.ndim must be 1 or 2")
     return x.astype(dtype)
 
+
+def get_(x, engine="cpu", dtype="f"):
+    if engine == "gpu":
+        return x.get().astype(dtype)
+    else:
+        return x.astype(dtype)
