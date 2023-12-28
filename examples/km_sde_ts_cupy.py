@@ -19,29 +19,32 @@ plt.rcParams['ytick.labelsize'] = LABESSIZE
 nn = 6
 SC = nx.to_numpy_array(nx.complete_graph(nn), dtype=np.float64)
 
+G = np.linspace(0, 0.1, 20)
+num_sim = len(G)
+
 par_dict = {
-    "G": 0.0,
-    "dt": 0.05,     # [s]
-    "num_sim": 1,
+    "G": G,
+    "dt": 0.05,
+    "num_sim": num_sim,
     "weights": SC,
     "noise_amp": 0.2,
-    "t_transition": 0.0,      # ms
-    "t_end": 500.0,            # ms
+    "t_transition": 100.0,
+    "t_end": 500.0,
     "alpha": None,
-    "engine": "cpu",
+    "engine": "gpu",
+    "seed": seed,
     "output": "output",
-    "omega": 2 * np.pi* np.random.normal(0.1, 0.01, nn),
+    "omega": 2 * np.pi * np.random.normal(0.1, 0.01, nn),
 }
 
 obj = KM_sde(par_dict)
 print(obj())
-data = obj.run()
+data = obj.run(verbose=False)
 
 t = data['t']
-x = np.sin(data['x'][:,:,0].T)
-data = {'t': t, 'x': x}
-fig, ax = plt.subplots(1, 2, figsize=(10, 4))
-plot_ts_pxx_km(data, par_dict, [ax[0], ax[1]], alpha=0.6, lw=1)
-ax[0].set_xlim(400, 500)
+x = data['x']  # (num_steps, num_nodes, num_sim)
+fig, ax = plt.subplots(1, 3, figsize=(14, 4))
+plot_ts_pxx_km_cupy(data, par_dict, ax, alpha=0.6, lw=1)
+ax[0].set_xlim(450, 500)
 plt.tight_layout()
 plt.show()

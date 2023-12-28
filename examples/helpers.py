@@ -3,6 +3,7 @@ from scipy import signal
 from numpy.fft import fft
 import matplotlib.pyplot as plt
 from copy import deepcopy, copy
+from vbi.feature_extraction.features_utils import km_order
 
 
 def fft_signal(x, t):
@@ -114,3 +115,34 @@ def plot_ts_pxx_km(data, params, ax, **kwargs):
     pxx_avg = np.average(pxx, axis=0)
     idx = np.argmax(pxx_avg)
     print(f"fmax = {freq[idx]} Hz, Pxx = {pxx_avg[idx]}")
+
+
+
+
+def plot_ts_pxx_km_cupy(data, params, ax, **kwargs):
+
+    x = np.sin(data['x'])
+    t = data['t']
+
+    ax[0].plot(t, x[:, :, 0], label="x", **kwargs)
+    ax[0].set_ylabel(r"$\theta$", fontsize=16)
+
+    freq, pxx = signal.welch(x[:,:,0].T, fs=1/params['dt'], nperseg=4096)
+    # pxx /= np.max(pxx)
+    ax[1].plot(freq, pxx.T, **kwargs)
+    ax[1].set_xlabel("Frequency [Hz]", fontsize=16)
+    ax[1].set_ylabel("Power", fontsize=16)
+    ax[1].set_xlim(0, 1)
+    ax[0].set_xlabel("Time [s]", fontsize=16)
+
+    ns = x.shape[2]
+    R = np.zeros(ns)
+    for i in range(ns):
+        R[i] = km_order(x[:, :, i].T)
+    
+    ax[2].plot(params['G'], R, marker="o", c="k")
+    ax[2].set_xlabel("G", fontsize=16)
+    ax[2].set_ylabel(r"$\langle r \rangle_t$", fontsize=16)
+    
+    
+
