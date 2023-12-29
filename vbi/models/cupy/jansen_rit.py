@@ -12,8 +12,8 @@ class JR_sde:
 
     valid_parameters = [
         "weights", "delays", "dt", "t_end", "G", "A", "a", "B", "b", "mu", "SC",
-        "t_cut", "sigma", "C0", "C1", "C2", "C3", "dtype",
-        "record_step", "C_vec", "decimate", "method",
+        "t_cut", "noise_amp", "C0", "C1", "C2", "C3", "dtype",
+        "C_vec", "decimate", "method",
         "vmax", "r", "v0", "output", "seed", "num_sim", "engine"]
 
     def __init__(self, par: dict = {}):
@@ -77,7 +77,7 @@ class JR_sde:
             "a": 0.1,
             "b": 0.05,
             "mu": 0.24,
-            "sigma": 0.01,
+            "noise_amp": 0.01,
             "decimate": 1,
             "dt": 0.01,
             "t_end": 1000.0,
@@ -87,6 +87,11 @@ class JR_sde:
             "num_sim": 1,
             "weights": None,
             "dtype": "float",
+            "seed": None,
+            "initial_state": None,
+            "same_initial_state": False,
+            "same_noise_per_sim": False,
+
         }
         return params
 
@@ -109,7 +114,7 @@ class JR_sde:
         assert (self.t_cut < self.t_end), "t_cut must be smaller than t_end"
 
     def S_(self, x):
-        return self.vmax / (1.0 + self._xp.exp(self.r*(self.v0-x)))
+        return self.vmax / (1.0 + self.xp.exp(self.r*(self.v0-x)))
 
     def f_sys(self, x0, t):
 
@@ -130,7 +135,7 @@ class JR_sde:
         bb = b * b
         aa = a * a
         SC = self.weights
-        _xp = self._xp
+        _xp = self.xp
         S = self.S_
 
         x = x0[:nn, :]
@@ -155,17 +160,17 @@ class JR_sde:
 
     def euler(self, x0, t):
 
-        _xp = self._xp
+        _xp = self.xp
         nn = self.nn
         ns = self.num_sim
         dt = self.dt
         sqrt_dt = np.sqrt(dt)
-        sigma = self.sigma
+        noise_amp = self.noise_amp
         randn = _xp.random.randn
         snps = self.same_noise_per_sim
 
         dW = randn(nn, 1) if snps else randn(nn, ns)
-        dW = sqrt_dt * sigma * dW
+        dW = sqrt_dt * noise_amp * dW
 
         x0 = x0 + dt * self.f_sys(x0, t)
         x0[4*nn:5*nn, :] += dW
@@ -175,16 +180,16 @@ class JR_sde:
     def heun(self, x0, t):
 
         nn = self.nn
-        ns = self.ns
+        ns = self.num_sim
         dt = self.dt
-        _xp = self._xp
+        _xp = self.xp
         sqrt_dt = np.sqrt(dt)
-        sigma = self.sigma
+        noise_amp = self.noise_amp
         randn = _xp.random.randn
         snps = self.same_noise_per_sim
 
         dW = randn(nn, 1) if snps else randn(nn, ns)
-        dW = sqrt_dt * sigma * dW
+        dW = sqrt_dt * noise_amp * dW
 
         k1 = self.f_sys(x0, t) * dt
         x1 = x0 + k1
@@ -202,7 +207,7 @@ class JR_sde:
         Parameters
         ----------
 
-        x0: array [nn, ns]
+        x0: array [num_nodes, num_sim]
             initial state
 
         Returns
@@ -211,19 +216,18 @@ class JR_sde:
         dict: simulation results
             t: array [n_step]
                 time    
-            x: array [n_step, nn, ns]
+            x: array [n_step, num_nodes, num_sim]
                 y1-y2 time series
 
         '''
 
-        x = self.initial_state if x0 is None else x0
         self.prepare_input()
-
+        x = self.initial_state if x0 is None else x0
         self.integrator = self.euler if self.method == 'euler' else self.heun
         dt = self.dt
-        _xp = self._xp
+        _xp = self.xp
         nn = self.nn
-        ns = self.ns
+        ns = self.num_sim
         decimate = self.decimate
         t_end = self.t_end
         t_cut = self.t_cut
