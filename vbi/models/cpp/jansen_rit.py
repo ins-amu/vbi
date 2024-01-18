@@ -79,9 +79,16 @@ class JR_sde_cpp:
         os.makedirs(join(self.data_path), exist_ok=True)
 
     def __str__(self) -> str:
-        return "Jansen-Rit sde model"
+        print("Jansen-Rit sde model")
+        print("----------------")
+        for item in self._par.items():
+            name = item[0]
+            value = item[1]
+            print(f"{name} = {value}")
+        return ""
 
     def __call__(self):
+        print("Jansen-Rit sde model")
         return self._par
 
     def check_parameters(self, par):

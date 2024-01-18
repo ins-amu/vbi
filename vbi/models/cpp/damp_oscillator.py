@@ -7,7 +7,6 @@ from os.path import join
 from symengine import Symbol
 from vbi.models.cpp._src.do import DO as _DO
 
-
 class DO_cpp:
 
     '''
@@ -40,8 +39,14 @@ class DO_cpp:
             setattr(self, name, value)
 
     def __str__(self) -> str:
-        return "Damp Oscillator model"
-    
+        print("Damp Oscillator model")
+        print("----------------")
+        for item in self._par.items():
+            name = item[0]
+            value = item[1]
+            print(f"{name} = {value}")
+        return ""
+
     def __call__(self, *args: Any, **kwds: Any) -> Any:
         print("Damp Oscillator model")
         return self._par
@@ -111,3 +116,6 @@ class DO_cpp:
         del obj
 
         return {"t": times, "x": sol}
+
+
+

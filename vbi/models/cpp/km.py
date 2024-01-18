@@ -60,7 +60,13 @@ class KM_sde:
         self.initial_state = set_initial_state(self.num_nodes, self.seed)
 
     def __str__(self) -> str:
-        return f"Kuramoto model with noise (sde), C++ implementation."
+        print(f"Kuramoto model with noise (sde), C++ implementation.")
+        print("----------------")
+        for item in self._par.items():
+            name = item[0]
+            value = item[1]
+            print(f"{name} = {value}")
+        return ""
 
     def __call__(self):
         return self._par

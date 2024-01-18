@@ -151,12 +151,15 @@ def extract_features(ts,
 
     n_workers = kwargs.get('n_workers', 1)
     dtype = kwargs.get('dtype', np.float32)
-    # verbose = kwargs.get('verbose', False)
+    verbose = kwargs.get('verbose', True)
     preprocess = kwargs.get('preprocess', None)
     preprocess_args = kwargs.get('preprocess_args', None)
 
-    def update_bar(_):
-        pbar.update()
+    def update_bar(verbose):
+        if verbose:
+            pbar.update()
+        else:
+            pass
 
     ts = prepare_input(ts)
     n_trial, n_region, n_sample = ts.shape
@@ -164,7 +167,7 @@ def extract_features(ts,
     if n_workers == 1:
         features = []
 
-        for i in tqdm.tqdm(range(n_trial)):
+        for i in tqdm.tqdm(range(n_trial), disable=not verbose):
             fea, labels, info = calc_features(
                 ts[i, :, :], fs, fea_dict, **kwargs)
             features.append(np.array(fea).astype(dtype))
@@ -178,7 +181,7 @@ def extract_features(ts,
             if info:
                 break
         with Pool(processes=n_workers) as pool:
-            with tqdm.tqdm(total=n_trial) as pbar:
+            with tqdm.tqdm(total=n_trial, disable=not verbose) as pbar:
                 async_res = [pool.apply_async(calc_features,
                                               args=(ts[i],
                                                     fs,
@@ -193,13 +196,8 @@ def extract_features(ts,
     if output_format == 'dataframe':
         features = pd.DataFrame(features)
         features.columns = labels
-
-    class Data:
-        pass
-    data = Data()
-    data.values = features
-    data.labels = labels
-    data.info = info
+        
+    data = Data_F(values=features, labels=labels, info=info)
 
     return data
 

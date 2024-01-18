@@ -55,7 +55,13 @@ class KM_sde:
             self.nn, self.ns, self.xp, self.seed, self.same_initial_state)
 
     def __str__(self) -> str:
-        return f"Kuramoto model with noise (sde), {self.engine} implementation."
+        print (f"Kuramoto model with noise (sde), {self.engine} implementation.")
+        print ("----------------")
+        for item in self._par.items():
+            name = item[0]
+            value = item[1]
+            print (f"{name} = {value}")
+        return ""
 
     def __call__(self):
         print(

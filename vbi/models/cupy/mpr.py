@@ -75,7 +75,13 @@ class MPR_sde:
         return self._par
 
     def __str__(self) -> str:
-        return "Montbrió, Pazó, Roxin model."
+        print("Montbrió, Pazó, Roxin model.")
+        print("----------------")
+        for item in self._par.items():
+            name = item[0]
+            value = item[1]
+            print(f"{name} = {value}")
+        return ""
 
     def set_initial_state(self):
         self.initial_state = set_initial_state(

@@ -1,3 +1,4 @@
+from typing import Any
 import tqdm
 import cupy as cp
 import numpy as np
@@ -32,12 +33,19 @@ class JR_sde:
             self.xp.random.seed(self.seed)
 
     def __str__(self) -> str:
-        return "Jansen-Rit Model"
+        print ("Jansen-Rit Model")
+        print ("----------------")
+        for item in self._par.items():
+            name = item[0]
+            value = item[1]
+            print (f"{name} = {value}")
+        return ""
+    
 
     def __call__(self):
         print("Jansen-Rit Model")
         return self._par
-
+    
     def check_parameters(self, par):
         for key in par.keys():
             if key not in self.valid_parameters:

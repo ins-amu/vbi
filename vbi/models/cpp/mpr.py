@@ -51,9 +51,16 @@ class MPR_sde:
     def set_initial_state(self):
         self.initial_state = set_initial_state(self.num_nodes, self.seed)
         self.INITIAL_STATE_SET = True
+    # -------------------------------------------------------------------------
 
     def __str__(self) -> str:
-        return f"MPR sde model."
+        print(f"MPR sde model.")
+        print("----------------")
+        for item in self._par.items():
+            name = item[0]
+            value = item[1]
+            print(f"{name} = {value}")
+        return ""
     # -------------------------------------------------------------------------
 
     def __call__(self):

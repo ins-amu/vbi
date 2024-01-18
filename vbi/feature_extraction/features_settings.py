@@ -35,6 +35,7 @@ def get_features_by_domain(domain=None, json_path=None):
         Path to json file, if None, the default json file is used
     '''
     _domains = [
+        "hmm",
         "spectral",
         "connectivity",
         "temporal",
@@ -234,3 +235,17 @@ def add_features_from_json(json_path, features_path, fea_dict={}):
                               )
 
     return fea_dict
+
+
+class Data_F(object):
+    def __init__(self, values=None, labels=None, info=None):
+        self.values = values
+        self.labels = labels
+        self.info = info
+    
+    def __repr__(self):
+        return f'Data_F(values={self.values}, labels={self.labels}, info={self.info})'
+    
+    def __str__(self):
+        return f'Data_F(values={self.values}, labels={self.labels}, info={self.info})'
+    

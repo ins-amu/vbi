@@ -68,9 +68,16 @@ class SL_sdde:
         self.INITIAL_STATE_SET = True
 
     def __str__(self) -> str:
-        return f"Stuart-Landau model."
+        print(f"Stuart-Landau model.")
+        print("----------------")
+        for item in self._par.items():
+            name = item[0]
+            value = item[1]
+            print(f"{name} = {value}")
+        return ""
 
     def __call__(self):
+        print(f"Stuart-Landau model.")
         return self._par
 
     def check_parameters(self, par):
