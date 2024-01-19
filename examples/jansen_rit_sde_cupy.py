@@ -20,7 +20,7 @@ seed = 2
 np.random.seed(seed)
 torch.manual_seed(seed)
 
-LABESSIZE = 14
+LABESSIZE = 12
 plt.rcParams['axes.labelsize'] = LABESSIZE
 plt.rcParams['xtick.labelsize'] = LABESSIZE
 plt.rcParams['ytick.labelsize'] = LABESSIZE

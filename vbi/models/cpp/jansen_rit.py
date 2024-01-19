@@ -292,7 +292,7 @@ class JR_sdde_cpp:
                     "nstart", "t_end", "t_transition", "sigma", "C", "record_step",
                     "C0", "C1", "C2", "C3", "vmax", "r", "v0", "output",
                     'sti_ti', 'sti_duration', 'sti_amplitude', 'sti_gain',
-                    "noise_seed", "seed", "integration_method"]
+                    "noise_seed", "seed", "method"]
     # -------------------------------------------------------------------------
 
     def __init__(self, par={}) -> None:
@@ -360,7 +360,7 @@ class JR_sdde_cpp:
             "noise_seed": False,
             "seed": None,
             "initial_state": None,
-            "integration_method": "heun",
+            "method": "heun",
             "output": "output",
             "t_end": 2000.0,
             "t_transition": 1000.0
@@ -487,7 +487,7 @@ class JR_sdde_cpp:
                        self.t_transition,
                        self.t_end,
                        self.noise_seed)
-        obj.integrate(self.integration_method)
+        obj.integrate(self.method)
         nstart = int((np.max(self.delays)) / self.dt) + 1
         t = np.asarray(obj.get_t())[:-nstart]
         y = np.asarray(obj.get_y())[:, :-nstart]
