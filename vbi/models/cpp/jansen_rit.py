@@ -48,7 +48,7 @@ class JR_sde_cpp:
         "noise_seed", "seed", "G", "adj", "A", "B", "a", "b",
         "noise_mu", "noise_std", "vmax", "v0", "r",
         "C0", "C1", "C2", "C3", "dt", "method", "t_transition",
-        "t_end", "control", "data_path", "RECORD_AVG",
+        "t_end", "control", "output", "RECORD_AVG",
         "initial_state"
     ]
 
@@ -76,7 +76,7 @@ class JR_sde_cpp:
         self.C2 = self.C2 * np.ones(self.N)
         self.C3 = self.C3 * np.ones(self.N)
         self.noise_seed = 1 if self.noise_seed else 0
-        os.makedirs(join(self.data_path), exist_ok=True)
+        os.makedirs(join(self.output), exist_ok=True)
 
     def __str__(self) -> str:
         print("Jansen-Rit sde model")
@@ -131,7 +131,7 @@ class JR_sde_cpp:
             "method": "heun",
             "t_transition": 500.0,      # ms
             "t_end": 2501.0,            # ms
-            "data_path": "output",      # output directory
+            "output": "output",      # output directory
             "RECORD_AVG": False         # true to store large time series in file
         }
         return par
@@ -290,7 +290,7 @@ class JR_sdde_cpp:
 
     valid_params = ["weights", "delays", "dt", "t_end", "G", "A", "a", "B", "b", "mu",
                     "nstart", "t_end", "t_transition", "sigma", "C", "record_step",
-                    "C0", "C1", "C2", "C3", "vmax", "r", "v0", "data_path",
+                    "C0", "C1", "C2", "C3", "vmax", "r", "v0", "output",
                     'sti_ti', 'sti_duration', 'sti_amplitude', 'sti_gain',
                     "noise_seed", "seed", "integration_method"]
     # -------------------------------------------------------------------------
@@ -320,7 +320,7 @@ class JR_sdde_cpp:
 
         if self.initial_state is None:
             self.INITIAL_STATE_SET = False
-        os.makedirs(join(self.data_path), exist_ok=True)
+        os.makedirs(join(self.output), exist_ok=True)
 
     def check_parameters(self, par):
         '''
@@ -361,7 +361,7 @@ class JR_sdde_cpp:
             "seed": None,
             "initial_state": None,
             "integration_method": "heun",
-            "data_path": "output",
+            "output": "output",
             "t_end": 2000.0,
             "t_transition": 1000.0
         }

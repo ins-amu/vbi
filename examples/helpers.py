@@ -117,8 +117,6 @@ def plot_ts_pxx_km(data, params, ax, **kwargs):
     print(f"fmax = {freq[idx]} Hz, Pxx = {pxx_avg[idx]}")
 
 
-
-
 def plot_ts_pxx_km_cupy(data, params, ax, **kwargs):
 
     x = np.sin(data['x'])

@@ -78,8 +78,27 @@ class DO_cpp:
 
         return params
 
+    def prepare_input(self):
+        '''
+        prepare input for cpp model.
+        '''
+        self.t_start = float(self.t_start)
+        self.t_end = float(self.t_end)
+        self.dt = float(self.dt)
+        self.a = float(self.a)
+        self.b = float(self.b)
+
+        if self.output is None:
+            self.output = "output"
+        if not os.path.exists(self.output):
+            os.makedirs(self.output)
+
+        if self.initial_state is None:
+            self.initial_state = [0.5, 1.0]
+        self.initial_state = np.asarray(self.initial_state, dtype=np.float64)
+
     # ---------------------------------------------------------------
-    def run(self, par={}):
+    def run(self, par={}, x0=None, verbose=False):
         '''
         Integrate the damp oscillator system of equations
 
@@ -88,11 +107,17 @@ class DO_cpp:
         par : dictionary
             parameters to control the model parameters.
 
-
         '''
+
+        if x0 is not None:
+            assert(len(x0) == 2)
+            self.initial_state = x0
+        
         self.check_parameters(par)
         for key in par.keys():
             setattr(self, key, par[key])
+
+        self.prepare_input()
 
         obj = _DO(self.dt,
                   self.a,

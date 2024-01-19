@@ -129,6 +129,7 @@ def prepare_vec(x, ns, engine, dtype="float"):
         if x.ndim == 1:
             x = repmat_vec(x, ns, engine)
         elif x.ndim == 2:
+            assert(x.shape[1] == ns), "second dimension of x must be equal to ns"
             x = move_data(x, engine)
         else:
             raise ValueError("x.ndim must be 1 or 2")

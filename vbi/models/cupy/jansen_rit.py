@@ -13,8 +13,8 @@ class JR_sde:
 
     valid_parameters = [
         "weights", "delays", "dt", "t_end", "G", "A", "a", "B", "b", "mu", "SC",
-        "t_cut", "noise_amp", "C0", "C1", "C2", "C3", "dtype",
-        "C_vec", "decimate", "method",
+        "t_cut", "noise_amp", "C0", "C1", "C2", "C3", "dtype", "same_initial_state",
+        "C_vec", "decimate", "method", "same_noise_per_sim",
         "vmax", "r", "v0", "output", "seed", "num_sim", "engine"]
 
     def __init__(self, par: dict = {}):
@@ -197,6 +197,8 @@ class JR_sde:
         snps = self.same_noise_per_sim
 
         dW = randn(nn, 1) if snps else randn(nn, ns)
+        if snps:
+            dW = np.tile(dW, (1, ns))
         dW = sqrt_dt * noise_amp * dW
 
         k1 = self.f_sys(x0, t) * dt
@@ -291,14 +293,15 @@ def set_initial_state(nn, ns, engine, seed=None, same_initial_state=False, dtype
         np.random.seed(seed)
 
     if same_initial_state:
-        y0 = np.random.uniform(-1, 1, nn)
-        y1 = np.random.uniform(-500, 500, nn)
-        y2 = np.random.uniform(-50, 50, nn)
-        y3 = np.random.uniform(-6, 6, nn)
-        y4 = np.random.uniform(-20, 20, nn)
-        y5 = np.random.uniform(-500, 500, nn)
+        y0 = np.random.uniform(-1, 1, (nn,1))
+        y1 = np.random.uniform(-500, 500, (nn,1))
+        y2 = np.random.uniform(-50, 50, (nn,1))
+        y3 = np.random.uniform(-6, 6, (nn,1))
+        y4 = np.random.uniform(-20, 20, (nn,1))
+        y5 = np.random.uniform(-500, 500, (nn,1))
         y = np.vstack((y0, y1, y2, y3, y4, y5))
-        y = repmat_vec(y, ns, engine)
+        y = np.tile(y, (1, ns))
+        y = move_data(y, engine)
     else:
         y0 = np.random.uniform(-1, 1, (nn, ns))
         y1 = np.random.uniform(-500, 500, (nn, ns))

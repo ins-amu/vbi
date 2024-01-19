@@ -7,10 +7,16 @@ import matplotlib.pyplot as plt
 from multiprocessing import Pool
 from sbi.analysis import pairplot
 from vbi.inference import Inference
+from sklearn.preprocessing import StandardScaler
 from vbi.models.cpp.damp_oscillator import DO_cpp
+
 from vbi import report_cfg
 from vbi import list_feature_extractor
 from vbi import get_features_by_domain, get_features_by_given_names
+
+seed = 2 
+np.random.seed(seed)
+torch.manual_seed(seed)
 
 parameters = {
         "a": 0.1,
@@ -88,13 +94,15 @@ control_list = [{'a': theta_np[i, 0], 'b': theta_np[i, 1]} for i in range(num_si
 
 stat_vec = batch_run(parameters, control_list, cfg)
 
-stat_vec = torch.tensor(np.array(stat_vec), dtype=torch.float32)
+scaler = StandardScaler()
+stat_vec_st = scaler.fit_transform(np.array(stat_vec))
+stat_vec_st = torch.tensor(stat_vec_st, dtype=torch.float32)
 torch.save(theta, 'output/theta.pt')
-torch.save(stat_vec, 'output/stat_vec.pt')
+torch.save(stat_vec_st, 'output/stat_vec_st.pt')
 
-theta.shape, stat_vec.shape
+theta.shape, stat_vec_st.shape
 
-posterior = obj.train(theta, stat_vec, prior, method="SNPE", density_estimator="maf")
+posterior = obj.train(theta, stat_vec_st, prior, method="SNPE", density_estimator="maf")
 
 with open('output/posterior.pkl', 'wb') as f:
     pickle.dump(posterior, f)
@@ -103,8 +111,9 @@ with open('output/posterior.pkl', 'rb') as f:
     posterior = pickle.load(f)
 
 xo = wrapper(parameters, theta_true, cfg)
+xo_st = scaler.transform(xo.reshape(1, -1))
 
-samples = obj.sample_posterior(xo, 10000, posterior)
+samples = obj.sample_posterior(xo_st, 10000, posterior)
 torch.save(samples, 'output/samples.pt')
 
 limits = [[i, j] for i, j in zip(prior_min, prior_max)]
