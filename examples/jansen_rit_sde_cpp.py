@@ -37,7 +37,7 @@ par_dict = {
     "C1": 135.0 * 0.8,
     "C2": 135.0 * 0.25,
     "C3": 135.0 * 0.25,
-    "adj": SC,
+    "weights": SC,
     "t_transition": 500.0,      # ms
     "t_end": 2501.0,            # ms
     "output": "output",

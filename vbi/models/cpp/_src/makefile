@@ -6,7 +6,7 @@ SWIGFLAGS = -c++ -python -shadow
 PYTHON_VERSION = 3.8
 PYTHON_INCLUDE = /usr/include/python$(PYTHON_VERSION)
 
-all: _do.so _jr_sde.so _jr_sdde.so _mpr_sde.so _sl_sdde.so _km_sde.so
+all: _do.so _jr_sde.so _jr_sdde.so _mpr_sde.so _sl_sdde.so _km_sde.so _wc_ode.so
 
 help: # add some explanation
 	@echo "make all     (default)"
@@ -27,6 +27,8 @@ jr_sdde: _jr_sdde.so
 mpr_sde: _mpr_sde.so
 
 sl_sdde: _sl_sdde.so
+
+wc_ode: _wc_ode.so
 
 do: _do.so
 
@@ -89,9 +91,16 @@ km_sde_wrap.o : km_sde_wrap.cpp km_sde.hpp utility.hpp
 
 km_sde_wrap.cpp : km_sde.i
 	swig $(SWIGFLAGS) -o km_sde_wrap.cpp km_sde.i
-
-
 # -----------------------------------------------------------------------------
+
+_wc_ode.so: wc_ode_wrap.o
+	$(CXX) -shared -fopenmp wc_ode_wrap.o -o _wc_ode.so
+
+wc_ode_wrap.o : wc_ode_wrap.cpp wc_ode.hpp utility.hpp
+	$(CXX) $(CXXFLAGS) $< -I $(PYTHON_INCLUDE)
+
+wc_ode_wrap.cpp : wc_ode.i
+	swig $(SWIGFLAGS) -o wc_ode_wrap.cpp wc_ode.i
 
 .PHONEY: help clean all km_sde jr_sde jr_sdde mpr_sde sl_sdde do
 
@@ -103,4 +112,5 @@ clean :
 	rm -rf mpr_sde_wrap.cpp mpr_sde.py
 	rm -rf sl_sdde_wrap.cpp sl_sdde.py
 	rm -rf km_sde_wrap.cpp km_sde.py
+	rm -rf wc_ode_wrap.cpp wc_ode.py
 	rm -rf __pycache__

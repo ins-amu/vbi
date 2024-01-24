@@ -42,11 +42,11 @@ bool folderExists(const std::string &path)
         return false;
 }
 
-std::vector<std::vector<size_t>> adjmat_to_adjlist(const dim2 &A)
+std::vector<std::vector<unsigned>> adjmat_to_adjlist(const dim2 &A)
 {
     size_t n = A.size();
 
-    std::vector<std::vector<size_t>> adjlist;
+    std::vector<std::vector<unsigned>> adjlist;
     adjlist.resize(n);
 
     for (int i = 0; i < n; ++i)

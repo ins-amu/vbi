@@ -22,7 +22,7 @@ private:
     double t_initial;
 
     dim1 times;
-    dim2 coordinates;
+    dim2 states;
     dim1 initial_state;
 
 public:
@@ -42,9 +42,9 @@ public:
         dimension = y.size();
         num_steps = int((t_final - t_initial) / dt);
 
-        coordinates.resize(num_steps);
+        states.resize(num_steps);
         for (size_t i = 0; i < num_steps; ++i)
-            coordinates[i].resize(dimension);
+            states[i].resize(dimension);
         times.resize(num_steps);
     }
 
@@ -60,7 +60,7 @@ public:
     {
         size_t n = dimension;
         dim1 dxdt(n);
-        coordinates[0] = initial_state;
+        states[0] = initial_state;
         times[0] = t_initial;
         dim1 y = initial_state;
 
@@ -69,7 +69,7 @@ public:
             double t = step * dt;
             euler(y, t);
 
-            coordinates[step] = y;
+            states[step] = y;
             times[step] = t_initial + t;
         }
     }
@@ -87,7 +87,7 @@ public:
     // {
     //     size_t n = dimension;
     //     dim1 dxdt(n), dydt(n), f(n);
-    //     coordinates[0] = initial_state;
+    //     states[0] = initial_state;
     //     times[0] = t_initial;
     //     dim1 y = initial_state;
 
@@ -96,7 +96,7 @@ public:
     //         double t = step * dt;
     //         heun(y, t);
 
-    //         coordinates[step] = y;
+    //         states[step] = y;
     //         times[step] = t_initial + t;
     //     }
     // }
@@ -118,7 +118,7 @@ public:
     {
         size_t n = dimension;
 
-        coordinates[0] = initial_state;
+        states[0] = initial_state;
         times[0] = t_initial;
         dim1 y = initial_state;
 
@@ -126,7 +126,7 @@ public:
         {
             double t = step * dt;
             rk4(y, t);
-            coordinates[step] = y;
+            states[step] = y;
             times[step] = t_initial + t;
         }
     }
@@ -158,7 +158,7 @@ public:
 
     dim2 get_coordinates()
     {
-        return coordinates;
+        return states;
     }
     dim1 get_times() 
     {

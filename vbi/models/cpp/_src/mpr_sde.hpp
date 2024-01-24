@@ -47,9 +47,9 @@ private:
     double t_final;
     double t_initial;
     double t_transition;
-    vector<vector<size_t>> adjlist;
-    vector<vector<size_t>> adjlist_A;
-    vector<vector<size_t>> adjlist_B;
+    vector<vector<unsigned>> adjlist;
+    vector<vector<unsigned>> adjlist_A;
+    vector<vector<unsigned>> adjlist_B;
 
     dim2 adj;
     dim2 adj_A;

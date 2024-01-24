@@ -20,6 +20,7 @@ typedef std::vector<float> dim1f;
 typedef std::vector<dim1f> dim2f;
 typedef std::vector<size_t> dim1i;
 typedef std::vector<dim1i> dim2i;
+typedef std::vector<std::vector<unsigned>> dim2I;
 
 class KM_sde
 {
@@ -42,7 +43,7 @@ private:
     int num_nodes;
     dim2 Theta;
     dim1 times;
-    dim2i adjlist;
+    dim2I adjlist;
     size_t num_steps;
     size_t num_steps_transition;
     size_t fix_seed;

@@ -31,7 +31,7 @@ private:
     size_t fix_seed;
     double coupling;
     double par_vmax;
-    dim2 coordinates;
+    dim2 states;
 
     dim1 C0;
     dim1 C1;
@@ -58,7 +58,7 @@ private:
     size_t index_transition;
     long unsigned num_iteration;
 
-    vector<vector<size_t>> adjlist;
+    vector<vector<unsigned>> adjlist;
     vector<vector<unsigned>> D;
     // vector<vector<unsigned>> plag;
 
@@ -145,14 +145,14 @@ public:
 
         // memory allocations -------------------------------------------------
         D.resize(N);
-        coordinates.resize(N);
+        states.resize(N);
         y.resize(dimension * N);
         t_ar.resize(num_iteration);
 
         for (size_t i = 0; i < N; ++i)
         {
             D[i].resize(N);
-            coordinates[i].resize(num_iteration - index_transition);
+            states[i].resize(num_iteration - index_transition);
         }
         for (int i = 0; i < dimension * N; ++i)
             y[i].resize(num_iteration);
@@ -328,7 +328,7 @@ public:
                 t_arr[counter] = t;
                 sti_vector[counter] = _sti_gain;
                 for (int j = 0; j < N; ++j)
-                    coordinates[j][counter] = y[j + N][it + 1] - y[j + N2][it + 1];
+                    states[j][counter] = y[j + N][it + 1] - y[j + N2][it + 1];
                 counter++;
             }
         }
@@ -341,7 +341,7 @@ public:
 
     dim2 get_y()
     {
-        return coordinates;
+        return states;
     }
     dim1 get_sti_vector()
     {

@@ -38,7 +38,7 @@ private:
     size_t index_transition;
     long unsigned num_iteration;
 
-    vector<vector<size_t>> adjlist;
+    vector<vector<unsigned>> adjlist;
     vector<vector<unsigned>> D;
     vector<vector<unsigned>> plag;
 

@@ -28,7 +28,7 @@ private:
     size_t dimension;
     size_t num_steps;
     size_t index_transition;
-    vector<vector<size_t>> adjlist;
+    vector<vector<unsigned>> adjlist;
 
     double par_A;
     double par_a;
@@ -50,7 +50,7 @@ private:
     int fix_seed;
 
     dim1 times;
-    dim2 coordinates;
+    dim2 states;
     dim1 initial_state;
 
     // bool ADJ_SET = false;      //check if adjacency matrix is set.
@@ -113,9 +113,9 @@ public:
         index_transition = int(t_transition / dt);
         size_t buffer_size = num_steps - index_transition; //   int((t_final - t_transition) / dt);
 
-        coordinates.resize(buffer_size);
+        states.resize(buffer_size);
         for (size_t i = 0; i < buffer_size; ++i)
-            coordinates[i].resize(N);
+            states[i].resize(N);
         times.resize(buffer_size);
     }
     // ------------------------------------------------------------------------
@@ -192,7 +192,7 @@ public:
                 times[counter] = t;
 
                 for (size_t i = 0; i < N; ++i)
-                    coordinates[counter][i] = y[i + N] - y[i + N2];
+                    states[counter][i] = y[i + N] - y[i + N2];
                 counter++;
             }
             euler(y, t);
@@ -242,7 +242,7 @@ public:
             {
                 times[counter] = t;
                 for (size_t i = 0; i < N; ++i)
-                    coordinates[counter][i] = y[i + N] - y[i + N2];
+                    states[counter][i] = y[i + N] - y[i + N2];
                 counter++;
             }
             heun(y, t);
@@ -252,7 +252,7 @@ public:
     // ------------------------------------------------------------------------
     dim2 get_coordinates()
     {
-        return coordinates;
+        return states;
     }
     // ------------------------------------------------------------------------
     dim1 get_times()

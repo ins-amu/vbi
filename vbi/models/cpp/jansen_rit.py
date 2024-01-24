@@ -45,7 +45,7 @@ class JR_sde_cpp:
 
     '''
     valid_params = [
-        "noise_seed", "seed", "G", "adj", "A", "B", "a", "b",
+        "noise_seed", "seed", "G", "weights", "A", "B", "a", "b",
         "noise_mu", "noise_std", "vmax", "v0", "r",
         "C0", "C1", "C2", "C3", "dt", "method", "t_transition",
         "t_end", "control", "output", "RECORD_AVG",
@@ -66,7 +66,7 @@ class JR_sde_cpp:
         if self.seed is not None:
             np.random.seed(self.seed)
 
-        self.N = self.num_nodes = np.asarray(self.adj).shape[0]
+        self.N = self.num_nodes = np.asarray(self.weights).shape[0]
 
         if self.initial_state is None:
             self.INITIAL_STATE_SET = False
@@ -117,7 +117,7 @@ class JR_sde_cpp:
             "r": 0.56,                  # mV
             "initial_state": None,
 
-            'adj': None,
+            'weights': None,
             "C0": 135.0 * 1.0,
             "C1": 135.0 * 0.8,
             "C2": 135.0 * 0.25,
@@ -183,7 +183,7 @@ class JR_sde_cpp:
         '''
 
         self.N = int(self.N)
-        self.adj = np.asarray(self.adj)
+        self.weights = np.asarray(self.weights)
         self.dt = float(self.dt)
         self.t_transition = float(self.t_transition)
         self.t_end = float(self.t_end)
@@ -250,7 +250,7 @@ class JR_sde_cpp:
                       self.t_transition,
                       self.t_end,
                       self.G,
-                      self.adj,
+                      self.weights,
                       self.initial_state,
                       self.A,
                       self.B,
