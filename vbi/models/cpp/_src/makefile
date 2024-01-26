@@ -6,7 +6,7 @@ SWIGFLAGS = -c++ -python -shadow
 PYTHON_VERSION = 3.8
 PYTHON_INCLUDE = /usr/include/python$(PYTHON_VERSION)
 
-all: _do.so _jr_sde.so _jr_sdde.so _mpr_sde.so _sl_sdde.so _km_sde.so _wc_ode.so
+all: _do.so _jr_sde.so _jr_sdde.so _mpr_sde.so _sl_sdde.so _km_sde.so _wc_ode.so _ww_sde.so
 
 help: # add some explanation
 	@echo "make all     (default)"
@@ -17,6 +17,9 @@ help: # add some explanation
 	@echo "make mpr_sde (compile Montbrio-Pazo-Roxin SDE model)"
 	@echo "make sl_sdde (compile Stuart-Landau SDDE model)"
 	@echo "make km_sde  (compile Kuramoto-Sakaguchi SDE model)"
+	@echo "make wc_ode  (compile Wilson-Cowan ODE model)"
+	@echo "make ww_sde  (compile Wong-Wang SDE model)"
+
 
 km_sde: _km_sde.so
 
@@ -29,6 +32,8 @@ mpr_sde: _mpr_sde.so
 sl_sdde: _sl_sdde.so
 
 wc_ode: _wc_ode.so
+
+ww_sde: _ww_sde.so
 
 do: _do.so
 
@@ -101,6 +106,17 @@ wc_ode_wrap.o : wc_ode_wrap.cpp wc_ode.hpp utility.hpp
 
 wc_ode_wrap.cpp : wc_ode.i
 	swig $(SWIGFLAGS) -o wc_ode_wrap.cpp wc_ode.i
+# -----------------------------------------------------------------------------
+
+_ww_sde.so: ww_sde_wrap.o
+	$(CXX) -shared -fopenmp ww_sde_wrap.o -o _ww_sde.so
+
+ww_sde_wrap.o : ww_sde_wrap.cpp ww_sde.hpp utility.hpp
+	$(CXX) $(CXXFLAGS) $< -I $(PYTHON_INCLUDE)
+
+ww_sde_wrap.cpp : ww_sde.i
+	swig $(SWIGFLAGS) -o ww_sde_wrap.cpp ww_sde.i
+# -----------------------------------------------------------------------------
 
 .PHONEY: help clean all km_sde jr_sde jr_sdde mpr_sde sl_sdde do
 
@@ -113,4 +129,5 @@ clean :
 	rm -rf sl_sdde_wrap.cpp sl_sdde.py
 	rm -rf km_sde_wrap.cpp km_sde.py
 	rm -rf wc_ode_wrap.cpp wc_ode.py
+	rm -rf ww_sde_wrap.cpp ww_sde.py
 	rm -rf __pycache__

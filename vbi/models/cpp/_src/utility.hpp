@@ -252,4 +252,16 @@ void fill_vector(dim1 &v, const vector<int> indices, const double value)
         v[indices[i]] = value;
 }
 
+int find_nan(const dim1 &vec)
+{
+    int ind = vec.size() - 1;
+    if (std::isnan(vec[ind]))
+    {
+        std::cout << "nan found!" << std::endl;
+        return -1;
+    }
+    return 0;
+}
+
+
 #endif
