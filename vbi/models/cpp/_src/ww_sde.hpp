@@ -116,12 +116,15 @@ public:
     void f_ww(const dim1 &S, dim1 &dSdt, const double t)
     {
         double x = 0.0;
-        dim1 coupling = matvec(weights, S);
         double inv_tau_s = 1.0 / tau_s;
+        // dim1 coupling = matvec(weights, S);
 
         for (int i; i < N; ++i)
         {
-            x = w * J_N * S[i] + I_o + G * J_N * coupling[i];
+            double coupling = 0.0;
+            for (int j: adjlist[i])
+                coupling += weights[i][j] * S[j];
+            x = w * J_N * S[i] + I_o + G * J_N * coupling;
             dSdt[i] = -S[i] * inv_tau_s + (1.0 - S[i]) * H(x) * gamma;
         }
     }
