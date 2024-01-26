@@ -10,7 +10,7 @@ from multiprocessing import Pool
 from sbi.analysis import pairplot
 from vbi.inference import Inference
 from sklearn.preprocessing import StandardScaler
-from vbi.models.cpp.jansen_rit import JR_sdde_cpp
+from vbi.models.cpp.jansen_rit import JR_sdde
 from helpers import *
 
 from vbi import report_cfg
@@ -58,7 +58,7 @@ theta_true = {
     "C1": {"indices": [[0], [2, 3]], "value": [150.0, 160.0]}
 }
 
-obj = JR_sdde_cpp(param)
+obj = JR_sdde(param)
 data = obj.run(par=theta_true)
 t = data['t']
 x = data['x']

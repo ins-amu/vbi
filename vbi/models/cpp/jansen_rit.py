@@ -16,7 +16,7 @@ from vbi.models.cpp._src.jr_sdde import JR_sdde as _JR_sdde
 
 
 
-class JR_sde_cpp:
+class JR_sde:
     ''' 
     Jansen-Rit model C++ implementation.
 
@@ -285,7 +285,7 @@ class JR_sde_cpp:
 
 ############################ Jansen-Rit sdde ##################################
 
-class JR_sdde_cpp:
+class JR_sdde:
     pass
 
     valid_params = ["weights", "delays", "dt", "t_end", "G", "A", "a", "B", "b", "mu",

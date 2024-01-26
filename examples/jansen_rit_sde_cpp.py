@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 from multiprocessing import Pool
 from sbi.analysis import pairplot
 from vbi.inference import Inference
-from vbi.models.cpp.jansen_rit import JR_sde_cpp
+from vbi.models.cpp.jansen_rit import JR_sde
 from sklearn.preprocessing import StandardScaler
 
 from vbi import report_cfg
@@ -28,7 +28,7 @@ plt.rcParams['ytick.labelsize'] = LABESSIZE
 nn = 6
 SC = nx.to_numpy_array(nx.complete_graph(nn))
 
-par_dict = {
+par = {
     "G": 1.0,
     "noise_mu": 0.24,
     "noise_std": 0.1,
@@ -49,13 +49,13 @@ theta_true = {
     "G": {"value": 1.0},
 }
 
-obj = JR_sde_cpp(par_dict)
+obj = JR_sde(par)
 print(obj())
 
 data = obj.run(theta_true)
 
 fig, ax = plt.subplots(1, 2, figsize=(10, 4))
-plot_ts_pxx_jr(data, par_dict, [ax[0], ax[1]], alpha=0.6, lw=1)
+plot_ts_pxx_jr(data, par, [ax[0], ax[1]], alpha=0.6, lw=1)
 ax[0].set_xlim(2000, 2500)
 plt.tight_layout()
 plt.savefig("output/jansen_rit_ts_psd.jpeg", dpi=300)
@@ -65,7 +65,7 @@ cfg = get_features_by_given_names(cfg, names=['calc_std', 'calc_mean'])
 report_cfg(cfg)
 
 def wrapper(par, control, cfg, verbose=False):
-    ode = JR_sde_cpp(par)
+    ode = JR_sde(par)
     sol = ode.run(control)
 
     # extract features
@@ -93,7 +93,7 @@ def batch_run(par, control_list, cfg, n_workers=1):
             stat_vec = [res.get() for res in async_results]
     return stat_vec
 
-x_ = wrapper(par_dict, theta_true, cfg)
+x_ = wrapper(par, theta_true, cfg)
 print(x_)
 
 num_sim = 200
@@ -112,7 +112,7 @@ theta_np = theta.numpy().astype(float)
 control_list = [{'C1': {"indices": [[0], [2, 3]], "value": [theta_np[i, 1], theta_np[i, 2]]},
                  'G': {"value": theta_np[i, 0]}} for i in range(num_sim)]
 
-stat_vec = batch_run(par_dict, control_list, cfg, num_workers)
+stat_vec = batch_run(par, control_list, cfg, num_workers)
 
 scaler = StandardScaler()
 stat_vec_st = scaler.fit_transform(np.array(stat_vec))
@@ -130,7 +130,7 @@ with open('output/posterior.pkl', 'wb') as f:
 with open('output/posterior.pkl', 'rb') as f:
     posterior = pickle.load(f)
 
-xo = wrapper(par_dict, theta_true, cfg)
+xo = wrapper(par, theta_true, cfg)
 xo_st = scaler.transform(xo.reshape(1, -1))
 
 samples = obj.sample_posterior(xo_st, 10000, posterior)
