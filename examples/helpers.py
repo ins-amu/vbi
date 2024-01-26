@@ -168,3 +168,10 @@ def plot_ts_pxx_wc(data, par, ax, **kwargs):
     ax[0].margins(x=0)
 
     plt.tight_layout()
+
+def plot_mat(mat, ax, **kwargs):
+    im = ax.imshow(mat, **kwargs)
+    ax.set_xticks([])
+    ax.set_yticks([])
+    cbar = plt.colorbar(im, ax=ax)
+    

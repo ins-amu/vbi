@@ -91,6 +91,7 @@ class WW_sde(object):
             "ts_decimate": 1,
             "RECORD_TS": True,
             "RECORD_FMRI": True,
+            "SPARSE": True,
         }
 
         return par

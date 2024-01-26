@@ -52,6 +52,7 @@ private:
     dim1 t_fmri;
     int RECORD_TS;
     int RECORD_FMRI;
+    int SPARSE;
 
 public:
     WW_sde(
@@ -75,6 +76,7 @@ public:
         int record_step = 1,
         int RECORD_TS = 1,
         int RECORD_FMRI = 1,
+        int SPARSE = 0,
         int fix_seed = 0) : dt(dt), G(G), boldObj(N, dt)
     {
         assert(t_end > t_cut);
@@ -96,11 +98,14 @@ public:
         this->fix_seed = fix_seed;
         this->RECORD_TS = RECORD_TS;
         this->RECORD_FMRI = RECORD_FMRI;
+        this->SPARSE = SPARSE;
+
         initial_state = y0;
 
         assert(record_step > 0);
         assert(N == weights.size());
         adjlist = adjmat_to_adjlist(weights);
+        
     }
 
     double H(const double x)
@@ -111,12 +116,12 @@ public:
     void f_ww(const dim1 &S, dim1 &dSdt, const double t)
     {
         double x = 0.0;
-        double coupling = 0.0;
+        dim1 coupling = matvec(weights, S);
         double inv_tau_s = 1.0 / tau_s;
 
         for (int i; i < N; ++i)
         {
-            x = w * J_N * S[i] + I_o + G * J_N * coupling;
+            x = w * J_N * S[i] + I_o + G * J_N * coupling[i];
             dSdt[i] = -S[i] * inv_tau_s + (1.0 - S[i]) * H(x) * gamma;
         }
     }
@@ -158,8 +163,8 @@ public:
         for (size_t i = 0; i < n_steps; ++i)
             states[i].resize(N);
 
-        // t_fmri.reserve(nt / decimate);
-        // d_fmri.reserve(nt / decimate);
+        t_fmri.reserve(nt / decimate);
+        d_fmri.reserve(nt / decimate);
 
         for (size_t itr = 1; itr <= nt; ++itr)
         {

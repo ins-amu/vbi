@@ -19,18 +19,6 @@ typedef std::vector<dim1> dim2;
 typedef std::vector<unsigned int> dim1I;
 typedef std::vector<dim1I> dim2I;
 
-dim1 matmul(const dim2 &A, const dim1 &x, const int offset)
-{
-    int N = A.size();
-    dim1 y(N);
-    for (int i = 0; i < N; ++i)
-    {
-        y[i] = 0.0;
-        for (int j = 0; j < N; ++j)
-            y[i] += A[i][j] * x[j + offset];
-    }
-    return y;
-}
 
 class WC_ode
 {
@@ -169,9 +157,9 @@ public:
         dim1 lc_i(N);
         double thr = 1e-6;
         if (std::abs(g_e) > thr)
-            lc_e = matmul(weights, y, 0);
+            lc_e = matvec(weights, y, 0);
         if (std::abs(g_i) > thr)
-            lc_i = matmul(weights, y, N);
+            lc_i = matvec(weights, y, N);
 
         for (int i = 0; i < N; ++i)
         {

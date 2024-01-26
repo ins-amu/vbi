@@ -11,12 +11,15 @@
 #include <unistd.h>
 #include <sys/time.h>
 #include <sys/resource.h>
+// #include <Eigen/Dense>
 
 using std::string;
 using std::vector;
 
 typedef std::vector<double> dim1;
-typedef std::vector<dim1> dim2;
+typedef std::vector<unsigned> dim1I;
+typedef std::vector<std::vector<double>> dim2;
+typedef std::vector<std::vector<unsigned>> dim2I;
 
 bool fileExists(const std::string &filename)
 {
@@ -263,5 +266,42 @@ int find_nan(const dim1 &vec)
     return 0;
 }
 
+dim1 matvec(const dim2 &mat, const dim1 &x, const int offset = 0)
+{
+    int N = mat.size();
+    dim1 y(N);
+
+    // # pragma omp simd
+    for (int i = 0; i < N; ++i)
+    {
+        y[i] = 0.0;
+        for (int j = 0; j < N; ++j)
+            y[i] += mat[i][j] * x[j + offset];
+    }
+    return y;
+}
+
+dim1 matvec_s(const dim2 &mat, const dim2I &a, const dim1 &x, const int offset = 0)
+{
+    int n = mat.size();
+    dim1 y(n);
+
+    # pragma omp simd
+    for (int i=0; i<n; ++i)
+    {
+        for(int j:a[i])
+        {
+            y[i] += mat[i][j] * x[j + offset];
+        }
+    }
+    return y;
+}
+
+// dim1 matmul_e(const Eigen::MatrixXd &A, const Eigen::VectorXd &x)
+// {
+//     Eigen::VectorXd y = A * x;
+//     dim1 y_vec(y.data(), y.data() + y.size());
+//     return y_vec;
+// }
 
 #endif
