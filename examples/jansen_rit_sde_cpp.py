@@ -79,7 +79,6 @@ def wrapper(par, control, cfg, verbose=False):
 
 
 def batch_run(par, control_list, cfg, n_workers=1):
-    stat_vec = []
     n = len(control_list)
     def update_bar(_):
         pbar.update()

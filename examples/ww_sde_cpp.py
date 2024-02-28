@@ -29,7 +29,6 @@ plt.rcParams['axes.labelsize'] = LABESSIZE
 plt.rcParams['xtick.labelsize'] = LABESSIZE
 plt.rcParams['ytick.labelsize'] = LABESSIZE
 
-nn = 50
 weights = vbi.Load_Data_Sample(84).get_weights()
 
 par = {
