@@ -125,7 +125,7 @@ def prepare_vec(x, ns, engine, dtype="float"):
     if not is_seq(x):
         return eval(f"{dtype}({x})")
     else:
-        x = xp.array(x)
+        x = np.array(x)
         if x.ndim == 1:
             x = repmat_vec(x, ns, engine)
         elif x.ndim == 2:

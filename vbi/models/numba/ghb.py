@@ -66,8 +66,8 @@ def run(P, times):
         for i in range(nn):
             gx, gy = 0.0, 0.0
             for j in range(nn):
-                gx = gx + SC[j, i] * (x[j] - x[i])
-                gy = gy + SC[j, i] * (y[j] - y[i])
+                gx = gx + SC[i, j] * (x[j] - x[i])
+                gy = gy + SC[i, j] * (y[j] - y[i])
             dx = (
                 (x[i] * (eta[i] - (x[i] * x[i]) - (y[i] * y[i])))
                 - (omega[i] * y[i])

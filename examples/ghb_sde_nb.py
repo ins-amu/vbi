@@ -1,5 +1,6 @@
 import numpy as np
 import networkx as nx
+from vbi import LoadSample
 import matplotlib.pyplot as plt
 from numpy.random import uniform
 from vbi.models.numba.ghb import GHB_sde
@@ -12,10 +13,7 @@ plt.rcParams["axes.labelsize"] = LABESSIZE
 plt.rcParams["xtick.labelsize"] = LABESSIZE
 plt.rcParams["ytick.labelsize"] = LABESSIZE
 
-# nn = 50
-# weights = nx.to_numpy_array(nx.complete_graph(nn))
-weights = np.loadtxt("data/weights.txt")
-weights = weights/np.max(weights)
+weights = LoadSample(nn=84).get_weights()
 nn = len(weights)
 
 freq = uniform(0.02, 0.04, nn)
