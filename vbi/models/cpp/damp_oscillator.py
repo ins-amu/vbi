@@ -4,7 +4,6 @@ import torch
 import numpy as np
 from copy import copy
 from os.path import join
-from symengine import Symbol
 from vbi.models.cpp._src.do import DO as _DO
 
 class DO_cpp:
