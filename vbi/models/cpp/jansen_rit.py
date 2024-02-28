@@ -234,6 +234,7 @@ class JR_sde:
                     print("initial state set by default")
         else:
             self.INITIAL_STATE_SET = True
+            self.initial_state = x0
 
         for key in par.keys():
             if key not in self.valid_params:
