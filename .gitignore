@@ -16,6 +16,7 @@ html/
 sbi-logs/
 e/
 _e/
+*/*/*/_src/*.py
 
 *_wrap.cpp
 *_wrap.cxx
