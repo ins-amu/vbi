@@ -6,7 +6,7 @@ from vbi.feature_extraction.features_utils import *
 from sklearn.decomposition import PCA
 from scipy.stats import moment, skew, kurtosis
 from vbi.feature_extraction.utility import *
-
+from typing import List, Tuple
 
 try:
     import ssm
@@ -77,21 +77,26 @@ def average_power(ts, fs):
         return values, labels
 
 
-def auc(ts, fs):
+def auc(ts:np.ndarray, dx:float=None, x:np.ndarray=None):
     """Computes the area under the curve of the signal computed with trapezoid rule.
 
     Feature computational cost: 1
 
     Parameters
     ----------
-    signal : nd-arrays [n_regions x n_samples]
+    ts : nd-arrays [n_regions x n_samples]
         Input from which the area under the curve is computed
-    fs : int
-        Sampling Frequency
+    dx: float
+        Spacing between values
+    x: array_like, optional
+        x values of the time series
+    
     Returns
     -------
     list of float
         The area under the curve value
+    labels: list of str
+        Labels of the features
 
     """
     if isinstance(ts, (list, tuple)):
@@ -102,9 +107,66 @@ def auc(ts, fs):
     if ts.size == 0:
         return [], []
 
-    # t = np.arange(ts.shape[1]) / fs
-    values = np.trapz(np.abs(ts), dx=1/fs, axis=1)
-    labels = [f"auc_{i}" for i in range(len(values))]
+    if dx is None:
+        dx = 1
+    values = np.trapz(ts, x=x, dx=dx, axis=1)
+    labels = [f"auc_{i}" for i in range(len(values))]    
+    
+    return values, labels
+
+def auc_lim(ts:np.ndarray, dx:float=None, x:np.ndarray=None, xlim:List[Tuple[float, float]]=None):
+    ''' 
+    Compute the area under the curve for a given time series within a given limit
+    
+    Parameters
+    ----------
+    ts : nd-arrays [n_regions x n_samples]
+        Input from which the area under the curve is computed
+    dx: float
+        Spacing between values
+    x: array_like
+        x values of the time series
+    xlim: list of tuples
+        The limits of the time series
+        
+    Returns
+    -------
+    list of float
+        The area under the curve value
+    labels: list of str
+        Labels of the features
+
+    '''
+    
+    if isinstance(ts, (list, tuple)):
+        ts = np.array(ts)
+    if ts.ndim == 1:
+        ts = ts.reshape(1, -1)
+
+    if ts.size == 0:
+        return [], []
+    
+    if x is None:
+        x = np.arange(0, ts.shape[1])
+    else:
+        x = np.array(x)
+    assert(x.shape[0] == ts.shape[1]), "x and ts must have the same length"
+    
+
+    if xlim is None:
+        xlim = [(x[0], x[-1])]
+    
+    if not isinstance(xlim[0], (list, tuple)):
+        xlim = [xlim]
+    
+    values = []
+    for i, (xmin, xmax) in enumerate(xlim):
+        idx = np.where((x >= xmin) & (x <= xmax))[0]
+        if len(idx) == 0:
+            continue
+        values.extend(np.trapz(ts[:, idx], x=x[idx], dx=dx, axis=1))
+    labels = [f"auc_lim_{i}" for i in range(len(values))]
+    
     return values, labels
 
 
@@ -1198,7 +1260,7 @@ def calc_entropy_bin(ts, prob="standard", average=False):
 ############################# Spectral ########################################
 
 
-def spectrum_stats(ts, fs, method='fft'):
+def spectrum_stats(ts, fs, method='fft', nperseg=None):
     """ 
     compute some statistics of the power spectrum of the time series.
 
@@ -1228,7 +1290,9 @@ def spectrum_stats(ts, fs, method='fft'):
         # r, c = ts.shape
 
         if method == 'welch':
-            freq, psd = scipy.signal.welch(ts, fs=fs, axis=1)
+            if nperseg is None:
+                nperseg = ts.shape[1] // 2
+            freq, psd = scipy.signal.welch(ts, fs=fs, axis=1, nperseg=nperseg)
         elif method == 'fft':
             freq, psd = calc_fft(ts, fs)
         else:
@@ -1274,6 +1338,250 @@ def spectrum_stats(ts, fs, method='fft'):
 
     return Values, Labels
 
+def spectrum_auc(ts, fs, method='fft', bands=None, nperseg=None, avg=False, indices=None):
+    '''
+    calculate the area under the curve of the power spectrum of the time series over given frequency bands.
+    
+    Parameters
+    ----------
+    ts : nd-array [n_regions x n_samples]
+        Input time series
+    fs : float
+        Sampling frequency
+    method : str
+        Method to compute the power spectrum. Can be 'welch' or 'fft'
+    bands : list of tuples
+        Frequency bands
+    nperseg: int
+        Length of each segment. default is half of the time series 
+    avg: bool
+        averaging psd over all regions
+    indices: list of int
+        indices of the regions to be used
+        
+    Returns
+    -------
+    values: array-like
+        area under the curve of the power spectrum of the time series
+    labels: array-like
+        labels of the features
+        
+    '''
+    
+    info, n = check_input(ts)
+    if not info:
+        return [np.nan]*n, [f"spectrum_stats_{i}" for i in range(n)]
+    else:
+        ts = n
+        ts = ts - ts.mean(axis=1, keepdims=True)
+        # r, c = ts.shape
+        
+        if indices is None:
+            indices = np.arange(ts.shape[0])
+        else:
+            indices = np.array(indices, dtype=int)
+            ts = ts[indices, :]
+            if len(indices) == 1:
+                ts = ts.reshape(1, -1)
+                
+        if method == 'welch':
+            if nperseg is None:
+                nperseg = ts.shape[1] // 2
+            freq, psd = scipy.signal.welch(ts, fs=fs, axis=1, nperseg=nperseg)
+        elif method == 'fft':
+            freq, psd = calc_fft(ts, fs)
+        else:
+            raise ValueError("method must be one of 'welch', 'fft'")
+
+        if bands is None:
+            bands = [(0, 4), (4, 8), (8, 12), (12, 30), (30, 70)]
+            
+        if avg:
+            psd = np.mean(psd, axis=0).reshape(1, -1)
+            
+        values = []
+        for i, band in enumerate(bands):
+            idx = (freq >= band[0]) & (freq < band[1])
+            if np.sum(idx) == 0:
+                continue
+            psd_band = psd[:, idx]
+            values.append(np.trapz(psd_band, axis=1))
+
+        if len(values) > 0:
+            values = np.concatenate(values)
+            labels = [f"spectrum_auc_{i}" for i in range(len(values))]
+        if len(values) == 0:
+            values = [np.nan]
+            labels = ["spectrum_auc"]
+        
+        return values, labels
+        
+
+def spectrum_moments(ts, 
+                     fs, 
+                     method='fft', 
+                     nperseg=None, 
+                     avg=False, 
+                     moments=[2,3,4,5,6],
+                     normalize=False,
+                     indices=None):
+    '''
+    Computes the moments of power spectrum
+
+    Parameters
+    ----------
+    ts : nd-array [n_regions x n_samples]
+       Input from which power spectrum statistics are computed
+    fs : float
+        Sampling frequency
+    method : str
+        Method to compute the power spectrum. Can be 'welch' or 'fft'
+    nperseg: int
+        ...
+    avg: bool
+        averaging over all regions
+    nm: list of int
+        moments orders
+
+    Returns
+    -------
+    values: array-like
+        power spectrum statistics of the time series
+    labels: array-like
+        labels of the features
+    '''
+
+    info, n = check_input(ts)
+    if not info:
+        return [np.nan]*n, [f"spectrum_moment_{i}" for i in range(n)]
+    else:
+        ts = n
+        ts = ts - ts.mean(axis=1, keepdims=True)
+        # r, c = ts.shape
+        if indices is None:
+            indices = np.arange(ts.shape[0])
+        else:
+            indices = np.array(indices, dtype=int)
+            ts = ts[indices, :]
+            if len(indices) == 1:
+                ts = ts.reshape(1, -1)
+
+        if method == 'welch':
+            if nperseg is None:
+                nperseg = ts.shape[1] // 2
+            freq, psd = scipy.signal.welch(ts, fs=fs, axis=1, nperseg=nperseg)
+        elif method == 'fft':
+            freq, psd = calc_fft(ts, fs)
+        else:
+            raise ValueError("method must be one of 'welch', 'fft'")
+
+        Values = np.array([])
+        Labels = []
+        if normalize:
+            psd = psd / np.max(psd, axis=1, keepdims=True)
+
+        if avg:
+            psd = np.mean(psd, axis=0)
+        
+        for i in moments:
+            _m = moment(psd, i, axis=1)
+            Values = np.append(Values, _m)
+            Labels = Labels + [f"spectrum_moment_{i}_{j}" for j in range(len(_m))]
+    return Values, Labels
+
+
+def psd_raw(ts, fs, bands=[(0, 4), (4, 8), (8, 12), (12, 30), (30, 70)],
+            df=None, method='fft', nperseg=None, avg=False, 
+            normalize=False, 
+            normalize_to=None, # normalize to given value in Hz 
+            indices=None):
+    '''
+    Calculate frequency spectrum and return with specified frequency resolution.
+    
+    Parameters
+    ----------
+    
+    ts : nd-array [n_regions x n_samples]
+        Input time series
+    fs : float
+        Sampling frequency
+    bands : list of tuples
+        Frequency bands
+    df : float
+        Frequency resolution, default is fs / n_samples
+    method : str
+        Method to compute the power spectrum. Can be 'welch' or 'fft'
+    nperseg: int
+        Length of each segment. default is half of the time series
+    avg: bool
+        averaging psd over all regions
+    normalize: bool
+        normalize the psd by the maximum value
+    indices: list of int
+        indices of the regions to be used
+        
+    Returns
+    -------
+    psd: array-like
+        power spectrum density
+    
+    '''
+    
+    info, n = check_input(ts)
+    if not info:
+        return [np.nan]*n, [f"spectrum_moment_{i}" for i in range(n)]
+    else:
+        ts = n
+        ts = ts - ts.mean(axis=1, keepdims=True)
+        # r, c = ts.shape
+        if indices is None:
+            indices = np.arange(ts.shape[0])
+        else:
+            indices = np.array(indices, dtype=int)
+            ts = ts[indices, :]
+            if len(indices) == 1:
+                ts = ts.reshape(1, -1)
+
+        if method == 'welch':
+            if nperseg is None:
+                nperseg = ts.shape[1] // 2
+            freq, psd = scipy.signal.welch(ts, fs=fs, axis=1, nperseg=nperseg)
+        elif method == 'fft':
+            freq, psd = calc_fft(ts, fs)
+        else:
+            raise ValueError("method must be one of 'welch', 'fft'")
+        
+        if avg:
+            psd = np.mean(psd, axis=0).reshape(1, -1)
+        
+        if normalize_to is not None:
+            # check if the value is in the frequency range
+            if normalize_to < 0 or normalize_to > fs / 2:
+                raise ValueError("normalize_to must be in the range of 0 to fs/2")
+            
+            # find index of the frequency closest to the given value
+            idx = np.argmin(np.abs(freq - normalize_to))
+            psd = psd / psd[:, idx].reshape(-1, 1)
+        elif normalize:        
+            psd = psd / np.max(psd, axis=1, keepdims=True)
+        
+        if df is None:
+            df = fs / ts.shape[1]
+        fr_intp = np.arange(0, fs/2, df)
+        psd_intp = np.apply_along_axis(lambda row: np.interp(fr_intp, freq, row), axis=1, arr=psd)
+        
+        psd_bands = np.array([])
+        for i in range(len(bands)):
+            idx = (fr_intp >= bands[i][0]) & (fr_intp < bands[i][1])
+            if np.sum(idx) == 0:
+                continue
+            psd_bands = np.append(psd_bands, psd_intp[:, idx].flatten())
+        
+        psd_bands = psd_bands.astype(float)
+        labels = [f"psd_{i}" for i in range(len(psd_bands))]
+            
+        return psd_bands, labels
+    
 
 def wavelet_abs_mean_1d(ts, function=scipy.signal.ricker, widths=np.arange(1, 10)):
     """Computes CWT absolute mean value of each wavelet scale.

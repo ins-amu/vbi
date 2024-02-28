@@ -58,7 +58,7 @@ def count_depth(ls):
         return 0
 
 
-def prepare_input(ts):
+def prepare_input(ts, dtype=np.float32):
     '''
     prepare input format
 
@@ -75,36 +75,31 @@ def prepare_input(ts):
 
     if isinstance(ts, np.ndarray):
         if ts.ndim == 3:
-            # n_trial, n_region, n_sample = ts.shape
             pass
         elif ts.ndim == 2:
-            # n_region = 1
-            # n_trial, n_sample = ts.shape
-            ts = ts[:, np.newaxis, :]
+            ts = ts[:, np.newaxis, :] # n_region = 1 
         else:
-            # n_trial = 1
-            # n_region = 1
-            # n_sample = ts.shape[0]
-            ts = ts[np.newaxis, np.newaxis, :]
+            ts = ts[np.newaxis, np.newaxis, :] # n_region , n_trial = 1
 
     elif isinstance(ts, (list, tuple)):
         if isinstance(ts[0], np.ndarray):
-            ts = [ts[i].tolist() for i in range(len(ts))]
-
-        depth = count_depth(ts)
-        if depth == 3:
-            ts = np.asarray(ts)
-            # n_trial, n_region, n_sample = ts.shape
-        elif depth == 2:
-            ts = np.array(ts)
-            n_region = 1
-            n_trial, n_sample = ts.shape
-            ts = ts[:, np.newaxis, :]
+            if ts[0].ndim == 2:
+                ts = np.array(ts, dtype=dtype)
+            elif ts[0].ndim == 1:
+                ts = np.array(ts, dtype=dtype)
+                ts = ts[:, np.newaxis, :] # n_region = 1
+            else:
+                ts = np.array(ts, dtype=dtype)[np.newaxis, np.newaxis, :]
         else:
-            # n_trial = 1
-            # n_region = 1
-            # n_sample = len(ts)
-            ts = np.array(ts)[np.newaxis, np.newaxis, :]
+            if isinstance(ts[0], (list, tuple)):
+                depth = count_depth(ts)
+                if depth == 3:
+                    ts = np.asarray(ts)
+                elif depth == 2:
+                    ts = np.array(ts)
+                    ts = ts[:, np.newaxis, :] # n_region = 1
+                else:
+                    ts = np.array(ts)[np.newaxis, np.newaxis, :] # n_region , n_trial = 1
 
     # if ts is dataframe
     elif isinstance(ts, pd.DataFrame):
@@ -112,7 +107,7 @@ def prepare_input(ts):
         # columns: time series
         # rows: time
         ts = ts.values.T
-        ts = ts[:, np.newaxis, :]
+        ts = ts[:, np.newaxis, :] # n_region = 1
 
     return ts
 

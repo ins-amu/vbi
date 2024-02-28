@@ -1221,3 +1221,51 @@ def km_order(ts, indices=None, avg=True):
         return np.mean(r)
     else:
         return r
+
+def normalize_signal(ts, method='zscore'):
+    '''
+    Normalize the input time series
+
+    Parameters
+    ----------
+    ts: np.ndarray (2d) [n_regions, n_timepoints]
+        input array
+    method: str
+        normalization method
+    index: int
+        index of the times point to normalize with respect to
+        x = x / x[:, index]
+
+    Returns
+    -------
+    ts: np.ndarray (2d) [n_regions, n_timepoints]
+        normalized array
+
+    '''
+    
+    if not isinstance(ts, np.ndarray):
+        ts = np.array(ts)
+    if ts.ndim == 1:
+        ts = ts.reshape(1, -1)
+
+    if method == 'zscore':
+        ts = stats.zscore(ts, axis=1)
+    
+    elif method == 'minmax':
+        ts = (ts - np.min(ts, axis=1)[:, None]) / \
+            (np.max(ts, axis=1) - np.min(ts, axis=1))[:, None]
+    
+    elif method == 'mean':
+        ts = (ts - np.mean(ts, axis=1)[:, None]) / \
+            np.std(ts, axis=1)[:, None]
+    
+    elif method == "max":
+        ts = ts / np.max(ts, axis=1)[:, None]
+        
+    elif method == 'none':
+        pass
+    
+    else:
+        raise ValueError("Invalid method")
+
+    return ts

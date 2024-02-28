@@ -1,3 +1,5 @@
+#!/usr/bin/bash
+
 CXX=g++
 CXXFLAGS  = -std=c++11 -fopenmp -O2  -fPIC -c
 SWIGFLAGS = -c++ -python -shadow  
@@ -5,6 +7,7 @@ SWIGFLAGS = -c++ -python -shadow
 # location of the Python header files
 PYTHON_VERSION = 3.8
 PYTHON_INCLUDE = /usr/include/python$(PYTHON_VERSION)
+#PYTHON_INCLUDE = /p/software/jusuf/stages/2022/software/Python/3.9.6-GCCcore-11.2.0/include/python3.9
 
 all: _do.so _jr_sde.so _jr_sdde.so _mpr_sde.so _sl_sdde.so _km_sde.so _wc_ode.so _ww_sde.so
 

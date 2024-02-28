@@ -249,3 +249,40 @@ class Data_F(object):
     def __str__(self):
         return f'Data_F(values={self.values}, labels={self.labels}, info={self.info})'
     
+    
+def update_parameters(cfg: dict, name: str, parameters: dict):
+    '''
+    Set parameters of a feature
+
+    Parameters
+    ----------
+    cfg : dictionary
+        Dictionary of features
+    domain : string
+        Domain of the feature
+    name : string
+        Name of the feature
+    parameters : dictionary
+        Parameters of the feature
+
+    Returns
+    -------
+    cfg : dictionary
+        Updated dictionary of features
+    '''
+    # find domain of giving feature
+    domain = None
+    for d in cfg:
+        if name in cfg[d]:
+            domain = d
+            break
+    if domain is None:
+        raise SystemExit(f'Feature {name} not found in the dictionary')
+    # update parameters
+    _params = cfg[domain][name]["parameters"]
+    for p in parameters:
+        # check if parameter is valid
+        if p not in _params:
+            raise SystemExit(f'Parameter {p} not valid for feature {name}')
+        _params[p] = parameters[p]
+    
