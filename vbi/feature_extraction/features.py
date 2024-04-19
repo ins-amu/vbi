@@ -1,31 +1,50 @@
+import vbi
 import numpy as np
 import scipy.signal
-from numpy import linalg as LA
 from scipy.signal import hilbert
-from vbi.feature_extraction.features_utils import *
-from sklearn.decomposition import PCA
 from scipy.stats import moment, skew, kurtosis
-from vbi.feature_extraction.utility import *
-from typing import List, Tuple
+import scipy.stats as stats
+from vbi.feature_extraction.utility import prepare_input_ts
+from vbi.feature_extraction.features_utils import (
+    km_order,
+    get_fc,
+    get_fcd,
+    matrix_stat,
+    compute_time,
+    init_jvm,
+    nat2bit,
+    kde,
+    gaussian,
+    calc_fft,
+    wavelet,
+    state_duration,
+)
+
+from typing import List, Tuple, Dict
 
 try:
     import ssm
 except:
     pass
 
+try:
+    import jpype as jp
+except:
+    pass
 
-########################### TEMPORAL ####################################
 
-
-def abs_energy(ts):
+def abs_energy(ts: np.ndarray, indices: List[int] = None):
     """Computes the absolute energy of the time serie.
 
-    Feature computational cost: 1
+    >>> abs_energy([1, 2, 3, 4, 5])
+    (array([55]), ['abs_energy_0'])
 
     Parameters
     ----------
     ts : nd-arrays [n_regions x n_samples]
         Input from which the area under the curve is computed
+    indices: list of int
+        Indices of the time series to compute the feature
 
     Returns
     -------
@@ -36,26 +55,30 @@ def abs_energy(ts):
 
     """
 
-    info, n = check_input(ts)
+    info, ts = prepare_input_ts(ts, indices)
     if not info:
-        return [np.nan]*n, [f"abs_energy_{i}" for i in range(n)]
+        return [np.nan], [f"abs_energy_{0}"]
     else:
-        ts = n
         values = np.sum(np.abs(ts) ** 2, axis=1)
         labels = [f"abs_energy_{i}" for i in range(len(values))]
 
     return values, labels
 
 
-def average_power(ts, fs):
+def average_power(ts: np.ndarray, fs: float = 1.0, indices: List[int] = None):
     """Computes the average power of the time serie.
 
-    Feature computational cost: 1
+    >>> average_power([1, 2, 3, 4, 5], 1)
+    (array([13.75]), ['average_power_0'])
 
     Parameters
     ----------
     ts : nd-arrays [n_regions x n_samples]
         Input from which the area under the curve is computed
+    fs : float
+        Sampling frequency
+    indices: list of int
+        Indices of the time series to compute the feature
 
     Returns
     -------
@@ -66,21 +89,24 @@ def average_power(ts, fs):
 
     """
 
-    info, n = check_input(ts)
+    info, ts = prepare_input_ts(ts, indices)
     if not info:
-        return [np.nan]*n, [f"average_power_{i}" for i in range(n)]
+        return [np.nan], [f"average_power_{0}"]
     else:
-        ts = n
+
         times = compute_time(ts[0], fs)
-        values = np.sum(ts ** 2, axis=1) / (times[-1] - times[0])
+        values = np.sum(ts**2, axis=1) / (times[-1] - times[0])
         labels = [f"average_power_{i}" for i in range(len(values))]
         return values, labels
 
 
-def auc(ts:np.ndarray, dx:float=None, x:np.ndarray=None):
+def auc(
+    ts: np.ndarray, dx: float = None, x: np.ndarray = None, indices: List[int] = None
+):
     """Computes the area under the curve of the signal computed with trapezoid rule.
 
-    Feature computational cost: 1
+    >>> auc(np.array([[1, 2, 3], [4, 5, 6]]), None, np.array([0, 1, 2]))
+    (array([ 4., 10.]), ['auc_0', 'auc_1'])
 
     Parameters
     ----------
@@ -90,7 +116,9 @@ def auc(ts:np.ndarray, dx:float=None, x:np.ndarray=None):
         Spacing between values
     x: array_like, optional
         x values of the time series
-    
+    indices: list of int
+        Indices of the time series to compute the feature
+
     Returns
     -------
     list of float
@@ -99,25 +127,32 @@ def auc(ts:np.ndarray, dx:float=None, x:np.ndarray=None):
         Labels of the features
 
     """
-    if isinstance(ts, (list, tuple)):
-        ts = np.array(ts)
-    if ts.ndim == 1:
-        ts = ts.reshape(1, -1)
 
-    if ts.size == 0:
-        return [], []
+    info, ts = prepare_input_ts(ts, indices)
+    if not info:
+        return [np.nan], ["auc_0"]
 
     if dx is None:
         dx = 1
     values = np.trapz(ts, x=x, dx=dx, axis=1)
-    labels = [f"auc_{i}" for i in range(len(values))]    
-    
+    labels = [f"auc_{i}" for i in range(len(values))]
+
     return values, labels
 
-def auc_lim(ts:np.ndarray, dx:float=None, x:np.ndarray=None, xlim:List[Tuple[float, float]]=None):
-    ''' 
+
+def auc_lim(
+    ts: np.ndarray,
+    dx: float = None,
+    x: np.ndarray = None,
+    xlim: List[Tuple[float, float]] = None,
+    indices: List[int] = None,
+):
+    """
     Compute the area under the curve for a given time series within a given limit
-    
+
+    >>> auc_lim(np.array([[1, 2, 3], [4, 5, 6]]), None, None, [(0, 1), (1, 2)])
+    ([1.5, 4.5, 2.5, 5.5], ['auc_lim_0', 'auc_lim_1', 'auc_lim_2', 'auc_lim_3'])
+
     Parameters
     ----------
     ts : nd-arrays [n_regions x n_samples]
@@ -128,7 +163,9 @@ def auc_lim(ts:np.ndarray, dx:float=None, x:np.ndarray=None, xlim:List[Tuple[flo
         x values of the time series
     xlim: list of tuples
         The limits of the time series
-        
+    indices: list of int
+        Indices of the time series to compute the feature
+
     Returns
     -------
     list of float
@@ -136,29 +173,24 @@ def auc_lim(ts:np.ndarray, dx:float=None, x:np.ndarray=None, xlim:List[Tuple[flo
     labels: list of str
         Labels of the features
 
-    '''
-    
-    if isinstance(ts, (list, tuple)):
-        ts = np.array(ts)
-    if ts.ndim == 1:
-        ts = ts.reshape(1, -1)
+    """
 
-    if ts.size == 0:
-        return [], []
-    
+    info, ts = prepare_input_ts(ts, indices)
+    if not info:
+        return [np.nan], ["auc_lim_0"]
+
     if x is None:
         x = np.arange(0, ts.shape[1])
     else:
         x = np.array(x)
-    assert(x.shape[0] == ts.shape[1]), "x and ts must have the same length"
-    
+    assert x.shape[0] == ts.shape[1], "x and ts must have the same length"
 
     if xlim is None:
         xlim = [(x[0], x[-1])]
-    
+
     if not isinstance(xlim[0], (list, tuple)):
         xlim = [xlim]
-    
+
     values = []
     for i, (xmin, xmax) in enumerate(xlim):
         idx = np.where((x >= xmin) & (x <= xmax))[0]
@@ -166,22 +198,22 @@ def auc_lim(ts:np.ndarray, dx:float=None, x:np.ndarray=None, xlim:List[Tuple[flo
             continue
         values.extend(np.trapz(ts[:, idx], x=x[idx], dx=dx, axis=1))
     labels = [f"auc_lim_{i}" for i in range(len(values))]
-    
+
     return values, labels
 
 
-########################### STATISTICAL ####################################
-
-
-def calc_var(ts):
+def calc_var(ts: np.ndarray, indices: List[int] = None):
     """Computes variance of the time series.
 
-    Feature computational cost: 1
+    >>> calc_var(np.array([[1, 2, 3], [4, 5, 6]]))
+    (array([0.66666667, 0.66666667]), ['var_0', 'var_1'])
 
     Parameters
     ----------
     ts : nd-array [n_regions x n_samples]
        Input from which var is computed
+    indices: list of int
+        Indices of the time series to compute the feature
 
     Returns
     -------
@@ -191,28 +223,28 @@ def calc_var(ts):
         labels of the features
 
     """
-
-    if not isinstance(ts, np.ndarray):
-        ts = np.array(ts)
-    if ts.ndim == 1:
-        ts = ts.reshape(1, -1)
-
-    if ts.size == 0:
-        return [np.nan], ["variance_0"]
+    info, ts = prepare_input_ts(ts, indices)
+    if not info:
+        return [np.nan], ["var_0"]
 
     values = np.var(ts, axis=1)
-    labels = [f"variance_{i}" for i in range(len(values))]
+    labels = [f"var_{i}" for i in range(len(values))]
 
     return values, labels
 
 
-def calc_std(ts):
+def calc_std(ts: np.ndarray, indices: List[int] = None):
     """Computes standard deviation of the time serie.
+
+    >>> calc_std(np.array([[1, 2, 3], [4, 5, 6]]))
+    (array([0.81649658, 0.81649658]), ['std_0', 'std_1'])
 
     Parameters
     ----------
     ts : nd-array [n_regions x n_samples]
        Input from which std is computed
+    indices: list of int
+        Indices of the time series to compute the feature
 
     Returns
     -------
@@ -222,23 +254,27 @@ def calc_std(ts):
         labels of the features
     """
 
-    info, n = check_input(ts)
+    info, ts = prepare_input_ts(ts, indices)
     if not info:
-        return [np.nan] * n, [f"std_{i}" for i in range(n)]
+        return [np.nan], [f"std_{0}"]
     else:
-        ts = n
         values = np.std(ts, axis=1)
         labels = [f"std_{i}" for i in range(len(values))]
         return values, labels
 
 
-def calc_mean(ts):
+def calc_mean(ts: np.ndarray, indices: List[int] = None):
     """Computes median of the time serie.
+
+    >>> calc_mean(np.array([[1, 2, 3], [4, 5, 6]]))
+    (array([2., 5.]), ['mean_0', 'mean_1'])
 
     Parameters
     ----------
     ts : nd-array [n_regions x n_samples]
        Input from which median is computed
+    indices: list of int
+        Indices of the time series to compute the feature
 
     Returns
     -------
@@ -249,17 +285,16 @@ def calc_mean(ts):
 
     """
 
-    info, n = check_input(ts)
+    info, ts = prepare_input_ts(ts, indices)
     if not info:
-        return [np.nan]*n, [f"mean_{i}" for i in range(n)]
+        return [np.nan], [f"mean_{0}"]
     else:
-        ts = n
         values = np.mean(ts, axis=1)
         labels = [f"mean_{i}" for i in range(len(values))]
         return values, labels
 
 
-def calc_centroid(ts, fs):
+def calc_centroid(ts: np.ndarray, fs: float, indices: List[int] = None):
     """Computes the centroid along the time axis.
 
     Parameters
@@ -268,6 +303,8 @@ def calc_centroid(ts, fs):
         Input from which centroid is computed
     fs: int
         Signal sampling frequency
+    indices: list of int
+        Indices of the time series to compute the feature
 
     Returns
     -------
@@ -275,16 +312,15 @@ def calc_centroid(ts, fs):
         Temporal centroid
 
     """
-    info, n = check_input(ts)
+    info, ts = prepare_input_ts(ts, indices)
     if not info:
-        return [np.nan]*n, [f"centroid_{i}" for i in range(n)]
+        return [np.nan], [f"centroid_{0}"]
     else:
-        ts = n
         tol = 1e-10
         r, c = ts.shape
         centroid = np.zeros(r)
         time = compute_time(ts[0], fs)
-        energy = ts ** 2
+        energy = ts**2
         t_energy = np.dot(time, energy.T)
         energy_sum = np.sum(energy, axis=1)
         ind_nonzero = (np.abs(energy_sum) > tol) | (np.abs(t_energy) > tol)
@@ -294,14 +330,16 @@ def calc_centroid(ts, fs):
         return centroid, labels
 
 
-def calc_kurtosis(ts):
-    """ 
+def calc_kurtosis(ts: np.ndarray, indices: List[int] = None):
+    """
     Computes the kurtosis of the time series.
 
     Parameters
     ----------
     ts : nd-array [n_regions x n_samples]
        Input from which kurtosis is computed
+    indices: list of int
+        Indices of the time series to compute the feature
 
     Returns
     -------
@@ -312,18 +350,17 @@ def calc_kurtosis(ts):
 
     """
 
-    info, n = check_input(ts)
+    info, ts = prepare_input_ts(ts, indices)
     if not info:
-        return [np.nan]*n, [f"kurtosis_{i}" for i in range(n)]
+        return [np.nan], [f"kurtosis_{0}"]
     else:
-        ts = n
         values = kurtosis(ts, axis=1)
         labels = [f"kurtosis_{i}" for i in range(len(values))]
         return values, labels
 
 
-def calc_skewness(ts):
-    """ 
+def calc_skewness(ts: np.ndarray, indices: List[int] = None):
+    """
     Computes the skewness of the time series.
 
     Parameters
@@ -340,18 +377,17 @@ def calc_skewness(ts):
 
     """
 
-    info, n = check_input(ts)
+    info, n = prepare_input_ts(ts, indices)
     if not info:
-        return [np.nan]*n, [f"skewness_{i}" for i in range(n)]
+        return [np.nan], [f"skewness_{0}"]
     else:
-        ts = n
         values = skew(ts, axis=1)
         labels = [f"skewness_{i}" for i in range(len(values))]
         return values, labels
 
 
-def calc_max(ts):
-    """ 
+def calc_max(ts: np.ndarray, indices: List[int] = None):
+    """
     Computes the maximum of the time series.
 
     Parameters
@@ -368,24 +404,25 @@ def calc_max(ts):
 
     """
 
-    info, n = check_input(ts)
+    info, ts = prepare_input_ts(ts, indices)
     if not info:
-        return [np.nan]*n, [f"max_{i}" for i in range(n)]
+        return [np.nan], [f"max_{0}"]
     else:
-        ts = n
         values = np.max(ts, axis=1)
         labels = [f"max_{i}" for i in range(len(values))]
         return values, labels
 
 
-def calc_min(ts):
-    """ 
+def calc_min(ts: np.ndarray, indices: List[int] = None):
+    """
     Computes the minimum of the time series.
 
     Parameters
     ----------
     ts : nd-array [n_regions x n_samples]
        Input from which minimum is computed
+    indices: list of int
+        Indices of the time series to compute the feature
 
     Returns
     -------
@@ -396,24 +433,25 @@ def calc_min(ts):
 
     """
 
-    info, n = check_input(ts)
+    info, ts = prepare_input_ts(ts, indices)
     if not info:
-        return [np.nan]*n, [f"min_{i}" for i in range(n)]
+        return [np.nan], [f"min_{0}"]
     else:
-        ts = n
         values = np.min(ts, axis=1)
         labels = [f"min_{i}" for i in range(len(values))]
         return values, labels
 
 
-def calc_median(ts):
-    """ 
+def calc_median(ts: np.ndarray, indices: List[int] = None):
+    """
     Computes the median of the time series.
 
     Parameters
     ----------
     ts : nd-array [n_regions x n_samples]
        Input from which median is computed
+    indices: list of int
+        Indices of the time series to compute the feature
 
     Returns
     -------
@@ -421,21 +459,19 @@ def calc_median(ts):
         median of the time series
     labels: array-like
         labels of the features
-
     """
 
-    info, n = check_input(ts)
+    info, ts = prepare_input_ts(ts, indices)
     if not info:
-        return [np.nan]*n, [f"median_{i}" for i in range(n)]
+        return [np.nan], [f"median_{0}"]
     else:
-        ts = n
         values = np.median(ts, axis=1)
         labels = [f"median_{i}" for i in range(len(values))]
         return values, labels
 
 
-def mean_abs_deviation(ts):
-    """ 
+def mean_abs_dev(ts: np.ndarray, indices: List[int] = None):
+    """
     Computes the mean absolute deviation of the time series.
 
     Parameters
@@ -452,25 +488,25 @@ def mean_abs_deviation(ts):
 
     """
 
-    info, n = check_input(ts)
+    info, ts = prepare_input_ts(ts, indices)
     if not info:
-        return [np.nan]*n, [f"mean_abs_deviation_{i}" for i in range(n)]
+        return [np.nan], [f"mean_abs_dev_{0}"]
     else:
-        ts = n
-        values = np.mean(
-            np.abs(ts - np.mean(ts, axis=1, keepdims=True)), axis=1)
-        labels = [f"mean_abs_deviation_{i}" for i in range(len(values))]
+        values = np.mean(np.abs(ts - np.mean(ts, axis=1, keepdims=True)), axis=1)
+        labels = [f"mean_abs_dev_{i}" for i in range(len(values))]
         return values, labels
 
 
-def median_abs_deviation(ts):
-    """ 
+def median_abs_dev(ts: np.ndarray, indices: List[int] = None):
+    """
     Computes the median absolute deviation of the time series.
 
     Parameters
     ----------
     ts : nd-array [n_regions x n_samples]
        Input from which median absolute deviation is computed
+    indices: list of int
+        Indices of the time series to compute the feature
 
     Returns
     -------
@@ -481,25 +517,25 @@ def median_abs_deviation(ts):
 
     """
 
-    info, n = check_input(ts)
+    info, ts = prepare_input_ts(ts, indices)
     if not info:
-        return [np.nan]*n, [f"median_abs_deviation_{i}" for i in range(n)]
+        return [np.nan], [f"median_abs_dev_{0}"]
     else:
-        ts = n
-        values = np.median(
-            np.abs(ts - np.median(ts, axis=1, keepdims=True)), axis=1)
-        labels = [f"median_abs_deviation_{i}" for i in range(len(values))]
+        values = np.median(np.abs(ts - np.median(ts, axis=1, keepdims=True)), axis=1)
+        labels = [f"median_abs_dev_{i}" for i in range(len(values))]
         return values, labels
 
 
-def rms(ts):
-    """ 
+def rms(ts: np.ndarray, indices: List[int] = None):
+    """
     Computes the root mean square of the time series.
 
     Parameters
     ----------
     ts : nd-array [n_regions x n_samples]
        Input from which root mean square is computed
+    indices: list of int
+        Indices of the time series to compute the feature
 
     Returns
     -------
@@ -510,24 +546,25 @@ def rms(ts):
 
     """
 
-    info, n = check_input(ts)
+    info, ts = prepare_input_ts(ts, indices)
     if not info:
-        return [np.nan]*n, [f"rms_{i}" for i in range(n)]
+        return [np.nan], [f"rms_{0}"]
     else:
-        ts = n
-        values = np.sqrt(np.mean(ts ** 2, axis=1))
+        values = np.sqrt(np.mean(ts**2, axis=1))
         labels = [f"rms_{i}" for i in range(len(values))]
         return values, labels
 
 
-def interq_range(ts):
-    """ 
+def interq_range(ts: np.ndarray, indices: List[int] = None):
+    """
     Computes the interquartile range of the time series.
 
     Parameters
     ----------
     ts : nd-array [n_regions x n_samples]
        Input from which interquartile range is computed
+    indices: list of int
+        Indices of the time series to compute the feature
 
     Returns
     -------
@@ -538,24 +575,25 @@ def interq_range(ts):
 
     """
 
-    info, n = check_input(ts)
+    info, ts = prepare_input_ts(ts, indices)
     if not info:
-        return [np.nan]*n, [f"interq_range_{i}" for i in range(n)]
+        return [np.nan], [f"interq_range_{0}"]
     else:
-        ts = n
         values = np.subtract(*np.percentile(ts, [75, 25], axis=1))
         labels = [f"interq_range_{i}" for i in range(len(values))]
         return values, labels
 
 
-def zero_crossing(ts):
-    """ 
+def zero_crossing(ts: np.ndarray, indices: List[int] = None):
+    """
     Computes the number of zero crossings of the time series.
 
     Parameters
     ----------
     ts : nd-array [n_regions x n_samples]
        Input from which number of zero crossings is computed
+    indices: list of int
+        Indices of the time series to compute the feature
 
     Returns
     -------
@@ -565,63 +603,137 @@ def zero_crossing(ts):
         labels of the features
 
     """
-    info, n = check_input(ts)
+    info, ts = prepare_input_ts(ts, indices)
     if not info:
-        return [np.nan]*n, [f"zero_crossing_{i}" for i in range(n)]
+        return [np.nan], [f"zero_crossing_{0}"]
     else:
-        ts = n
-        values = np.array([np.sum(np.diff(np.sign(y_i)) != 0)
-                          for y_i in ts], dtype=int)
+        values = np.array([np.sum(np.diff(np.sign(y_i)) != 0) for y_i in ts], dtype=int)
         labels = [f"zero_crossing_{i}" for i in range(len(values))]
         return values, labels
 
 
-def calc_rss(ts, percentile=95):
+# def calc_ress(
+#     ts: np.ndarray, percentile: Union[int, float] = 95, indices: List[int] = None
+# ):
+#     """
+#     Calculates Residual Sum of Squares (RSS) with given percentile
+
+#     Parameters
+#     ----------
+#     ts : nd-array [n_regions x n_samples]
+#          Input time seris
+#     percentile : float
+#             Percentile of RSS
+#     indices: list of int
+#         Indices of the time series to compute the feature
+
+#     Returns
+#     -------
+#     values: array-like
+#         RSS of the time series
+#     labels: array-like
+#         labels of the features
+#     """
+
+#     info, ts = prepare_input_ts(ts, indices)
+#     if not info:
+#         return [np.nan], [f"ress_{0}"]
+#     else:
+#         nn, nt = ts.shape
+#         rss = np.zeros(nt)
+#         for t in range(nt):
+#             z = np.power(np.outer(ts[:, t], ts[:, t]), 2)
+#             rss[t] = np.sqrt(np.einsum("ij->", z))
+#         return np.percentile(rss, percentile), ["ress"]
+
+
+def kop(ts: np.ndarray, indices: List[int] = None):
     """
-    Calculates RSS with given percentile
+    Calculate the Kuramoto order parameter (KOP)
+
+    """
+
+    info, ts = prepare_input_ts(ts, indices)
+    if not info:
+        return [np.nan], ["kop"]
+    else:
+        R = km_order(ts, indices=indices, avg=True)
+        return R, ["kop"]
+
+
+def calc_moments(
+    ts: np.ndarray, indices: List[int] = None, orders: List[int] = [2, 3, 4, 5, 6]
+):
+    """
+    Computes the moments of the time series.
 
     Parameters
     ----------
     ts : nd-array [n_regions x n_samples]
-         Input time seris
-    percentile : float
-            Percentile of RSS
+       Input from which moments are computed
+    orders: list
+        List of orders of the moments
+
+    Returns
+    -------
+    values: array-like
+        moments of the time series
+    labels: array-like
+        labels of the features
+
     """
 
-    info, n = check_input(ts)
+    info, ts = prepare_input_ts(ts, indices)
     if not info:
-        return [np.nan]*n, [f"rss_{i}" for i in range(n)]
+        return [np.nan], ["moments"]
     else:
-        ts = n
-        nn, n_samples = ts.shape
-        rss = np.zeros(n_samples)
-        for t in range(n_samples):
-            z = np.power(np.outer(ts[:, t], ts[:, t]), 2)
-            rss[t] = np.sqrt(np.einsum('ij->', z))
-        return np.percentile(rss, percentile), ['RSS th']
-    
+        labels = []
+        values = np.array([])
+        for i in orders:
+            v = moment(ts, moment=i, axis=1)
+            values = np.append(values, v)
+            labels.extend([f"moments_{i}_{j}" for j in range(len(v))])
 
-def kop(ts, indices=None):
-    '''
-    Calculate the Kuramoto order parameter (KOP)
-    
-    '''
+        return values, labels
 
-    info, n = check_input(ts)
+
+def calc_envelope(
+    ts: np.ndarray,
+    indices: List[int] = None,
+    features: List[str] = ["mean", "std", "median", "max", "min"],
+):
+    """
+    calculate some statistics on envelope of the time series using hilbert transform
+    """
+
+    info, ts = prepare_input_ts(ts, indices)
     if not info:
-        return [np.nan], ["kop"]
+        return [np.nan], ["envelope"]
     else:
-        ts = n 
-        R = km_order(ts, indices=indices, avg=True)
-        return R, ['kop']
+        analytic_signal = hilbert(ts, axis=1)
+        amplitude_envelope = np.abs(analytic_signal)
+        instantaneous_phase = np.unwrap(np.angle(analytic_signal))
 
-    
+        labels = []
+        values = np.array([])
 
-########################### CONNECTIVITY ####################################
+        for f in features:
+            v = np.append(values, eval(f"{f}(amplitude_envelope, axis=1)"))
+            l = [f"env_amp_{f}_{j}" for j in range(len(v))]
+            values = np.append(values, v)
+            labels.extend(l)
+
+        for f in features:
+            v = eval(f"{f}(instantaneous_phase, axis=1)")
+            l = [f"env_ph_{f}_{j}" for j in range(len(v))]
+            values = np.append(values, v)
+            labels.extend(l)
+
+        return values, labels
 
 
-def fc_sum(x, positive=False):
-    '''
+def fc_sum(x: np.ndarray, positive=False, masks: Dict[str, np.ndarray] = None):
+    """
     Calculate the sum of functional connectivity (FC)
 
     Parameters
@@ -633,246 +745,176 @@ def fc_sum(x, positive=False):
     -------
     result: float
         sum of functional connectivity
-    '''
+    """
 
     label = "fc_sum"
 
-    if isinstance(x, np.ndarray):
-        if x.shape[1] < 2:
-            return 0.0, label
-
-    info, n = check_input(x)
+    info, ts = prepare_input_ts(x)
     if not info:
-        return np.nan, label
+        return [np.nan], [label]
+    if ts.shape[0] < 2:
+        return [np.nan], [label]
+    nn = ts.shape[0]
+
+    if masks is None:
+        masks = {"full": np.ones((nn, nn))}
+
+    for key in masks.keys():
+        assert (
+            masks[key].shape[0] == nn
+        ), "mask size must be equal to the number of regions"
 
     fc = np.corrcoef(x)
     if positive:
         fc = fc * (fc > 0)
-    value = np.sum(np.abs(fc)) - np.trace(np.abs(fc))
 
-    return value, label
+    values = np.array([])
+    for key in masks.keys():
+        mask = masks[key]
+        fc = fc * mask
+        v = np.sum(np.abs(fc)) - np.trace(np.abs(fc))
+        values = np.append(values, v)
+    labels = [f"{label}_{key}" for key in masks.keys()]
+
+    return values, labels
 
 
-def fc_stat(x,
-            k=0,
-            PCA_n_components=3,
-            positive=False,
-            demean=False,
-            method="corr",
-            masks=None):
-    '''
+def fc_stat(
+    ts: np.ndarray,
+    k: int = 0,
+    positive: bool = False,
+    eigenvalues: bool = True,
+    pca_num_components: int = 3,
+    fc_function: str = "corrcoef",
+    masks: Dict[str, np.ndarray] = None,
+    quantiles: List[float] = [0.05, 0.25, 0.5, 0.75, 0.95],
+    features: List[str] = ["sum", "max", "min", "mean", "std", "skew", "kurtosis"],
+):
+    """
     extract features from functional connectivity (FC)
 
     Parameters
     ----------
 
-    x: np.ndarray [n_regions, n_samples]
+    ts: np.ndarray [n_regions, n_samples]
         input array
     k: int
-        kth diagonal of FC matrix
-    PCA_n_components: int
+        to remove up to kth diagonal of FC matrix
+    pca_num_components: int
         number of components for PCA
-    demean: bool
-        if True, ignore mean value of fc elements distribution
     positive: bool
         if True, ignore negative values of fc elements
-    method: str
-        method to calculate FC, "corr" is available for now
-        #!TODO: add "plv" and "pli"
+    masks: dict
+        dictionary of masks
+    features: list of str
+        list of features to be extracted
+    quantiles: list of float
+        list of quantiles, set 0 to ignore
+    eigenvalues: bool
+        if True, extract features from eigenvalues
+    fc_function: str
+        functional connectivity function: 'corrcoef' or 'cov'
 
     Returns
     -------
     stats: np.ndarray (1d)
         feature values
-    '''
+    labels: list of str
+        feature labels
+    """
 
-    if not isinstance(x, np.ndarray):
-        x = np.array(x)
-    if x.ndim == 1:
-        return np.nan, "fc_0"
-    if x.size == 0:
-        return np.nan, "fc_0"
-    if x.shape[1] == 1:
-        return 0.0, "fc_0"
+    info, ts = prepare_input_ts(ts)
+    if not info:
+        return [np.nan], ["fc_stat_0"]
+
+    nn = ts.shape[0]
+    if nn < 2:
+        return [np.nan], ["fc_stat_0"]
 
     if masks is None:
-        masks = {"full": np.ones((x.shape[0], x.shape[0]))}
+        masks = {"full": np.ones((nn, nn))}
 
-    if method == "corr":
-        FC = np.corrcoef(x)
-    # elif method == "plv":
-    #     FC = ...  # TODO use mne_connectivity.spectral_connectivity
-    # elif method == "pli":
-    #     FC = ...  # TODO use mne_connectivity.spectral_connectivity
-    else:
-        raise ValueError("method must be one of 'corr'. ")
+    for key in masks.keys():
+        assert (
+            masks[key].shape[0] == nn
+        ), "mask size must be equal to the number of regions"
 
     Values = []
     Labels = []
-    fc = get_fc(x, masks=masks, positive=positive)
+
+    fc = get_fc(ts, masks=masks, fc_fucntion=fc_function, positive=positive)
+
     for key in fc.keys():
-        values, labels = matrix_stat(fc[key],
-                                     demean=demean,
-                                     k=k,
-                                     PCA_n_components=PCA_n_components)
-        labels = [f"fc_{key}_{label}" for label in labels]
+        values, labels = matrix_stat(
+            fc[key],
+            k=k,
+            features=features,
+            quantiles=quantiles,
+            eigenvalues=eigenvalues,
+            pca_num_components=pca_num_components,
+        )
+        labels = [f"fc_stat_{key}_{label}" for label in labels]
         Values.extend(values)
         Labels.extend(labels)
 
     return Values, Labels
 
 
-def fc_homotopic(x, avg=False, positive=True):
-    '''
+def fc_homotopic(
+    ts: np.ndarray, average: bool = False, positive: bool = True, fc_function="corrcoef"
+):
+    """
     Calculate the homotopic connectivity vector of a given brain activity
 
     Parameters
     ----------
     bold: array_like [nn, nt]
         The brain activity to be analyzed.
-    avg: bool
-        If True, the average homotopic connectivity is returned. 
+    averag: bool
+        If True, the average homotopic connectivity is returned.
         Otherwise, the homotopic connectivity vector is returned.
     positive: bool
         If True, only positive correlations are considered.
 
     Returns
     -------
-    Homotopic_FC_vector : array_like [n_nodes]
+    values : array_like [n_nodes]
         The homotopic correlation vector.
+    labels : list of str
+        The labels of the homotopic correlation vector.
 
     Negative correlations may be artificially induced when using global signal regression
     in functional imaging pre-processing (Fox et al., 2009; Murphy et al., 2009; Murphy and Fox, 2017).
     Therefore, results on negative weights should be interpreted with caution and should be understood
     as complementary information underpinning the findings based on positive connections
-    '''
+    """
 
-    if isinstance(x, (list, tuple)):
-        x = np.array(x)
-    assert (x.ndim == 2)
-    nn, nt = x.shape
-    assert (nn > 1)
+    info, ts = prepare_input_ts(ts)
+    if not info:
+        return [np.nan], ["fc_homotopic"]
 
-    NHALF = int(nn//2)
-    rsFC = np.corrcoef(x)
+    nn, nt = ts.shape
+    if nn < 2:
+        return [np.nan], ["fc_homotopic"]
+
+    NHALF = int(nn // 2)
+    fc = eval(fc_function)(ts)
+
     if positive:
-        rsFC = rsFC * (rsFC > 0)
-    rsFC = rsFC - np.diag(np.diag(rsFC))  # not necessary for hfc
-    hfc = np.diag(rsFC, k=NHALF)
-    if avg:
+        fc = fc * (fc > 0)
+    fc = fc - np.diag(np.diag(fc))  # not necessary for hfc
+    hfc = np.diag(fc, k=NHALF)
+    if average:
         return [np.mean(hfc)], ["fc_homotopic_avg"]
     else:
-        values = hfc.tolist()
+        values = hfc.squeeze()
         labels = [f"fc_homotopic_{i}" for i in range(len(values))]
         return values, labels
 
-###################### FCD METRICS ##########################################
 
-
-def fluidity(x,
-             TR=1.0,
-             window_length=30,
-             positive=True,  # ! TODO: check if need to be False
-             masks={},
-             get_FCDs=False
-             ):
+def coactivation_degree(ts: np.ndarray, modality="noncor"):
     """
-    calculates FCD and subsequently fluidity metrics for different networks.
-    Input
-
-    Parameters
-    ----------
-
-    x: np.ndarray [n_regions, n_samples]
-        input array
-
-    ---------------------------
-    x: array_like [nn, nt]
-        The brain activity to be analyzed.
-    TR: float
-        time per scanning.
-
-    window_length: int
-    positive: bool
-        If True, only positive correlations are considered, in consistence with Lavagna et al. 2023, Stumme et al., 2020.
-    networks: dictionary
-        network name : array of nodes, e.g. np.arange(200) for a whole brain network with 200 nodes
-            or string e.g. "ihemi" (only acceptable for now) for interhemispherical connections.
-
-    Return
-    ----------------------------
-    fluidity metrics: list
-        [fluidity_median, fluidity_mean, fluidity_var, fluidity_kurtosis] for each different key of the networks dictionary.
-    fluidity labels: list
-        [label_med, label_mean, label_var, label_kur] for each different key of the networks dictionary.
-    """
-    ts = x.T
-    nt, nn = ts.shape
-
-    mask_full = np.ones((nn, nn))
-    effective_masks = {}
-    # initialize FCD variables
-    FCDs = []
-    FCDs_ut = []
-    # calculate windowed FC ### calculate FCD ###
-    windowed_data = np.lib.stride_tricks.sliding_window_view(
-        ts, (int(window_length/TR), nn), axis=(0, 1)).squeeze()
-    n_windows = windowed_data.shape[0]
-    fc_stream = np.asarray(
-        [np.corrcoef(windowed_data[i, :, :], rowvar=False) for i in range(n_windows)])
-    if positive == True:
-        # mask out the negative correlations by multiplying with 1 the positive
-        # and with 0 the negative correlations
-        fc_stream *= fc_stream > 0
-    if len(masks) == 0:  # ! TODO check getting length of dictionary
-        masks["full"] = mask_full
-    for j, key in enumerate(masks.keys()):
-        mask = masks[key]
-        # get the upper triangle of the given mask
-        mask *= np.triu(mask_full, k=1)
-        nonzero_idx = np.nonzero(mask)
-        fc_stream_masked = fc_stream[:, nonzero_idx[0], nonzero_idx[1]]
-        fcd = np.corrcoef(fc_stream_masked, rowvar=True)
-        if get_FCDs == True:
-            FCDs.append(fcd)
-        else:
-            ut_idx = np.triu_indices_from(fcd, k=int(window_length/TR))
-            FCDs_ut.append(fcd[ut_idx[0], ut_idx[1]])
-    if get_FCDs == True:
-        return FCDs, [f"{key}fcd" for key in masks.keys()]
-    else:
-        fluidity_metrics = []
-        fluidity_labels = []
-        for j, key in enumerate(masks.keys()):
-            ut_fcd = FCDs_ut[j]
-
-            # var(ut_fcd)
-            fluidity_var = np.var(ut_fcd)
-            label_var = f"{key}varfcd"
-
-            # mean(ut_fcd)
-            fluidity_mean = np.mean(ut_fcd)
-            label_mean = f"{key}meanfcd"
-
-            # median(ut_fcd)
-            fluidity_median = np.median(ut_fcd)
-            label_med = f"{key}medfcd"
-
-            # median(ut_fcd)
-            fluidity_kurtosis = kurtosis(ut_fcd)
-            label_kur = f"{key}kurfcd"
-            fluidity_metrics += [fluidity_median,
-                                 fluidity_mean, fluidity_var, fluidity_kurtosis]
-            fluidity_labels += [label_med, label_mean, label_var, label_kur]
-
-        return fluidity_metrics, fluidity_labels
-
-
-############################# CO-FLUCTUATIONS METRICS ################################
-
-def coactivation_degree(ts, modality='noncor'):
-    '''
-    calculate coactivation degree (CAD)
+    calculate coactivation degree (CAD) #!TODO not tested
 
     Parameters
     ----------
@@ -880,24 +922,31 @@ def coactivation_degree(ts, modality='noncor'):
         input array
     modality: str
 
+    Returns
+    -------
+    values: array-like
+        coactivation degree
+    labels: array-like
+        labels of the features
 
-    '''
+
+    """
     nn, nt = ts.shape
     ts = stats.zscore(ts, axis=1)
-    if modality == 'cor':
+    if modality == "cor":
         global_signal = stats.zscore(np.mean(ts, axis=1))
 
     M = np.zeros((nn, nt))
     for i in range(nn):
-        if modality != 'cor':
+        if modality != "cor":
             global_signal = np.mean(np.delete(ts, i, axis=0), axis=0)
-        M[i] = ts[i, :]*global_signal
+        M[i] = ts[i, :] * global_signal
     return M.tolist()
 
 
 def coactivation_phase(ts):
-    '''
-    calculate the coactivation phase (CAP)
+    """
+    calculate the coactivation phase (CAP) #!TODO not tested
 
     Parameters
     ----------
@@ -907,7 +956,7 @@ def coactivation_phase(ts):
     Returns
     -------
     CAP: list
-    '''
+    """
 
     if isinstance(ts, (list, tuple)):
         ts = np.array(ts)
@@ -929,59 +978,66 @@ def coactivation_phase(ts):
     return MSphase.tolist()
 
 
-########################### OTHER ####################################
-
-
-def burstiness(x):
-    '''
+def burstiness(ts: np.ndarray, indices: List[int] = None):
+    """
     calculate the burstiness statistic
+    - Goh and Barabasi, 'Burstiness and memory in complex systems' Europhys. Lett.
+    81, 48002 (2008).
     [from hctsa-py]
 
     Parameters
     ----------
     x: np.ndarray [n_regions, n_samples]
         input array
+    indices: list of int
+        Indices of the time series to compute the feature
 
     Returns
     -------
     B: list of floats
         burstiness statistic
+    """
 
-    References
-    ----------
+    info, ts = prepare_input_ts(ts, indices)
+    if not info:
+        return [np.nan], ["burstiness"]
 
-    - Goh and Barabasi, 'Burstiness and memory in complex systems' Europhys. Lett.
-    81, 48002 (2008).
-    '''
+    if ts.mean() == 0:
+        return [0], ["burstiness"]
 
-    if x.mean() == 0:
-        return np.nan
-
-    r = np.std(x, axis=1) / np.mean(x, axis=1)
+    r = np.std(ts, axis=1) / np.mean(ts, axis=1)
     B = (r - 1) / (r + 1)
+    labels = [f"burstiness_{i}" for i in range(len(B))]
 
-    return B
+    return B, labels
 
 
-def fcd_stat(ts,
-             win_len=30,
-             TR=1,
-             demean=False,
-             positive=False,
-             PCA_n_components=3,
-             masks=None):
+def fcd_stat(
+    ts,
+    TR=1,
+    win_len=30,
+    masks=None,
+    positive=False,
+    eigenvalues=True,
+    pca_num_components=3,
+    quantiles=[0.05, 0.25, 0.5, 0.75, 0.95],
+    features=["sum", "max", "min", "mean", "std", "skew", "kurtosis"],
+):
 
     Values = []
     Labels = []
 
-    k = int(win_len/TR)
-    fcd = get_fcd(ts=ts, TR=TR, win_len=win_len,
-                  positive=positive, masks=masks)
+    k = int(win_len / TR)
+    fcd = get_fcd(ts=ts, TR=TR, win_len=win_len, positive=positive, masks=masks)
     for key in fcd.keys():
-        values, labels = matrix_stat(fcd[key],
-                                     demean=demean,
-                                     k=k,
-                                     PCA_n_components=PCA_n_components)
+        values, labels = matrix_stat(
+            fcd[key],
+            k=k,
+            features=features,
+            quantiles=quantiles,
+            eigenvalues=eigenvalues,
+            pca_num_components=pca_num_components,
+        )
         labels = [f"fcd_{key}_{label}" for label in labels]
         Values.extend(values)
         Labels.extend(labels)
@@ -989,17 +1045,17 @@ def fcd_stat(ts,
     return Values, Labels
 
 
-############################# Information Theory ##############################
-
-def calc_mi(ts,
-            k=4,
-            time_diff=1,
-            num_threads=1,
-            source_indices=None,
-            target_indices=None,
-            mode="pairwise",
-            **kwargs):
-    '''
+def calc_mi(
+    ts: np.ndarray,
+    k: int = 4,
+    time_diff: int = 1,
+    num_threads: int = 1,
+    source_indices: List[int] = None,
+    target_indices: List[int] = None,
+    mode: str = "pairwise",
+    **kwargs,
+):
+    """
     calculate the mutual information between time series
     based on the Kraskov method #!TODO bug in multiprocessing
 
@@ -1013,7 +1069,7 @@ def calc_mi(ts,
         time difference between time series
     num_threads: int
         number of threads
-    source_indices: list or np.ndarray 
+    source_indices: list or np.ndarray
         indices of source time series, if None, all time series are used
     target_indices: list or np.ndarray
         indices of target time series, if None, all time series are used
@@ -1024,18 +1080,21 @@ def calc_mi(ts,
     -------
     MI: list of floats
         mutual information
-    '''
+    labels: list of str
+        labels of the features
+    """
 
     num_surrogates = kwargs.get("num_surrogates", 0)
 
     if not isinstance(ts, np.ndarray):
         ts = np.array(ts)
     if ts.ndim == 1:
-        assert (False), "ts must be a 2d array"
+        assert False, "ts must be a 2d array"
 
     init_jvm()
     calcClass = jp.JPackage(
-        "infodynamics.measures.continuous.kraskov").MutualInfoCalculatorMultiVariateKraskov2
+        "infodynamics.measures.continuous.kraskov"
+    ).MutualInfoCalculatorMultiVariateKraskov2
     calc = calcClass()
     calc.setProperty("k", str(int(k)))
     calc.setProperty("NUM_THREADS", str(int(num_threads)))
@@ -1055,7 +1114,7 @@ def calc_mi(ts,
                 calc.addObservations(ts[i], ts[j])
 
     elif mode == "pairwise":
-        assert (len(source_indices) == len(target_indices))
+        assert len(source_indices) == len(target_indices)
         for i, j in zip(source_indices, target_indices):
             calc.addObservations(ts[i], ts[j])
     calc.finaliseAddObservations()
@@ -1070,18 +1129,20 @@ def calc_mi(ts,
     MI = MI if MI >= 0 else 0.0
     label = "mi"
 
-    return MI, label
+    return [MI], [label]
 
 
-def calc_te(ts,
-            k=4,
-            delay=1,
-            num_threads=1,
-            source_indices=None,
-            target_indices=None,
-            mode="pairwise",
-            **kwargs):
-    '''
+def calc_te(
+    ts: np.ndarray,
+    k: int = 4,
+    delay: int = 1,
+    num_threads: int = 1,
+    source_indices: List[int] = None,
+    target_indices: List[int] = None,
+    mode: str = "pairwise",
+    **kwargs,
+):
+    """
     calculate the transfer entropy between time series based on the Kraskov method.
 
     Parameters
@@ -1090,11 +1151,11 @@ def calc_te(ts,
         input array
     num_threads: int
         number of threads
-    source_indices: list or np.ndarray 
+    source_indices: list or np.ndarray
         indices of source time series, if None, all time series are used
     target_indices: list or np.ndarray
         indices of target time series, if None, all time series are used
-    mode: str   
+    mode: str
         "pairwise" or "all", if "pairwise", source_indices and target_indices must have the same length
 
 
@@ -1102,18 +1163,21 @@ def calc_te(ts,
     -------
     TE: list of floats
         transfer entropy
-    '''
+    """
 
     num_surrogates = kwargs.get("num_surrogates", 0)
 
-    if not isinstance(ts, np.ndarray):
-        ts = np.array(ts)
-    if ts.ndim == 1:
-        assert (False), "ts must be a 2d array"
+    info, ts = prepare_input_ts(ts)
+    if not info:
+        return [np.nan], ["te"]
+
+    if ts.shape[0] == 1:
+        assert False, "ts must have more than one time series"
 
     init_jvm()
     calcClass = jp.JPackage(
-        "infodynamics.measures.continuous.kraskov").TransferEntropyCalculatorKraskov
+        "infodynamics.measures.continuous.kraskov"
+    ).TransferEntropyCalculatorKraskov
     calc = calcClass()
     calc.setProperty("NUM_THREADS", str(int(num_threads)))
     calc.setProperty("DELAY", str(int(delay)))
@@ -1134,7 +1198,7 @@ def calc_te(ts,
                 calc.addObservations(ts[i], ts[j])
 
     elif mode == "pairwise":
-        assert (len(source_indices) == len(target_indices))
+        assert len(source_indices) == len(target_indices)
         for i, j in zip(source_indices, target_indices):
             calc.addObservations(ts[i], ts[j])
     calc.finaliseAddObservations()
@@ -1148,15 +1212,13 @@ def calc_te(ts,
     te = te if te >= 0 else 0.0
     label = "te"
 
-    return te, label
+    return [te], [label]
 
 
-def calc_entropy(ts,
-                 average=False,
-                 **kwargs):
-    '''
+def calc_entropy(ts: np.ndarray, average: bool = False):
+    """
     calculate entropy of time series
-    '''
+    """
 
     if not isinstance(ts, np.ndarray):
         ts = np.array(ts)
@@ -1169,12 +1231,13 @@ def calc_entropy(ts,
         return np.nan, labels
     if np.isnan(ts).any() or np.isinf(ts).any():
         n = ts.shape[0]
-        return [np.nan]*n, labels
+        return [np.nan] * n, labels
 
     init_jvm()
 
     calcClass = jp.JPackage(
-        "infodynamics.measures.continuous.kozachenko").EntropyCalculatorMultiVariateKozachenko
+        "infodynamics.measures.continuous.kozachenko"
+    ).EntropyCalculatorMultiVariateKozachenko
     calc = calcClass()
 
     values = []
@@ -1194,7 +1257,7 @@ def calc_entropy(ts,
     return values, labels
 
 
-def calc_entropy_bin(ts, prob="standard", average=False):
+def calc_entropy_bin(ts: np.ndarray, prob: str = "standard", average: bool = False):
     """Computes the entropy of the signal using the Shannon Entropy.
 
     Description in Article:
@@ -1240,11 +1303,10 @@ def calc_entropy_bin(ts, prob="standard", average=False):
         else:
             return -np.sum(p * np.log2(p)) / np.log2(len(ts))
 
-    info, n = check_input(ts)
+    info, ts = prepare_input_ts(ts)
     if not info:
-        return [np.nan]*n, [f"entropy_bin_{i}" for i in range(n)]
+        return [np.nan], [f"entropy_bin_{0}"]
     else:
-        ts = n
         r, c = ts.shape
         values = np.zeros(r)
         for i in range(r):
@@ -1257,11 +1319,23 @@ def calc_entropy_bin(ts, prob="standard", average=False):
         return values, labels
 
 
-############################# Spectral ########################################
-
-
-def spectrum_stats(ts, fs, method='fft', nperseg=None):
-    """ 
+def spectrum_stats(
+    ts: np.ndarray,
+    fs: float,
+    method: str = "fft",
+    nperseg: int = None,
+    indices: List[int] = None,
+    features: List[str] = [
+        "spectral_distance",
+        "fundamental_frequency",
+        "max_frequency",
+        "median_frequency",
+        "spectral_centroid",
+        "spectral_kurtosis",
+        "spectral_variation",
+    ],
+):
+    """
     compute some statistics of the power spectrum of the time series.
 
     Parameters
@@ -1272,6 +1346,8 @@ def spectrum_stats(ts, fs, method='fft', nperseg=None):
         Sampling frequency
     method : str
         Method to compute the power spectrum. Can be 'welch' or 'fft'
+    indices: list of int
+        indices of the regions to be used
 
     Returns
     -------
@@ -1281,67 +1357,38 @@ def spectrum_stats(ts, fs, method='fft', nperseg=None):
         labels of the features
     """
 
-    info, n = check_input(ts)
+    info, ts = prepare_input_ts(ts, indices)
     if not info:
-        return [np.nan]*n, [f"spectrum_stats_{i}" for i in range(n)]
+        return [np.nan], [f"spectrum_stats_{0}"]
     else:
-        ts = n
         ts = ts - ts.mean(axis=1, keepdims=True)
-        # r, c = ts.shape
 
-        if method == 'welch':
+        if method == "welch":
             if nperseg is None:
                 nperseg = ts.shape[1] // 2
             freq, psd = scipy.signal.welch(ts, fs=fs, axis=1, nperseg=nperseg)
-        elif method == 'fft':
+        elif method == "fft":
             freq, psd = calc_fft(ts, fs)
         else:
             raise ValueError("method must be one of 'welch', 'fft'")
 
-        Values = np.array([])
-        Labels = []
+        values = np.array([])
+        labels = []
 
-        # spectral distance
-        val, lab = spectral_distance(psd)
-        Values = np.append(Values, val)
-        Labels = Labels + lab
+        for f in features:
+            v, l = eval(f)(freq, psd)
+            values = np.append(values, v)
+            labels = labels + l
 
-        # fundamental_frequency
-        val, lab = fundamental_frequency(freq, psd)
-        Values = np.append(Values, val)
-        Labels = Labels + lab
+    return values, labels
 
-        # max frequency
-        val, lab = max_frequency(freq, psd)
-        Values = np.append(Values, val)
-        Labels = Labels + lab
 
-        # median frequency
-        val, lab = median_frequency(freq, psd)
-        Values = np.append(Values, val)
-        Labels = Labels + lab
-
-        # spectral centroid
-        val, lab = spectral_centroid(freq, psd)
-        Values = np.append(Values, val)
-        Labels = Labels + lab
-
-        # spectral kurtosis
-        val, lab = spectral_kurtosis(freq, psd)
-        Values = np.append(Values, val)
-        Labels = Labels + lab
-
-        # spectral variation
-        val, lab = spectral_variation(psd)
-        Values = np.append(Values, val)
-        Labels = Labels + lab
-
-    return Values, Labels
-
-def spectrum_auc(ts, fs, method='fft', bands=None, nperseg=None, avg=False, indices=None):
-    '''
+def spectrum_auc(
+    ts, fs, method="fft", bands=None, nperseg=None, average=False, indices=None
+):
+    """
     calculate the area under the curve of the power spectrum of the time series over given frequency bands.
-    
+
     Parameters
     ----------
     ts : nd-array [n_regions x n_samples]
@@ -1353,29 +1400,28 @@ def spectrum_auc(ts, fs, method='fft', bands=None, nperseg=None, avg=False, indi
     bands : list of tuples
         Frequency bands
     nperseg: int
-        Length of each segment. default is half of the time series 
+        Length of each segment. default is half of the time series
     avg: bool
         averaging psd over all regions
     indices: list of int
         indices of the regions to be used
-        
+
     Returns
     -------
     values: array-like
         area under the curve of the power spectrum of the time series
     labels: array-like
         labels of the features
-        
-    '''
-    
-    info, n = check_input(ts)
+
+    """
+
+    info, ts = prepare_input_ts(ts)
     if not info:
-        return [np.nan]*n, [f"spectrum_stats_{i}" for i in range(n)]
+        return [np.nan], [f"spectrum_auc_{0}"]
     else:
-        ts = n
         ts = ts - ts.mean(axis=1, keepdims=True)
         # r, c = ts.shape
-        
+
         if indices is None:
             indices = np.arange(ts.shape[0])
         else:
@@ -1383,22 +1429,22 @@ def spectrum_auc(ts, fs, method='fft', bands=None, nperseg=None, avg=False, indi
             ts = ts[indices, :]
             if len(indices) == 1:
                 ts = ts.reshape(1, -1)
-                
-        if method == 'welch':
+
+        if method == "welch":
             if nperseg is None:
                 nperseg = ts.shape[1] // 2
             freq, psd = scipy.signal.welch(ts, fs=fs, axis=1, nperseg=nperseg)
-        elif method == 'fft':
+        elif method == "fft":
             freq, psd = calc_fft(ts, fs)
         else:
             raise ValueError("method must be one of 'welch', 'fft'")
 
         if bands is None:
             bands = [(0, 4), (4, 8), (8, 12), (12, 30), (30, 70)]
-            
-        if avg:
+
+        if average:
             psd = np.mean(psd, axis=0).reshape(1, -1)
-            
+
         values = []
         for i, band in enumerate(bands):
             idx = (freq >= band[0]) & (freq < band[1])
@@ -1413,19 +1459,21 @@ def spectrum_auc(ts, fs, method='fft', bands=None, nperseg=None, avg=False, indi
         if len(values) == 0:
             values = [np.nan]
             labels = ["spectrum_auc"]
-        
-        return values, labels
-        
 
-def spectrum_moments(ts, 
-                     fs, 
-                     method='fft', 
-                     nperseg=None, 
-                     avg=False, 
-                     moments=[2,3,4,5,6],
-                     normalize=False,
-                     indices=None):
-    '''
+        return values, labels
+
+
+def spectrum_moments(
+    ts,
+    fs,
+    method="fft",
+    nperseg=None,
+    avg=False,
+    moments=[2, 3, 4, 5, 6],
+    normalize=False,
+    indices=None,
+):
+    """
     Computes the moments of power spectrum
 
     Parameters
@@ -1449,11 +1497,11 @@ def spectrum_moments(ts,
         power spectrum statistics of the time series
     labels: array-like
         labels of the features
-    '''
+    """
 
-    info, n = check_input(ts)
+    info, n = prepare_input_ts(ts)
     if not info:
-        return [np.nan]*n, [f"spectrum_moment_{i}" for i in range(n)]
+        return [np.nan] * n, [f"spectrum_moment_{i}" for i in range(n)]
     else:
         ts = n
         ts = ts - ts.mean(axis=1, keepdims=True)
@@ -1466,11 +1514,11 @@ def spectrum_moments(ts,
             if len(indices) == 1:
                 ts = ts.reshape(1, -1)
 
-        if method == 'welch':
+        if method == "welch":
             if nperseg is None:
                 nperseg = ts.shape[1] // 2
             freq, psd = scipy.signal.welch(ts, fs=fs, axis=1, nperseg=nperseg)
-        elif method == 'fft':
+        elif method == "fft":
             freq, psd = calc_fft(ts, fs)
         else:
             raise ValueError("method must be one of 'welch', 'fft'")
@@ -1482,7 +1530,7 @@ def spectrum_moments(ts,
 
         if avg:
             psd = np.mean(psd, axis=0)
-        
+
         for i in moments:
             _m = moment(psd, i, axis=1)
             Values = np.append(Values, _m)
@@ -1490,17 +1538,24 @@ def spectrum_moments(ts,
     return Values, Labels
 
 
-def psd_raw(ts, fs, bands=[(0, 4), (4, 8), (8, 12), (12, 30), (30, 70)],
-            df=None, method='fft', nperseg=None, avg=False, 
-            normalize=False, 
-            normalize_to=None, # normalize to given value in Hz 
-            indices=None):
-    '''
+def psd_raw(
+    ts,
+    fs,
+    bands=[(0, 4), (4, 8), (8, 12), (12, 30), (30, 70)],
+    df=None,
+    method="fft",
+    nperseg=None,
+    average=False,
+    normalize=False,
+    normalize_to: float = None,  # normalize to given value in Hz
+    indices=None,
+):
+    """
     Calculate frequency spectrum and return with specified frequency resolution.
-    
+
     Parameters
     ----------
-    
+
     ts : nd-array [n_regions x n_samples]
         Input time series
     fs : float
@@ -1517,21 +1572,22 @@ def psd_raw(ts, fs, bands=[(0, 4), (4, 8), (8, 12), (12, 30), (30, 70)],
         averaging psd over all regions
     normalize: bool
         normalize the psd by the maximum value
+    normalize_to: float
+        normalize the psd to the given frequency value
     indices: list of int
         indices of the regions to be used
-        
+
     Returns
     -------
     psd: array-like
         power spectrum density
-    
-    '''
-    
-    info, n = check_input(ts)
+
+    """
+
+    info, ts = prepare_input_ts(ts)
     if not info:
-        return [np.nan]*n, [f"spectrum_moment_{i}" for i in range(n)]
+        return [np.nan], [f"spectrum_moment_{0}"]
     else:
-        ts = n
         ts = ts - ts.mean(axis=1, keepdims=True)
         # r, c = ts.shape
         if indices is None:
@@ -1542,46 +1598,51 @@ def psd_raw(ts, fs, bands=[(0, 4), (4, 8), (8, 12), (12, 30), (30, 70)],
             if len(indices) == 1:
                 ts = ts.reshape(1, -1)
 
-        if method == 'welch':
+        if method == "welch":
             if nperseg is None:
                 nperseg = ts.shape[1] // 2
             freq, psd = scipy.signal.welch(ts, fs=fs, axis=1, nperseg=nperseg)
-        elif method == 'fft':
+        elif method == "fft":
             freq, psd = calc_fft(ts, fs)
         else:
             raise ValueError("method must be one of 'welch', 'fft'")
-        
-        if avg:
+
+        if average:
             psd = np.mean(psd, axis=0).reshape(1, -1)
-        
+
+        if normalize and (normalize_to is not None):
+            raise ValueError("normalize and normalize_to cannot be used together")
+
         if normalize_to is not None:
             # check if the value is in the frequency range
             if normalize_to < 0 or normalize_to > fs / 2:
                 raise ValueError("normalize_to must be in the range of 0 to fs/2")
-            
+
             # find index of the frequency closest to the given value
             idx = np.argmin(np.abs(freq - normalize_to))
             psd = psd / psd[:, idx].reshape(-1, 1)
-        elif normalize:        
+        elif normalize:
             psd = psd / np.max(psd, axis=1, keepdims=True)
-        
+
         if df is None:
             df = fs / ts.shape[1]
-        fr_intp = np.arange(0, fs/2, df)
-        psd_intp = np.apply_along_axis(lambda row: np.interp(fr_intp, freq, row), axis=1, arr=psd)
-        
+        fr_intp = np.arange(0, fs / 2, df)
+        psd_intp = np.apply_along_axis(
+            lambda row: np.interp(fr_intp, freq, row), axis=1, arr=psd
+        )
+
         psd_bands = np.array([])
         for i in range(len(bands)):
             idx = (fr_intp >= bands[i][0]) & (fr_intp < bands[i][1])
             if np.sum(idx) == 0:
                 continue
             psd_bands = np.append(psd_bands, psd_intp[:, idx].flatten())
-        
+
         psd_bands = psd_bands.astype(float)
         labels = [f"psd_{i}" for i in range(len(psd_bands))]
-            
+
         return psd_bands, labels
-    
+
 
 def wavelet_abs_mean_1d(ts, function=scipy.signal.ricker, widths=np.arange(1, 10)):
     """Computes CWT absolute mean value of each wavelet scale.
@@ -1627,9 +1688,9 @@ def wavelet_abs_mean(ts, function=scipy.signal.ricker, widths=np.arange(1, 10)):
         labels of the features
     '''
 
-    info, n = check_input(ts)
+    info, n = prepare_input_ts(ts)
     if not info:
-        return [np.nan]*n, [f"wavelet_abs_mean_{i}" for i in range(n)]
+        return [np.nan] * n, [f"wavelet_abs_mean_{i}" for i in range(n)]
     else:
         ts = n
         r, _ = ts.shape
@@ -1638,14 +1699,16 @@ def wavelet_abs_mean(ts, function=scipy.signal.ricker, widths=np.arange(1, 10)):
             values[i] = wavelet_abs_mean_1d(ts[i], function, widths)
 
         values = values.flatten()
-        labels = [f"wavelet_abs_mean_n{i}_w{j}"
-                  for i in range(len(values))
-                  for j in range(len(widths))]
+        labels = [
+            f"wavelet_abs_mean_n{i}_w{j}"
+            for i in range(len(values))
+            for j in range(len(widths))
+        ]
         return values, labels
 
 
 def wavelet_std(ts, function=scipy.signal.ricker, widths=np.arange(1, 10)):
-    '''
+    """
     Computes CWT std value of each wavelet scale.
 
     Parameters
@@ -1665,11 +1728,11 @@ def wavelet_std(ts, function=scipy.signal.ricker, widths=np.arange(1, 10)):
     labels: array-like
         labels of the features
 
-    '''
+    """
 
-    info, n = check_input(ts)
+    info, n = prepare_input_ts(ts)
     if not info:
-        return [np.nan]*n, [f"wavelet_std_{i}" for i in range(n)]
+        return [np.nan] * n, [f"wavelet_std_{i}" for i in range(n)]
     else:
         ts = n
         r, _ = ts.shape
@@ -1678,9 +1741,11 @@ def wavelet_std(ts, function=scipy.signal.ricker, widths=np.arange(1, 10)):
             values[i] = np.std(wavelet(ts[i], function, widths), axis=1)
 
         values = values.flatten()
-        labels = [f"wavelet_std_n{i}_w{j}"
-                  for i in range(len(values))
-                  for j in range(len(widths))]
+        labels = [
+            f"wavelet_std_n{i}_w{j}"
+            for i in range(len(values))
+            for j in range(len(widths))
+        ]
         return values, labels
 
 
@@ -1709,13 +1774,13 @@ def wavelet_energy_1d(ts, function=scipy.signal.ricker, widths=np.arange(1, 10))
 
     """
     cwt = wavelet(ts, function, widths)
-    energy = np.sqrt(np.sum(cwt ** 2, axis=1) / np.shape(cwt)[1])
+    energy = np.sqrt(np.sum(cwt**2, axis=1) / np.shape(cwt)[1])
 
     return tuple(energy)
 
 
 def wavelet_energy(ts, function=scipy.signal.ricker, widths=np.arange(1, 10)):
-    '''
+    """
     Computes CWT energy of each wavelet scale.
 
     Parameters
@@ -1735,11 +1800,11 @@ def wavelet_energy(ts, function=scipy.signal.ricker, widths=np.arange(1, 10)):
     labels: array-like
         labels of the features
 
-    '''
+    """
 
-    info, n = check_input(ts)
+    info, n = prepare_input_ts(ts)
     if not info:
-        return [np.nan]*n, [f"wavelet_energy_{i}" for i in range(n)]
+        return [np.nan] * n, [f"wavelet_energy_{i}" for i in range(n)]
     else:
         ts = n
         r, _ = ts.shape
@@ -1748,67 +1813,29 @@ def wavelet_energy(ts, function=scipy.signal.ricker, widths=np.arange(1, 10)):
             values[i] = wavelet_energy_1d(ts[i], function, widths)
 
         values = values.flatten()
-        labels = [f"wavelet_energy_n{i}_w{j}"
-                  for i in range(len(values))
-                  for j in range(len(widths))]
+        labels = [
+            f"wavelet_energy_n{i}_w{j}"
+            for i in range(len(values))
+            for j in range(len(widths))
+        ]
         return values, labels
 
 
-def state_duration(hmm_z, n_states, avg=True):
-    ''' 
-    Measure the duration of each state 
-
-    Parameters
-    ----------
-    hmm_z : nd-array [n_samples]
-        The most likely states for each time point
-    n_states : int
-        The number of states
-    avg : bool
-        If True, the average duration of each state is returned.
-        Otherwise, the duration of each state is returned.
-
-    Returns
-    -------
-    stat_vec : array-like
-        The duration of each state
-
-    '''
-    infered_state = hmm_z.astype(int)
-    inferred_state_list, inferred_durations = ssm.util.rle(infered_state)
-
-    inf_durs_stacked = []
-    for s in range(n_states):
-        inf_durs_stacked.append(inferred_durations[inferred_state_list == s])
-
-    stat_vec = []
-    for s in range(n_states):
-        value, count = np.unique(inf_durs_stacked[s], return_counts=True)
-        _dur = []
-        for v in range(1, n_states+1):
-            if v in value:
-                _dur.append(count[np.where(value == v)][0])
-            else:
-                _dur.append(0)
-        stat_vec.append(_dur)
-
-    stat_vec = np.array(stat_vec, dtype=int)
-    if avg:
-        return stat_vec.mean(axis=0)
-    else:
-        return stat_vec.flatten()
 # -----------------------------------------------------------------------------
 
 
-def hmm_stat(ts,
-             node_indices=None,
-             n_states=4,
-             subname="",
-             n_iter=100,
-             seed=None,
-             observations="gaussian",
-             method="em"
-             ):
+def hmm_stat(
+    ts,
+    node_indices=None,
+    n_states=4,
+    subname="",
+    n_iter=100,
+    seed=None,
+    observations="gaussian",
+    method="em",
+    tcut=5,
+    bins=10,
+):
     """
     Calculate the state duration of the HMM.
 
@@ -1830,6 +1857,8 @@ def hmm_stat(ts,
         Observation distribution
     method : str
         Method to fit the HMM
+    t_cut : int
+        maximum duration of a state, default is 5
 
     Returns
     -------
@@ -1843,9 +1872,9 @@ def hmm_stat(ts,
     if seed is not None:
         np.random.seed(seed)
 
-    info, n = check_input(ts)
+    info, n = prepare_input_ts(ts)
     if not info:
-        return [np.nan]*n, [f"hmm_dur_{i}" for i in range(n)]
+        return [np.nan] * n, [f"hmm_dur_{i}" for i in range(n)]
     else:
         ts = n
 
@@ -1860,10 +1889,11 @@ def hmm_stat(ts,
         # emmision_hmm_z, emmision_hmm_y = model.sample(nt) #!TODO: check if need to be used
         # hmm_x = model.smooth(obs)
         # upper = np.triu_indices(n_states, 0)
-        # transition_mat = model.transitions.transition_matrix[upper]
+        trans_mat = (model.transitions.transition_matrix).flatten()  # [upper]
 
-        stat_duration = state_duration(hmm_z, n_states, avg=True)
+        stat_duration = state_duration(hmm_z, n_states, avg=True, tcut=tcut, bins=bins)
         labels = [f"hmm{subname}_dur_{i}" for i in range(len(stat_duration))]
-        stat_vec = stat_duration
+        labels += [f"hmm{subname}_trans_{i}" for i in range(len(trans_mat))]
+        stat_vec = np.concatenate([stat_duration, trans_mat])
 
         return stat_vec, labels

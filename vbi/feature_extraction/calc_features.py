@@ -6,46 +6,44 @@ import importlib
 import numpy as np
 import pandas as pd
 from multiprocessing import Pool
-from vbi.feature_extraction.features import *
-from vbi.feature_extraction.features_utils import *
-from vbi.feature_extraction.features_settings import *
-from vbi.feature_extraction.utility import *
+import vbi.feature_extraction.features
+from vbi.feature_extraction.features_settings import Data_F
 
 
-def calc_features(ts,
-                  fs,
-                  fea_dict,
-                  preprocess=None,          # preprocess function
-                  preprocess_args=None,     # arguments for preprocess function
-                  **kwargs):
-    # window_size=None,         # window size for preprocessing #!TODO
-    '''
-    Extract features from time series data
+def calc_features(
+    ts: np.ndarray,
+    fs: float,
+    cfg: dict,
+    preprocess=None,
+    preprocess_args: dict = None,
+):
+    """
+    Extract features from time series data.
 
     Parameters
     ----------
-    dict_features : dictionary
-        Dictionary of features to extract
-    ts : nd-array
-        Input from which the features are extracted
+    ts : np.ndarray
+        Time series data
     fs : int, float
-        Sampling frequency, set to 1 if not used
+        Sampling frequency
+    cfg : dict
+        Dictionary of features configurations
+    preprocess : function
+        Function for preprocessing the time series
+    preprocess_args : dictionary
+        Arguments for preprocessing function
 
     Returns
     -------
-    labels: list
-        List of labels of the features
-    features: list
-        List of features extracted
-    '''
+    features : list of numpy arrays
 
-    features_path = fea_dict['features_path'] if (
-        "features_path" in fea_dict.keys()) else None
+    """
+
+    features_path = cfg["features_path"] if ("features_path" in cfg.keys()) else None
 
     if features_path:
         module_name = features_path.split(os.sep)[-1][:-3]
-        sys.path.append(
-            features_path[:-len(features_path.split(os.sep)[-1])-1])
+        sys.path.append(features_path[: -len(features_path.split(os.sep)[-1]) - 1])
         exec("import " + module_name)
         importlib.reload(sys.modules[features_path.split(os.sep)[-1][:-3]])
         exec("from " + module_name + " import *")
@@ -61,29 +59,29 @@ def calc_features(ts,
     features = []
     info = {}
 
-    domain = list(fea_dict.keys())
+    domain = list(cfg.keys())
     # remove features_path from domain if exists
-    if 'features_path' in domain:
-        domain.remove('features_path')
+    if "features_path" in domain:
+        domain.remove("features_path")
 
     for _type in domain:
-        domain_feats = fea_dict[_type]
+        domain_feats = cfg[_type]
         for fe in domain_feats:
-            if fea_dict[_type][fe]['use'] == 'yes':
+            if cfg[_type][fe]["use"] == "yes":
                 c = length(features)
                 func_name = fe
-                func = fea_dict[_type][fe]['function']
-                params = fea_dict[_type][fe]['parameters']
+                func = cfg[_type][fe]["function"]
+                params = cfg[_type][fe]["parameters"]
 
                 if params is None:
                     params = {}
 
-                if 'fs' in params.keys():
-                    params['fs'] = fs
+                if "fs" in params.keys():
+                    params["fs"] = fs
 
                 if preprocess is not None:
                     ts = preprocess(ts, **preprocess_args)
-
+                print(func_name, params)
                 val, lab = eval(func)(ts, **params)
 
                 if isinstance(val, (np.ndarray, list)):
@@ -92,18 +90,15 @@ def calc_features(ts,
                 else:
                     labels.append(func_name)
                     features.append(val)
-                info[func_name] = {'index': [c, length(features)]}
+                info[func_name] = {"index": [c, length(features)]}
 
     return features, labels, info
 
 
-def extract_features(ts,
-                     fs,
-                     fea_dict,
-                     output_format='list',
-                     **kwargs):
-    #  window_size=None,         # window size for preprocessing #!TODO
-    '''
+def extract_features(
+    ts: np.ndarray, fs: float, cfg: dict, output_type=Data_F, **kwargs
+):
+    """
     Extract features from time series data
 
     Parameters
@@ -115,45 +110,47 @@ def extract_features(ts,
     cfg : dictionary
         Dictionary of features to extract
     output_format : string
-        Output format, either 
+        Output format, either
         'list' (list of numpy arrays)
         'dataframe' (pandas dataframe)
         (default is 'list')
 
     **kwargs
-    --------
-    n_workers : int
+    - n_workers : int
         Number of workers for parallelization, default is 1
         Parallelization is done by ensembles (first dimension of ts)
-    dtype : type
+    - dtype : type
         Data type of the features extracted, default is np.float32
-    verbose : boolean
+    - verbose : boolean
         If True, print the some information
-    preprocess : function
+    - preprocess : function
         Function for preprocessing the time series
-    preprocess_args : dictionary
+    - preprocess_args : dictionary
         Arguments for preprocessing function
+    - n_trial: int
+        Number of trials
 
     Returns
     -------
-    Data: object
-        Object with the following attributes:
-        values: list of numpy arrays or pandas dataframe
-            extracted features
-        labels: list of strings
-            List of labels of the features
-        info: dictionary
-            Dictionary with the information of the features extracted
-    '''
+    Data Object with the following attributes:
+    values: list of numpy arrays or pandas dataframe
+        extracted features
+    labels: list of strings
+        List of labels of the features
+    info: dictionary
+        Dictionary with the information of the features extracted
+
+    """
 
     labels = []
     features = []
 
-    n_workers = kwargs.get('n_workers', 1)
-    dtype = kwargs.get('dtype', np.float32)
-    verbose = kwargs.get('verbose', True)
-    preprocess = kwargs.get('preprocess', None)
-    preprocess_args = kwargs.get('preprocess_args', None)
+    n_workers = kwargs.get("n_workers", 1)
+    dtype = kwargs.get("dtype", np.float32)
+    verbose = kwargs.get("verbose", True)
+    preprocess = kwargs.get("preprocess", None)
+    preprocess_args = kwargs.get("preprocess_args", None)
+    n_trial = kwargs.get("n_trial", len(ts))
 
     def update_bar(verbose):
         if verbose:
@@ -161,53 +158,55 @@ def extract_features(ts,
         else:
             pass
 
-    ts = prepare_input(ts)
-    n_trial, n_region, n_sample = ts.shape
+    # ts, n_trial = prepare_input(ts)
 
     if n_workers == 1:
         features = []
 
         for i in tqdm.tqdm(range(n_trial), disable=not verbose):
-            fea, labels, info = calc_features(
-                ts[i, :, :], fs, fea_dict, **kwargs)
+            fea, labels, info = calc_features(ts[i], fs, cfg, **kwargs)
             features.append(np.array(fea).astype(dtype))
     else:
 
         for i in range(n_trial):
-            _, labels, info = calc_features(ts[i], fs, fea_dict,
-                                            preprocess=preprocess,
-                                            preprocess_args=preprocess_args,
-                                            **kwargs)
+            _, labels, info = calc_features(
+                ts[i],
+                fs,
+                cfg,
+                preprocess=preprocess,
+                preprocess_args=preprocess_args,
+                **kwargs
+            )
             if info:
                 break
         with Pool(processes=n_workers) as pool:
             with tqdm.tqdm(total=n_trial, disable=not verbose) as pbar:
-                async_res = [pool.apply_async(calc_features,
-                                              args=(ts[i],
-                                                    fs,
-                                                    fea_dict
-                                                    ),
-                                              kwds=dict(kwargs),
-                                              callback=update_bar)
-                             for i in range(n_trial)]
-                features = [np.array(res.get()[0]).astype(dtype)
-                            for res in async_res]
+                async_res = [
+                    pool.apply_async(
+                        calc_features,
+                        args=(ts[i], fs, cfg),
+                        kwds=dict(kwargs),
+                        callback=update_bar,
+                    )
+                    for i in range(n_trial)
+                ]
+                features = [np.array(res.get()[0]).astype(dtype) for res in async_res]
 
-    if output_format == 'dataframe':
+    if output_type == "dataframe":
         features = pd.DataFrame(features)
         features.columns = labels
-        
+        return features
+    elif output_type == "list":
+        return features, labels
+
     data = Data_F(values=features, labels=labels, info=info)
 
     return data
 
 
-def dataframe_feature_extractor(ts,
-                                fs,
-                                fea_dict,
-                                **kwargs):
-    '''
-    extract features from time series data and return a pandas dataframe
+def extract_features_df(ts: np.ndarray, fs: float, cfg: dict, **kwargs):
+    """
+    Extract features from time series data and return a pandas dataframe
 
     Parameters
     ----------
@@ -217,42 +216,37 @@ def dataframe_feature_extractor(ts,
         Sampling frequency
     cfg : dictionary
         Dictionary of features to extract
+
     **kwargs
-    --------
-    n_workers : int
+    - n_workers : int
         Number of workers for parallelization, default is 1
         Parallelization is done by ensembles (first dimension of ts)
-    dtype : type
+    - dtype : type
         Data type of the features extracted, default is np.float32
-    verbose : boolean
+    - verbose : boolean
         If True, print the some information
-    preprocess : function
+    - preprocess : function
         Function for preprocessing the time series
-    preprocess_args : dictionary
+    - preprocess_args : dictionary
         Arguments for preprocessing function
 
     Returns
     -------
-    Data: object
-        Object with the following attributes:
-        values: pandas dataframe
-            extracted features
-        labels: list of strings
-            List of labels of the features
-        info: dictionary
-            Dictionary with the information of the features extracted
 
-    '''
-    output_format = 'dataframe'
-    return extract_features(ts, fs, fea_dict, output_format, **kwargs)
+    Data Object with the following attributes:
+    - values: pandas dataframe
+        extracted features
+    - labels: list of strings
+        List of labels of the features
+    - info: dictionary
+        Dictionary with the information of the features extracted
+    """
+    return extract_features(ts, fs, cfg, "dataframe", **kwargs)
 
 
-def list_feature_extractor(ts,
-                           fs,
-                           fea_dict,
-                           **kwargs):
-    '''
-    extract features from time series data and return a pandas dataframe
+def extract_features_list(ts, fs, cfg, **kwargs):
+    """
+    extract features from time series data and return a list of features and labels
 
     Parameters
     ----------
@@ -262,31 +256,28 @@ def list_feature_extractor(ts,
         Sampling frequency
     cfg : dictionary
         Dictionary of features to extract
+
     **kwargs
-    --------
-    n_workers : int
+    - n_workers : int
         Number of workers for parallelization, default is 1
         Parallelization is done by ensembles (first dimension of ts)
-    dtype : type
+    - dtype : type
         Data type of the features extracted, default is np.float32
-    verbose : boolean
+    - verbose : boolean
         If True, print the some information
-    preprocess : function
+    - preprocess : function
         Function for preprocessing the time series
-    preprocess_args : dictionary
+    - preprocess_args : dictionary
         Arguments for preprocessing function
 
     Returns
     -------
-    Data: object
-        Object with the following attributes:
-        values: list of numpy arrays
-            extracted features
-        labels: list of strings
-            List of labels of the features
-        info: dictionary
-            Dictionary with the information of the features extracted
-
-    '''
-    output_format = 'list'
-    return extract_features(ts, fs, fea_dict, output_format, **kwargs)
+    Data Object with the following attributes:
+    - values: list of numpy arrays
+        extracted features
+    - labels: list of strings
+        List of labels of the features
+    - info: dictionary
+        Dictionary with the information of the features extracted
+    """
+    return extract_features(ts, fs, cfg, "list", **kwargs)

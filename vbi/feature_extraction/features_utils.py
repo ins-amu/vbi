@@ -1,7 +1,6 @@
 import vbi
 import scipy
 import torch
-import logging
 import numpy as np
 from os.path import join
 from typing import Union
@@ -9,32 +8,33 @@ from copy import deepcopy
 import scipy.stats as stats
 from numpy import linalg as LA
 from sklearn.decomposition import PCA
-from scipy.stats import skew, kurtosis
 from scipy.signal import butter, detrend, filtfilt, hilbert
 from vbi.feature_extraction.features_settings import load_json
 from vbi.feature_extraction.utility import *
 
 try:
     import jpype as jp
+    import ssm
 except:
-    logging.warning("jpype not imported.")
+    # logging.warning("jpype not imported.")
+    pass
 
 
 def slice_features(x: Union[np.ndarray, torch.Tensor], feature_names: list, info: dict):
     """
-    Slice features from a feature list
+    Slice features using given feature list
 
     Parameters
     ----------
     x: array-like
-    features: list of strings 
+    features: list of strings
         list of features
-    info: dict 
-        features's colum indices in x 
+    info: dict
+        features's colum indices in x
 
     Returns
     -------
-    x_: array-like
+    x_sliced: array-like
         sliced features
     """
     if isinstance(x, (list, tuple)):
@@ -45,31 +45,31 @@ def slice_features(x: Union[np.ndarray, torch.Tensor], feature_names: list, info
 
     is_tensor = isinstance(x, torch.Tensor)
     if is_tensor:
-        x_ = torch.Tensor([])
+        x_sliced = torch.Tensor([])
     else:
-        x_ = np.array([])
+        x_sliced = np.array([])
 
     if len(feature_names) == 0:
-        return x_
+        return x_sliced
 
     for f_name in feature_names:
         if f_name in info:
-            coli, colf = info[f_name]['index'][0], info[f_name]['index'][1]
+            coli, colf = info[f_name]["index"][0], info[f_name]["index"][1]
             if is_tensor:
-                x_ = torch.cat((x_, x[:, coli:colf]), dim=1)
+                x_sliced = torch.cat((x_sliced, x[:, coli:colf]), dim=1)
             else:
-                if x_.size == 0:
-                    x_ = x[:, coli:colf]
+                if x_sliced.size == 0:
+                    x_sliced = x[:, coli:colf]
                 else:
-                    x_ = np.concatenate((x_, x[:, coli:colf]), axis=1)
+                    x_sliced = np.concatenate((x_sliced, x[:, coli:colf]), axis=1)
         else:
             raise ValueError(f"{f_name} not in info")
 
-    return x_
+    return x_sliced
 
 
 def preprocess(ts, fs=None, preprocess_dict={}, **kwargs):
-    '''
+    """
     Preprocess time series data
 
     Parameters
@@ -84,43 +84,40 @@ def preprocess(ts, fs=None, preprocess_dict={}, **kwargs):
         Additional arguments
 
 
-    '''
+    """
 
     if not preprocess_dict:
         preprocess_dict = load_json(
-            vbi.__path__[0] + '/feature_extraction/preprocess.json')
+            vbi.__path__[0] + "/feature_extraction/preprocess.json"
+        )
 
-    if preprocess_dict['zscores']['use'] == 'yes':
+    if preprocess_dict["zscores"]["use"] == "yes":
         ts = stats.zscore(ts, axis=1)
-    if preprocess_dict['offset']['use'] == 'yes':
-        value = preprocess_dict['offset']['parameters']['value']
+    if preprocess_dict["offset"]["use"] == "yes":
+        value = preprocess_dict["offset"]["parameters"]["value"]
         ts = ts[:, value:]
 
-    if preprocess_dict['demean']['use'] == 'yes':
+    if preprocess_dict["demean"]["use"] == "yes":
         ts = ts - np.mean(ts, axis=1)[:, None]
 
-    if preprocess_dict['detrend']['use'] == 'yes':
+    if preprocess_dict["detrend"]["use"] == "yes":
         ts = detrend(ts, axis=1)
 
-    if preprocess_dict['filter']['use'] == 'yes':
-        low_cut = preprocess_dict['filter']['parameters']['low']
-        high_cut = preprocess_dict['filter']['parameters']['high']
-        order = preprocess_dict['filter']['parameters']['order']
-        TR = 1.0/fs
-        ts = band_pass_filter(ts,
-                              k=order,
-                              TR=TR,
-                              low_cut=low_cut,
-                              high_cut=high_cut)
+    if preprocess_dict["filter"]["use"] == "yes":
+        low_cut = preprocess_dict["filter"]["parameters"]["low"]
+        high_cut = preprocess_dict["filter"]["parameters"]["high"]
+        order = preprocess_dict["filter"]["parameters"]["order"]
+        TR = 1.0 / fs
+        ts = band_pass_filter(ts, k=order, TR=TR, low_cut=low_cut, high_cut=high_cut)
 
-    if preprocess_dict['remove_strong_artefacts']['use'] == 'yes':
+    if preprocess_dict["remove_strong_artefacts"]["use"] == "yes":
         ts = remove_strong_artefacts(ts)
 
     return ts
 
 
 def band_pass_filter(ts, low_cut=0.02, high_cut=0.1, TR=2.0, order=2):
-    '''
+    """
     apply band pass filter to given time series
 
     Parameters
@@ -140,13 +137,13 @@ def band_pass_filter(ts, low_cut=0.02, high_cut=0.1, TR=2.0, order=2):
         filtered signal
 
 
-    '''
+    """
 
-    assert (np.isnan(ts).any() == False)
+    assert np.isnan(ts).any() == False
 
-    fnq = 1./(2.0*TR)              # Nyquist frequency
-    Wn = [low_cut/fnq, high_cut/fnq]
-    bfilt, afilt = butter(order, Wn, btype='band')
+    fnq = 1.0 / (2.0 * TR)  # Nyquist frequency
+    Wn = [low_cut / fnq, high_cut / fnq]
+    bfilt, afilt = butter(order, Wn, btype="band")
     return filtfilt(bfilt, afilt, ts, axis=1)
 
 
@@ -169,8 +166,8 @@ def remove_strong_artefacts(ts, threshold=3.0):
     return ts
 
 
-def get_fc(ts, masks=None, positive=False):
-    """ 
+def get_fc(ts, masks=None, positive=False, fc_fucntion="corrcoef"):
+    """
     calculate the functional connectivity matrix
 
     Parameters
@@ -184,15 +181,14 @@ def get_fc(ts, masks=None, positive=False):
         functional connectivity matrix
     """
 
-    n_noes = ts.shape[0]
+    from numpy import corrcoef, cov
 
+    n_noes = ts.shape[0]
     if masks is None:
-        masks = {
-            "full": np.ones((n_noes, n_noes))
-        }
+        masks = {"full": np.ones((n_noes, n_noes))}
 
     FCs = {}
-    FC = np.corrcoef(ts)
+    FC = eval(fc_fucntion)(ts)
     for _, key in enumerate(masks.keys()):
         mask = masks[key]
         fc = deepcopy(FC)
@@ -205,17 +201,18 @@ def get_fc(ts, masks=None, positive=False):
     return FCs
 
 
-def get_fcd(ts,
-            TR=1,
-            win_len=30,
-            positive=False,
-            masks=None
-            #!TODO: add overlap
-            ):
+def get_fcd(
+    ts,
+    TR=1,
+    win_len=30,
+    positive=False,
+    masks=None,
+    #!TODO: add overlap
+):
     """
     Compute dynamic functional connectivity.
 
-    Parameters:
+    Parameters
     ----------
 
     ts: numpy.ndarray [n_regions, n_timepoints]
@@ -223,21 +220,21 @@ def get_fcd(ts,
     win_len: int
         sliding window length in samples, default is 30
     TR: int
-        repetition time. It refers to the amount of time that 
-        passes between consecutive acquired brain volumes during 
+        repetition time. It refers to the amount of time that
+        passes between consecutive acquired brain volumes during
         functional magnetic resonance imaging (fMRI) scans.
     positive: bool
         if True, only positive values of FC are considered.
         default is False
     masks: dict
-        dictionary of masks to compute FCD on. 
+        dictionary of masks to compute FCD on.
         default is None, which means that FCD is computed on the full matrix.
-        see also `hbt.utility.make_mask` and `hbt.utility.get_masks`. 
+        see also `hbt.utility.make_mask` and `hbt.utility.get_masks`.
 
-    Returns:
+    Returns
     -------
         FCD: ndarray
-            matrix of functional connectivity dynamics    
+            matrix of functional connectivity dynamics
     """
     if not isinstance(ts, np.ndarray):
         ts = np.array(ts)
@@ -246,15 +243,15 @@ def get_fcd(ts,
     n_samples, n_nodes = ts.shape
     mask_full = np.ones((n_nodes, n_nodes))
     if masks is None:
-        masks = {
-            "full": mask_full
-        }
+        masks = {"full": mask_full}
 
     windowed_data = np.lib.stride_tricks.sliding_window_view(
-        ts, (int(win_len/TR), n_nodes), axis=(0, 1)).squeeze()
+        ts, (int(win_len / TR), n_nodes), axis=(0, 1)
+    ).squeeze()
     n_windows = windowed_data.shape[0]
     fc_stream = np.asarray(
-        [np.corrcoef(windowed_data[i, :, :], rowvar=False) for i in range(n_windows)])
+        [np.corrcoef(windowed_data[i, :, :], rowvar=False) for i in range(n_windows)]
+    )
 
     if positive:
         fc_stream *= fc_stream > 0
@@ -289,20 +286,21 @@ def get_fcd2(ts, wwidth, maxNwindows, olap, indices=[], verbose=False):
 
     """
 
-    assert (olap <= 1 and olap >= 0), 'olap must be between 0 and 1'
+    assert olap <= 1 and olap >= 0, "olap must be between 0 and 1"
 
     all_corr_matrix = []
     lenseries = len(ts[0])
 
     try:
-        Nwindows = min(((lenseries-wwidth*olap) //
-                        (wwidth*(1-olap)), maxNwindows))
-        shift = int((lenseries-wwidth)//(Nwindows-1))
+        Nwindows = min(
+            ((lenseries - wwidth * olap) // (wwidth * (1 - olap)), maxNwindows)
+        )
+        shift = int((lenseries - wwidth) // (Nwindows - 1))
         if Nwindows == maxNwindows:
-            wwidth = int(shift//(1-olap))
+            wwidth = int(shift // (1 - olap))
 
-        indx_start = range(0, (lenseries-wwidth+1), shift)
-        indx_stop = range(wwidth, (1+lenseries), shift)
+        indx_start = range(0, (lenseries - wwidth + 1), shift)
+        indx_stop = range(wwidth, (1 + lenseries), shift)
 
         nnodes = ts.shape[0]
 
@@ -311,8 +309,9 @@ def get_fcd2(ts, wwidth, maxNwindows, olap, indices=[], verbose=False):
             corr_mat = np.corrcoef(aux_s)
             all_corr_matrix.append(corr_mat)
 
-        corr_vectors = np.array([allPm[np.tril_indices(nnodes, k=-1)]
-                                for allPm in all_corr_matrix])
+        corr_vectors = np.array(
+            [allPm[np.tril_indices(nnodes, k=-1)] for allPm in all_corr_matrix]
+        )
         CV_centered = corr_vectors - np.mean(corr_vectors, -1)[:, None]
 
         return np.corrcoef(CV_centered)
@@ -323,7 +322,7 @@ def get_fcd2(ts, wwidth, maxNwindows, olap, indices=[], verbose=False):
         return np.array([np.nan])
 
 
-def set_domain(key, value):
+def set_attribute(key, value):
     def decorate_func(func):
         setattr(func, key, value)
         return func
@@ -348,7 +347,7 @@ def compute_time(signal, fs):
 
     """
 
-    return np.arange(0, len(signal))/fs
+    return np.arange(0, len(signal)) / fs
 
 
 def calculate_plv(data):
@@ -359,9 +358,8 @@ def calculate_plv(data):
     plv_matrix = np.zeros((n_channels, n_channels))
 
     for i in range(n_channels):
-        for j in range(i+1, n_channels):
-            plv = np.abs(
-                np.mean(np.exp(1j * (phase_angles[i] - phase_angles[j]))))
+        for j in range(i + 1, n_channels):
+            plv = np.abs(np.mean(np.exp(1j * (phase_angles[i] - phase_angles[j]))))
             plv_matrix[i, j] = plv
             plv_matrix[j, i] = plv
 
@@ -369,7 +367,7 @@ def calculate_plv(data):
 
 
 def calc_fft(signal, fs):
-    """ This functions computes the fft of a signal.
+    """This functions computes the fft of a signal.
 
     Parameters
     ----------
@@ -390,7 +388,7 @@ def calc_fft(signal, fs):
     fmag = np.abs(np.fft.fft(signal))
     f = np.linspace(0, fs // 2, len(signal) // 2)
 
-    return f[:len(signal) // 2].copy(), fmag[:len(signal) // 2].copy()
+    return f[: len(signal) // 2].copy(), fmag[: len(signal) // 2].copy()
 
 
 def filterbank(signal, fs, pre_emphasis=0.97, nfft=512, nfilt=40):
@@ -429,20 +427,22 @@ def filterbank(signal, fs, pre_emphasis=0.97, nfft=512, nfilt=40):
 
     # pre-emphasis filter to amplify the high frequencies
 
-    emphasized_signal = np.append(np.array(signal)[0], np.array(
-        signal[1:]) - pre_emphasis * np.array(signal[:-1]))
+    emphasized_signal = np.append(
+        np.array(signal)[0], np.array(signal[1:]) - pre_emphasis * np.array(signal[:-1])
+    )
 
     # Fourier transform and Power spectrum
-    mag_frames = np.absolute(np.fft.rfft(
-        emphasized_signal, nfft))  # Magnitude of the FFT
+    mag_frames = np.absolute(
+        np.fft.rfft(emphasized_signal, nfft)
+    )  # Magnitude of the FFT
 
-    pow_frames = ((1.0 / nfft) * (mag_frames ** 2))  # Power Spectrum
+    pow_frames = (1.0 / nfft) * (mag_frames**2)  # Power Spectrum
 
     low_freq_mel = 0
-    high_freq_mel = (2595 * np.log10(1 + (fs / 2) / 700))  # Convert Hz to Mel
+    high_freq_mel = 2595 * np.log10(1 + (fs / 2) / 700)  # Convert Hz to Mel
     # Equally spaced in Mel scale
     mel_points = np.linspace(low_freq_mel, high_freq_mel, nfilt + 2)
-    hz_points = (700 * (10 ** (mel_points / 2595) - 1))  # Convert Mel to Hz
+    hz_points = 700 * (10 ** (mel_points / 2595) - 1)  # Convert Mel to Hz
     filter_bin = np.floor((nfft + 1) * hz_points / fs)
 
     fbank = np.zeros((nfilt, int(np.floor(nfft / 2 + 1))))
@@ -453,20 +453,23 @@ def filterbank(signal, fs, pre_emphasis=0.97, nfft=512, nfilt=40):
         f_m_plus = int(filter_bin[m + 1])  # right
 
         for k in range(f_m_minus, f_m):
-            fbank[m - 1, k] = (k - filter_bin[m - 1]) / \
-                (filter_bin[m] - filter_bin[m - 1])
+            fbank[m - 1, k] = (k - filter_bin[m - 1]) / (
+                filter_bin[m] - filter_bin[m - 1]
+            )
         for k in range(f_m, f_m_plus):
-            fbank[m - 1, k] = (filter_bin[m + 1] - k) / \
-                (filter_bin[m + 1] - filter_bin[m])
+            fbank[m - 1, k] = (filter_bin[m + 1] - k) / (
+                filter_bin[m + 1] - filter_bin[m]
+            )
 
     # Area Normalization
     # If we don't normalize the noise will increase with frequency because of the filter width.
-    enorm = 2.0 / (hz_points[2:nfilt + 2] - hz_points[:nfilt])
+    enorm = 2.0 / (hz_points[2 : nfilt + 2] - hz_points[:nfilt])
     fbank *= enorm[:, np.newaxis]
 
     filter_banks = np.dot(pow_frames, fbank.T)
-    filter_banks = np.where(filter_banks == 0, np.finfo(
-        float).eps, filter_banks)  # Numerical Stability
+    filter_banks = np.where(
+        filter_banks == 0, np.finfo(float).eps, filter_banks
+    )  # Numerical Stability
     filter_banks = 20 * np.log10(filter_banks)  # dB
 
     return filter_banks
@@ -492,7 +495,7 @@ def autocorr_norm(signal):
 
     variance = np.var(signal)
     signal = np.copy(signal - signal.mean())
-    r = scipy.signal.correlate(signal, signal)[-len(signal):]
+    r = scipy.signal.correlate(signal, signal)[-len(signal) :]
 
     if (signal == 0).all():
         return np.zeros(len(signal))
@@ -560,21 +563,21 @@ def lpc(signal, n_coeff=12):
     order = n_coeff - 1
 
     # Calculate LPC with Yule-Walker
-    acf = np.correlate(signal, signal, 'full')
+    acf = np.correlate(signal, signal, "full")
 
-    r = np.zeros(order+1, 'float32')
+    r = np.zeros(order + 1, "float32")
     # Assuring that works for all type of input lengths
-    nx = np.min([order+1, len(signal)])
-    r[:nx] = acf[len(signal)-1:len(signal)+order]
+    nx = np.min([order + 1, len(signal)])
+    r[:nx] = acf[len(signal) - 1 : len(signal) + order]
 
     smatrix = create_symmetric_matrix(r[:-1], order)
 
     if np.sum(smatrix) == 0:
-        return tuple(np.zeros(order+1))
+        return tuple(np.zeros(order + 1))
 
     lpc_coeffs = np.dot(np.linalg.inv(smatrix), -r[1:])
 
-    return tuple(np.concatenate(([1.], lpc_coeffs)))
+    return tuple(np.concatenate(([1.0], lpc_coeffs)))
 
 
 def create_xx(features):
@@ -595,7 +598,7 @@ def create_xx(features):
     features_ = np.copy(features)
 
     if max(features_) < 0:
-        max_f = - max(features_)
+        max_f = -max(features_)
         min_f = min(features_)
     else:
         min_f = min(features_)
@@ -610,7 +613,7 @@ def create_xx(features):
 
 
 def kde(features):
-    """Computes the probability density function of the input signal 
+    """Computes the probability density function of the input signal
        using a Gaussian KDE (Kernel Density Estimate)
 
     Parameters
@@ -631,7 +634,7 @@ def kde(features):
         noise = np.random.randn(len(features_)) * 0.0001
         features_ = np.copy(features_ + noise)
 
-    kernel = scipy.stats.gaussian_kde(features_, bw_method='silverman')
+    kernel = scipy.stats.gaussian_kde(features_, bw_method="silverman")
 
     return np.array(kernel(xx) / np.sum(kernel(xx)))
 
@@ -697,36 +700,44 @@ def wavelet(signal, function=scipy.signal.ricker, widths=np.arange(1, 10)):
 
 def calc_ecdf(signal):
     """Computes the ECDF of the signal.
-       ECDF is the empirical cumulative distribution function.
+     ECDF is the empirical cumulative distribution function.
 
-      Parameters
-      ----------
-      signal : nd-array
-          Input from which ECDF is computed
-      Returns
-      -------
-      nd-array
-        Sorted signal and computed ECDF.
+    Parameters
+    ----------
+    signal : nd-array
+        Input from which ECDF is computed
+    Returns
+    -------
+    nd-array
+      Sorted signal and computed ECDF.
 
-      """
-    return np.sort(signal), np.arange(1, len(signal)+1)/len(signal)
+    """
+    return np.sort(signal), np.arange(1, len(signal) + 1) / len(signal)
 
 
-def matrix_stat(A, demean=False, k=1, PCA_n_components=3):
-    '''
+def matrix_stat(
+    A: np.ndarray,
+    k: int = 1,
+    eigenvalues: bool = True,
+    pca_num_components: int = 3,
+    quantiles: List[float] = [0.05, 0.25, 0.5, 0.75, 0.95],
+    features: List[str] = ["sum", "max", "min", "mean", "std", "skew", "kurtosis"],
+):
+    """
     calculate statistics of the given matrix
 
     Parameters
     ----------
-    x: np.ndarray (2d)
-        input array
-
-    demean: bool
-        if True, demean the input array
+    A: np.ndarray (2d)
+        input matrix
     k: int
         upper triangular matrix offset
-    PCA_n_components: int
-        number of components to keep for PCA
+    pca_num_components: int
+        number of components to keep for PCA, set to 0 if not used
+    features: list
+        list of features to compute
+    quantiles: list
+        list of quantiles to compute, set to [] or None if not used
 
     Returns
     -------
@@ -735,81 +746,52 @@ def matrix_stat(A, demean=False, k=1, PCA_n_components=3):
     labels: list
         feature labels
 
-    '''
-
-    def funcs(x, demean=False):
-        if demean:
-            vec = np.zeros(3)
-            vec[0] = np.std(x)
-            vec[1] = skew(x)
-            vec[2] = kurtosis(x)
-            return vec, ['std', 'skew', 'kurtosis']
-
-        else:
-            vec = np.zeros(7)
-            vec[0] = np.sum(x)
-            vec[1] = np.max(x)
-            vec[2] = np.min(x)
-            vec[3] = np.mean(x)
-            vec[4] = np.std(x)
-            vec[5] = skew(x)
-            vec[6] = kurtosis(x)
-        return vec, ['sum', 'max', 'min', 'mean', 'std', 'skew', 'kurtosis']
+    """
+    from numpy import sum, max, min, mean, std
+    from scipy.stats import skew, kurtosis
 
     off_diag_sum_A = np.sum(np.abs(A)) - np.trace(np.abs(A))
 
-    # A_TRIU = np.triu(A, k=k)
     ut_idx = np.triu_indices_from(A, k=k)
     A_ut = A[ut_idx[0], ut_idx[1]]
 
-    eigen_vals_A, _ = LA.eig(A)
-    pca = PCA(n_components=PCA_n_components)
-    PCA_A = pca.fit_transform(A)
-
-    Upper_A = []
-    Lower_A = []
-    for i in range(0, len(A)):
-        Upper_A.extend(A[i][i+1:])
-        Lower_A.extend(A[i][0:i])
-
     values = []
     labels = []
+    if quantiles:
+        q = np.quantile(A, quantiles)
+        values.extend(q.tolist())
+        labels.extend([f"quantile_{i}" for i in quantiles])
 
-    q = np.quantile(A, [0.05, 0.25, 0.5, 0.75, 0.95])
-    values.extend(q.tolist())
-    labels.extend([f"quantile_{i}" for i in [0.05, 0.25, 0.5, 0.75, 0.95]])
+    if pca_num_components:
+        pca = PCA(n_components=pca_num_components)
+        pca_a = pca.fit_transform(A)
+        for f in features:
+            v = eval(f)(pca_a.reshape(-1))
+            values.append(v)
+            labels.append(f"pca_{f}")
 
-    stat_vec, stat_labels = funcs(Upper_A, demean)
-    values.extend(stat_vec.tolist())
-    labels.extend([f"upper_{i}" for i in stat_labels])
+    if eigenvalues:
+        eigen_vals_A, _ = LA.eig(A)
+        for f in features:
+            v = eval(f)(np.real(eigen_vals_A[:-1]))
+            values.append(v)
+            labels.append(f"full_{f}")
 
-    stat_vec, stat_labels = funcs(Lower_A, demean)
-    values.extend(stat_vec.tolist())
-    labels.extend([f"lower_{i}" for i in stat_labels])
+    for f in features:
+        v = eval(f)(A_ut)
+        values.append(v)
+        labels.append(f"ut_{f}")
 
-    stat_vec, stat_labels = funcs(PCA_A.reshape(-1), demean)
-    values.extend(stat_vec.tolist())
-    labels.extend([f"pca_{i}" for i in stat_labels])
-
-    stat_vec, stat_labels = funcs(A_ut, demean)
-    values.extend(stat_vec.tolist())
-    labels.extend([f"ut_{i}" for i in stat_labels])
-
-    stat_vec, stat_labels = funcs(np.real(eigen_vals_A[:-1]), demean)
-    values.extend(stat_vec.tolist())
-    labels.extend([f"eigen_{i}" for i in stat_labels])
-
-    # keep this the last element
     values.append(off_diag_sum_A)
     labels.append("sum")
 
     return values, labels
 
 
-def report_cfg(cfg):
-    '''
+def report_cfg(cfg: dict):
+    """
     report the features in provided config file
-    '''
+    """
 
     print("Selected features:")
     print("------------------")
@@ -818,21 +800,22 @@ def report_cfg(cfg):
         if d == "features_path":
             continue
         else:
-            print(d)
+            if cfg[d]:
+                print("■ Domain:", d)
             for f in cfg[d]:
-                print(" -", f)
-                print("   - description: ", cfg[d][f]["description"])
-                print("   - function   : ", cfg[d][f]["function"])
-                print("   - parameters : ", cfg[d][f]["parameters"])
-                print("   - tag        : ", cfg[d][f]["tag"])
-                print("   - use        : ", cfg[d][f]["use"])
+                print(" ▢ Function: ", f)
+                print("   ▫ description: ", cfg[d][f]["description"])
+                print("   ▫ function   : ", cfg[d][f]["function"])
+                print("   ▫ parameters : ", cfg[d][f]["parameters"])
+                print("   ▫ tag        : ", cfg[d][f]["tag"])
+                print("   ▫ use        : ", cfg[d][f]["use"])
 
 
 def get_jar_location():
 
     jar_file_name = "infodynamics.jar"
     jar_location = join(vbi.__file__, "feature_extraction")
-    jar_location = jar_location.replace('__init__.py', '')
+    jar_location = jar_location.replace("__init__.py", "")
     jar_location = join(jar_location, jar_file_name)
 
     return jar_location
@@ -845,14 +828,13 @@ def init_jvm():
     if jp.isJVMStarted():
         return
     else:
-        jp.startJVM(jp.getDefaultJVMPath(), "-ea",
-                    "-Djava.class.path=" + jar_location)
+        jp.startJVM(jp.getDefaultJVMPath(), "-ea", "-Djava.class.path=" + jar_location)
 
 
 def nat2bit(x):
-    '''
+    """
     convert nats to bits
-    '''
+    """
     return x * 1.4426950408889634
 
 
@@ -873,11 +855,11 @@ def compute_time(ts, fs):
 
     """
 
-    return np.arange(0, len(ts))/fs
+    return np.arange(0, len(ts)) / fs
 
 
 def calc_fft(ts, fs):
-    """ This functions computes the fft of a signal.
+    """This functions computes the fft of a signal.
 
     Parameters
     ----------
@@ -896,7 +878,7 @@ def calc_fft(ts, fs):
     """
 
     fmag = np.abs(np.fft.rfft(ts, axis=1))
-    f = np.fft.rfftfreq(len(ts[0]), d=1/fs)
+    f = np.fft.rfftfreq(len(ts[0]), d=1 / fs)
 
     return f, fmag
 
@@ -944,7 +926,7 @@ def fundamental_frequency(f, fmag):
     return f0, labels
 
 
-def spectral_distance(fmag):
+def spectral_distance(freq, fmag):
     """Computes the signal spectral distance.
 
     Distance of the signal's cumulative sum of the FFT elements to
@@ -976,7 +958,7 @@ def spectral_distance(fmag):
 
 
 def max_frequency(f, fmag):
-    """ 
+    """
     Computes the maximum frequency of the signals.
 
     """
@@ -997,7 +979,7 @@ def max_frequency(f, fmag):
 
 
 def median_frequency(f, fmag):
-    """ 
+    """
     Computes the median frequency of the signals.
 
     """
@@ -1018,8 +1000,10 @@ def median_frequency(f, fmag):
 
 
 def spectral_centroid(f, fmag):
-    """ 
+    """
     Calculate the spectral centroid of the signals.
+    The Timbre Toolbox: Extracting audio descriptors from musicalsignals
+    Authors Peeters G., Giordano B., Misdariis P., McAdams S.
 
     Parameters
     ----------
@@ -1028,11 +1012,12 @@ def spectral_centroid(f, fmag):
     fmag: nd-array [n_regions x n_freqs]
         power spectrum of the signal
 
-    Reference: 
-    -----------
-    Description and formula in Article:
-    The Timbre Toolbox: Extracting audio descriptors from musicalsignals
-    Authors Peeters G., Giordano B., Misdariis P., McAdams S.
+    Returns
+    -------
+    values: array-like
+        spectral centroids
+    labels: array-like
+        labels of the features
 
     """
 
@@ -1049,8 +1034,10 @@ def spectral_centroid(f, fmag):
 
 
 def spectral_kurtosis(f, fmag):
-    """ 
+    """
     Measure the flatness of the power spectrum of the signals.
+    The Timbre Toolbox: Extracting audio descriptors from musicalsignals
+    Authors Peeters G., Giordano B., Misdariis P., McAdams S.
 
     Parameters
     ----------
@@ -1059,11 +1046,12 @@ def spectral_kurtosis(f, fmag):
     fmag: nd-array [n_regions x n_freqs]
         power spectrum of the signal
 
-    Reference:
-    -----------
-
-    The Timbre Toolbox: Extracting audio descriptors from musicalsignals
-    Authors Peeters G., Giordano B., Misdariis P., McAdams S.
+    Returns
+    -------
+    values: array-like
+        spectral kurtosis
+    labels: array-like
+        labels of the features
 
     """
 
@@ -1110,13 +1098,14 @@ def spectral_spread(f, fmag):
         if not np.sum(fmag[i]):
             values[i] = 0
         else:
-            values[i] = np.dot(((f - centroid[i]) ** 2),
-                               (fmag[i] / np.sum(fmag[i]))) ** 0.5
+            values[i] = (
+                np.dot(((f - centroid[i]) ** 2), (fmag[i] / np.sum(fmag[i]))) ** 0.5
+            )
 
     return values, [f"spectral_spread_{i}" for i in range(len(values))]
 
 
-def spectral_variation(fmag):
+def spectral_variation(freq, fmag):
     """
     Computes the amount of variation of the spectrum along time.
     Spectral variation is computed from the normalized cross-correlation between two consecutive amplitude spectra.
@@ -1125,12 +1114,13 @@ def spectral_variation(fmag):
     The Timbre Toolbox: Extracting audio descriptors from musicalsignals
     Authors Peeters G., Giordano B., Misdariis P., McAdams S.
     """
+
     def one_d(sum1, sum2, sum3):
 
         if not sum2 or not sum3:
             return 1
         else:
-            return 1 - (sum1 / ((sum2 ** 0.5) * (sum3 ** 0.5)))
+            return 1 - (sum1 / ((sum2**0.5) * (sum3**0.5)))
 
     sum1 = np.sum(fmag[:, :-1] * fmag[:, 1:], axis=1)
     sum2 = np.sum(fmag[:, 1:] ** 2, axis=1)
@@ -1176,7 +1166,7 @@ def wavelet(signal, function=scipy.signal.ricker, widths=np.arange(1, 10)):
 
 
 def km_order(ts, indices=None, avg=True):
-    '''
+    """
     Calculate the (local) Kuramoto order parameter (KOP) of the given time series
 
     Parameters
@@ -1184,16 +1174,16 @@ def km_order(ts, indices=None, avg=True):
     ts: np.ndarray (2d) [n_regions, n_timepoints]
         input array
     indices: list
-        list of indices of the regions of interest  
+        list of indices of the regions of interest
     avg: bool
         if True, average the KOP across time
 
     Returns
     -------
-    values: np.ndarray (1d) or float  
+    values: np.ndarray (1d) or float
         feature values
 
-    '''
+    """
 
     if not isinstance(ts, np.ndarray):
         ts = np.array(ts)
@@ -1222,8 +1212,9 @@ def km_order(ts, indices=None, avg=True):
     else:
         return r
 
-def normalize_signal(ts, method='zscore'):
-    '''
+
+def normalize_signal(ts, method="zscore"):
+    """
     Normalize the input time series
 
     Parameters
@@ -1241,31 +1232,86 @@ def normalize_signal(ts, method='zscore'):
     ts: np.ndarray (2d) [n_regions, n_timepoints]
         normalized array
 
-    '''
-    
+    """
+
     if not isinstance(ts, np.ndarray):
         ts = np.array(ts)
     if ts.ndim == 1:
         ts = ts.reshape(1, -1)
 
-    if method == 'zscore':
+    if method == "zscore":
         ts = stats.zscore(ts, axis=1)
-    
-    elif method == 'minmax':
-        ts = (ts - np.min(ts, axis=1)[:, None]) / \
-            (np.max(ts, axis=1) - np.min(ts, axis=1))[:, None]
-    
-    elif method == 'mean':
-        ts = (ts - np.mean(ts, axis=1)[:, None]) / \
-            np.std(ts, axis=1)[:, None]
-    
+
+    elif method == "minmax":
+        ts = (ts - np.min(ts, axis=1)[:, None]) / (
+            np.max(ts, axis=1) - np.min(ts, axis=1)
+        )[:, None]
+
+    elif method == "mean":
+        ts = (ts - np.mean(ts, axis=1)[:, None]) / np.std(ts, axis=1)[:, None]
+
     elif method == "max":
         ts = ts / np.max(ts, axis=1)[:, None]
-        
-    elif method == 'none':
+
+    elif method == "none":
         pass
-    
+
     else:
         raise ValueError("Invalid method")
 
     return ts
+
+
+def state_duration(
+    hmm_z: np.ndarray, n_states: int, avg: bool = True, tcut: int = 5, bins: int = 10
+):
+    """
+    Measure the duration of each state
+
+    Parameters
+    ----------
+    hmm_z : nd-array [n_samples]
+        The most likely states for each time point
+    n_states : int
+        The number of states
+    avg : bool
+        If True, the average duration of each state is returned.
+        Otherwise, the duration of each state is returned.
+    t_cut : int
+        maximum duration of a state, default is 5
+    bins : int
+        number of bins for the histogram, default is 10
+
+    Returns
+    -------
+    stat_vec : array-like
+        The duration of each state
+
+    """
+
+    infered_state = hmm_z.astype(int)
+    inferred_state_list, inffered_dur = ssm.util.rle(infered_state)
+
+    inferred_dur_stack = []
+    for s in range(n_states):
+        inferred_dur_stack.append(inffered_dur[inferred_state_list == s])
+
+    V = []
+    for i in range(n_states):
+        v, _ = np.histogram(inferred_dur_stack[i], bins=bins, range=(0, tcut))
+        V.append(v)
+    V = np.array(V)
+
+    if avg:
+        return V.mean(axis=0)
+    else:
+        return V.flatten()
+
+
+# not used in the code
+def set_attribute(key, value):
+    def decorate_func(func):
+        setattr(func, key, value)
+        return func
+
+    return decorate_func
