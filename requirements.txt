@@ -16,3 +16,5 @@ jpype1
 setuptools_scm
 numpydoc
 parameterized
+cloud_sptheme
+sphinx-bootstrap-theme

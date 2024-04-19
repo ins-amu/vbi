@@ -30,12 +30,10 @@ setuptools.setup(
     extra_require={
         "dev": [
             "pre-commit",
-            "cloud_sptheme",
-            "sphinx-bootstrap-theme",
             "nbformat",
             "ruff",
         ],
-        "optional": [
+        "all": [
             'jax',
             ],
     },
