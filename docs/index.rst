@@ -6,7 +6,7 @@ Installation
 ============
 
 Requirements
-============
+-------------
 
 - Python3
 - Matplotlib
@@ -26,8 +26,8 @@ Requirements
 
     # If you need to use models implemented in C++ :
     cd vbi/CPPModels
-    make  
-    # you need to install swig if you get an error and probably write the version of 
+    make
+    # you need to install swig if you get an error and probably write the version of
     # python you are using at makefile
     PYTHON_VERSION = 3.8 # or whatever version you have
 
@@ -56,4 +56,4 @@ Modules
    :caption: Contents:
 
    neural_mass
-
+   feature_extraction

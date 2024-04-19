@@ -1,4 +1,11 @@
 
+Mass Models
+############
+
+
+C++ implementation [CPU]
+=========================
+
 Damp Oscillator
 ---------------
 
@@ -25,9 +32,146 @@ Jansen-Rit Neural Mass Model
     \end{align*}
 
 
-.. automodule:: vbi.models.cpp.jansen_rit 
+.. automodule:: vbi.models.cpp.jansen_rit
     :members:
     :undoc-members:
     :show-inheritance:
     :inherited-members:
 
+
+MPR Model
+---------------------
+
+.. automodule:: vbi.models.cpp.mpr
+    :members:
+    :undoc-members:
+    :show-inheritance:
+    :inherited-members:
+
+Kuramoto Model
+---------------------
+
+.. automodule:: vbi.models.cpp.km
+    :members:
+    :undoc-members:
+    :show-inheritance:
+    :inherited-members:
+
+Stuart-Landau Model
+---------------------
+
+.. automodule:: vbi.models.cpp.sl
+    :members:
+    :undoc-members:
+    :show-inheritance:
+    :inherited-members:
+
+"""
+
+Wong Wang model
+---------------------
+
+.. automodule:: vbi.models.cpp.ww
+    :members:
+    :undoc-members:
+    :show-inheritance:
+    :inherited-members:
+
+
+Wilson-Cowan Model
+---------------------
+
+.. automodule:: vbi.models.cpp.wc
+    :members:
+    :undoc-members:
+    :show-inheritance:
+    :inherited-members:
+
+Cupy implementation [CPU/GPU]
+=============================
+
+Generic-Hopf model
+--------------------
+
+.. automodule:: vbi.models.cupy.ghb
+    :members:
+    :undoc-members:
+    :show-inheritance:
+    :inherited-members:
+
+Jansen-Rit Neural Mass Model
+----------------------------
+
+.. automodule:: vbi.models.cupy.jansen_rit
+    :members:
+    :undoc-members:
+    :show-inheritance:
+    :inherited-members:
+
+Kuramoto Model
+---------------------
+
+.. automodule:: vbi.models.cupy.km
+    :members:
+    :undoc-members:
+    :show-inheritance:
+    :inherited-members:
+
+MPR Model
+---------------------
+
+.. automodule:: vbi.models.cupy.mpr
+    :members:
+    :undoc-members:
+    :show-inheritance:
+    :inherited-members:
+
+Utils
+--------
+
+.. automodule:: vbi.models.cupy.utils
+    :members:
+    :undoc-members:
+    :show-inheritance:
+    :inherited-members:
+
+NUMBA implementation [CPU]
+==========================
+
+Damp Oscillator
+---------------
+
+.. automodule:: vbi.models.numba.damp_oscillator
+    :members:
+    :undoc-members:
+    :show-inheritance:
+    :inherited-members:
+
+
+
+Generic-Hopf model
+--------------------
+
+.. automodule:: vbi.models.numba.ghb
+    :members:
+    :undoc-members:
+    :show-inheritance:
+    :inherited-members:
+
+MPR Model
+---------------------
+
+.. automodule:: vbi.models.numba.mpr
+    :members:
+    :undoc-members:
+    :show-inheritance:
+    :inherited-members:
+
+Wang-Wong Model
+---------------------
+
+.. automodule:: vbi.models.numba.ww
+    :members:
+    :undoc-members:
+    :show-inheritance:
+    :inherited-members:
