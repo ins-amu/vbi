@@ -5,21 +5,14 @@ scipy
 pandas
 tqdm
 networkx
-cloud_sptheme
 matplotlib
 symengine
 seaborn
 sbi
 torch
-# jitcsde
-# jitcdde
-# jitcode
 sympy
 scikit-learn
 jpype1
 setuptools_scm
 numpydoc
-# jpype1
-# vbjax
 parameterized
-pre-commit

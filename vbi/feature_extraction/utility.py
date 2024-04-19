@@ -77,7 +77,7 @@ def prepare_input_ts(ts, indices: List[int] = None):
     if not isinstance(ts, np.ndarray):
         ts = np.array(ts)
     if indices is None:
-        indices = np.arange(ts.shape[0], dtype=np.int)
+        indices = np.arange(ts.shape[0], dtype=np.int32)
 
     # check indices validity
     if not isinstance(indices, (list, tuple, np.ndarray)):
