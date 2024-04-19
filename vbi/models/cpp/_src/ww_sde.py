@@ -686,6 +686,3 @@ class WW_sde(object):
 
 # Register WW_sde in _ww_sde:
 _ww_sde.WW_sde_swigregister(WW_sde)
-
-
-

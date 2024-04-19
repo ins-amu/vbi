@@ -1,9 +1,5 @@
 
-import os
-import tqdm
 import numpy as np
-from os.path import join
-from copy import copy, deepcopy
 from vbi.models.cpp._src.mpr_sde import MPR_sde as _MPR_sde
 
 
@@ -47,14 +43,14 @@ class MPR_sde:
         if self.initial_state is None:
             self.INITIAL_STATE_SET = False
     # -------------------------------------------------------------------------
-            
+
     def set_initial_state(self):
         self.initial_state = set_initial_state(self.num_nodes, self.seed)
         self.INITIAL_STATE_SET = True
     # -------------------------------------------------------------------------
 
     def __str__(self) -> str:
-        print(f"MPR sde model.")
+        print("MPR sde model.")
         print("----------------")
         for item in self._par.items():
             name = item[0]
@@ -109,27 +105,11 @@ class MPR_sde:
         }
 
         return params
-    
-    def set_eta(self, key, val_dict):
-        indices = val_dict['indices']
-
-        if indices is None:
-            indices = [list(range(self.num_nodes))]
-        values = val_dict['value']
-        if isinstance(values, np.ndarray):
-            values = values.tolist()
-        if not isinstance(values, list):
-            values = [values]
-        
-        assert(len(indices) == len(values))
-        eta = getattr(self, key)
-        for i in range(len(values)):
-            eta[indices[i]] = values[i]
 
     # -------------------------------------------------------------------------
 
     def prepare_input(self):
-        ''' 
+        '''
         Prepare input parameters for passing to C++ engine.
         '''
 
@@ -161,12 +141,12 @@ class MPR_sde:
         self.square_wave_stimulation = int(self.square_wave_stimulation)
         self.noise_amp = float(self.noise_amp)
         self.record_step = int(self.record_step)
-        self.t_initial = float(self.t_initial) / 10.0 
+        self.t_initial = float(self.t_initial) / 10.0
         self.t_transition = float(self.t_transition) / 10.0
         self.t_end = float(self.t_end) / 10.0
         self.RECORD_AVG = int(self.RECORD_AVG)
         self.noise_seed = int(self.noise_seed)
-        
+
     # -------------------------------------------------------------------------
 
     def run(self, par={}, x0=None, verbose=False):
@@ -201,10 +181,10 @@ class MPR_sde:
         for key in par.keys():
             if key not in self.valid_parameters:
                 raise ValueError(f"Invalid parameter {key:s} provided.")
-            if key in ['eta']:
-                self.set_eta(key, par[key])
-            else:
-                setattr(self, key, par[key]['value'])
+            # if key in ['eta']:
+            #     self.set_eta(key, par[key])
+            # else:
+            setattr(self, key, par[key])
 
         self.prepare_input()
 
@@ -236,7 +216,7 @@ class MPR_sde:
         obj.heunStochasticIntegrate()
         bold = np.asarray(obj.get_bold()).astype(np.float32).T
         t = np.asarray(obj.get_time())
-        
+
         if bold.ndim == 2:
             bold = bold[:, t >= self.t_transition]
             t = t[t >= self.t_transition] * 10.0 # [ms]
@@ -268,7 +248,7 @@ def set_initial_state(nn, seed=None):
 
     if seed is not None:
         np.random.seed(seed)
-        
+
     y0 = np.random.rand(2*nn)
     y0[:nn] = y0[:nn]*1.5
     y0[nn:] = y0[nn:]*4-2

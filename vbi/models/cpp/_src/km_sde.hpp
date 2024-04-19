@@ -76,7 +76,7 @@ public:
         this->weights = weights;
         this->noise_amp = noise_amp;
         this->fix_seed = fix_seed;
-        
+
         omp_set_num_threads(num_threads);
 
         adjlist = adjmat_to_adjlist(weights);
@@ -120,11 +120,11 @@ public:
 
         for (size_t i = 0; i < nn; ++i)
             tmp[i] = y[i] + dt * k1[i] + noise_amp * normal(rng(fix_seed));
-            
+
         rhs_f(tmp, k2, t + dt);
         for (size_t i = 0; i < nn; ++i)
             y[i] += 0.5 * dt * (k1[i] + k2[i]) + noise_amp * normal(rng(fix_seed));
-            
+
     }
 
     void IntegrateHeun()

@@ -1,12 +1,9 @@
 import warnings
 import numpy as np
-from tqdm import tqdm
-from numpy.random import randn
-from copy import copy, deepcopy
-from numba import njit, jit, prange
+from numba import njit
 from numba.experimental import jitclass
 from numba.core.errors import NumbaPerformanceWarning
-from numba import int32, float32, float64, boolean, int64, types
+from numba import float64, int64
 
 warnings.simplefilter("ignore", category=NumbaPerformanceWarning)
 
@@ -93,7 +90,7 @@ def run(P, times):
             z[nn + i] = z[nn + i] + dt * dz1
             z[2 * nn + i] = z[2 * nn + i] + dt * dz2
             z[3 * nn + i] = z[3 * nn + i] + dt * dz3
-            if (it%decimate == 0):    
+            if (it%decimate == 0):
                 bold[i, ii + 1] = V0 * (
                     k1
                     - k1 * z[3 * nn + i]
@@ -173,7 +170,7 @@ par_spec = [
     ("dt", float64),
     ("seed", int64),
     ("tend", float64),
-    ("tcut", float64),  
+    ("tcut", float64),
     ("sigma", float64),
     ("eta", float64[:]),
     ("decimate", int64),

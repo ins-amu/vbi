@@ -1,11 +1,11 @@
 
-%module km_sde 
+%module km_sde
 
 %{
 #include "km_sde.hpp"
 %}
 
-%include stl.i 
+%include stl.i
 %include <std_vector.i>
 %include "std_string.i"
 namespace std {

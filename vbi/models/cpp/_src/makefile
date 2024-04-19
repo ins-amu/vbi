@@ -2,7 +2,7 @@
 
 CXX=g++
 CXXFLAGS  = -std=c++11 -fopenmp -O2  -fPIC -c
-SWIGFLAGS = -c++ -python -shadow  
+SWIGFLAGS = -c++ -python -shadow
 
 # location of the Python header files
 PYTHON_VERSION = 3.8
@@ -45,9 +45,9 @@ _do.so: do_wrap.o
 	$(CXX) -shared -fopenmp do_wrap.o -o _do.so
 
 do_wrap.o : do_wrap.cpp do.hpp utility.hpp
-	$(CXX) $(CXXFLAGS) $< -I $(PYTHON_INCLUDE) 
+	$(CXX) $(CXXFLAGS) $< -I $(PYTHON_INCLUDE)
 
-do_wrap.cpp : do.i 
+do_wrap.cpp : do.i
 	swig $(SWIGFLAGS) -o do_wrap.cpp do.i
 
 # -----------------------------------------------------------------------------
@@ -55,9 +55,9 @@ _jr_sde.so: jr_sde_wrap.o
 	$(CXX) -shared -fopenmp jr_sde_wrap.o -o _jr_sde.so
 
 jr_sde_wrap.o : jr_sde_wrap.cpp jr_sde.hpp utility.hpp
-	$(CXX) $(CXXFLAGS) $< -I $(PYTHON_INCLUDE) 
+	$(CXX) $(CXXFLAGS) $< -I $(PYTHON_INCLUDE)
 
-jr_sde_wrap.cpp : jr_sde.i 
+jr_sde_wrap.cpp : jr_sde.i
 	swig $(SWIGFLAGS) -o jr_sde_wrap.cpp jr_sde.i
 # -----------------------------------------------------------------------------
 
@@ -77,7 +77,7 @@ _mpr_sde.so: mpr_sde_wrap.o
 mpr_sde_wrap.o : mpr_sde_wrap.cpp mpr_sde.hpp utility.hpp
 	$(CXX) $(CXXFLAGS) $< -I $(PYTHON_INCLUDE)
 
-mpr_sde_wrap.cpp : mpr_sde.i 
+mpr_sde_wrap.cpp : mpr_sde.i
 	swig $(SWIGFLAGS) -o mpr_sde_wrap.cpp mpr_sde.i
 # -----------------------------------------------------------------------------
 
@@ -126,7 +126,7 @@ ww_sde_wrap.cpp : ww_sde.i
 clean :
 	rm -rf *.o  *.so *.pyc
 	rm -rf do_wrap.cpp do.py
-	rm -rf jr_sde_wrap.cpp jr_sde.py 
+	rm -rf jr_sde_wrap.cpp jr_sde.py
 	rm -rf jr_sdde_wrap.cpp jr_sdde.py
 	rm -rf mpr_sde_wrap.cpp mpr_sde.py
 	rm -rf sl_sdde_wrap.cpp sl_sdde.py

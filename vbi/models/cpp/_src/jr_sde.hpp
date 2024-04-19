@@ -88,7 +88,7 @@ public:
         par_r = r;
         par_v0 = v0;
         par_vmax = vmax;
-        
+
         this-> noise_mu = noise_mu;
         this-> noise_sigma = noise_sigma;
 
@@ -170,9 +170,9 @@ public:
         {
             if ((i>= (4*N)) && (i<(5*N)))
                 y[i] += dydt[i] * dt + sqrt(dt) * noise_sigma * normal(rng(fix_seed));
-            else            
+            else
                 y[i] += dydt[i] * dt;
-        }        
+        }
     }
     // ------------------------------------------------------------------------
     void eulerIntegrate()
@@ -215,7 +215,7 @@ public:
             else
                 tmp[i] = y[i] + k1[i] * dt;
         }
-        
+
         rhs(tmp, k2, t + dt);
         for (size_t i = 0; i < n; ++i)
         {

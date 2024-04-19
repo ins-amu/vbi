@@ -1,9 +1,6 @@
 import os
 from typing import Any
-import torch
 import numpy as np
-from copy import copy
-from os.path import join
 from vbi.models.cpp._src.do import DO as _DO
 
 class DO_cpp:
@@ -111,7 +108,7 @@ class DO_cpp:
         if x0 is not None:
             assert(len(x0) == 2)
             self.initial_state = x0
-        
+
         self.check_parameters(par)
         for key in par.keys():
             setattr(self, key, par[key])
@@ -140,6 +137,3 @@ class DO_cpp:
         del obj
 
         return {"t": times, "x": sol}
-
-
-

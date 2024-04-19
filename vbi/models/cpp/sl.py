@@ -1,7 +1,4 @@
-import os
 import numpy as np
-from os.path import join
-from copy import copy, deepcopy
 from vbi.models.cpp._src.sl_sdde import Stuart_Landau as _sl_sdde
 
 
@@ -68,7 +65,7 @@ class SL_sdde:
         self.INITIAL_STATE_SET = True
 
     def __str__(self) -> str:
-        print(f"Stuart-Landau model.")
+        print("Stuart-Landau model.")
         print("----------------")
         for item in self._par.items():
             name = item[0]
@@ -77,7 +74,7 @@ class SL_sdde:
         return ""
 
     def __call__(self):
-        print(f"Stuart-Landau model.")
+        print("Stuart-Landau model.")
         return self._par
 
     def check_parameters(self, par):

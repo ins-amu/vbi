@@ -1,12 +1,9 @@
-import os
 import numpy as np
-from os.path import join
-from copy import copy, deepcopy
 from vbi.models.cpp._src.km_sde import KM_sde as _KM_sde
 
 
 class KM_sde:
-    ''' 
+    '''
     Kuramoto model with noise (sde), C++ implementation.
 
     Parameters
@@ -60,7 +57,7 @@ class KM_sde:
         self.initial_state = set_initial_state(self.num_nodes, self.seed)
 
     def __str__(self) -> str:
-        print(f"Kuramoto model with noise (sde), C++ implementation.")
+        print("Kuramoto model with noise (sde), C++ implementation.")
         print("----------------")
         for item in self._par.items():
             name = item[0]
@@ -96,7 +93,7 @@ class KM_sde:
                 raise ValueError(f"Invalid parameter: {key}")
 
     def prepare_input(self):
-        
+
         nn = self.num_nodes
         if self.weights is None:
             raise ValueError("Missing weights.")

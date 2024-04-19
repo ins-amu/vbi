@@ -1,8 +1,4 @@
-import os 
-import tqdm 
 import numpy as np
-from copy import copy
-from os.path import join
 from vbi.models.cpp._src.wc_ode import WC_ode as _WC_ode
 
 
@@ -10,13 +6,13 @@ from vbi.models.cpp._src.wc_ode import WC_ode as _WC_ode
 ###############################################################################
 
 class WC_ode(object):
-    """ 
+    """
     Wilson-Cowan model.
     """
 
 
     def __init__(self, par={}) -> None:
-        
+
         self.valid_params = self.get_default_parameters().keys()
         self.check_parameters(par)
         self._par = self.get_default_parameters()
@@ -38,16 +34,16 @@ class WC_ode(object):
         for item in self._par.items():
             print(f"{item[0]}, : , {item[1]}")
         return ""
-    
+
     def __call__(self):
         print("Wilson-Cowan model.")
         return self._par
-    
+
     def check_parameters(self, par):
         for key in par.keys():
             if key not in self.valid_params:
                 raise ValueError(f"Invalid parameter: {key}")
-    
+
     def get_default_parameters(self):
         par = {
             'c_ee': 16.0,
@@ -79,12 +75,12 @@ class WC_ode(object):
             'seed': None,
             "t_end": 300.0,
             "t_cut": 0.0,
-            "dt": 0.01, 
+            "dt": 0.01,
             "noise_seed": False,
             "output": "output",
         }
         return par
-    
+
     def set_initial_state(self, seed=None):
 
         if seed is not None:
@@ -123,7 +119,7 @@ class WC_ode(object):
         self.method = str(self.method)
         self.weights = np.asarray(self.weights)
 
-        
+
     def run(self, par={}, x0=None, verbose=False):
 
         '''
@@ -137,7 +133,7 @@ class WC_ode(object):
             Initial state of the system.
         verbose : bool
             If True, print the integration progress.
-        
+
         '''
 
         if x0 is None:
@@ -146,12 +142,12 @@ class WC_ode(object):
                 print("Initial state set by default.")
         else:
             self.initial_state = x0
-        
+
         for key in par.keys():
             if key not in self.valid_params:
                 raise ValueError(f"Invalid parameter: {key}")
             setattr(self, key, par[key]['value'])
-        
+
         self.prepare_input()
 
         obj = _WC_ode(
@@ -173,9 +169,9 @@ class WC_ode(object):
         t = np.asarray(obj.get_times())
         x = np.asarray(obj.get_states()).T
 
-        del obj 
+        del obj
         return {"t": t, "x": x}
-    
+
 
 def check_sequence(x, n):
     '''
@@ -195,4 +191,3 @@ def check_sequence(x, n):
         return x
     else:
         return x * np.ones(n)
-

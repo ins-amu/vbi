@@ -105,7 +105,7 @@ public:
         assert(record_step > 0);
         assert(N == weights.size());
         adjlist = adjmat_to_adjlist(weights);
-        
+
     }
 
     double H(const double x)

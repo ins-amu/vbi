@@ -1,9 +1,4 @@
-import os
-from typing import Any
-from tqdm import tqdm
 import numpy as np
-from copy import copy
-from os.path import join
 from vbi.models.cpp._src.ww_sde import WW_sde as _WW_sde
 
 ########################### Wong Wang sde model ###############################
@@ -18,7 +13,7 @@ class WW_sde(object):
     ----------
 
     par: dict
-        Dictionary with parameters of the model. 
+        Dictionary with parameters of the model.
         - **G**: float, coupling strength
         - **J_N**: float, synaptic coupling strength
         - **I_o**: float, external input
@@ -40,14 +35,14 @@ class WW_sde(object):
 
 
     def __str__(self) -> str:
-        print(f"Wong Wang model with SDE integration")
+        print("Wong Wang model with SDE integration")
         print("-------------------------------------")
         for item in self.par_.items():
             print(f"{item[0]}: {item[1]}")
         return ""
 
     def __call__(self):
-        print(f"Wong Wang model with SDE integration")
+        print("Wong Wang model with SDE integration")
         return self.par_
 
     def set_parameters(self, par: dict) -> None:

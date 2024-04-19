@@ -133,7 +133,7 @@ public:
 
     void rk4(dim1&y, const double t)
     {
-        
+
         size_t n = y.size();
         dim1 k1(n), k2(n), k3(n), k4(n);
         dim1 f(n);
@@ -160,7 +160,7 @@ public:
     {
         return states;
     }
-    dim1 get_times() 
+    dim1 get_times()
     {
         return times;
     }

@@ -1,23 +1,12 @@
 import os
-import tqdm
 import numpy as np
-from copy import copy
 from os.path import join
 from vbi.models.cpp._src.jr_sde import JR_sde as _JR_sde
 from vbi.models.cpp._src.jr_sdde import JR_sdde as _JR_sdde
 
-########################## Jansen-Rit sde #####################################
-###############################################################################
-
-# class Base(object):
-#     pass 
-    #! TODO: add base class for JR_sde and JR_sdde
-    
-
-
 
 class JR_sde:
-    ''' 
+    '''
     Jansen-Rit model C++ implementation.
 
     Parameters
@@ -25,18 +14,18 @@ class JR_sde:
 
     par: dict
         Including the following:
-        - **A** : [mV] determine the maximum amplitude of the excitatory PSP (EPSP) 
+        - **A** : [mV] determine the maximum amplitude of the excitatory PSP (EPSP)
         - **B** : [mV] determine the maximum amplitude of the inhibitory PSP (IPSP)
         - **a** : [Hz]  1/tau_e,  :math:`\sum` of the reciprocal of the time constant of passive membrane and all other spatially distributed  delays in the dendritic network
         - **b** : [Hz] 1/tau_i
         - **r**  [mV] the steepness of the sigmoidal transformation.
-        - **v0** parameter of nonlinear sigmoid function 
+        - **v0** parameter of nonlinear sigmoid function
         - **vmax** parameter of nonlinear sigmoid function
         - **C_i** [list or np.array] average number of synaptic contacts in th inhibitory and excitatory feedback loops
         - **noise_amp**
         - **noise_std**
 
-        - **dt** [second] integration time step 
+        - **dt** [second] integration time step
         - **t_initial** [s] initial time
         - **t_end** [s] final time
         - **method** [str] method of integration
@@ -100,7 +89,7 @@ class JR_sde:
                 raise ValueError("Invalid parameter: " + key)
 
     def get_default_parameters(self):
-        ''' 
+        '''
         return default parameters for the Jansen-Rit sde model.
         '''
 
@@ -141,14 +130,14 @@ class JR_sde:
         '''
         Set initial state for the system of JR equations with N nodes.
         '''
-        
+
         self.initial_state = set_initial_state(self.num_nodes, self.seed)
         self.INITIAL_STATE_SET = True
 
     # -------------------------------------------------------------------------
 
     def set_C(self, label, val_dict):
-        ''' 
+        '''
         set the value of C0, C1, C2, C3.
 
         Parameters
@@ -156,7 +145,7 @@ class JR_sde:
         label: str
             C0, C1, C2, C3
         val_dict: dict
-            {'indices': [list or multiple list seperated with comma], 
+            {'indices': [list or multiple list seperated with comma],
              'value': [list or multiple list seperated with comma]}
 
         '''
@@ -460,7 +449,7 @@ class JR_sdde:
                 self.set_C(key, par[key])
             else:
                 setattr(self, key, par[key]['value'])
-        
+
         self.prepare_input()
         obj = _JR_sdde(self.dt,
                        self.initial_state,

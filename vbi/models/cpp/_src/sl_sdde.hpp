@@ -212,7 +212,7 @@ public:
             dy = f_sys(k0, 0, it, plag);
             for (int i = 0; i < N; ++i)
             {
-                
+
                 y[i][it + 1] = y[i][it] + dt * dy[i] + rNoise * normal(rng(fix_seed));
                 y[i + N][it + 1] = y[i + N][it] + dt * dy[i + N] + vNoise * normal(rng(fix_seed));
             }
