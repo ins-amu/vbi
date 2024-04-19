@@ -6,6 +6,10 @@ from os.path import join
 from scipy.stats import gaussian_kde
 from sbi.analysis.plot import _get_default_opts, _update, ensure_numpy
 
+import re
+import nbformat
+from nbconvert import PythonExporter
+
 
 def timer(func):
     """
@@ -147,3 +151,35 @@ def posterior_peaks(samples, return_dict=False, **kwargs):
         return peaks
     else:
         return list(peaks.values())
+
+
+def p2j(modulePath):
+    '''convert python script to jupyter notebook'''
+    os.system(f"p2j -o {modulePath}")
+
+
+def j2p(notebookPath, modulePath=None):
+    """
+    convert a jupyter notebook to a python module
+
+    >>> j2p("sample.ipynb", "sample.py")
+
+    """
+
+    with open(notebookPath) as fh:
+        nb = nbformat.reads(fh.read(), nbformat.NO_CONVERT)
+
+    exporter = PythonExporter()
+    source, meta = exporter.from_notebook_node(nb)
+
+    # remove lines start with `# In[` from source
+    source = re.sub(r"^# In\[[0-9 ]*\]:\n", "", source, flags=re.MULTILINE)
+
+    # replace more that 1 empty lines with 1 empty line
+    source = re.sub(r"\n{2,}", "\n\n", source)
+
+    if modulePath is None:
+        modulePath = notebookPath.replace(".ipynb", ".py")
+
+    with open(modulePath, "w+") as fh:
+        fh.writelines(source)

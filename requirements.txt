@@ -21,3 +21,5 @@ setuptools_scm
 numpydoc
 # jpype1
 # vbjax
+parameterized
+pre-commit

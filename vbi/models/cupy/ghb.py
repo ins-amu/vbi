@@ -1,8 +1,6 @@
 import tqdm
 import cupy as cp
-import networkx as nx
-from copy import deepcopy, copy
-from numpy.matlib import repmat
+from copy import copy
 from vbi.models.cupy.utils import *
 
 
@@ -18,7 +16,7 @@ class GHB_sde:
         - 'dt': Time step
 
     """
-    
+
     epsilon = 0.5
     itaus = 1.25
     itauf = 2.5
@@ -41,7 +39,7 @@ class GHB_sde:
             setattr(self, *item)
 
         self.xp = get_module(self.engine)
-        if not self.seed is None:
+        if self.seed is not None:
             self.xp.random.seed(self.seed)
 
     def __call__(self):
@@ -107,8 +105,8 @@ class GHB_sde:
         else:
             self.initial_state = move_data(
                 self.initial_state, self.engine)
-        
-        
+
+
         self.eta = prepare_vec(self.eta, self.num_sim, self.engine, self.dtype)
         self.omega = prepare_vec(self.omega, self.num_sim, self.engine, self.dtype)
 

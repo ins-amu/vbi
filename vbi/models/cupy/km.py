@@ -1,8 +1,5 @@
 import tqdm
-import cupy as cp
 import numpy as np
-import networkx as nx
-import matplotlib.pyplot as plt
 from vbi.models.cupy.utils import *
 
 
@@ -165,7 +162,7 @@ class KM_sde:
         -------
         dict
             x: array [n_timesteps, n_regions, n_sim]
-                time series data 
+                time series data
             t: array
                 time points [n_timepoints]
 
@@ -213,7 +210,7 @@ def set_initial_state(nn, ns=1, engine="cpu", seed=None, same_initial_state=Fals
         initial state
 
     '''
-    
+
 
     if seed is not None:
         np.random.seed(seed)
@@ -225,5 +222,3 @@ def set_initial_state(nn, ns=1, engine="cpu", seed=None, same_initial_state=Fals
         x0 = move_data(x0, engine)
 
     return x0.astype(dtype)
-
-

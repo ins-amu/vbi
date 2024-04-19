@@ -81,7 +81,6 @@ def calc_features(
 
                 if preprocess is not None:
                     ts = preprocess(ts, **preprocess_args)
-                print(func_name, params)
                 val, lab = eval(func)(ts, **params)
 
                 if isinstance(val, (np.ndarray, list)):
@@ -164,7 +163,9 @@ def extract_features(
         features = []
 
         for i in tqdm.tqdm(range(n_trial), disable=not verbose):
-            fea, labels, info = calc_features(ts[i], fs, cfg, **kwargs)
+            fea, labels, info = calc_features(
+                ts[i], fs, cfg, preprocess, preprocess_args
+            )
             features.append(np.array(fea).astype(dtype))
     else:
 
@@ -184,7 +185,7 @@ def extract_features(
                 async_res = [
                     pool.apply_async(
                         calc_features,
-                        args=(ts[i], fs, cfg),
+                        args=(ts[i], fs, cfg, preprocess, preprocess_args),
                         kwds=dict(kwargs),
                         callback=update_bar,
                     )

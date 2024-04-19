@@ -1,10 +1,7 @@
 import tqdm
 import cupy as cp
 import numpy as np
-import networkx as nx
 from copy import copy
-import matplotlib.pyplot as plt
-from numpy.matlib import repmat
 from vbi.models.cupy.utils import *
 
 
@@ -53,6 +50,7 @@ class MPR_sde:
         "RECORD_TS", "num_sim", "method", "num_nodes", "initial_state",
         "seed", "engine", "dtype", "output", "alpha", "inv_alpha",
         "tauo", "taus", "tauf",  "K1", "K2", "K3", "E0", "V0", "eps",
+        "same_initial_state"
     ]
 
     def __init__(self, par={}) -> None:
@@ -67,7 +65,7 @@ class MPR_sde:
             setattr(self, name, value)
 
         self.xp = get_module(self.engine)
-        if not self.seed is None:
+        if self.seed is not None:
             self.xp.random.seed(self.seed)
 
     def __call__(self):
@@ -165,7 +163,7 @@ class MPR_sde:
 
         self.G = self.xp.array(self.G)
         assert (self.weights is not None), "weights must be provided"
-        self.weights = self.xp.array(self.weights).T  # ! Directed network
+        self.weights = self.xp.array(self.weights).T  # ! Directed network #!TODO: check
         self.weights = move_data(self.weights, self.engine)
         self.nn = self.num_nodes = self.weights.shape[0]
 
@@ -387,7 +385,7 @@ class MPR_sde:
         if self.RECORD_TS:
             _nt = np.ceil((n_steps - i_cut)/rs).astype(int)
             rv_d = np.zeros((_nt, 2*nn, ns), dtype="f")
-        
+
         _nt = np.ceil((n_steps)/(rs*dec)).astype(int)
         fmri_d = np.zeros((_nt, nn, ns), dtype="f")
 
@@ -414,12 +412,11 @@ class MPR_sde:
                 fmri_d[jj, :, :] = get_(fmri_i, engine, "f")
                 jj += 1
                 fmri_t.append(t)
-
         fmri_d = np.asarray(fmri_d).astype("f")
-        fmri_t = np.asarray(fmri_t).astype("f") * 10
+        fmri_t = np.asarray(fmri_t).astype("f")
         fmri_d = fmri_d[fmri_t >= t_cut, :, :]
-        fmri_t = fmri_t[fmri_t >= t_cut]
-        rv_t = np.asarray(rv_t).astype("f") * 10
+        fmri_t = fmri_t[fmri_t >= t_cut] * 10.0
+        rv_t = np.asarray(rv_t).astype("f") * 10.0
 
         return {
             "rv_t": rv_t,

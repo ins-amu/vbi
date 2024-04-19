@@ -6,7 +6,7 @@ from sbi.utils.user_input_checks import process_prior
 class Inference(object):
     def __init__(self) -> None:
         pass
-    
+
     @timer
     def train(self,
               theta,
@@ -57,12 +57,12 @@ class Inference(object):
 
         Returns
         -------
-        
+
         '''
         prior, _, _ = process_prior(prior)
         theta = prior.sample((n,))
         return theta
-    
+
     @staticmethod
     def sample_posterior(xo,
                          num_samples,
@@ -83,7 +83,7 @@ class Inference(object):
         -------
         samples: torch.tensor float32 (num_samples, d)
             samples from the posterior
-        
+
         '''
 
         if not isinstance(xo, torch.Tensor):

@@ -1,11 +1,5 @@
-from typing import Any
 import tqdm
-import cupy as cp
 import numpy as np
-import networkx as nx
-from copy import copy
-import matplotlib.pyplot as plt
-from numpy.matlib import repmat
 from vbi.models.cupy.utils import *
 
 
@@ -29,7 +23,7 @@ class JR_sde:
             setattr(self, name, value)
 
         self.xp = get_module(self.engine)
-        if not self.seed is None:
+        if self.seed is not None:
             self.xp.random.seed(self.seed)
 
     def __str__(self) -> str:
@@ -40,12 +34,12 @@ class JR_sde:
             value = item[1]
             print (f"{name} = {value}")
         return ""
-    
+
 
     def __call__(self):
         print("Jansen-Rit Model")
         return self._par
-    
+
     def check_parameters(self, par):
         for key in par.keys():
             if key not in self.valid_parameters:
@@ -225,7 +219,7 @@ class JR_sde:
 
         dict: simulation results
             t: array [n_step]
-                time    
+                time
             x: array [n_step, num_nodes, num_sim]
                 y1-y2 time series
 
@@ -289,7 +283,7 @@ def set_initial_state(nn, ns, engine, seed=None, same_initial_state=False, dtype
 
     '''
 
-    if not seed is None:
+    if seed is not None:
         np.random.seed(seed)
 
     if same_initial_state:
