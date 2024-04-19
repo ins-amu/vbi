@@ -18,3 +18,4 @@ numpydoc
 parameterized
 cloud_sptheme
 sphinx-bootstrap-theme
+nbformat
