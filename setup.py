@@ -31,10 +31,16 @@ setuptools.setup(
         "dev": [
             "pre-commit",
             "nbformat",
+            "nbconvert",
             "ruff",
         ],
         "all": [
             'jax',
+            'pycatch22',
+            "pre-commit",
+            "nbformat",
+            "nbconvert",
+            "ruff",
             ],
     },
     # include_package_data=True,
