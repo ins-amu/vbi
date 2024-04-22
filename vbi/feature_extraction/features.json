@@ -1,0 +1,521 @@
+{
+  "catch22": {
+    "catch22": {
+      "description": "Computes the Catch22 features of the signal.",
+      "function": "vbi.feature_extraction.features.catch22",
+      "parameters": {
+        "indices": null,
+        "catch24": false,
+        "verbose": false,
+        "features": [
+          "DN_HistogramMode_5",
+          "DN_HistogramMode_10",
+          "CO_f1ecac",
+          "CO_FirstMin_ac",
+          "CO_HistogramAMI_even_2_5",
+          "CO_trev_1_num",
+          "MD_hrv_classic_pnn40",
+          "SB_BinaryStats_mean_longstretch1",
+          "SB_TransitionMatrix_3ac_sumdiagcov",
+          "PD_PeriodicityWang_th0_01",
+          "CO_Embed2_Dist_tau_d_expfit_meandiff",
+          "IN_AutoMutualInfoStats_40_gaussian_fmmi",
+          "FC_LocalSimple_mean1_tauresrat",
+          "DN_OutlierInclude_p_001_mdrmd",
+          "DN_OutlierInclude_n_001_mdrmd",
+          "SP_Summaries_welch_rect_area_5_1",
+          "SB_BinaryStats_diff_longstretch0",
+          "SB_MotifThree_quantile_hh",
+          "SC_FluctAnal_2_rsrangefit_50_1_logi_prop_r1",
+          "SC_FluctAnal_2_dfa_50_1_2_logi_prop_r1",
+          "SP_Summaries_welch_rect_centroid",
+          "FC_LocalSimple_mean3_stderr"
+        ]
+      },
+      "use": "yes",
+      "tag": "all"
+    }
+  },
+  "temporal": {
+    "abs_energy": {
+      "description": "Computes the absolute energy of the signal.",
+      "function": "vbi.feature_extraction.features.abs_energy",
+      "parameters": {
+        "indices": null,
+        "verbose": false
+      },
+      "use": "yes",
+      "tag": "all"
+    },
+
+    "average_power": {
+      "description": "Computes the average power of the signal.",
+      "function": "vbi.feature_extraction.features.average_power",
+      "parameters": {
+        "fs": null,
+        "indices": null,
+        "verbose": false
+      },
+      "use": "yes",
+      "tag": "all"
+    },
+
+    "calc_centroid": {
+      "description": "Computes the centroid of the signal.",
+      "function": "vbi.feature_extraction.features.calc_centroid",
+      "parameters": {
+        "fs": null,
+        "indices": null,
+        "verbose": false
+      },
+      "use": "yes",
+      "tag": "all"
+    },
+
+    "zero_crossing": {
+      "description": "Computes the number of zero crossings of the signal.",
+      "function": "vbi.feature_extraction.features.zero_crossing",
+      "parameters": {
+        "indices": null,
+        "verbose": false
+      },
+      "use": "yes",
+      "tag": "all"
+    }
+  },
+
+  "statistical": {
+    "calc_var": {
+      "description": "Computes variance of the time series.",
+      "function": "vbi.feature_extraction.features.calc_var",
+      "parameters": {
+        "indices": null,
+        "verbose": false
+      },
+      "use": "yes",
+      "tag": "all"
+    },
+
+    "rms": {
+      "description": "Computes the root mean square of the signal.",
+      "function": "vbi.feature_extraction.features.rms",
+      "parameters": {
+        "indices": null,
+        "verbose": false
+      },
+      "use": "yes",
+      "tag": "all"
+    },
+
+    "burstiness": {
+      "description": "Computes the burstiness of the signal.",
+      "function": "vbi.feature_extraction.features.burstiness",
+      "parameters": {
+        "indices": null,
+        "verbose": false
+      },
+      "use": "yes",
+      "tag": "all"
+    },
+
+    "interq_range": {
+      "description": "Computes the interquartile range of the signal.",
+      "function": "vbi.feature_extraction.features.interq_range",
+      "parameters": {
+        "indices": null,
+        "verbose": false
+      },
+      "use": "yes",
+      "tag": "all"
+    },
+
+    "calc_std": {
+      "description": "Computes the standard deviation of the signal.",
+      "function": "vbi.feature_extraction.features.calc_std",
+      "parameters": {
+        "indices": null,
+        "verbose": false
+      },
+      "use": "yes",
+      "tag": "all"
+    },
+
+    "calc_mean": {
+      "description": "Computes the mean of the signal.",
+      "function": "vbi.feature_extraction.features.calc_mean",
+      "parameters": {
+        "indices": null,
+        "verbose": false
+      },
+      "use": "yes",
+      "tag": "all"
+    },
+
+    "calc_kurtosis": {
+      "description": "Computes the kurtosis of the signal.",
+      "function": "vbi.feature_extraction.features.calc_kurtosis",
+      "parameters": {
+        "indices": null,
+        "verbose": false
+      },
+      "use": "yes",
+      "tag": "all"
+    },
+
+    "calc_skewness": {
+      "description": "Computes the skewness of the signal.",
+      "function": "vbi.feature_extraction.features.calc_skewness",
+      "parameters": {
+        "indices": null,
+        "verbose": false
+      },
+      "use": "yes",
+      "tag": "all"
+    },
+
+    "calc_max": {
+      "description": "Computes the maximum of the signal.",
+      "function": "vbi.feature_extraction.features.calc_max",
+      "parameters": {
+        "indices": null,
+        "verbose": false
+      },
+      "use": "yes",
+      "tag": "all"
+    },
+
+    "calc_min": {
+      "description": "Computes the minimum of the signal.",
+      "function": "vbi.feature_extraction.features.calc_min",
+      "parameters": {
+        "indices": null,
+        "verbose": false
+      },
+      "use": "yes",
+      "tag": "all"
+    },
+
+    "calc_median": {
+      "description": "Computes the median of the signal.",
+      "function": "vbi.feature_extraction.features.calc_median",
+      "parameters": {
+        "indices": null,
+        "verbose": false
+      },
+      "use": "yes",
+      "tag": "all"
+    },
+
+    "calc_envelope": {
+      "description": "Computes the envelope of the signal.",
+      "function": "vbi.feature_extraction.features.calc_envelope",
+      "parameters": {
+        "indices": null,
+        "verbose": false,
+        "features": ["mean", "std", "median", "max", "min"]
+      },
+      "use": "yes",
+      "tag": "all"
+    },
+
+    "mean_abs_dev": {
+      "description": "Computes the mean absolute deviation of the signal.",
+      "function": "vbi.feature_extraction.features.mean_abs_dev",
+      "parameters": {
+        "indices": null,
+        "verbose": false
+      },
+      "use": "yes",
+      "tag": "all"
+    },
+
+    "median_abs_dev": {
+      "description": "Computes the median absolute deviation of the signal.",
+      "function": "vbi.feature_extraction.features.median_abs_dev",
+      "parameters": {
+        "indices": null,
+        "verbose": false
+      },
+      "use": "yes",
+      "tag": "all"
+    },
+
+    "kop": {
+      "description": "Kuramoto order parameter",
+      "function": "vbi.feature_extraction.features.kop",
+      "parameters": {
+        "indices": null,
+        "verbose": false
+      },
+      "use": "yes",
+      "tag": "all"
+    },
+
+    "auc": {
+      "description": "Computes the area under the curve of the signal computed with trapezoid rule.",
+      "function": "vbi.feature_extraction.features.auc",
+      "parameters": {
+        "dx": null,
+        "x": null,
+        "indices": null,
+        "verbose": false
+      },
+      "use": "yes",
+      "tag": "all"
+    },
+
+    "auc_lim": {
+      "description": "Compute the area under the curve for a given time series within a given limit.",
+      "function": "vbi.feature_extraction.features.auc_lim",
+      "parameters": {
+        "dx": null,
+        "x": null,
+        "xlim": null,
+        "indices": null,
+        "verbose": false
+      },
+      "use": "yes",
+      "tag": "all"
+    },
+
+    "calc_moments": {
+      "description": "Computes the moments of the signal.",
+      "function": "vbi.feature_extraction.features.calc_moments",
+      "parameters": {
+        "orders": [2, 3, 4, 5, 6],
+        "indices": null,
+        "verbose": false
+      },
+      "use": "yes",
+      "tag": "all"
+    }
+  },
+
+  "connectivity": {
+    "fc_stat": {
+      "description": "Extracts features from functional connectivity (FC).",
+      "function": "vbi.feature_extraction.features.fc_stat",
+      "parameters": {
+        "k": 0,
+        "masks": null,
+        "positive": false,
+        "verbose": false,
+        "eigenvalues": true,
+        "pca_num_components": 3,
+        "fc_function": "corrcoef",
+        "quantiles": [0.05, 0.25, 0.5, 0.75, 0.95],
+        "features": ["sum", "max", "min", "mean", "std", "skew", "kurtosis"]
+      },
+      "use": "yes",
+      "tag": "all"
+    },
+
+    "fc_sum": {
+      "description": "Computes the sum of the functional connectivity matrix.",
+      "function": "vbi.feature_extraction.features.fc_sum",
+      "parameters": {
+        "positive": false,
+        "verbose": false,
+        "masks": null
+      },
+      "use": "yes",
+      "tag": ["eeg", "fmri", "seeg", "meg"]
+    },
+
+    "fc_homotopic": {
+      "description": "Calculates the homotopic connectivity vector of a given brain activity.",
+      "function": "vbi.feature_extraction.features.fc_homotopic",
+      "parameters": {
+        "average": false,
+        "positive": true,
+        "verbose": false,
+        "fc_function": "corrcoef"
+      },
+      "use": "yes",
+      "tag": "all"
+    },
+
+    "fcd_stat": {
+      "description": "Extracts features from dynamic functional connectivity (FCD)",
+      "function": "vbi.feature_extraction.features.fcd_stat",
+      "parameters": {
+        "TR": 1.0,
+        "win_len": 30,
+        "positive": false,
+        "eigenvalues": true,
+        "masks": null,
+        "verbose": false,
+        "pca_num_components": 3,
+        "quantiles": [0.05, 0.25, 0.5, 0.75, 0.95],
+        "features": ["sum", "max", "min", "mean", "std", "skew", "kurtosis"]
+      },
+      "use": "yes",
+      "tag": ["fmri", "eeg", "meg"]
+    }
+  },
+
+  "information": {
+    "calc_entropy": {
+      "description": "Computes the entropy of the time series.",
+      "function": "vbi.feature_extraction.features.calc_entropy",
+      "parameters": {
+        "average": true,
+        "verbose": false
+      },
+      "use": "yes",
+      "tag": "all"
+    },
+
+    "calc_mi": {
+      "description": "Computes the mutual information between time series.",
+      "function": "vbi.feature_extraction.features.calc_mi",
+      "parameters": {
+        "k": 4,
+        "time_diff": 1,
+        "num_threads": 1,
+        "source_indices": null,
+        "target_indices": null,
+        "mode": "pairwise",
+        "verbose": false
+      },
+      "use": "yes",
+      "tag": "all"
+    },
+
+    "calc_te": {
+      "description": "Computes the transfer entropy between two time series.",
+      "function": "vbi.feature_extraction.features.calc_te",
+      "parameters": {
+        "num_threads": 1,
+        "delay": 1,
+        "k": 4,
+        "source_indices": null,
+        "target_indices": null,
+        "mode": "pairwise",
+        "verbose": false
+      },
+      "use": "yes",
+      "tag": "all"
+    },
+
+    "calc_entropy_bin": {
+      "description": "Computes the entropy of the time series.",
+      "function": "vbi.feature_extraction.features.calc_entropy_bin",
+      "parameters": {
+        "average": false,
+        "prob": "standard",
+        "verbose": false
+      },
+      "use": "yes",
+      "tag": "all"
+    }
+  },
+
+  "spectral": {
+    "spectrum_stats": {
+      "description": "Computes the spectrum of the signal.",
+      "function": "vbi.feature_extraction.features.spectrum_stats",
+      "parameters": {
+        "fs": null,
+        "nperseg": null,
+        "indices": null,
+        "verbose": false,
+        "method": "fft",
+        "features": [
+          "spectral_distance",
+          "fundamental_frequency",
+          "max_frequency",
+          "median_frequency",
+          "spectral_centroid",
+          "spectral_kurtosis",
+          "spectral_variation"
+        ]
+      },
+      "use": "yes",
+      "tag": "all"
+    },
+
+    "spectrum_moments": {
+      "description": "Computes the spectrum of the signal.",
+      "function": "vbi.feature_extraction.features.spectrum_moments",
+      "parameters": {
+        "fs": null,
+        "nperseg": null,
+        "method": "fft",
+        "moments": [2, 3, 4, 5, 6],
+        "normalize": false,
+        "verbose": false,
+        "indices": null
+      },
+      "use": "yes",
+      "tag": "all"
+    },
+
+    "spectrum_auc": {
+      "description": "Computes the area under the curve of the signal computed with trapezoid rule.",
+      "function": "vbi.feature_extraction.features.spectrum_auc",
+      "parameters": {
+        "fs": null,
+        "nperseg": null,
+        "method": "fft",
+        "average": false,
+        "verbose": false,
+        "bands": [
+          [0, 4],
+          [4, 8],
+          [8, 12],
+          [12, 30],
+          [30, 70]
+        ],
+        "indices": null
+      },
+      "use": "yes",
+      "tag": "all"
+    },
+
+    "psd_raw": {
+      "description": "Computes the power spectral density of the signal.",
+      "function": "vbi.feature_extraction.features.psd_raw",
+      "parameters": {
+        "fs": null,
+        "bands": [
+          [0, 4],
+          [4, 8],
+          [8, 12],
+          [12, 30],
+          [30, 70]
+        ],
+        "df": null,
+        "nperseg": null,
+        "method": "fft",
+        "average": false,
+        "normalize": false,
+        "normalize_to": null,
+        "indices": null,
+        "verbose": false
+      },
+      "use": "yes",
+      "tag": ["eeg", "seeg", "meg"]
+    }
+  },
+
+  "hmm": {
+    "hmm_stat": {
+      "description": "Calculate the transition matrix and state duration of the HMM.",
+      "function": "vbi.feature_extraction.features.hmm_stat",
+      "parameters": {
+        "node_indices": null,
+        "n_states": 4,
+        "n_iter": 100,
+        "seed": null,
+        "tcut": 5,
+        "bins": 10,
+        "method": "em",
+        "observations": "gaussian",
+        "verbose": false
+      },
+      "use": "yes",
+      "tag": "all"
+    }
+  }
+}

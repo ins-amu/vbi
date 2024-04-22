@@ -33,7 +33,7 @@ except:
     pass
 
 
-def abs_energy(ts: np.ndarray, indices: List[int] = None):
+def abs_energy(ts: np.ndarray, indices: List[int] = None, verbose=False):
     """Computes the absolute energy of the time serie.
 
     >>> abs_energy([1, 2, 3, 4, 5])
@@ -57,6 +57,8 @@ def abs_energy(ts: np.ndarray, indices: List[int] = None):
 
     info, ts = prepare_input_ts(ts, indices)
     if not info:
+        if verbose:
+            print("Error in abs_energy")
         return [np.nan], [f"abs_energy_{0}"]
     else:
         values = np.sum(np.abs(ts) ** 2, axis=1)
@@ -65,7 +67,7 @@ def abs_energy(ts: np.ndarray, indices: List[int] = None):
     return values, labels
 
 
-def average_power(ts: np.ndarray, fs: float = 1.0, indices: List[int] = None):
+def average_power(ts: np.ndarray, fs: float = 1.0, indices: List[int] = None, verbose=False):
     """Computes the average power of the time serie.
 
     >>> average_power([1, 2, 3, 4, 5], 1)
@@ -91,6 +93,8 @@ def average_power(ts: np.ndarray, fs: float = 1.0, indices: List[int] = None):
 
     info, ts = prepare_input_ts(ts, indices)
     if not info:
+        if verbose:
+            print("Error in average_power")
         return [np.nan], [f"average_power_{0}"]
     else:
 
@@ -101,7 +105,7 @@ def average_power(ts: np.ndarray, fs: float = 1.0, indices: List[int] = None):
 
 
 def auc(
-    ts: np.ndarray, dx: float = None, x: np.ndarray = None, indices: List[int] = None
+    ts: np.ndarray, dx: float = None, x: np.ndarray = None, indices: List[int] = None, verbose=False
 ):
     """Computes the area under the curve of the signal computed with trapezoid rule.
 
@@ -130,6 +134,8 @@ def auc(
 
     info, ts = prepare_input_ts(ts, indices)
     if not info:
+        if verbose:
+            print("Error in auc")
         return [np.nan], ["auc_0"]
 
     if dx is None:
@@ -146,6 +152,7 @@ def auc_lim(
     x: np.ndarray = None,
     xlim: List[Tuple[float, float]] = None,
     indices: List[int] = None,
+    verbose=False
 ):
     """
     Compute the area under the curve for a given time series within a given limit
@@ -177,6 +184,8 @@ def auc_lim(
 
     info, ts = prepare_input_ts(ts, indices)
     if not info:
+        if verbose:
+            print("Error in auc_lim")
         return [np.nan], ["auc_lim_0"]
 
     if x is None:
@@ -202,7 +211,7 @@ def auc_lim(
     return values, labels
 
 
-def calc_var(ts: np.ndarray, indices: List[int] = None):
+def calc_var(ts: np.ndarray, indices: List[int] = None, verbose=False):
     """Computes variance of the time series.
 
     >>> calc_var(np.array([[1, 2, 3], [4, 5, 6]]))
@@ -225,6 +234,8 @@ def calc_var(ts: np.ndarray, indices: List[int] = None):
     """
     info, ts = prepare_input_ts(ts, indices)
     if not info:
+        if verbose:
+            print("Error in calc_var")
         return [np.nan], ["var_0"]
 
     values = np.var(ts, axis=1)
@@ -233,7 +244,7 @@ def calc_var(ts: np.ndarray, indices: List[int] = None):
     return values, labels
 
 
-def calc_std(ts: np.ndarray, indices: List[int] = None):
+def calc_std(ts: np.ndarray, indices: List[int] = None, verbose=False):
     """Computes standard deviation of the time serie.
 
     >>> calc_std(np.array([[1, 2, 3], [4, 5, 6]]))
@@ -256,6 +267,8 @@ def calc_std(ts: np.ndarray, indices: List[int] = None):
 
     info, ts = prepare_input_ts(ts, indices)
     if not info:
+        if verbose:
+            print("Error in calc_std")
         return [np.nan], [f"std_{0}"]
     else:
         values = np.std(ts, axis=1)
@@ -263,7 +276,7 @@ def calc_std(ts: np.ndarray, indices: List[int] = None):
         return values, labels
 
 
-def calc_mean(ts: np.ndarray, indices: List[int] = None):
+def calc_mean(ts: np.ndarray, indices: List[int] = None, verbose=False):
     """Computes median of the time serie.
 
     >>> calc_mean(np.array([[1, 2, 3], [4, 5, 6]]))
@@ -287,6 +300,8 @@ def calc_mean(ts: np.ndarray, indices: List[int] = None):
 
     info, ts = prepare_input_ts(ts, indices)
     if not info:
+        if verbose:
+            print("Error in calc_mean")
         return [np.nan], [f"mean_{0}"]
     else:
         values = np.mean(ts, axis=1)
@@ -294,7 +309,7 @@ def calc_mean(ts: np.ndarray, indices: List[int] = None):
         return values, labels
 
 
-def calc_centroid(ts: np.ndarray, fs: float, indices: List[int] = None):
+def calc_centroid(ts: np.ndarray, fs: float, indices: List[int] = None, verbose=False):
     """Computes the centroid along the time axis.
 
     Parameters
@@ -314,6 +329,8 @@ def calc_centroid(ts: np.ndarray, fs: float, indices: List[int] = None):
     """
     info, ts = prepare_input_ts(ts, indices)
     if not info:
+        if verbose:
+            print("Error in calc_centroid")
         return [np.nan], [f"centroid_{0}"]
     else:
         tol = 1e-10
@@ -330,7 +347,7 @@ def calc_centroid(ts: np.ndarray, fs: float, indices: List[int] = None):
         return centroid, labels
 
 
-def calc_kurtosis(ts: np.ndarray, indices: List[int] = None):
+def calc_kurtosis(ts: np.ndarray, indices: List[int] = None, verbose=False):
     """
     Computes the kurtosis of the time series.
 
@@ -352,6 +369,8 @@ def calc_kurtosis(ts: np.ndarray, indices: List[int] = None):
 
     info, ts = prepare_input_ts(ts, indices)
     if not info:
+        if verbose:
+            print("Error in calc_kurtosis")
         return [np.nan], [f"kurtosis_{0}"]
     else:
         values = kurtosis(ts, axis=1)
@@ -359,7 +378,7 @@ def calc_kurtosis(ts: np.ndarray, indices: List[int] = None):
         return values, labels
 
 
-def calc_skewness(ts: np.ndarray, indices: List[int] = None):
+def calc_skewness(ts: np.ndarray, indices: List[int] = None, verbose=False):
     """
     Computes the skewness of the time series.
 
@@ -379,6 +398,8 @@ def calc_skewness(ts: np.ndarray, indices: List[int] = None):
 
     info, n = prepare_input_ts(ts, indices)
     if not info:
+        if verbose:
+            print("Error in calc_skewness")
         return [np.nan], [f"skewness_{0}"]
     else:
         values = skew(ts, axis=1)
@@ -386,7 +407,7 @@ def calc_skewness(ts: np.ndarray, indices: List[int] = None):
         return values, labels
 
 
-def calc_max(ts: np.ndarray, indices: List[int] = None):
+def calc_max(ts: np.ndarray, indices: List[int] = None, verbose=False):
     """
     Computes the maximum of the time series.
 
@@ -406,6 +427,8 @@ def calc_max(ts: np.ndarray, indices: List[int] = None):
 
     info, ts = prepare_input_ts(ts, indices)
     if not info:
+        if verbose:
+            print("Error in calc_max")
         return [np.nan], [f"max_{0}"]
     else:
         values = np.max(ts, axis=1)
@@ -413,7 +436,7 @@ def calc_max(ts: np.ndarray, indices: List[int] = None):
         return values, labels
 
 
-def calc_min(ts: np.ndarray, indices: List[int] = None):
+def calc_min(ts: np.ndarray, indices: List[int] = None, verbose=False):
     """
     Computes the minimum of the time series.
 
@@ -435,6 +458,8 @@ def calc_min(ts: np.ndarray, indices: List[int] = None):
 
     info, ts = prepare_input_ts(ts, indices)
     if not info:
+        if verbose:
+            print("Error in calc_min")
         return [np.nan], [f"min_{0}"]
     else:
         values = np.min(ts, axis=1)
@@ -442,7 +467,7 @@ def calc_min(ts: np.ndarray, indices: List[int] = None):
         return values, labels
 
 
-def calc_median(ts: np.ndarray, indices: List[int] = None):
+def calc_median(ts: np.ndarray, indices: List[int] = None, verbose=False):
     """
     Computes the median of the time series.
 
@@ -463,6 +488,8 @@ def calc_median(ts: np.ndarray, indices: List[int] = None):
 
     info, ts = prepare_input_ts(ts, indices)
     if not info:
+        if verbose:
+            print("Error in calc_median")
         return [np.nan], [f"median_{0}"]
     else:
         values = np.median(ts, axis=1)
@@ -470,7 +497,7 @@ def calc_median(ts: np.ndarray, indices: List[int] = None):
         return values, labels
 
 
-def mean_abs_dev(ts: np.ndarray, indices: List[int] = None):
+def mean_abs_dev(ts: np.ndarray, indices: List[int] = None, verbose=False):
     """
     Computes the mean absolute deviation of the time series.
 
@@ -490,6 +517,8 @@ def mean_abs_dev(ts: np.ndarray, indices: List[int] = None):
 
     info, ts = prepare_input_ts(ts, indices)
     if not info:
+        if verbose:
+            print("Error in mean_abs_dev")
         return [np.nan], [f"mean_abs_dev_{0}"]
     else:
         values = np.mean(np.abs(ts - np.mean(ts, axis=1, keepdims=True)), axis=1)
@@ -497,7 +526,7 @@ def mean_abs_dev(ts: np.ndarray, indices: List[int] = None):
         return values, labels
 
 
-def median_abs_dev(ts: np.ndarray, indices: List[int] = None):
+def median_abs_dev(ts: np.ndarray, indices: List[int] = None, verbose=False):
     """
     Computes the median absolute deviation of the time series.
 
@@ -519,6 +548,8 @@ def median_abs_dev(ts: np.ndarray, indices: List[int] = None):
 
     info, ts = prepare_input_ts(ts, indices)
     if not info:
+        if verbose:
+            print("Error in median_abs_dev")
         return [np.nan], [f"median_abs_dev_{0}"]
     else:
         values = np.median(np.abs(ts - np.median(ts, axis=1, keepdims=True)), axis=1)
@@ -526,7 +557,7 @@ def median_abs_dev(ts: np.ndarray, indices: List[int] = None):
         return values, labels
 
 
-def rms(ts: np.ndarray, indices: List[int] = None):
+def rms(ts: np.ndarray, indices: List[int] = None, verbose=False):
     """
     Computes the root mean square of the time series.
 
@@ -548,6 +579,8 @@ def rms(ts: np.ndarray, indices: List[int] = None):
 
     info, ts = prepare_input_ts(ts, indices)
     if not info:
+        if verbose:
+            print("Error in rms")
         return [np.nan], [f"rms_{0}"]
     else:
         values = np.sqrt(np.mean(ts**2, axis=1))
@@ -555,7 +588,7 @@ def rms(ts: np.ndarray, indices: List[int] = None):
         return values, labels
 
 
-def interq_range(ts: np.ndarray, indices: List[int] = None):
+def interq_range(ts: np.ndarray, indices: List[int] = None, verbose=False):
     """
     Computes the interquartile range of the time series.
 
@@ -577,6 +610,8 @@ def interq_range(ts: np.ndarray, indices: List[int] = None):
 
     info, ts = prepare_input_ts(ts, indices)
     if not info:
+        if verbose:
+            print("Error in interq_range")
         return [np.nan], [f"interq_range_{0}"]
     else:
         values = np.subtract(*np.percentile(ts, [75, 25], axis=1))
@@ -584,7 +619,7 @@ def interq_range(ts: np.ndarray, indices: List[int] = None):
         return values, labels
 
 
-def zero_crossing(ts: np.ndarray, indices: List[int] = None):
+def zero_crossing(ts: np.ndarray, indices: List[int] = None, verbose=False):
     """
     Computes the number of zero crossings of the time series.
 
@@ -605,6 +640,8 @@ def zero_crossing(ts: np.ndarray, indices: List[int] = None):
     """
     info, ts = prepare_input_ts(ts, indices)
     if not info:
+        if verbose:
+            print("Error in zero_crossing")
         return [np.nan], [f"zero_crossing_{0}"]
     else:
         values = np.array([np.sum(np.diff(np.sign(y_i)) != 0) for y_i in ts], dtype=int)
@@ -647,7 +684,7 @@ def zero_crossing(ts: np.ndarray, indices: List[int] = None):
 #         return np.percentile(rss, percentile), ["ress"]
 
 
-def kop(ts: np.ndarray, indices: List[int] = None):
+def kop(ts: np.ndarray, indices: List[int] = None, verbose=False):
     """
     Calculate the Kuramoto order parameter (KOP)
 
@@ -655,6 +692,8 @@ def kop(ts: np.ndarray, indices: List[int] = None):
 
     info, ts = prepare_input_ts(ts, indices)
     if not info:
+        if verbose:
+            print("Error in kop")
         return [np.nan], ["kop"]
     else:
         R = km_order(ts, indices=indices, avg=True)
@@ -662,7 +701,7 @@ def kop(ts: np.ndarray, indices: List[int] = None):
 
 
 def calc_moments(
-    ts: np.ndarray, indices: List[int] = None, orders: List[int] = [2, 3, 4, 5, 6]
+    ts: np.ndarray, indices: List[int] = None, orders: List[int] = [2, 3, 4, 5, 6], verbose=False
 ):
     """
     Computes the moments of the time series.
@@ -685,6 +724,8 @@ def calc_moments(
 
     info, ts = prepare_input_ts(ts, indices)
     if not info:
+        if verbose:
+            print("Error in calc_moments")
         return [np.nan], ["moments"]
     else:
         labels = []
@@ -701,13 +742,18 @@ def calc_envelope(
     ts: np.ndarray,
     indices: List[int] = None,
     features: List[str] = ["mean", "std", "median", "max", "min"],
+    verbose=False,
 ):
     """
     calculate some statistics on envelope of the time series using hilbert transform
     """
+    
+    from numpy import mean, std, median, max, min
 
     info, ts = prepare_input_ts(ts, indices)
     if not info:
+        if verbose:
+            print("Error in calc_envelope")
         return [np.nan], ["envelope"]
     else:
         analytic_signal = hilbert(ts, axis=1)
@@ -732,7 +778,7 @@ def calc_envelope(
         return values, labels
 
 
-def fc_sum(x: np.ndarray, positive=False, masks: Dict[str, np.ndarray] = None):
+def fc_sum(x: np.ndarray, positive=False, masks: Dict[str, np.ndarray] = None, verbose=False):
     """
     Calculate the sum of functional connectivity (FC)
 
@@ -751,6 +797,8 @@ def fc_sum(x: np.ndarray, positive=False, masks: Dict[str, np.ndarray] = None):
 
     info, ts = prepare_input_ts(x)
     if not info:
+        if verbose:
+            print("Error in fc_sum")
         return [np.nan], [label]
     if ts.shape[0] < 2:
         return [np.nan], [label]
@@ -789,6 +837,7 @@ def fc_stat(
     masks: Dict[str, np.ndarray] = None,
     quantiles: List[float] = [0.05, 0.25, 0.5, 0.75, 0.95],
     features: List[str] = ["sum", "max", "min", "mean", "std", "skew", "kurtosis"],
+    verbose=False,
 ):
     """
     extract features from functional connectivity (FC)
@@ -825,6 +874,8 @@ def fc_stat(
 
     info, ts = prepare_input_ts(ts)
     if not info:
+        if verbose:
+            print("Error in fc_stat")
         return [np.nan], ["fc_stat_0"]
 
     nn = ts.shape[0]
@@ -861,7 +912,7 @@ def fc_stat(
 
 
 def fc_homotopic(
-    ts: np.ndarray, average: bool = False, positive: bool = True, fc_function="corrcoef"
+    ts: np.ndarray, average: bool = False, positive: bool = True, fc_function="corrcoef", verbose=False
 ):
     """
     Calculate the homotopic connectivity vector of a given brain activity
@@ -888,9 +939,13 @@ def fc_homotopic(
     Therefore, results on negative weights should be interpreted with caution and should be understood
     as complementary information underpinning the findings based on positive connections
     """
+    
+    from numpy import corrcoef, cov
 
     info, ts = prepare_input_ts(ts)
     if not info:
+        if verbose:
+            print("Error in fc_homotopic")
         return [np.nan], ["fc_homotopic"]
 
     nn, nt = ts.shape
@@ -978,7 +1033,7 @@ def coactivation_phase(ts):
     return MSphase.tolist()
 
 
-def burstiness(ts: np.ndarray, indices: List[int] = None):
+def burstiness(ts: np.ndarray, indices: List[int] = None, verbose=False):
     """
     calculate the burstiness statistic
     - Goh and Barabasi, 'Burstiness and memory in complex systems' Europhys. Lett.
@@ -1000,6 +1055,8 @@ def burstiness(ts: np.ndarray, indices: List[int] = None):
 
     info, ts = prepare_input_ts(ts, indices)
     if not info:
+        if verbose:
+            print("Error in burstiness")
         return [np.nan], ["burstiness"]
 
     if ts.mean() == 0:
@@ -1022,7 +1079,17 @@ def fcd_stat(
     pca_num_components=3,
     quantiles=[0.05, 0.25, 0.5, 0.75, 0.95],
     features=["sum", "max", "min", "mean", "std", "skew", "kurtosis"],
+    verbose=False,
 ):
+    
+    from numpy import sum, max, min, mean, std
+    from scipy.stats import skew, kurtosis
+    
+    info, ts = prepare_input_ts(ts)
+    if not info:
+        if verbose:
+            print("Error in fcd_stat")
+        return [np.nan], ["fcd_stat_0"]
 
     Values = []
     Labels = []
@@ -1053,6 +1120,7 @@ def calc_mi(
     source_indices: List[int] = None,
     target_indices: List[int] = None,
     mode: str = "pairwise",
+    verbose=False,
     **kwargs,
 ):
     """
@@ -1140,6 +1208,7 @@ def calc_te(
     source_indices: List[int] = None,
     target_indices: List[int] = None,
     mode: str = "pairwise",
+    verbose=False,
     **kwargs,
 ):
     """
@@ -1215,7 +1284,7 @@ def calc_te(
     return [te], [label]
 
 
-def calc_entropy(ts: np.ndarray, average: bool = False):
+def calc_entropy(ts: np.ndarray, average: bool = False, verbose=False):
     """
     calculate entropy of time series
     """
@@ -1257,7 +1326,7 @@ def calc_entropy(ts: np.ndarray, average: bool = False):
     return values, labels
 
 
-def calc_entropy_bin(ts: np.ndarray, prob: str = "standard", average: bool = False):
+def calc_entropy_bin(ts: np.ndarray, prob: str = "standard", average: bool = False, verbose=False):
     """Computes the entropy of the signal using the Shannon Entropy.
 
     Description in Article:
@@ -1324,6 +1393,7 @@ def spectrum_stats(
     fs: float,
     method: str = "fft",
     nperseg: int = None,
+    verbose=False,
     indices: List[int] = None,
     features: List[str] = [
         "spectral_distance",
@@ -1384,7 +1454,7 @@ def spectrum_stats(
 
 
 def spectrum_auc(
-    ts, fs, method="fft", bands=None, nperseg=None, average=False, indices=None
+    ts, fs, method="fft", bands=None, nperseg=None, average=False, indices=None, verbose=False
 ):
     """
     calculate the area under the curve of the power spectrum of the time series over given frequency bands.
@@ -1472,6 +1542,7 @@ def spectrum_moments(
     moments=[2, 3, 4, 5, 6],
     normalize=False,
     indices=None,
+    verbose=False,
 ):
     """
     Computes the moments of power spectrum
@@ -1549,6 +1620,7 @@ def psd_raw(
     normalize=False,
     normalize_to: float = None,  # normalize to given value in Hz
     indices=None,
+    verbose=False,
 ):
     """
     Calculate frequency spectrum and return with specified frequency resolution.
@@ -1644,7 +1716,7 @@ def psd_raw(
         return psd_bands, labels
 
 
-def wavelet_abs_mean_1d(ts, function=scipy.signal.ricker, widths=np.arange(1, 10)):
+def wavelet_abs_mean_1d(ts, function=scipy.signal.ricker, widths=np.arange(1, 10), verbose=False):
     """Computes CWT absolute mean value of each wavelet scale.
 
     Parameters
@@ -1666,7 +1738,7 @@ def wavelet_abs_mean_1d(ts, function=scipy.signal.ricker, widths=np.arange(1, 10
     return tuple(np.abs(np.mean(wavelet(ts, function, widths), axis=1)))
 
 
-def wavelet_abs_mean(ts, function=scipy.signal.ricker, widths=np.arange(1, 10)):
+def wavelet_abs_mean(ts, function=scipy.signal.ricker, widths=np.arange(1, 10), verbose=False):
     '''
     """Computes CWT absolute mean value of each wavelet scale.
 
@@ -1707,7 +1779,7 @@ def wavelet_abs_mean(ts, function=scipy.signal.ricker, widths=np.arange(1, 10)):
         return values, labels
 
 
-def wavelet_std(ts, function=scipy.signal.ricker, widths=np.arange(1, 10)):
+def wavelet_std(ts, function=scipy.signal.ricker, widths=np.arange(1, 10), verbose=False):
     """
     Computes CWT std value of each wavelet scale.
 
@@ -1749,7 +1821,7 @@ def wavelet_std(ts, function=scipy.signal.ricker, widths=np.arange(1, 10)):
         return values, labels
 
 
-def wavelet_energy_1d(ts, function=scipy.signal.ricker, widths=np.arange(1, 10)):
+def wavelet_energy_1d(ts, function=scipy.signal.ricker, widths=np.arange(1, 10), verbose=False):
     """Computes CWT energy of each wavelet scale.
 
     Implementation details:
@@ -1779,7 +1851,7 @@ def wavelet_energy_1d(ts, function=scipy.signal.ricker, widths=np.arange(1, 10))
     return tuple(energy)
 
 
-def wavelet_energy(ts, function=scipy.signal.ricker, widths=np.arange(1, 10)):
+def wavelet_energy(ts, function=scipy.signal.ricker, widths=np.arange(1, 10), verbose=False):
     """
     Computes CWT energy of each wavelet scale.
 
@@ -1835,6 +1907,7 @@ def hmm_stat(
     method="em",
     tcut=5,
     bins=10,
+    verbose=False,
 ):
     """
     Calculate the state duration of the HMM.
@@ -1872,14 +1945,10 @@ def hmm_stat(
     if seed is not None:
         np.random.seed(seed)
 
-    info, n = prepare_input_ts(ts)
+    info, ts = prepare_input_ts(ts, indices)
     if not info:
-        return [np.nan] * n, [f"hmm_dur_{i}" for i in range(n)]
+        return [np.nan], [f"hmm_dur"]
     else:
-        ts = n
-
-        if node_indices is None:
-            node_indices = np.arange(ts.shape[0])
 
         obs = ts[node_indices, :].T
         nt, obs_dim = obs.shape
@@ -1897,3 +1966,91 @@ def hmm_stat(
         stat_vec = np.concatenate([stat_duration, trans_mat])
 
         return stat_vec, labels
+
+
+def catch22(
+    ts,
+    indices: List[int] = None,
+    catch24=False,
+    node_indices=None,
+    verbose=False,
+    features=[
+        "DN_HistogramMode_5",
+        "DN_HistogramMode_10",
+        "CO_f1ecac",
+        "CO_FirstMin_ac",
+        "CO_HistogramAMI_even_2_5",
+        "CO_trev_1_num",
+        "MD_hrv_classic_pnn40",
+        "SB_BinaryStats_mean_longstretch1",
+        "SB_TransitionMatrix_3ac_sumdiagcov",
+        "PD_PeriodicityWang_th0_01",
+        "CO_Embed2_Dist_tau_d_expfit_meandiff",
+        "IN_AutoMutualInfoStats_40_gaussian_fmmi",
+        "FC_LocalSimple_mean1_tauresrat",
+        "DN_OutlierInclude_p_001_mdrmd",
+        "DN_OutlierInclude_n_001_mdrmd",
+        "SP_Summaries_welch_rect_area_5_1",
+        "SB_BinaryStats_diff_longstretch0",
+        "SB_MotifThree_quantile_hh",
+        "SC_FluctAnal_2_rsrangefit_50_1_logi_prop_r1",
+        "SC_FluctAnal_2_dfa_50_1_2_logi_prop_r1",
+        "SP_Summaries_welch_rect_centroid",
+        "FC_LocalSimple_mean3_stderr",
+    ],
+):
+    """
+    Calculate the Catch22 features.
+
+    Parameters
+    ----------
+    ts : nd-array [n_regions x n_samples]
+        Input from which Catch22 features are computed
+    node_indices : list
+        List of node indices to be used for Catch22
+    catch24 : bool
+        If True, calculate mean and std of the features
+
+    Returns
+    -------
+    values : array-like
+        feature values
+    labels : array-like
+        labels of the features
+
+    """
+    try:
+        import catch22_C
+    except ImportError:
+        raise ImportError(
+            "pycatch22 is not installed. Please install it using `pip install pycatch22`"
+        )
+        
+    if catch24:
+        features = features.copy()
+        features.append('DN_Mean')
+        features.append('DN_Spread_Std')
+        
+    def get_features(x, features):
+        out = []
+        for f in features:
+            f_fun = getattr(catch22_C, f)
+            out.append(f_fun(list(x)))
+        return out
+
+    info, ts = prepare_input_ts(ts, indices)
+    if not info:
+       return [np.nan], [f"catch22"]
+ 
+    else:
+        nn = ts.shape[0]
+        nf = 22 if not catch24 else 24
+        values = np.zeros((nn, nf))
+        for i in range(nn):
+            v = get_features(ts[i], features)
+            values[i] = v
+        
+        values = values.flatten()
+        labels =  features * nn
+
+        return values, labels
