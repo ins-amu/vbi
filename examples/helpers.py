@@ -2,7 +2,6 @@ import numpy as np
 from scipy import signal
 from numpy.fft import fft
 import matplotlib.pyplot as plt
-from copy import deepcopy, copy
 from vbi.feature_extraction.features_utils import km_order
 
 
@@ -63,7 +62,7 @@ def plot_ts_pxx_sl(data, params, **kwargs):
 
     x = data['x']
     t = data['t']
-    
+
     mosaic = """
     AAB
     """
@@ -71,7 +70,7 @@ def plot_ts_pxx_sl(data, params, **kwargs):
     fs = 1/(params['dt']*params['record_step'])
     fig = plt.figure(constrained_layout=True, figsize=(12, 3))
     ax = fig.subplot_mosaic(mosaic)
-    
+
     x_avg = np.mean(x, axis=0)
     ax['A'].plot(t, x_avg.T, label="x", **kwargs)
     ax['A'].set_ylabel(r"$\sum$ Real $Z$", fontsize=16)
@@ -106,7 +105,7 @@ def plot_ts_pxx_km(data, params, ax, **kwargs):
     ax[1].set_xlabel("Frequency [Hz]", fontsize=16)
     ax[1].set_ylabel("Power", fontsize=16)
     ax[1].set_xlim(0, 1)
-    
+
     # ti = params['t_transition']
     # tf = params['t_end']
     # ax[0].set_xlim(tf-2, tf)
@@ -137,12 +136,12 @@ def plot_ts_pxx_km_cupy(data, params, ax, **kwargs):
     R = np.zeros(ns)
     for i in range(ns):
         R[i] = km_order(x[:, :, i].T)
-    
+
     ax[2].plot(params['G'], R, marker="o", c="k")
     ax[2].set_xlabel("G", fontsize=16)
     ax[2].set_ylabel(r"$\langle r \rangle_t$", fontsize=16)
-    
-    
+
+
 
 def plot_ts_pxx_wc(data, par, ax, **kwargs):
 
@@ -174,4 +173,3 @@ def plot_mat(mat, ax, **kwargs):
     ax.set_xticks([])
     ax.set_yticks([])
     cbar = plt.colorbar(im, ax=ax)
-    

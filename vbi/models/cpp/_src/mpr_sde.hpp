@@ -29,8 +29,6 @@ private:
     double dt;
     double J;
     double G;
-    double alpha_sc;
-    double beta_sc;
     size_t decimate;
     BOLD_4D boldObj;
 
@@ -48,8 +46,6 @@ private:
     double t_initial;
     double t_transition;
     vector<vector<unsigned>> adjlist;
-    vector<vector<unsigned>> adjlist_A;
-    vector<vector<unsigned>> adjlist_B;
 
     dim2 adj;
     dim2 adj_A;
@@ -65,45 +61,37 @@ public:
     dim1 time_buffer;
 
     MPR_sde(double dt,
-        double dt_bold,
-        size_t decimate,
-        dim1 y,
-        dim2 adj,
-        dim2 adj_A,
-        dim2 adj_B,
-        double G,
-        dim1 eta,
-        double alpha_sc,
-        double beta_sc,
-        dim1 sti_indices_,
-        double J = 14.5,
-        double tau = 1.0,
-        double delta = 0.7,
-        double i_app = 0.0,
-        int apply_sti = 0, // to apply stimulation
-        double noise_amp = 0.35,
-        size_t record_step = 10,
-        double t_initial = 0.0,
-        double t_transition = 10.0,
-        double t_final = 4000.0,
-        size_t RECORD_AVG = 0,
-        int fix_seed = 0) : dt(dt),
-                            G(G),
-                            eta(eta),
-                            J(J),
-                            tau(tau),
-                            delta(delta),
-                            boldObj(int(y.size() / 2), dt_bold)
+            double dt_bold,
+            size_t decimate,
+            dim1 y,
+            dim2 adj,
+            double G,
+            dim1 eta,
+            dim1 sti_indices_,
+            double J = 14.5,
+            double tau = 1.0,
+            double delta = 0.7,
+            double i_app = 0.0,
+            int apply_sti = 0, // to apply stimulation
+            double noise_amp = 0.35,
+            size_t record_step = 10,
+            double t_initial = 0.0,
+            double t_transition = 10.0,
+            double t_final = 4000.0,
+            size_t RECORD_AVG = 0,
+            int fix_seed = 0) : dt(dt),
+                                G(G),
+                                eta(eta),
+                                J(J),
+                                tau(tau),
+                                delta(delta),
+                                boldObj(int(y.size() / 2), dt_bold)
     {
 
         assert(t_final > t_initial);
         assert(t_final > t_transition);
 
         this->adj = adj;
-        this->adj_A = adj_A;
-        this->adj_B = adj_B;
-        this->alpha_sc = alpha_sc;
-        this->beta_sc = beta_sc;
         this->t_final = t_final;
         this->t_initial = t_initial;
         this->record_step = record_step;
@@ -118,7 +106,7 @@ public:
         if (sti_indices_.size() > 0)
         {
             sti_indices.resize(sti_indices_.size());
-            for (int i=0; i<sti_indices_.size(); i++)
+            for (int i = 0; i < sti_indices_.size(); i++)
                 sti_indices[i] = int(sti_indices_[i]);
         }
         else
@@ -133,8 +121,6 @@ public:
         vNoise = sqrt(dt) * sqrt(2 * 2 * noise_amp);
 
         adjlist = adjmat_to_adjlist(adj);
-        adjlist_A = adjmat_to_adjlist(adj_A);
-        adjlist_B = adjmat_to_adjlist(adj_B);
 
         // preaparing input current vector if stimulation is applied
         iapp.resize(num_nodes);
@@ -159,32 +145,13 @@ public:
         for (size_t i = 0; i < N; ++i)
         {
             double CP0 = 0;
-            double CP1 = 0;
-            double CP2 = 0;
             for (size_t j = 0; j < adjlist[i].size(); ++j)
             {
                 int k = adjlist[i][j];
                 CP0 += adj[i][k] * x[k];
             }
-            if (std::abs(alpha_sc) > 1e-10)
-            {
-                for (size_t j = 0; j < adjlist_A[i].size(); ++j)
-                {
-                    int k = adjlist_A[i][j];
-                    CP1 += adj_A[i][k] * x[k];
-                }
-            }
-            if (std::abs(beta_sc) > 1e-10)
-            {
-                for (size_t j = 0; j < adjlist_B[i].size(); ++j)
-                {
-                    int k = adjlist_B[i][j];
-                    CP2 += adj_B[i][k] * x[k];
-                }
-            }
-
             dxdt[i] = rtau * (delta_over_tau_pi + 2 * x[i] * x[i + N]);
-            dxdt[i + N] = rtau * (x[i + N] * x[i + N] + eta[i] + iapp[i] + J_tau * x[i] - (PI2 * tau2 * x[i] * x[i]) + G * CP0 - alpha_sc * CP1 - beta_sc * CP2);
+            dxdt[i + N] = rtau * (x[i + N] * x[i + N] + eta[i] + iapp[i] + J_tau * x[i] - (PI2 * tau2 * x[i] * x[i]) + G * CP0);
         }
     }
     // ------------------------------------------------------------------------
@@ -277,7 +244,6 @@ public:
                 {
                     bold_buffer.push_back(y_bold);
                     time_buffer.push_back(t);
-
 
                     // check for NAN and Break if True
                     {

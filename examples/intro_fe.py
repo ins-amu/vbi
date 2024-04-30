@@ -8,7 +8,9 @@ from vbi import get_features_by_domain, get_features_by_given_names
 
 D = vbi.LoadSample(nn=88)
 ts = D.get_bold()
-ts.shape
+print(ts.shape)
+import numpy as np
+np.savetxt("ts.csv", ts[:10, :].T, delimiter=",")
 
 cfg = get_features_by_domain(domain="connectivity")
 cfg = get_features_by_given_names(cfg, ['fc_stat'])

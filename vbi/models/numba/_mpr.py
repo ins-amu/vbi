@@ -1,7 +1,7 @@
 import warnings
 import numpy as np
 from copy import copy
-from numba import njit
+from numba import njit, jit
 from numba.experimental import jitclass
 from numba.core.errors import NumbaPerformanceWarning
 from numba import float64, boolean, int64, types
@@ -9,7 +9,7 @@ from numba import float64, boolean, int64, types
 warnings.simplefilter("ignore", category=NumbaPerformanceWarning)
 
 
-@njit
+# @njit
 def f_mpr(x, t, P):
     """
     MPR model
@@ -33,7 +33,7 @@ def f_mpr(x, t, P):
     return dxdt
 
 
-@njit
+# @njit
 def f_fmri(xin, x, t, B):
     """
     system function for Balloon model.
@@ -60,7 +60,7 @@ def f_fmri(xin, x, t, B):
     return dxdt
 
 
-@njit
+# @njit
 def integrate_fmri(yin, y, t, B):
     """
     Integrate Balloon model
@@ -96,26 +96,26 @@ def integrate_fmri(yin, y, t, B):
     return y, yb
 
 
-@njit
+# @njit
 def integrate(P, B, intg=None):
 
     if intg is None:
         intg = heun_sde
-    
+
     t = np.arange(0, P.t_end, P.dt)
     nt = len(t)
     nn = P.nn
     rs = P.ts_decimate
     dec = P.fmri_decimate
-        
-    n_steps = np.ceil(P.t_end / P.dt).astype(int)
-    i_cut = np.ceil(P.t_cut / P.dt).astype(int)
+
+    n_steps = np.ceil(P.t_end / P.dt).astype(np.int64)
+    i_cut = np.ceil(P.t_cut / P.dt).astype(np.int64)
     y0 = np.zeros((4 * nn))
     y0[nn:] = 1.0
-    x0 = copy(P.initial_state)
+    x0 = P.initial_state
 
     if P.RECORD_TS:
-        _nt = np.ceil((n_steps - i_cut) / rs).astype(int)
+        _nt = np.ceil((n_steps - i_cut) / rs).astype(np.int64)
         rv_d = np.zeros((_nt, 2 * nn), dtype="f")
         rv_t = np.zeros((_nt))
     else:
@@ -123,7 +123,7 @@ def integrate(P, B, intg=None):
         rv_t = np.zeros([], dtype="f")
 
     if P.RECORD_FMRI:
-        _nt = np.ceil((n_steps) / (rs * dec)).astype(int)
+        _nt = np.ceil((n_steps) / (rs * dec)).astype(np.int64)
         fmri_d = np.zeros((_nt, nn), dtype="f")
         fmri_t = np.zeros((_nt))
 
@@ -202,7 +202,7 @@ class MPR_sde:
         return parB
 
     def set_initial_state(self):
-        self.initial_state = set_initial_state(self.num_nodes, self.seed)
+        self.initial_state = set_initial_state(self.P.nn, self.seed)
         self.INITIAL_STATE_SET = True
 
     def check_input(self):
@@ -216,12 +216,11 @@ class MPR_sde:
 
         if x0 is None:
             self.seed = self.P.seed if self.P.seed > 0 else None
-            self.set_initial_state(self.seed)
+            self.set_initial_state()
             self.P.initial_state = self.initial_state
         else:
             self.P.initial_state = x0
             self.P.nn = len(x0) // 2
-
         if par:
             self.check_parameters(par)
             for key in par.keys():
@@ -234,6 +233,7 @@ class MPR_sde:
         self.check_input()
 
         t, rv, t_fmri, d_fmri = integrate(self.P, self.B)
+        exit(0)
 
         return {"t": t, "x": rv, "t_fmri": t_fmri, "d_fmri": d_fmri}
 
@@ -265,7 +265,7 @@ mpr_spec = [
     ("method", types.string),
     ("seed", int64),
     ("initial_state", float64[:]),
-    ("noise_sigma", float64),
+    ("noise_amp", float64),
     ("sigma_r", float64),
     ("sigma_v", float64),
     ("iapp", float64),
@@ -296,7 +296,7 @@ b_spec = [
 ]
 
 
-@jitclass(mpr_spec)
+# @jitclass(mpr_spec)
 class ParMPR:
     def __init__(
         self,
@@ -308,12 +308,13 @@ class ParMPR:
         delta=0.7,
         fmri_decimate=1,
         ts_decimate=1,
-        noise_sigma=0.037,
+        noise_amp=0.037,
         weights=np.array([[], []]),
         t_init=0.0,
         t_cut=100.0,
         t_end=1000.0,
         iapp=0.0,
+        seed=-1,
         output="output",
         RECORD_TS=True,
         RECORD_FMRI=True,
@@ -327,21 +328,22 @@ class ParMPR:
         self.delta = delta
         self.fmri_decimate = fmri_decimate
         self.ts_decimate = ts_decimate
-        self.noise_sigma = noise_sigma
+        self.noise_amp = noise_amp
         self.t_init = t_init
         self.t_cut = t_cut
         self.t_end = t_end
         self.iapp = iapp
-        self.nn = 0
+        self.nn = len(weights)
+        self.seed = seed
         self.output = output
         self.weights = weights
         self.RECORD_TS = RECORD_TS
         self.RECORD_FMRI = RECORD_FMRI
-        self.sigma_r = np.sqrt(dt) * np.sqrt(2 * noise_sigma)
-        self.sigma_v = np.sqrt(dt) * np.sqrt(4 * noise_sigma)
+        self.sigma_r = np.sqrt(dt) * np.sqrt(2 * noise_amp)
+        self.sigma_v = np.sqrt(dt) * np.sqrt(4 * noise_amp)
 
 
-@jitclass(b_spec)
+# @jitclass(b_spec)
 class ParBaloon:
     def __init__(
         self, eps=0.5, E0=0.4, V0=4.0, alpha=0.32, taus=1.54, tauo=0.98, tauf=1.44
@@ -363,22 +365,22 @@ class ParBaloon:
         self.dt = 0.001
 
 
-@njit
+# @njit
 def euler_sde(x, t, P):
-    dW = np.sqrt(P.dt) * P.sigma_noise * np.random.randn(P.nn)
+    dW = np.sqrt(P.dt) * P.noise_amp * np.random.randn(P.nn)
     return x + P.dt * f_mpr(x, t, P) + dW
 
 
-@njit
+# @njit
 def heun_sde(x, t, P):
-    dW = np.sqrt(P.dt) * P.sigma_noise * np.random.randn(P.nn)
+    dW = np.sqrt(P.dt) * P.noise_amp * np.random.randn(P.nn)
     k0 = f_mpr(x, t, P)
     x1 = x + P.dt * k0 + dW
     k1 = f_mpr(x1, t, P)
     return x + 0.5 * P.dt * (k0 + k1) + dW
 
 
-@njit
+# @njit
 def heun_ode(yin, y, t, B):
     """Heun scheme."""
 

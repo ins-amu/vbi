@@ -40,6 +40,7 @@ def get_features_by_domain(domain=None, json_path=None):
         'connectivity',
         'spectral',
         'hmm',
+        'catch22',
         'information'
     path : string (optional)
         Path to json file, if None, the default json file is used
@@ -51,6 +52,7 @@ def get_features_by_domain(domain=None, json_path=None):
         "temporal",
         "statistical",
         "information",
+        'catch22',
     ]
 
     if json_path is None:

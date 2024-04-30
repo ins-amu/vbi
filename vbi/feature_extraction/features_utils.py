@@ -241,6 +241,12 @@ def get_fcd(
 
     ts = ts.T
     n_samples, n_nodes = ts.shape
+    # check if lenght of the time series is enough
+    if n_samples < 2 * win_len:
+        raise ValueError(
+            f"get_fcd: Length of the time series should be at least 2 times of win_len. n_samples: {n_samples}, win_len: {win_len}"
+        )
+
     mask_full = np.ones((n_nodes, n_nodes))
     if masks is None:
         masks = {"full": mask_full}

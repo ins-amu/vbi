@@ -1972,7 +1972,6 @@ def catch22(
     ts,
     indices: List[int] = None,
     catch24=False,
-    node_indices=None,
     verbose=False,
     features=[
         "DN_HistogramMode_5",

@@ -60,10 +60,10 @@ class JR_sde:
         if self.initial_state is None:
             self.INITIAL_STATE_SET = False
 
-        self.C0 = self.C0 * np.ones(self.N)
-        self.C1 = self.C1 * np.ones(self.N)
-        self.C2 = self.C2 * np.ones(self.N)
-        self.C3 = self.C3 * np.ones(self.N)
+        # self.C0 = self.C0 * np.ones(self.N)
+        # self.C1 = self.C1 * np.ones(self.N)
+        # self.C2 = self.C2 * np.ones(self.N)
+        # self.C3 = self.C3 * np.ones(self.N)
         self.noise_seed = 1 if self.noise_seed else 0
         os.makedirs(join(self.output), exist_ok=True)
 
@@ -136,35 +136,35 @@ class JR_sde:
 
     # -------------------------------------------------------------------------
 
-    def set_C(self, label, val_dict):
-        '''
-        set the value of C0, C1, C2, C3.
+    # def set_C(self, label, val_dict):
+    #     '''
+    #     set the value of C0, C1, C2, C3.
 
-        Parameters
-        ----------
-        label: str
-            C0, C1, C2, C3
-        val_dict: dict
-            {'indices': [list or multiple list seperated with comma],
-             'value': [list or multiple list seperated with comma]}
+    #     Parameters
+    #     ----------
+    #     label: str
+    #         C0, C1, C2, C3
+    #     val_dict: dict
+    #         {'indices': [list or multiple list seperated with comma],
+    #          'value': [list or multiple list seperated with comma]}
 
-        '''
-        indices = val_dict['indices']
+    #     '''
+    #     indices = val_dict['indices']
 
-        if indices is None:
-            indices = [list(range(self.N))]
+    #     if indices is None:
+    #         indices = [list(range(self.N))]
 
-        values = val_dict['value']
-        if isinstance(values, np.ndarray):
-            values = values.tolist()
-        if not isinstance(values, list):
-            values = [values]
+    #     values = val_dict['value']
+    #     if isinstance(values, np.ndarray):
+    #         values = values.tolist()
+    #     if not isinstance(values, list):
+    #         values = [values]
 
-        assert (len(indices) == len(values))
-        C = getattr(self, label)
+    #     assert (len(indices) == len(values))
+    #     C = getattr(self, label)
 
-        for i in range(len(values)):
-            C[indices[i]] = values[i]
+    #     for i in range(len(values)):
+    #         C[indices[i]] = values[i]
 
     def prepare_input(self):
         '''
@@ -184,10 +184,14 @@ class JR_sde:
         self.r = float(self.r)
         self.v0 = float(self.v0)
         self.vmax = float(self.vmax)
-        self.C0 = np.asarray(self.C0)
-        self.C1 = np.asarray(self.C1)
-        self.C2 = np.asarray(self.C2)
-        self.C3 = np.asarray(self.C3)
+        # self.C0 = np.asarray(self.C0)
+        # self.C1 = np.asarray(self.C1)
+        # self.C2 = np.asarray(self.C2)
+        # self.C3 = np.asarray(self.C3)
+        self.C0 = check_sequence(self.C0, self.N)
+        self.C1 = check_sequence(self.C1, self.N)
+        self.C2 = check_sequence(self.C2, self.N)
+        self.C3 = check_sequence(self.C3, self.N)
         self.noise_mu = float(self.noise_mu)
         self.noise_std = float(self.noise_std)
         self.noise_seed = int(self.noise_seed)
@@ -228,10 +232,10 @@ class JR_sde:
         for key in par.keys():
             if key not in self.valid_params:
                 raise ValueError("Invalid parameter: " + key)
-            if key in ["C0", "C1", "C2", "C3"]:
-                self.set_C(key, par[key])
-            else:
-                setattr(self, key, par[key]['value'])
+            # if key in ["C0", "C1", "C2", "C3"]:
+            #     self.set_C(key, par[key])
+            # else:
+            setattr(self, key, par[key])
 
         self.prepare_input()
 
@@ -376,23 +380,23 @@ class JR_sdde:
         self.INITIAL_STATE_SET = True
     # -------------------------------------------------------------------------
 
-    def set_C(self, label, val_dict):
-        indices = val_dict['indices']
+    # def set_C(self, label, val_dict):
+    #     indices = val_dict['indices']
 
-        if indices is None:
-            indices = [list(range(self.N))]
+    #     if indices is None:
+    #         indices = [list(range(self.N))]
 
-        values = val_dict['value']
-        if isinstance(values, np.ndarray):
-            values = values.tolist()
-        if not isinstance(values, list):
-            values = [values]
+    #     values = val_dict['value']
+    #     if isinstance(values, np.ndarray):
+    #         values = values.tolist()
+    #     if not isinstance(values, list):
+    #         values = [values]
 
-        assert (len(indices) == len(values))
-        C = getattr(self, label)
+    #     assert (len(indices) == len(values))
+    #     C = getattr(self, label)
 
-        for i in range(len(values)):
-            C[indices[i]] = values[i]
+    #     for i in range(len(values)):
+    #         C[indices[i]] = values[i]
     # -------------------------------------------------------------------------
 
     def prepare_input(self):
@@ -445,10 +449,10 @@ class JR_sdde:
         for key in par.keys():
             if key not in self.valid_params:
                 raise ValueError("Invalid parameter: " + key)
-            if key in ["C0", "C1", "C2", "C3"]:
-                self.set_C(key, par[key])
-            else:
-                setattr(self, key, par[key]['value'])
+            # if key in ["C0", "C1", "C2", "C3"]:
+            #     self.set_C(key, par[key])
+            # else:
+            setattr(self, key, par[key])
 
         self.prepare_input()
         obj = _JR_sdde(self.dt,

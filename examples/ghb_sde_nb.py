@@ -1,5 +1,4 @@
 import numpy as np
-import networkx as nx
 from vbi import LoadSample
 import matplotlib.pyplot as plt
 from numpy.random import uniform
@@ -25,15 +24,15 @@ eta_heter_rnd = np.random.randn(nn)
 eta = eta_mu+eta_std * eta_heter_rnd
 
 params = {
-    "G": 0.25*100,  
-    "dt": 0.001, 
-    "tcut": 10.0,  
+    "G": 0.25*100,
+    "dt": 0.001,
+    "tcut": 10.0,
     "tend": 120.0,
     "sigma": 0.1,
     "decimate": 100,
     "eta": eta,
-    "omega": omega,  
-    "weights": weights,  
+    "omega": omega,
+    "weights": weights,
     "init_state": uniform(0, 1, 2 * nn),
 }
 

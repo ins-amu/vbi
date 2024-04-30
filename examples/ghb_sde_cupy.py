@@ -1,5 +1,4 @@
 import numpy as np
-import networkx as nx
 from vbi import LoadSample
 import matplotlib.pyplot as plt
 from numpy.random import uniform
@@ -29,16 +28,16 @@ num_sim = len(Gs)
 
 params = {
     "eta": eta,
-    "dt": 0.01, 
+    "dt": 0.01,
     "num_sim": num_sim,
     "sigma": 0.1,
-    "t_cut": 10.0,  
+    "t_cut": 10.0,
     "t_end": 60.0,
-    "G": Gs,  
+    "G": Gs,
     "decimate": 10,
-    "omega": omega,  
+    "omega": omega,
     "engine": "gpu",
-    "weights": weights,  
+    "weights": weights,
     "initial_state": uniform(0, 1, (2 * nn, num_sim)),
 }
 

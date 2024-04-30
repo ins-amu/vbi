@@ -16,6 +16,7 @@ def calc_features(
     cfg: dict,
     preprocess=None,
     preprocess_args: dict = None,
+    verbose: bool = False,
 ):
     """
     Extract features from time series data.
@@ -72,6 +73,9 @@ def calc_features(
                 func_name = fe
                 func = cfg[_type][fe]["function"]
                 params = cfg[_type][fe]["parameters"]
+                
+                if "verbose" in params.keys():
+                    params["verbose"] = verbose
 
                 if params is None:
                     params = {}
@@ -175,8 +179,7 @@ def extract_features(
                 fs,
                 cfg,
                 preprocess=preprocess,
-                preprocess_args=preprocess_args,
-                **kwargs
+                preprocess_args=preprocess_args
             )
             if info:
                 break
@@ -186,7 +189,7 @@ def extract_features(
                     pool.apply_async(
                         calc_features,
                         args=(ts[i], fs, cfg, preprocess, preprocess_args),
-                        kwds=dict(kwargs),
+                        # kwds=dict(kwargs),
                         callback=update_bar,
                     )
                     for i in range(n_trial)

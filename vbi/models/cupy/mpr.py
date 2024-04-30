@@ -24,8 +24,8 @@ class MPR_sde:
         - noise_amp: amplitude of noise
         - same_noise_per_sim: same noise for all simulations
         - iapp: external input
-        - t_initial: initial time
-        - t_transition: transition time
+        - t_start: initial time
+        - t_cut: transition time
         - t_end: end time
         - num_nodes: number of nodes
         - weights: weighted connection matrix
@@ -43,20 +43,11 @@ class MPR_sde:
         #TODO: add references
     '''
 
-    valid_parameters = [
-        "G", "dt", "dt_bold", "J", "eta", "tau", "delta",
-        "decimate", "noise_amp", "iapp", "t_initial", "t_transition",
-        "t_end", "weights", "record_step", "same_initial_condition",
-        "RECORD_TS", "num_sim", "method", "num_nodes", "initial_state",
-        "seed", "engine", "dtype", "output", "alpha", "inv_alpha",
-        "tauo", "taus", "tauf",  "K1", "K2", "K3", "E0", "V0", "eps",
-        "same_initial_state"
-    ]
+    def __init__(self, par:dict={}) -> None:
 
-    def __init__(self, par={}) -> None:
-
-        self.check_parameters(par)
         self._par = self.get_default_parameters()
+        self.valid_parameters = list(self._par.keys())
+        self.check_parameters(par)
         self._par.update(par)
 
         for item in self._par.items():
@@ -128,8 +119,8 @@ class MPR_sde:
 
             "sti_apply": False,          # apply stimulation
             "iapp": 0.0,                 # external input
-            "t_initial": 0.0,            # initial time    [ms]
-            "t_transition": 30_000,      # transition time [ms]
+            "t_start": 0.0,            # initial time    [ms]
+            "t_cut": 30_000,      # transition time [ms]
             "t_end": 300_000,            # end time        [ms]
 
             "num_nodes": None,           # number of nodes
@@ -157,7 +148,8 @@ class MPR_sde:
 
     def check_parameters(self, par):
         for key in par.keys():
-            assert key in self.valid_parameters, "Invalid parameter: " + key
+            if key not in self.valid_parameters:
+                raise ValueError(f"Invalid parameter {key:s} provided.")
 
     def prepare_input(self):
 
@@ -171,8 +163,8 @@ class MPR_sde:
             self.set_initial_state()
 
         self.t_end = self.t_end / 10.0
-        self.t_initial = self.t_initial / 10.0
-        self.t_transition = self.t_transition / 10.0
+        self.t_start = self.t_start / 10.0
+        self.t_cut = self.t_cut / 10.0
         self.eta = prepare_vec(self.eta, self.num_sim, self.engine, self.dtype)
 
     def f_mpr(self, x, t):
@@ -370,7 +362,7 @@ class MPR_sde:
         dec = self.decimate
         engine = self.engine
         rs = self.record_step
-        t_cut = self.t_transition
+        t_cut = self.t_cut
         n_steps = np.ceil(self.t_end / dt).astype(int)
         i_cut = np.ceil(t_cut / dt).astype(int)
 
