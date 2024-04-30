@@ -1,9 +1,13 @@
 import tqdm
-import cupy as cp
+import logging
 import numpy as np
 from copy import copy
 from vbi.models.cupy.utils import *
 
+try:
+    import cupy as cp
+except ImportError:
+    logging.warning("Cupy is not installed. Using Numpy instead.")
 
 class MPR_sde:
     '''

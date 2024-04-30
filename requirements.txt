@@ -10,7 +10,7 @@ symengine
 seaborn
 sbi
 torch
-cupy
+# cupy
 sympy
 scikit-learn
 jpype1
