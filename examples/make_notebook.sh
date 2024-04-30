@@ -22,7 +22,7 @@ cp helpers.py notebooks/helpers.py
 
 for f in *.py
 do
-    
+
     if [[ "$f" == "helpers.py" ]]; then
         continue
     fi
@@ -35,5 +35,5 @@ do
     cd notebooks
     jupyter nbconvert --to notebook --execute $f.ipynb --output=$f.ipynb --ExecutePreprocessor.timeout=-1
     cd ..
-    
+
 done

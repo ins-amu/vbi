@@ -44,7 +44,7 @@ class Inference(object):
         return posterior
 
     @staticmethod
-    def sample_prior(prior, n):
+    def sample_prior(prior, n, seed=None):
         '''
         sample from prior distribution
 
@@ -59,6 +59,9 @@ class Inference(object):
         -------
 
         '''
+        if seed is not None:
+            torch.manual_seed(seed)
+            
         prior, _, _ = process_prior(prior)
         theta = prior.sample((n,))
         return theta
