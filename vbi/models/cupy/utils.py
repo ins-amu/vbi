@@ -14,7 +14,8 @@ def get_module(engine="gpu"):
     if engine == "gpu":
         return cp.get_array_module(cp.array([1]))
     else:
-        return cp.get_array_module(np.array([1]))
+        return np
+        # return cp.get_array_module(np.array([1]))
 
 
 def tohost(x):
