@@ -30,7 +30,7 @@ ww_sde: _ww_sde.so
 do: _do.so
 
 # Pattern rule for compiling SWIG wrapped models
-%_wrap.o : %_wrap.cpp %.hpp utility.hpp
+%_wrap.o : %_wrap.cpp %.hpp utility.hpp bold.hpp
 	$(CXX) $(CXXFLAGS) $< -I $(PYTHON_INCLUDE)
 
 # Pattern rule for SWIG interface files
