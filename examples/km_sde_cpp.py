@@ -12,8 +12,7 @@ from vbi.models.cpp.km import KM_sde
 from sklearn.preprocessing import StandardScaler
 from helpers import *
 
-from vbi import report_cfg
-from vbi import list_feature_extractor
+from vbi import extract_features_list
 from vbi import get_features_by_domain, get_features_by_given_names
 
 seed = 2
@@ -60,8 +59,8 @@ def wrapper(par, control, cfg, verbose=False):
 
     # extract features
     fs = 1 / par['dt']
-    stat_vec = list_feature_extractor(ts=[sol['x']],
-                                      fea_dict=cfg,
+    stat_vec = extract_features_list(ts=[sol['x']],
+                                      cfg=cfg,
                                       fs=fs,
                                       n_workers=1,
                                       verbose=verbose).values
@@ -140,7 +139,7 @@ fig, ax = pairplot(
     samples_colors="k",
     points_offdiag={'markersize': 10})
 plt.tight_layout()
-fig.savefig("output/tri_km_cpu.jpeg", dpi=300);
+fig.savefig("output/tri_km_cpu.jpeg", dpi=300)
 
 
 

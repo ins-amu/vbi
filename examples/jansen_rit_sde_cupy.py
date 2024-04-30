@@ -1,11 +1,9 @@
 import torch
 import pickle
 import numpy as np
-from tqdm import tqdm
 import networkx as nx
 import sbi.utils as utils
 import matplotlib.pyplot as plt
-from multiprocessing import Pool
 from sbi.analysis import pairplot
 from helpers import plot_ts_pxx_jr
 from vbi.inference import Inference
@@ -13,7 +11,7 @@ from vbi.models.cupy.jansen_rit import JR_sde
 from sklearn.preprocessing import StandardScaler
 
 from vbi import report_cfg
-from vbi import list_feature_extractor
+from vbi import extract_features_list
 from vbi import get_features_by_domain, get_features_by_given_names
 
 seed = 2
@@ -37,7 +35,7 @@ par = {
     "noise_amp": 0.05,
     "dt": 0.02,
     "num_sim": num_sim,
-    "engine": "cpu", 
+    "engine": "cpu",
     "seed": seed,
     "same_initial_state": True,
 }
@@ -52,7 +50,7 @@ prior = utils.BoxUniform(low=torch.tensor(prior_min),
 theta = obj.sample_prior(prior, num_sim)
 theta_np = theta.numpy().astype(float)
 G = theta_np[:, 0]
-C1 = theta_np[:, 1] 
+C1 = theta_np[:, 1]
 C1 = np.tile(C1, (nn, 1))
 par['G'] = G
 par['C1'] = C1
@@ -65,7 +63,7 @@ print(data['x'].shape, data['t'].shape)
 t = data['t']
 
 if 0:
-    ts0 = data['x'][:, :, 0].T 
+    ts0 = data['x'][:, :, 0].T
     data0 = {"t": t, "x": ts0}
     info = np.isnan(ts0).sum()
     print(t.shape, ts0.shape)
@@ -83,10 +81,10 @@ ts = data['x']             # [nt, nn, ns]
 ts = ts.transpose(2, 1, 0) # [ns, nn, nt]
 print(ts.shape)
 
-stat_vec = list_feature_extractor(ts=ts, 
-                                  fea_dict=cfg, 
-                                  fs=1/par['dt']*1000, 
-                                  n_workers=num_workers, 
+stat_vec = extract_features_list(ts=ts,
+                                  cfg=cfg,
+                                  fs=1/par['dt']*1000,
+                                  n_workers=num_workers,
                                   verbose=False).values
 stat_vec = np.array(stat_vec)
 print(stat_vec.shape)
@@ -107,7 +105,7 @@ with open('output/posterior.pkl', 'rb') as f:
     posterior = pickle.load(f)
 
 index = 0
-theta_true = theta[index, :] 
+theta_true = theta[index, :]
 xo_st = stat_vec_st[index, :]
 
 samples = obj.sample_posterior(xo_st, 10000, posterior)
@@ -128,4 +126,4 @@ fig, ax = pairplot(
 ax[0,0].tick_params(labelsize=14)
 ax[0,0].margins(y=0)
 plt.tight_layout()
-fig.savefig("output/tri_jr_cupy.jpeg", dpi=300);
+fig.savefig("output/tri_jr_cupy.jpeg", dpi=300)

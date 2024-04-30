@@ -1,6 +1,5 @@
 import vbi
 import numpy as np
-import networkx as nx
 import matplotlib.pyplot as plt
 from helpers import plot_ts_pxx_sl
 from vbi.models.cpp.sl import SL_sdde
@@ -13,7 +12,8 @@ plt.rcParams['axes.labelsize'] = LABESSIZE
 plt.rcParams['xtick.labelsize'] = LABESSIZE
 plt.rcParams['ytick.labelsize'] = LABESSIZE
 
-ds = vbi.Load_Data_Sample(nn=84)
+ds = vbi.LoadSample(nn=84)
+
 weights = ds.get_weights(normalize=True)
 distances = ds.get_lengths() / 1000  # [m]
 nn = weights.shape[0]

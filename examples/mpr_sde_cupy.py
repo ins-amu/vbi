@@ -18,7 +18,7 @@ par = {
     "G": 0.25,              # global coupling strength
     "weights": weights,     # connection matrix
     "method": "heun",       # integration method
-    "t_transition": 2000,   # [ms]
+    "t_cut": 2000,   # [ms]
     "t_end": 30_000,        # [ms]
     "num_sim": 1,           # number of simulations
     "engine": "cpu",        # cpu or gpu

@@ -12,7 +12,7 @@ from vbi.models.cpp.jansen_rit import JR_sde
 from sklearn.preprocessing import StandardScaler
 
 from vbi import report_cfg
-from vbi import list_feature_extractor
+from vbi import extract_features_list
 from vbi import get_features_by_domain, get_features_by_given_names
 from helpers import *
 
@@ -70,8 +70,8 @@ def wrapper(par, control, cfg, verbose=False):
 
     # extract features
     fs = 1.0 / par['dt'] * 1000  # [Hz]
-    stat_vec = list_feature_extractor(ts=[sol['x']],
-                                      fea_dict=cfg,
+    stat_vec = extract_features_list(ts=[sol['x']],
+                                      cfg=cfg,
                                       fs=fs,
                                       n_workers=1,
                                       verbose=verbose).values
@@ -140,7 +140,7 @@ points = [[theta_true['G']['value'], theta_true['C1']['value'][0], theta_true['C
 fig, ax = pairplot(
     samples,
     limits=limits,
-    fig_size=(5, 5),
+    figsize=(5, 5),
     points=points,
     labels=["G", "C11", "C12"],
     offdiag='kde',
@@ -151,4 +151,4 @@ fig, ax = pairplot(
 ax[0,0].tick_params(labelsize=14)
 ax[0,0].margins(y=0)
 plt.tight_layout()
-fig.savefig("output/triangleplot.jpeg", dpi=300);
+fig.savefig("output/triangleplot.jpeg", dpi=300)

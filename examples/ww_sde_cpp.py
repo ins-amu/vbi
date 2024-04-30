@@ -3,7 +3,6 @@ import pickle
 import numpy as np
 from time import time
 from tqdm import tqdm
-import networkx as nx
 import sbi.utils as utils
 import scipy.stats as stats
 from helpers import plot_mat
@@ -11,16 +10,15 @@ import matplotlib.pyplot as plt
 from multiprocessing import Pool
 from sbi.analysis import pairplot
 from vbi.inference import Inference
-from vbi.models.cpp.ww import WW_sde 
+from vbi.models.cpp.ww import WW_sde
 from sklearn.preprocessing import StandardScaler
 from vbi.feature_extraction.features_utils import get_fc, get_fcd2
 
 import vbi
-from vbi import report_cfg
-from vbi import list_feature_extractor
+from vbi import extract_features_list
 from vbi import get_features_by_domain, get_features_by_given_names
 
-seed = 2 
+seed = 2
 np.random.seed(seed)
 torch.manual_seed(seed)
 
@@ -88,8 +86,8 @@ def wrapper(par, control, cfg, verbose=False):
 
     # extract features
     fs = 1.0 / par['dt'] * 1000  # [Hz]
-    stat_vec = list_feature_extractor(ts=[sol['d_fmri'].T],
-                                      fea_dict=cfg,
+    stat_vec = extract_features_list(ts=[sol['d_fmri'].T],
+                                      cfg=cfg,
                                       fs=fs,
                                       verbose=verbose).values
     return stat_vec[0]
@@ -171,4 +169,4 @@ fig, ax = pairplot(
 ax[0,0].tick_params(labelsize=14)
 ax[0,0].margins(y=0)
 plt.tight_layout()
-fig.savefig("output/tri.jpeg", dpi=300);
+fig.savefig("output/tri.jpeg", dpi=300)

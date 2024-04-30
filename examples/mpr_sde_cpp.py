@@ -1,5 +1,7 @@
-import numpy as np 
+import os
+import numpy as np
 import networkx as nx
+from vbi import report_cfg
 import matplotlib.pyplot as plt
 from vbi.models.cpp.mpr import MPR_sde
 
@@ -15,19 +17,18 @@ nn = 6
 weights = nx.to_numpy_array(nx.complete_graph(nn))
 
 parameters = {
-    "G": 0.55,                         # global coupling strength
+    "G": 0.55,                          # global coupling strength
     "dt": 0.01,                         # for mpr model [ms]
     "dt_bold": 0.001,                   # for Balloon model [s]
     "J": 14.5,                          # model parameter
-    "eta": -4.6*np.ones(nn),                        # model parameter
+    "eta": -4.6,                        # model parameter
     "tau": 1.0,                         # model parameter
     "delta": 0.7,                       # model parameter
     "decimate": 500,                    # sampling from mpr time series
     "noise_amp": 0.037,                 # amplitude of noise
     "iapp": 0.0,                        # constant applyed current
-    "t_initial": 0.0,                   # initial time * 10[ms]
-    "t_transition": 20_000.0,           # transition time * 10 [ms]
-    "t_end": 250_000.0,                 # end time * 10 [ms]
+    "t_cut": 0.5 * 60* 1000.0,   # transition time * 10 [ms]
+    "t_end": 2 * 60 * 1000,             # end time * 10 [ms]
     "weights": weights,                 # weighted connection matrix
     "seed": seed,                       # seed for random number generator
     "noise_seed": True,                 # fix seed for noise
@@ -36,11 +37,7 @@ parameters = {
     "RECORD_AVG": 0                     # true to store large time series in file
 }
 
-control_dict = {
-    "eta": {"indices": [[0], [2, 3]], "value": [-4.3, -4.5]}, # set different values for eta
-    "G": {"value": 0.5},
-    }
-
+control_dict = {"G": 0.5}
 obj = MPR_sde(parameters)
 # print(obj())
 sol = obj.run(par=control_dict)
@@ -60,6 +57,7 @@ if x.ndim == 2:
     plt.plot(t/1000, x.T, alpha=0.8, lw=2)
     plt.margins(0,0.1)
     plt.tight_layout()
+    os.makedirs("output", exist_ok=True)
     plt.savefig("output/mpr_sde_ts.png", dpi=300)
     plt.close()
 else:
@@ -71,9 +69,7 @@ from vbi.feature_extraction.features_settings import *
 from vbi.feature_extraction.calc_features import *
 
 fs = 1/(parameters["dt_bold"]) / 1000
-cfg = get_features_by_domain(domain="statistical")
-# report_cfg(cfg)
-data = dataframe_feature_extractor([x], fs, fea_dict=cfg, n_workers=1)
-print(data.values)
-
-
+cfg = get_features_by_domain(domain="connectivity")
+report_cfg(cfg)
+data = extract_features_df([x], fs, cfg=cfg, n_workers=1)
+print(data.values.shape)
