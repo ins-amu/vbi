@@ -10,7 +10,7 @@ with open("requirements.txt") as f:
 setuptools.setup(
     name="vbi",
     version="0.1",
-    author="Abolfazl ziaeemehr, Meysam Hashemi",
+    author="Abolfazl ziaeemehr, Meysam Hashemi, Marmaduke Woodman",
     author_email="a.ziaeemehr@gmail.com, meysam.hashemi@gmail.com",
     description="Virtual brain inference",
     long_description=long_description,

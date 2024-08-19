@@ -26,10 +26,10 @@ release = version = get_version(root="..", relative_to=__file__)
 default_role = "any"
 add_function_parentheses = True
 add_module_names = False
-# html_theme = 'nature'
+html_theme = 'nature'
 # hrml_theme = "sphinx_pdj_theme"
 
-html_theme = "bootstrap"
+# html_theme = "bootstrap"
 html_theme_path = sphinx_bootstrap_theme.get_html_theme_path()
 
 pygments_style = "colorful"
