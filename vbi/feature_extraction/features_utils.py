@@ -1321,3 +1321,23 @@ def set_attribute(key, value):
         return func
 
     return decorate_func
+
+
+
+def seizure_onset_indicator(ts: np.ndarray, thr:float=0.02):
+    '''
+    return the index of the onset of seizures
+    '''
+    
+    if not isinstance(ts, np.ndarray):
+        ts = np.array(ts)
+    
+    if ts.ndim == 1:
+        ts = ts.reshape(1, -1)
+    
+    df = np.diff(ts, axis=1)
+    onset_idx = np.argmax(df, axis=1)
+    onset_amp = np.max(df, axis=1)
+    onset_idx = np.where(onset_amp < thr, 0, onset_idx)
+    # onset_amp = np.where(onset_amp < thr, 0, onset_amp)
+    return onset_idx

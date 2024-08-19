@@ -245,7 +245,8 @@
       "function": "vbi.feature_extraction.features.kop",
       "parameters": {
         "indices": null,
-        "verbose": false
+        "verbose": false,
+        "extract_phase": false
       },
       "use": "yes",
       "tag": "all"
@@ -288,6 +289,17 @@
       },
       "use": "yes",
       "tag": "all"
+    },
+    "seizure_onset": {
+      "description": "Detects the onset of seizures.",
+      "function": "vbi.feature_extraction.features.seizure_onset",
+      "parameters": {
+        "threshold": 0.02,
+        "verbose": false,
+        "indices": null
+      },
+      "use": "yes",
+      "tag": ["eeg", "seeg"]
     }
   },
 
@@ -420,6 +432,7 @@
         "nperseg": null,
         "indices": null,
         "verbose": false,
+        "average": false,
         "method": "fft",
         "features": [
           "spectral_distance",

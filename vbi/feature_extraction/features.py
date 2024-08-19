@@ -18,6 +18,14 @@ from vbi.feature_extraction.features_utils import (
     calc_fft,
     wavelet,
     state_duration,
+    seizure_onset_indicator,
+    max_frequency,
+    spectral_distance,
+    fundamental_frequency,
+    spectral_centroid,
+    spectral_variation,
+    spectral_kurtosis,
+    median_frequency
 )
 
 from typing import List, Tuple, Dict
@@ -649,6 +657,40 @@ def zero_crossing(ts: np.ndarray, indices: List[int] = None, verbose=False):
         return values, labels
 
 
+def seizure_onset(ts: np.ndarray, 
+                  threshold: float = 0.02,
+                  indices: List[int] = None, verbose=False):
+    '''
+    Computes the seizure onset of the time series.
+    
+    Parameters
+    ----------
+    ts : nd-array [n_regions x n_samples]
+       Input from which number of zero crossings is computed
+    indices: list of int
+        Indices of the time series to compute the feature
+    
+    Returns
+    -------
+    values: array-like
+        index of the onset of the seizures in the time series, zero if no onset in each region
+    labels: array-like
+        labels of the features
+    '''
+    
+    info, ts = prepare_input_ts(ts, indices)
+    if not info:
+        if verbose:
+            print("Error in zero_crossing")
+        return [np.nan], [f"seizure_onset_{0}"]
+    else:
+        values = seizure_onset_indicator(ts, threshold)
+        labels = [f"seizure_onset_{i}" for i in range(len(values))]
+        return values, labels
+    
+    
+    
+
 # def calc_ress(
 #     ts: np.ndarray, percentile: Union[int, float] = 95, indices: List[int] = None
 # ):
@@ -684,7 +726,7 @@ def zero_crossing(ts: np.ndarray, indices: List[int] = None, verbose=False):
 #         return np.percentile(rss, percentile), ["ress"]
 
 
-def kop(ts: np.ndarray, indices: List[int] = None, verbose=False):
+def kop(ts: np.ndarray, indices: List[int] = None, verbose=False, extract_phase=False):
     """
     Calculate the Kuramoto order parameter (KOP)
 
@@ -696,7 +738,13 @@ def kop(ts: np.ndarray, indices: List[int] = None, verbose=False):
             print("Error in kop")
         return [np.nan], ["kop"]
     else:
-        R = km_order(ts, indices=indices, avg=True)
+        if extract_phase:
+            analytic_signal = hilbert(ts, axis=1)
+            amplitude_envelope = np.abs(analytic_signal)
+            instantaneous_phase = np.unwrap(np.angle(analytic_signal))
+            R = km_order(instantaneous_phase, indices=indices, avg=True)
+        else:
+            R = km_order(ts, indices=indices, avg=True)
         return R, ["kop"]
 
 
@@ -1395,10 +1443,12 @@ def spectrum_stats(
     nperseg: int = None,
     verbose=False,
     indices: List[int] = None,
+    average=False,
     features: List[str] = [
         "spectral_distance",
         "fundamental_frequency",
         "max_frequency",
+        "max_power",
         "median_frequency",
         "spectral_centroid",
         "spectral_kurtosis",
@@ -1441,11 +1491,16 @@ def spectrum_stats(
             freq, psd = calc_fft(ts, fs)
         else:
             raise ValueError("method must be one of 'welch', 'fft'")
+        
+        if average:
+            psd = np.mean(psd, axis=0).reshape(1, -1)
 
         values = np.array([])
         labels = []
 
         for f in features:
+            
+            
             v, l = eval(f)(freq, psd)
             values = np.append(values, v)
             labels = labels + l
