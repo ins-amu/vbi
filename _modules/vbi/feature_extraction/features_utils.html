@@ -1,0 +1,1402 @@
+<!DOCTYPE html>
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>vbi.feature_extraction.features_utils &#8212; vbi 0.1.dev1+g9cc934d documentation</title>
+    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=82a976d7" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/nature.css?v=8fc2db88" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/graphviz.css?v=eafc0fe6" />
+    <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js?v=3fa40876"></script>
+    <script src="../../../_static/doctools.js?v=888ff710"></script>
+    <script src="../../../_static/sphinx_highlight.js?v=4825356b"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+  </head><body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../../index.html">vbi 0.1.dev1+g9cc934d documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="../../index.html" accesskey="U">Module code</a> &#187;</li>
+        <li class="nav-item nav-item-this"><a href="">vbi.feature_extraction.features_utils</a></li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for vbi.feature_extraction.features_utils</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">vbi</span>
+<span class="kn">import</span> <span class="nn">scipy</span>
+<span class="kn">import</span> <span class="nn">torch</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">from</span> <span class="nn">os.path</span> <span class="kn">import</span> <span class="n">join</span>
+<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Union</span>
+<span class="kn">from</span> <span class="nn">copy</span> <span class="kn">import</span> <span class="n">deepcopy</span>
+<span class="kn">import</span> <span class="nn">scipy.stats</span> <span class="k">as</span> <span class="nn">stats</span>
+<span class="kn">from</span> <span class="nn">numpy</span> <span class="kn">import</span> <span class="n">linalg</span> <span class="k">as</span> <span class="n">LA</span>
+<span class="kn">from</span> <span class="nn">sklearn.decomposition</span> <span class="kn">import</span> <span class="n">PCA</span>
+<span class="kn">from</span> <span class="nn">scipy.signal</span> <span class="kn">import</span> <span class="n">butter</span><span class="p">,</span> <span class="n">detrend</span><span class="p">,</span> <span class="n">filtfilt</span><span class="p">,</span> <span class="n">hilbert</span>
+<span class="kn">from</span> <span class="nn">vbi.feature_extraction.features_settings</span> <span class="kn">import</span> <span class="n">load_json</span>
+<span class="kn">from</span> <span class="nn">vbi.feature_extraction.utility</span> <span class="kn">import</span> <span class="o">*</span>
+
+<span class="k">try</span><span class="p">:</span>
+    <span class="kn">import</span> <span class="nn">jpype</span> <span class="k">as</span> <span class="nn">jp</span>
+    <span class="kn">import</span> <span class="nn">ssm</span>
+<span class="k">except</span><span class="p">:</span>
+    <span class="c1"># logging.warning(&quot;jpype not imported.&quot;)</span>
+    <span class="k">pass</span>
+
+
+<div class="viewcode-block" id="slice_features"><a class="viewcode-back" href="../../../feature_extraction.html#vbi.feature_extraction.features_utils.slice_features">[docs]</a><span class="k">def</span> <span class="nf">slice_features</span><span class="p">(</span><span class="n">x</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">],</span> <span class="n">feature_names</span><span class="p">:</span> <span class="nb">list</span><span class="p">,</span> <span class="n">info</span><span class="p">:</span> <span class="nb">dict</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Slice features using given feature list</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    x: array-like</span>
+<span class="sd">    features: list of strings</span>
+<span class="sd">        list of features</span>
+<span class="sd">    info: dict</span>
+<span class="sd">        features&#39;s colum indices in x</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    x_sliced: array-like</span>
+<span class="sd">        sliced features</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="p">(</span><span class="nb">list</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">)):</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">x</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="n">x</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="n">is_tensor</span> <span class="o">=</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">is_tensor</span><span class="p">:</span>
+        <span class="n">x_sliced</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">([])</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">x_sliced</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([])</span>
+
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">feature_names</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">x_sliced</span>
+
+    <span class="k">for</span> <span class="n">f_name</span> <span class="ow">in</span> <span class="n">feature_names</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">f_name</span> <span class="ow">in</span> <span class="n">info</span><span class="p">:</span>
+            <span class="n">coli</span><span class="p">,</span> <span class="n">colf</span> <span class="o">=</span> <span class="n">info</span><span class="p">[</span><span class="n">f_name</span><span class="p">][</span><span class="s2">&quot;index&quot;</span><span class="p">][</span><span class="mi">0</span><span class="p">],</span> <span class="n">info</span><span class="p">[</span><span class="n">f_name</span><span class="p">][</span><span class="s2">&quot;index&quot;</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">is_tensor</span><span class="p">:</span>
+                <span class="n">x_sliced</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">((</span><span class="n">x_sliced</span><span class="p">,</span> <span class="n">x</span><span class="p">[:,</span> <span class="n">coli</span><span class="p">:</span><span class="n">colf</span><span class="p">]),</span> <span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">x_sliced</span><span class="o">.</span><span class="n">size</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="n">x_sliced</span> <span class="o">=</span> <span class="n">x</span><span class="p">[:,</span> <span class="n">coli</span><span class="p">:</span><span class="n">colf</span><span class="p">]</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">x_sliced</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">((</span><span class="n">x_sliced</span><span class="p">,</span> <span class="n">x</span><span class="p">[:,</span> <span class="n">coli</span><span class="p">:</span><span class="n">colf</span><span class="p">]),</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">f_name</span><span class="si">}</span><span class="s2"> not in info&quot;</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">x_sliced</span></div>
+
+
+<div class="viewcode-block" id="preprocess"><a class="viewcode-back" href="../../../feature_extraction.html#vbi.feature_extraction.features_utils.preprocess">[docs]</a><span class="k">def</span> <span class="nf">preprocess</span><span class="p">(</span><span class="n">ts</span><span class="p">,</span> <span class="n">fs</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">preprocess_dict</span><span class="o">=</span><span class="p">{},</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Preprocess time series data</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    ts : nd-array [n_regions, n_timepoints]</span>
+<span class="sd">        Input from which the features are extracted</span>
+<span class="sd">    fs : int</span>
+<span class="sd">        Sampling frequency, set to 1 if not used</span>
+<span class="sd">    preprocess_dict : dictionary</span>
+<span class="sd">        Dictionary of preprocessing options</span>
+<span class="sd">    **kwargs : dict</span>
+<span class="sd">        Additional arguments</span>
+
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">preprocess_dict</span><span class="p">:</span>
+        <span class="n">preprocess_dict</span> <span class="o">=</span> <span class="n">load_json</span><span class="p">(</span>
+            <span class="n">vbi</span><span class="o">.</span><span class="n">__path__</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="s2">&quot;/feature_extraction/preprocess.json&quot;</span>
+        <span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">preprocess_dict</span><span class="p">[</span><span class="s2">&quot;zscores&quot;</span><span class="p">][</span><span class="s2">&quot;use&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="s2">&quot;yes&quot;</span><span class="p">:</span>
+        <span class="n">ts</span> <span class="o">=</span> <span class="n">stats</span><span class="o">.</span><span class="n">zscore</span><span class="p">(</span><span class="n">ts</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">preprocess_dict</span><span class="p">[</span><span class="s2">&quot;offset&quot;</span><span class="p">][</span><span class="s2">&quot;use&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="s2">&quot;yes&quot;</span><span class="p">:</span>
+        <span class="n">value</span> <span class="o">=</span> <span class="n">preprocess_dict</span><span class="p">[</span><span class="s2">&quot;offset&quot;</span><span class="p">][</span><span class="s2">&quot;parameters&quot;</span><span class="p">][</span><span class="s2">&quot;value&quot;</span><span class="p">]</span>
+        <span class="n">ts</span> <span class="o">=</span> <span class="n">ts</span><span class="p">[:,</span> <span class="n">value</span><span class="p">:]</span>
+
+    <span class="k">if</span> <span class="n">preprocess_dict</span><span class="p">[</span><span class="s2">&quot;demean&quot;</span><span class="p">][</span><span class="s2">&quot;use&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="s2">&quot;yes&quot;</span><span class="p">:</span>
+        <span class="n">ts</span> <span class="o">=</span> <span class="n">ts</span> <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">ts</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)[:,</span> <span class="kc">None</span><span class="p">]</span>
+
+    <span class="k">if</span> <span class="n">preprocess_dict</span><span class="p">[</span><span class="s2">&quot;detrend&quot;</span><span class="p">][</span><span class="s2">&quot;use&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="s2">&quot;yes&quot;</span><span class="p">:</span>
+        <span class="n">ts</span> <span class="o">=</span> <span class="n">detrend</span><span class="p">(</span><span class="n">ts</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">preprocess_dict</span><span class="p">[</span><span class="s2">&quot;filter&quot;</span><span class="p">][</span><span class="s2">&quot;use&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="s2">&quot;yes&quot;</span><span class="p">:</span>
+        <span class="n">low_cut</span> <span class="o">=</span> <span class="n">preprocess_dict</span><span class="p">[</span><span class="s2">&quot;filter&quot;</span><span class="p">][</span><span class="s2">&quot;parameters&quot;</span><span class="p">][</span><span class="s2">&quot;low&quot;</span><span class="p">]</span>
+        <span class="n">high_cut</span> <span class="o">=</span> <span class="n">preprocess_dict</span><span class="p">[</span><span class="s2">&quot;filter&quot;</span><span class="p">][</span><span class="s2">&quot;parameters&quot;</span><span class="p">][</span><span class="s2">&quot;high&quot;</span><span class="p">]</span>
+        <span class="n">order</span> <span class="o">=</span> <span class="n">preprocess_dict</span><span class="p">[</span><span class="s2">&quot;filter&quot;</span><span class="p">][</span><span class="s2">&quot;parameters&quot;</span><span class="p">][</span><span class="s2">&quot;order&quot;</span><span class="p">]</span>
+        <span class="n">TR</span> <span class="o">=</span> <span class="mf">1.0</span> <span class="o">/</span> <span class="n">fs</span>
+        <span class="n">ts</span> <span class="o">=</span> <span class="n">band_pass_filter</span><span class="p">(</span><span class="n">ts</span><span class="p">,</span> <span class="n">k</span><span class="o">=</span><span class="n">order</span><span class="p">,</span> <span class="n">TR</span><span class="o">=</span><span class="n">TR</span><span class="p">,</span> <span class="n">low_cut</span><span class="o">=</span><span class="n">low_cut</span><span class="p">,</span> <span class="n">high_cut</span><span class="o">=</span><span class="n">high_cut</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">preprocess_dict</span><span class="p">[</span><span class="s2">&quot;remove_strong_artefacts&quot;</span><span class="p">][</span><span class="s2">&quot;use&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="s2">&quot;yes&quot;</span><span class="p">:</span>
+        <span class="n">ts</span> <span class="o">=</span> <span class="n">remove_strong_artefacts</span><span class="p">(</span><span class="n">ts</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">ts</span></div>
+
+
+<div class="viewcode-block" id="band_pass_filter"><a class="viewcode-back" href="../../../feature_extraction.html#vbi.feature_extraction.features_utils.band_pass_filter">[docs]</a><span class="k">def</span> <span class="nf">band_pass_filter</span><span class="p">(</span><span class="n">ts</span><span class="p">,</span> <span class="n">low_cut</span><span class="o">=</span><span class="mf">0.02</span><span class="p">,</span> <span class="n">high_cut</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span> <span class="n">TR</span><span class="o">=</span><span class="mf">2.0</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="mi">2</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    apply band pass filter to given time series</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    ts : numpy.ndarray [n_regions, n_timepoints]</span>
+<span class="sd">        Input signal</span>
+<span class="sd">    low_cut : float, optional</span>
+<span class="sd">        Low cut frequency. The default is 0.02.</span>
+<span class="sd">    high_cut : float, optional</span>
+<span class="sd">        High cut frequency. The default is 0.1.</span>
+<span class="sd">    TR : float, optional</span>
+<span class="sd">        Sampling interval. The default is 2.0 second.</span>
+
+<span class="sd">    returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    ts_filt : numpy.ndarray</span>
+<span class="sd">        filtered signal</span>
+
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">assert</span> <span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">ts</span><span class="p">)</span><span class="o">.</span><span class="n">any</span><span class="p">()</span> <span class="o">==</span> <span class="kc">False</span>
+
+    <span class="n">fnq</span> <span class="o">=</span> <span class="mf">1.0</span> <span class="o">/</span> <span class="p">(</span><span class="mf">2.0</span> <span class="o">*</span> <span class="n">TR</span><span class="p">)</span>  <span class="c1"># Nyquist frequency</span>
+    <span class="n">Wn</span> <span class="o">=</span> <span class="p">[</span><span class="n">low_cut</span> <span class="o">/</span> <span class="n">fnq</span><span class="p">,</span> <span class="n">high_cut</span> <span class="o">/</span> <span class="n">fnq</span><span class="p">]</span>
+    <span class="n">bfilt</span><span class="p">,</span> <span class="n">afilt</span> <span class="o">=</span> <span class="n">butter</span><span class="p">(</span><span class="n">order</span><span class="p">,</span> <span class="n">Wn</span><span class="p">,</span> <span class="n">btype</span><span class="o">=</span><span class="s2">&quot;band&quot;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">filtfilt</span><span class="p">(</span><span class="n">bfilt</span><span class="p">,</span> <span class="n">afilt</span><span class="p">,</span> <span class="n">ts</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="remove_strong_artefacts"><a class="viewcode-back" href="../../../feature_extraction.html#vbi.feature_extraction.features_utils.remove_strong_artefacts">[docs]</a><span class="k">def</span> <span class="nf">remove_strong_artefacts</span><span class="p">(</span><span class="n">ts</span><span class="p">,</span> <span class="n">threshold</span><span class="o">=</span><span class="mf">3.0</span><span class="p">):</span>
+
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">ts</span><span class="p">,</span> <span class="p">(</span><span class="nb">list</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">)):</span>
+        <span class="n">ts</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">ts</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">ts</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">ts</span> <span class="o">=</span> <span class="n">ts</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="n">nn</span> <span class="o">=</span> <span class="n">ts</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nn</span><span class="p">):</span>
+        <span class="n">x_</span> <span class="o">=</span> <span class="n">ts</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="p">:]</span>
+        <span class="n">std_dev</span> <span class="o">=</span> <span class="n">threshold</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">std</span><span class="p">(</span><span class="n">x_</span><span class="p">)</span>
+        <span class="n">x_</span><span class="p">[</span><span class="n">x_</span> <span class="o">&gt;</span> <span class="n">std_dev</span><span class="p">]</span> <span class="o">=</span> <span class="n">std_dev</span>
+        <span class="n">x_</span><span class="p">[</span><span class="n">x_</span> <span class="o">&lt;</span> <span class="o">-</span><span class="n">std_dev</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="n">std_dev</span>
+        <span class="n">ts</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> <span class="n">x_</span>
+    <span class="k">return</span> <span class="n">ts</span></div>
+
+
+<div class="viewcode-block" id="get_fc"><a class="viewcode-back" href="../../../feature_extraction.html#vbi.feature_extraction.features_utils.get_fc">[docs]</a><span class="k">def</span> <span class="nf">get_fc</span><span class="p">(</span><span class="n">ts</span><span class="p">,</span> <span class="n">masks</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">positive</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">fc_fucntion</span><span class="o">=</span><span class="s2">&quot;corrcoef&quot;</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    calculate the functional connectivity matrix</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    ts : numpy.ndarray [n_regions, n_timepoints]</span>
+<span class="sd">        Input signal</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    FC : numpy.ndarray</span>
+<span class="sd">        functional connectivity matrix</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="kn">from</span> <span class="nn">numpy</span> <span class="kn">import</span> <span class="n">corrcoef</span><span class="p">,</span> <span class="n">cov</span>
+
+    <span class="n">n_noes</span> <span class="o">=</span> <span class="n">ts</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="k">if</span> <span class="n">masks</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">masks</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;full&quot;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">((</span><span class="n">n_noes</span><span class="p">,</span> <span class="n">n_noes</span><span class="p">))}</span>
+
+    <span class="n">FCs</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="n">FC</span> <span class="o">=</span> <span class="nb">eval</span><span class="p">(</span><span class="n">fc_fucntion</span><span class="p">)(</span><span class="n">ts</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">_</span><span class="p">,</span> <span class="n">key</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">masks</span><span class="o">.</span><span class="n">keys</span><span class="p">()):</span>
+        <span class="n">mask</span> <span class="o">=</span> <span class="n">masks</span><span class="p">[</span><span class="n">key</span><span class="p">]</span>
+        <span class="n">fc</span> <span class="o">=</span> <span class="n">deepcopy</span><span class="p">(</span><span class="n">FC</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">positive</span><span class="p">:</span>
+            <span class="n">fc</span> <span class="o">=</span> <span class="n">fc</span> <span class="o">*</span> <span class="p">(</span><span class="n">fc</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="n">fc</span> <span class="o">=</span> <span class="n">fc</span> <span class="o">*</span> <span class="n">mask</span>
+        <span class="n">fc</span> <span class="o">=</span> <span class="n">fc</span> <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">diag</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">diagonal</span><span class="p">(</span><span class="n">fc</span><span class="p">))</span>
+        <span class="n">FCs</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">fc</span>
+
+    <span class="k">return</span> <span class="n">FCs</span></div>
+
+
+<div class="viewcode-block" id="get_fcd"><a class="viewcode-back" href="../../../feature_extraction.html#vbi.feature_extraction.features_utils.get_fcd">[docs]</a><span class="k">def</span> <span class="nf">get_fcd</span><span class="p">(</span>
+    <span class="n">ts</span><span class="p">,</span>
+    <span class="n">TR</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+    <span class="n">win_len</span><span class="o">=</span><span class="mi">30</span><span class="p">,</span>
+    <span class="n">positive</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+    <span class="n">masks</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+    <span class="c1">#!TODO: add overlap</span>
+<span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Compute dynamic functional connectivity.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+
+<span class="sd">    ts: numpy.ndarray [n_regions, n_timepoints]</span>
+<span class="sd">        Input signal</span>
+<span class="sd">    win_len: int</span>
+<span class="sd">        sliding window length in samples, default is 30</span>
+<span class="sd">    TR: int</span>
+<span class="sd">        repetition time. It refers to the amount of time that</span>
+<span class="sd">        passes between consecutive acquired brain volumes during</span>
+<span class="sd">        functional magnetic resonance imaging (fMRI) scans.</span>
+<span class="sd">    positive: bool</span>
+<span class="sd">        if True, only positive values of FC are considered.</span>
+<span class="sd">        default is False</span>
+<span class="sd">    masks: dict</span>
+<span class="sd">        dictionary of masks to compute FCD on.</span>
+<span class="sd">        default is None, which means that FCD is computed on the full matrix.</span>
+<span class="sd">        see also `hbt.utility.make_mask` and `hbt.utility.get_masks`.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">        FCD: ndarray</span>
+<span class="sd">            matrix of functional connectivity dynamics</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">ts</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">):</span>
+        <span class="n">ts</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">ts</span><span class="p">)</span>
+
+    <span class="n">ts</span> <span class="o">=</span> <span class="n">ts</span><span class="o">.</span><span class="n">T</span>
+    <span class="n">n_samples</span><span class="p">,</span> <span class="n">n_nodes</span> <span class="o">=</span> <span class="n">ts</span><span class="o">.</span><span class="n">shape</span>
+    <span class="c1"># check if lenght of the time series is enough</span>
+    <span class="k">if</span> <span class="n">n_samples</span> <span class="o">&lt;</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">win_len</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;get_fcd: Length of the time series should be at least 2 times of win_len. n_samples: </span><span class="si">{</span><span class="n">n_samples</span><span class="si">}</span><span class="s2">, win_len: </span><span class="si">{</span><span class="n">win_len</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="p">)</span>
+
+    <span class="n">mask_full</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">((</span><span class="n">n_nodes</span><span class="p">,</span> <span class="n">n_nodes</span><span class="p">))</span>
+    <span class="k">if</span> <span class="n">masks</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">masks</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;full&quot;</span><span class="p">:</span> <span class="n">mask_full</span><span class="p">}</span>
+
+    <span class="n">windowed_data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">lib</span><span class="o">.</span><span class="n">stride_tricks</span><span class="o">.</span><span class="n">sliding_window_view</span><span class="p">(</span>
+        <span class="n">ts</span><span class="p">,</span> <span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">win_len</span> <span class="o">/</span> <span class="n">TR</span><span class="p">),</span> <span class="n">n_nodes</span><span class="p">),</span> <span class="n">axis</span><span class="o">=</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="p">)</span><span class="o">.</span><span class="n">squeeze</span><span class="p">()</span>
+    <span class="n">n_windows</span> <span class="o">=</span> <span class="n">windowed_data</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">fc_stream</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span>
+        <span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">corrcoef</span><span class="p">(</span><span class="n">windowed_data</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="p">:,</span> <span class="p">:],</span> <span class="n">rowvar</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n_windows</span><span class="p">)]</span>
+    <span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">positive</span><span class="p">:</span>
+        <span class="n">fc_stream</span> <span class="o">*=</span> <span class="n">fc_stream</span> <span class="o">&gt;</span> <span class="mi">0</span>
+
+    <span class="n">FCDs</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">_</span><span class="p">,</span> <span class="n">key</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">masks</span><span class="o">.</span><span class="n">keys</span><span class="p">()):</span>
+        <span class="n">mask</span> <span class="o">=</span> <span class="n">masks</span><span class="p">[</span><span class="n">key</span><span class="p">]</span>
+        <span class="n">mask</span> <span class="o">*=</span> <span class="n">np</span><span class="o">.</span><span class="n">triu</span><span class="p">(</span><span class="n">mask_full</span><span class="p">,</span> <span class="n">k</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">nonzero_idx</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">nonzero</span><span class="p">(</span><span class="n">mask</span><span class="p">)</span>
+        <span class="n">fc_stream_masked</span> <span class="o">=</span> <span class="n">fc_stream</span><span class="p">[:,</span> <span class="n">nonzero_idx</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">nonzero_idx</span><span class="p">[</span><span class="mi">1</span><span class="p">]]</span>
+        <span class="n">fcd</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">corrcoef</span><span class="p">(</span><span class="n">fc_stream_masked</span><span class="p">,</span> <span class="n">rowvar</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">FCDs</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">fcd</span>
+
+    <span class="k">return</span> <span class="n">FCDs</span></div>
+
+
+<div class="viewcode-block" id="get_fcd2"><a class="viewcode-back" href="../../../feature_extraction.html#vbi.feature_extraction.features_utils.get_fcd2">[docs]</a><span class="k">def</span> <span class="nf">get_fcd2</span><span class="p">(</span><span class="n">ts</span><span class="p">,</span> <span class="n">wwidth</span><span class="p">,</span> <span class="n">maxNwindows</span><span class="p">,</span> <span class="n">olap</span><span class="p">,</span> <span class="n">indices</span><span class="o">=</span><span class="p">[],</span> <span class="n">verbose</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Functional Connectivity Dynamics from the given of time series</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    data: np.ndarray (2d)</span>
+<span class="sd">        time series in rows [n_nodes, n_samples]</span>
+<span class="sd">    opt: dict</span>
+<span class="sd">        parameters</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    FCD: np.ndarray (2d)</span>
+<span class="sd">        functional connectivity dynamics matrix</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">assert</span> <span class="n">olap</span> <span class="o">&lt;=</span> <span class="mi">1</span> <span class="ow">and</span> <span class="n">olap</span> <span class="o">&gt;=</span> <span class="mi">0</span><span class="p">,</span> <span class="s2">&quot;olap must be between 0 and 1&quot;</span>
+
+    <span class="n">all_corr_matrix</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">lenseries</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">ts</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">Nwindows</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span>
+            <span class="p">((</span><span class="n">lenseries</span> <span class="o">-</span> <span class="n">wwidth</span> <span class="o">*</span> <span class="n">olap</span><span class="p">)</span> <span class="o">//</span> <span class="p">(</span><span class="n">wwidth</span> <span class="o">*</span> <span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="n">olap</span><span class="p">)),</span> <span class="n">maxNwindows</span><span class="p">)</span>
+        <span class="p">)</span>
+        <span class="n">shift</span> <span class="o">=</span> <span class="nb">int</span><span class="p">((</span><span class="n">lenseries</span> <span class="o">-</span> <span class="n">wwidth</span><span class="p">)</span> <span class="o">//</span> <span class="p">(</span><span class="n">Nwindows</span> <span class="o">-</span> <span class="mi">1</span><span class="p">))</span>
+        <span class="k">if</span> <span class="n">Nwindows</span> <span class="o">==</span> <span class="n">maxNwindows</span><span class="p">:</span>
+            <span class="n">wwidth</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">shift</span> <span class="o">//</span> <span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="n">olap</span><span class="p">))</span>
+
+        <span class="n">indx_start</span> <span class="o">=</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="p">(</span><span class="n">lenseries</span> <span class="o">-</span> <span class="n">wwidth</span> <span class="o">+</span> <span class="mi">1</span><span class="p">),</span> <span class="n">shift</span><span class="p">)</span>
+        <span class="n">indx_stop</span> <span class="o">=</span> <span class="nb">range</span><span class="p">(</span><span class="n">wwidth</span><span class="p">,</span> <span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="n">lenseries</span><span class="p">),</span> <span class="n">shift</span><span class="p">)</span>
+
+        <span class="n">nnodes</span> <span class="o">=</span> <span class="n">ts</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+        <span class="k">for</span> <span class="n">j1</span><span class="p">,</span> <span class="n">j2</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">indx_start</span><span class="p">,</span> <span class="n">indx_stop</span><span class="p">):</span>
+            <span class="n">aux_s</span> <span class="o">=</span> <span class="n">ts</span><span class="p">[:,</span> <span class="n">j1</span><span class="p">:</span><span class="n">j2</span><span class="p">]</span>
+            <span class="n">corr_mat</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">corrcoef</span><span class="p">(</span><span class="n">aux_s</span><span class="p">)</span>
+            <span class="n">all_corr_matrix</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">corr_mat</span><span class="p">)</span>
+
+        <span class="n">corr_vectors</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+            <span class="p">[</span><span class="n">allPm</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">tril_indices</span><span class="p">(</span><span class="n">nnodes</span><span class="p">,</span> <span class="n">k</span><span class="o">=-</span><span class="mi">1</span><span class="p">)]</span> <span class="k">for</span> <span class="n">allPm</span> <span class="ow">in</span> <span class="n">all_corr_matrix</span><span class="p">]</span>
+        <span class="p">)</span>
+        <span class="n">CV_centered</span> <span class="o">=</span> <span class="n">corr_vectors</span> <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">corr_vectors</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)[:,</span> <span class="kc">None</span><span class="p">]</span>
+
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">corrcoef</span><span class="p">(</span><span class="n">CV_centered</span><span class="p">)</span>
+
+    <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">verbose</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="n">e</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">])</span></div>
+
+
+<span class="k">def</span> <span class="nf">set_attribute</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">decorate_func</span><span class="p">(</span><span class="n">func</span><span class="p">):</span>
+        <span class="nb">setattr</span><span class="p">(</span><span class="n">func</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">func</span>
+
+    <span class="k">return</span> <span class="n">decorate_func</span>
+
+
+<span class="k">def</span> <span class="nf">compute_time</span><span class="p">(</span><span class="n">signal</span><span class="p">,</span> <span class="n">fs</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Creates the signal correspondent time array.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    signal: nd-array</span>
+<span class="sd">        Input from which the time is computed.</span>
+<span class="sd">    fs: int</span>
+<span class="sd">        Sampling Frequency</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    time : float list</span>
+<span class="sd">        Signal time</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">signal</span><span class="p">))</span> <span class="o">/</span> <span class="n">fs</span>
+
+
+<div class="viewcode-block" id="calculate_plv"><a class="viewcode-back" href="../../../feature_extraction.html#vbi.feature_extraction.features_utils.calculate_plv">[docs]</a><span class="k">def</span> <span class="nf">calculate_plv</span><span class="p">(</span><span class="n">data</span><span class="p">):</span>
+    <span class="n">n_channels</span><span class="p">,</span> <span class="n">n_samples</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">shape</span>
+
+    <span class="n">analytic_signal</span> <span class="o">=</span> <span class="n">hilbert</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+    <span class="n">phase_angles</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">angle</span><span class="p">(</span><span class="n">analytic_signal</span><span class="p">)</span>
+    <span class="n">plv_matrix</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">n_channels</span><span class="p">,</span> <span class="n">n_channels</span><span class="p">))</span>
+
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n_channels</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">n_channels</span><span class="p">):</span>
+            <span class="n">plv</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="mi">1</span><span class="n">j</span> <span class="o">*</span> <span class="p">(</span><span class="n">phase_angles</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">-</span> <span class="n">phase_angles</span><span class="p">[</span><span class="n">j</span><span class="p">]))))</span>
+            <span class="n">plv_matrix</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="n">plv</span>
+            <span class="n">plv_matrix</span><span class="p">[</span><span class="n">j</span><span class="p">,</span> <span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">plv</span>
+
+    <span class="k">return</span> <span class="n">plv_matrix</span></div>
+
+
+<span class="k">def</span> <span class="nf">calc_fft</span><span class="p">(</span><span class="n">signal</span><span class="p">,</span> <span class="n">fs</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;This functions computes the fft of a signal.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    signal : nd-array</span>
+<span class="sd">        The input signal from which fft is computed</span>
+<span class="sd">    fs : int</span>
+<span class="sd">        Sampling frequency</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    f: nd-array</span>
+<span class="sd">        Frequency values (xx axis)</span>
+<span class="sd">    fmag: nd-array</span>
+<span class="sd">        Amplitude of the frequency values (yy axis)</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">fmag</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">fft</span><span class="o">.</span><span class="n">fft</span><span class="p">(</span><span class="n">signal</span><span class="p">))</span>
+    <span class="n">f</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">fs</span> <span class="o">//</span> <span class="mi">2</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">signal</span><span class="p">)</span> <span class="o">//</span> <span class="mi">2</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">f</span><span class="p">[:</span> <span class="nb">len</span><span class="p">(</span><span class="n">signal</span><span class="p">)</span> <span class="o">//</span> <span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">copy</span><span class="p">(),</span> <span class="n">fmag</span><span class="p">[:</span> <span class="nb">len</span><span class="p">(</span><span class="n">signal</span><span class="p">)</span> <span class="o">//</span> <span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+
+
+<div class="viewcode-block" id="filterbank"><a class="viewcode-back" href="../../../feature_extraction.html#vbi.feature_extraction.features_utils.filterbank">[docs]</a><span class="k">def</span> <span class="nf">filterbank</span><span class="p">(</span><span class="n">signal</span><span class="p">,</span> <span class="n">fs</span><span class="p">,</span> <span class="n">pre_emphasis</span><span class="o">=</span><span class="mf">0.97</span><span class="p">,</span> <span class="n">nfft</span><span class="o">=</span><span class="mi">512</span><span class="p">,</span> <span class="n">nfilt</span><span class="o">=</span><span class="mi">40</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Computes the MEL-spaced filterbank.</span>
+
+<span class="sd">    It provides the information about the power in each frequency band.</span>
+
+<span class="sd">    Implementation details and description on:</span>
+<span class="sd">    https://www.kaggle.com/ilyamich/mfcc-implementation-and-tutorial</span>
+<span class="sd">    https://haythamfayek.com/2016/04/21/speech-processing-for-machine-learning.html#fnref:1</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    signal : nd-array</span>
+<span class="sd">        Input from which filterbank is computed</span>
+<span class="sd">    fs : int</span>
+<span class="sd">        Sampling frequency</span>
+<span class="sd">    pre_emphasis : float</span>
+<span class="sd">        Pre-emphasis coefficient for pre-emphasis filter application</span>
+<span class="sd">    nfft : int</span>
+<span class="sd">        Number of points of fft</span>
+<span class="sd">    nfilt : int</span>
+<span class="sd">        Number of filters</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    nd-array</span>
+<span class="sd">        MEL-spaced filterbank</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># Signal is already a window from the original signal, so no frame is needed.</span>
+    <span class="c1"># According to the references it is needed the application of a window function such as</span>
+    <span class="c1"># hann window. However if the signal windows don&#39;t have overlap, we will lose information,</span>
+    <span class="c1"># as the application of a hann window will overshadow the windows signal edges.</span>
+
+    <span class="c1"># pre-emphasis filter to amplify the high frequencies</span>
+
+    <span class="n">emphasized_signal</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">signal</span><span class="p">)[</span><span class="mi">0</span><span class="p">],</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">signal</span><span class="p">[</span><span class="mi">1</span><span class="p">:])</span> <span class="o">-</span> <span class="n">pre_emphasis</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">signal</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+    <span class="p">)</span>
+
+    <span class="c1"># Fourier transform and Power spectrum</span>
+    <span class="n">mag_frames</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">absolute</span><span class="p">(</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">fft</span><span class="o">.</span><span class="n">rfft</span><span class="p">(</span><span class="n">emphasized_signal</span><span class="p">,</span> <span class="n">nfft</span><span class="p">)</span>
+    <span class="p">)</span>  <span class="c1"># Magnitude of the FFT</span>
+
+    <span class="n">pow_frames</span> <span class="o">=</span> <span class="p">(</span><span class="mf">1.0</span> <span class="o">/</span> <span class="n">nfft</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="n">mag_frames</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>  <span class="c1"># Power Spectrum</span>
+
+    <span class="n">low_freq_mel</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">high_freq_mel</span> <span class="o">=</span> <span class="mi">2595</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">log10</span><span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="p">(</span><span class="n">fs</span> <span class="o">/</span> <span class="mi">2</span><span class="p">)</span> <span class="o">/</span> <span class="mi">700</span><span class="p">)</span>  <span class="c1"># Convert Hz to Mel</span>
+    <span class="c1"># Equally spaced in Mel scale</span>
+    <span class="n">mel_points</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="n">low_freq_mel</span><span class="p">,</span> <span class="n">high_freq_mel</span><span class="p">,</span> <span class="n">nfilt</span> <span class="o">+</span> <span class="mi">2</span><span class="p">)</span>
+    <span class="n">hz_points</span> <span class="o">=</span> <span class="mi">700</span> <span class="o">*</span> <span class="p">(</span><span class="mi">10</span> <span class="o">**</span> <span class="p">(</span><span class="n">mel_points</span> <span class="o">/</span> <span class="mi">2595</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>  <span class="c1"># Convert Mel to Hz</span>
+    <span class="n">filter_bin</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">floor</span><span class="p">((</span><span class="n">nfft</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="n">hz_points</span> <span class="o">/</span> <span class="n">fs</span><span class="p">)</span>
+
+    <span class="n">fbank</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">nfilt</span><span class="p">,</span> <span class="nb">int</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">floor</span><span class="p">(</span><span class="n">nfft</span> <span class="o">/</span> <span class="mi">2</span> <span class="o">+</span> <span class="mi">1</span><span class="p">))))</span>
+    <span class="k">for</span> <span class="n">m</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">nfilt</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
+
+        <span class="n">f_m_minus</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">filter_bin</span><span class="p">[</span><span class="n">m</span> <span class="o">-</span> <span class="mi">1</span><span class="p">])</span>  <span class="c1"># left</span>
+        <span class="n">f_m</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">filter_bin</span><span class="p">[</span><span class="n">m</span><span class="p">])</span>  <span class="c1"># center</span>
+        <span class="n">f_m_plus</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">filter_bin</span><span class="p">[</span><span class="n">m</span> <span class="o">+</span> <span class="mi">1</span><span class="p">])</span>  <span class="c1"># right</span>
+
+        <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">f_m_minus</span><span class="p">,</span> <span class="n">f_m</span><span class="p">):</span>
+            <span class="n">fbank</span><span class="p">[</span><span class="n">m</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">k</span> <span class="o">-</span> <span class="n">filter_bin</span><span class="p">[</span><span class="n">m</span> <span class="o">-</span> <span class="mi">1</span><span class="p">])</span> <span class="o">/</span> <span class="p">(</span>
+                <span class="n">filter_bin</span><span class="p">[</span><span class="n">m</span><span class="p">]</span> <span class="o">-</span> <span class="n">filter_bin</span><span class="p">[</span><span class="n">m</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span>
+            <span class="p">)</span>
+        <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">f_m</span><span class="p">,</span> <span class="n">f_m_plus</span><span class="p">):</span>
+            <span class="n">fbank</span><span class="p">[</span><span class="n">m</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">filter_bin</span><span class="p">[</span><span class="n">m</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">k</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span>
+                <span class="n">filter_bin</span><span class="p">[</span><span class="n">m</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">filter_bin</span><span class="p">[</span><span class="n">m</span><span class="p">]</span>
+            <span class="p">)</span>
+
+    <span class="c1"># Area Normalization</span>
+    <span class="c1"># If we don&#39;t normalize the noise will increase with frequency because of the filter width.</span>
+    <span class="n">enorm</span> <span class="o">=</span> <span class="mf">2.0</span> <span class="o">/</span> <span class="p">(</span><span class="n">hz_points</span><span class="p">[</span><span class="mi">2</span> <span class="p">:</span> <span class="n">nfilt</span> <span class="o">+</span> <span class="mi">2</span><span class="p">]</span> <span class="o">-</span> <span class="n">hz_points</span><span class="p">[:</span><span class="n">nfilt</span><span class="p">])</span>
+    <span class="n">fbank</span> <span class="o">*=</span> <span class="n">enorm</span><span class="p">[:,</span> <span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">]</span>
+
+    <span class="n">filter_banks</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">pow_frames</span><span class="p">,</span> <span class="n">fbank</span><span class="o">.</span><span class="n">T</span><span class="p">)</span>
+    <span class="n">filter_banks</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span>
+        <span class="n">filter_banks</span> <span class="o">==</span> <span class="mi">0</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">finfo</span><span class="p">(</span><span class="nb">float</span><span class="p">)</span><span class="o">.</span><span class="n">eps</span><span class="p">,</span> <span class="n">filter_banks</span>
+    <span class="p">)</span>  <span class="c1"># Numerical Stability</span>
+    <span class="n">filter_banks</span> <span class="o">=</span> <span class="mi">20</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">log10</span><span class="p">(</span><span class="n">filter_banks</span><span class="p">)</span>  <span class="c1"># dB</span>
+
+    <span class="k">return</span> <span class="n">filter_banks</span></div>
+
+
+<div class="viewcode-block" id="autocorr_norm"><a class="viewcode-back" href="../../../feature_extraction.html#vbi.feature_extraction.features_utils.autocorr_norm">[docs]</a><span class="k">def</span> <span class="nf">autocorr_norm</span><span class="p">(</span><span class="n">signal</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Computes the autocorrelation.</span>
+
+<span class="sd">    Implementation details and description in:</span>
+<span class="sd">    https://ccrma.stanford.edu/~orchi/Documents/speaker_recognition_report.pdf</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    signal : nd-array</span>
+<span class="sd">        Input from linear prediction coefficients are computed</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    nd-array</span>
+<span class="sd">        Autocorrelation result</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">variance</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">var</span><span class="p">(</span><span class="n">signal</span><span class="p">)</span>
+    <span class="n">signal</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">signal</span> <span class="o">-</span> <span class="n">signal</span><span class="o">.</span><span class="n">mean</span><span class="p">())</span>
+    <span class="n">r</span> <span class="o">=</span> <span class="n">scipy</span><span class="o">.</span><span class="n">signal</span><span class="o">.</span><span class="n">correlate</span><span class="p">(</span><span class="n">signal</span><span class="p">,</span> <span class="n">signal</span><span class="p">)[</span><span class="o">-</span><span class="nb">len</span><span class="p">(</span><span class="n">signal</span><span class="p">)</span> <span class="p">:]</span>
+
+    <span class="k">if</span> <span class="p">(</span><span class="n">signal</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">all</span><span class="p">():</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">signal</span><span class="p">))</span>
+
+    <span class="n">acf</span> <span class="o">=</span> <span class="n">r</span> <span class="o">/</span> <span class="n">variance</span> <span class="o">/</span> <span class="nb">len</span><span class="p">(</span><span class="n">signal</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">acf</span></div>
+
+
+<div class="viewcode-block" id="create_symmetric_matrix"><a class="viewcode-back" href="../../../feature_extraction.html#vbi.feature_extraction.features_utils.create_symmetric_matrix">[docs]</a><span class="k">def</span> <span class="nf">create_symmetric_matrix</span><span class="p">(</span><span class="n">acf</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="mi">11</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Computes a symmetric matrix.</span>
+
+<span class="sd">    Implementation details and description in:</span>
+<span class="sd">    https://ccrma.stanford.edu/~orchi/Documents/speaker_recognition_report.pdf</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    acf : nd-array</span>
+<span class="sd">        Input from which a symmetric matrix is computed</span>
+<span class="sd">    order : int</span>
+<span class="sd">        Order</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    nd-array</span>
+<span class="sd">        Symmetric Matrix</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">smatrix</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="n">order</span><span class="p">,</span> <span class="n">order</span><span class="p">))</span>
+    <span class="n">xx</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
+    <span class="n">j</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">tile</span><span class="p">(</span><span class="n">xx</span><span class="p">,</span> <span class="n">order</span><span class="p">)</span>
+    <span class="n">i</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="n">xx</span><span class="p">,</span> <span class="n">order</span><span class="p">)</span>
+    <span class="n">smatrix</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="n">acf</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">i</span> <span class="o">-</span> <span class="n">j</span><span class="p">)]</span>
+
+    <span class="k">return</span> <span class="n">smatrix</span></div>
+
+
+<div class="viewcode-block" id="lpc"><a class="viewcode-back" href="../../../feature_extraction.html#vbi.feature_extraction.features_utils.lpc">[docs]</a><span class="k">def</span> <span class="nf">lpc</span><span class="p">(</span><span class="n">signal</span><span class="p">,</span> <span class="n">n_coeff</span><span class="o">=</span><span class="mi">12</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Computes the linear prediction coefficients.</span>
+
+<span class="sd">    Implementation details and description in:</span>
+<span class="sd">    https://ccrma.stanford.edu/~orchi/Documents/speaker_recognition_report.pdf</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    signal : nd-array</span>
+<span class="sd">        Input from linear prediction coefficients are computed</span>
+<span class="sd">    n_coeff : int</span>
+<span class="sd">        Number of coefficients</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    nd-array</span>
+<span class="sd">        Linear prediction coefficients</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">if</span> <span class="n">signal</span><span class="o">.</span><span class="n">ndim</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Only 1 dimensional arrays are valid&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">n_coeff</span> <span class="o">&gt;</span> <span class="n">signal</span><span class="o">.</span><span class="n">size</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Input signal must have a length &gt;= n_coeff&quot;</span><span class="p">)</span>
+
+    <span class="c1"># Calculate the order based on the number of coefficients</span>
+    <span class="n">order</span> <span class="o">=</span> <span class="n">n_coeff</span> <span class="o">-</span> <span class="mi">1</span>
+
+    <span class="c1"># Calculate LPC with Yule-Walker</span>
+    <span class="n">acf</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">correlate</span><span class="p">(</span><span class="n">signal</span><span class="p">,</span> <span class="n">signal</span><span class="p">,</span> <span class="s2">&quot;full&quot;</span><span class="p">)</span>
+
+    <span class="n">r</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">order</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">&quot;float32&quot;</span><span class="p">)</span>
+    <span class="c1"># Assuring that works for all type of input lengths</span>
+    <span class="n">nx</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">min</span><span class="p">([</span><span class="n">order</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">signal</span><span class="p">)])</span>
+    <span class="n">r</span><span class="p">[:</span><span class="n">nx</span><span class="p">]</span> <span class="o">=</span> <span class="n">acf</span><span class="p">[</span><span class="nb">len</span><span class="p">(</span><span class="n">signal</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span> <span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="n">signal</span><span class="p">)</span> <span class="o">+</span> <span class="n">order</span><span class="p">]</span>
+
+    <span class="n">smatrix</span> <span class="o">=</span> <span class="n">create_symmetric_matrix</span><span class="p">(</span><span class="n">r</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">order</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">smatrix</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">order</span> <span class="o">+</span> <span class="mi">1</span><span class="p">))</span>
+
+    <span class="n">lpc_coeffs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">inv</span><span class="p">(</span><span class="n">smatrix</span><span class="p">),</span> <span class="o">-</span><span class="n">r</span><span class="p">[</span><span class="mi">1</span><span class="p">:])</span>
+
+    <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">(([</span><span class="mf">1.0</span><span class="p">],</span> <span class="n">lpc_coeffs</span><span class="p">)))</span></div>
+
+
+<div class="viewcode-block" id="create_xx"><a class="viewcode-back" href="../../../feature_extraction.html#vbi.feature_extraction.features_utils.create_xx">[docs]</a><span class="k">def</span> <span class="nf">create_xx</span><span class="p">(</span><span class="n">features</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Computes the range of features amplitude for the probability density function calculus.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    features : nd-array</span>
+<span class="sd">        Input features</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    nd-array</span>
+<span class="sd">        range of features amplitude</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">features_</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">features</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="nb">max</span><span class="p">(</span><span class="n">features_</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">max_f</span> <span class="o">=</span> <span class="o">-</span><span class="nb">max</span><span class="p">(</span><span class="n">features_</span><span class="p">)</span>
+        <span class="n">min_f</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">features_</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">min_f</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">features_</span><span class="p">)</span>
+        <span class="n">max_f</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">features_</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="nb">min</span><span class="p">(</span><span class="n">features_</span><span class="p">)</span> <span class="o">==</span> <span class="nb">max</span><span class="p">(</span><span class="n">features_</span><span class="p">):</span>
+        <span class="n">xx</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="n">min_f</span><span class="p">,</span> <span class="n">min_f</span> <span class="o">+</span> <span class="mi">10</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">features_</span><span class="p">))</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">xx</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="n">min_f</span><span class="p">,</span> <span class="n">max_f</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">features_</span><span class="p">))</span>
+
+    <span class="k">return</span> <span class="n">xx</span></div>
+
+
+<div class="viewcode-block" id="kde"><a class="viewcode-back" href="../../../feature_extraction.html#vbi.feature_extraction.features_utils.kde">[docs]</a><span class="k">def</span> <span class="nf">kde</span><span class="p">(</span><span class="n">features</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Computes the probability density function of the input signal</span>
+<span class="sd">       using a Gaussian KDE (Kernel Density Estimate)</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    features : nd-array</span>
+<span class="sd">        Input from which probability density function is computed</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    nd-array</span>
+<span class="sd">        probability density values</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">features_</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">features</span><span class="p">)</span>
+    <span class="n">xx</span> <span class="o">=</span> <span class="n">create_xx</span><span class="p">(</span><span class="n">features_</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="nb">min</span><span class="p">(</span><span class="n">features_</span><span class="p">)</span> <span class="o">==</span> <span class="nb">max</span><span class="p">(</span><span class="n">features_</span><span class="p">):</span>
+        <span class="n">noise</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">features_</span><span class="p">))</span> <span class="o">*</span> <span class="mf">0.0001</span>
+        <span class="n">features_</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">features_</span> <span class="o">+</span> <span class="n">noise</span><span class="p">)</span>
+
+    <span class="n">kernel</span> <span class="o">=</span> <span class="n">scipy</span><span class="o">.</span><span class="n">stats</span><span class="o">.</span><span class="n">gaussian_kde</span><span class="p">(</span><span class="n">features_</span><span class="p">,</span> <span class="n">bw_method</span><span class="o">=</span><span class="s2">&quot;silverman&quot;</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">kernel</span><span class="p">(</span><span class="n">xx</span><span class="p">)</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">kernel</span><span class="p">(</span><span class="n">xx</span><span class="p">)))</span></div>
+
+
+<div class="viewcode-block" id="gaussian"><a class="viewcode-back" href="../../../feature_extraction.html#vbi.feature_extraction.features_utils.gaussian">[docs]</a><span class="k">def</span> <span class="nf">gaussian</span><span class="p">(</span><span class="n">features</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Computes the probability density function of the input signal using a Gaussian function</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    features : nd-array</span>
+<span class="sd">        Input from which probability density function is computed</span>
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    nd-array</span>
+<span class="sd">        probability density values</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">features_</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">features</span><span class="p">)</span>
+
+    <span class="n">xx</span> <span class="o">=</span> <span class="n">create_xx</span><span class="p">(</span><span class="n">features_</span><span class="p">)</span>
+    <span class="n">std_value</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">std</span><span class="p">(</span><span class="n">features_</span><span class="p">)</span>
+    <span class="n">mean_value</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">features_</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">std_value</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">return</span> <span class="mf">0.0</span>
+    <span class="n">pdf_gauss</span> <span class="o">=</span> <span class="n">scipy</span><span class="o">.</span><span class="n">stats</span><span class="o">.</span><span class="n">norm</span><span class="o">.</span><span class="n">pdf</span><span class="p">(</span><span class="n">xx</span><span class="p">,</span> <span class="n">mean_value</span><span class="p">,</span> <span class="n">std_value</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">pdf_gauss</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">pdf_gauss</span><span class="p">))</span></div>
+
+
+<span class="k">def</span> <span class="nf">wavelet</span><span class="p">(</span><span class="n">signal</span><span class="p">,</span> <span class="n">function</span><span class="o">=</span><span class="n">scipy</span><span class="o">.</span><span class="n">signal</span><span class="o">.</span><span class="n">ricker</span><span class="p">,</span> <span class="n">widths</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">10</span><span class="p">)):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Computes CWT (continuous wavelet transform) of the signal.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    signal : nd-array</span>
+<span class="sd">        Input from which CWT is computed</span>
+<span class="sd">    function :  wavelet function</span>
+<span class="sd">        Default: scipy.signal.ricker</span>
+<span class="sd">    widths :  nd-array</span>
+<span class="sd">        Widths to use for transformation</span>
+<span class="sd">        Default: np.arange(1,10)</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    nd-array</span>
+<span class="sd">        The result of the CWT along the time axis</span>
+<span class="sd">        matrix with size (len(widths),len(signal))</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">function</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+        <span class="n">function</span> <span class="o">=</span> <span class="nb">eval</span><span class="p">(</span><span class="n">function</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">widths</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+        <span class="n">widths</span> <span class="o">=</span> <span class="nb">eval</span><span class="p">(</span><span class="n">widths</span><span class="p">)</span>
+
+    <span class="n">cwt</span> <span class="o">=</span> <span class="n">scipy</span><span class="o">.</span><span class="n">signal</span><span class="o">.</span><span class="n">cwt</span><span class="p">(</span><span class="n">signal</span><span class="p">,</span> <span class="n">function</span><span class="p">,</span> <span class="n">widths</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">cwt</span>
+
+
+<div class="viewcode-block" id="calc_ecdf"><a class="viewcode-back" href="../../../feature_extraction.html#vbi.feature_extraction.features_utils.calc_ecdf">[docs]</a><span class="k">def</span> <span class="nf">calc_ecdf</span><span class="p">(</span><span class="n">signal</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Computes the ECDF of the signal.</span>
+<span class="sd">     ECDF is the empirical cumulative distribution function.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    signal : nd-array</span>
+<span class="sd">        Input from which ECDF is computed</span>
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    nd-array</span>
+<span class="sd">      Sorted signal and computed ECDF.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">signal</span><span class="p">),</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">signal</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">/</span> <span class="nb">len</span><span class="p">(</span><span class="n">signal</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="matrix_stat"><a class="viewcode-back" href="../../../feature_extraction.html#vbi.feature_extraction.features_utils.matrix_stat">[docs]</a><span class="k">def</span> <span class="nf">matrix_stat</span><span class="p">(</span>
+    <span class="n">A</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span>
+    <span class="n">k</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
+    <span class="n">eigenvalues</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="n">pca_num_components</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">3</span><span class="p">,</span>
+    <span class="n">quantiles</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="mf">0.05</span><span class="p">,</span> <span class="mf">0.25</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.75</span><span class="p">,</span> <span class="mf">0.95</span><span class="p">],</span>
+    <span class="n">features</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;sum&quot;</span><span class="p">,</span> <span class="s2">&quot;max&quot;</span><span class="p">,</span> <span class="s2">&quot;min&quot;</span><span class="p">,</span> <span class="s2">&quot;mean&quot;</span><span class="p">,</span> <span class="s2">&quot;std&quot;</span><span class="p">,</span> <span class="s2">&quot;skew&quot;</span><span class="p">,</span> <span class="s2">&quot;kurtosis&quot;</span><span class="p">],</span>
+<span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    calculate statistics of the given matrix</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    A: np.ndarray (2d)</span>
+<span class="sd">        input matrix</span>
+<span class="sd">    k: int</span>
+<span class="sd">        upper triangular matrix offset</span>
+<span class="sd">    pca_num_components: int</span>
+<span class="sd">        number of components to keep for PCA, set to 0 if not used</span>
+<span class="sd">    features: list</span>
+<span class="sd">        list of features to compute</span>
+<span class="sd">    quantiles: list</span>
+<span class="sd">        list of quantiles to compute, set to [] or None if not used</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    values: np.ndarray (1d)</span>
+<span class="sd">        feature values</span>
+<span class="sd">    labels: list</span>
+<span class="sd">        feature labels</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">from</span> <span class="nn">numpy</span> <span class="kn">import</span> <span class="nb">sum</span><span class="p">,</span> <span class="nb">max</span><span class="p">,</span> <span class="nb">min</span><span class="p">,</span> <span class="n">mean</span><span class="p">,</span> <span class="n">std</span>
+    <span class="kn">from</span> <span class="nn">scipy.stats</span> <span class="kn">import</span> <span class="n">skew</span><span class="p">,</span> <span class="n">kurtosis</span>
+
+    <span class="n">off_diag_sum_A</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">A</span><span class="p">))</span> <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">trace</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">A</span><span class="p">))</span>
+
+    <span class="n">ut_idx</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">triu_indices_from</span><span class="p">(</span><span class="n">A</span><span class="p">,</span> <span class="n">k</span><span class="o">=</span><span class="n">k</span><span class="p">)</span>
+    <span class="n">A_ut</span> <span class="o">=</span> <span class="n">A</span><span class="p">[</span><span class="n">ut_idx</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">ut_idx</span><span class="p">[</span><span class="mi">1</span><span class="p">]]</span>
+
+    <span class="n">values</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">labels</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">if</span> <span class="n">quantiles</span><span class="p">:</span>
+        <span class="n">q</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">quantile</span><span class="p">(</span><span class="n">A</span><span class="p">,</span> <span class="n">quantiles</span><span class="p">)</span>
+        <span class="n">values</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">q</span><span class="o">.</span><span class="n">tolist</span><span class="p">())</span>
+        <span class="n">labels</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="sa">f</span><span class="s2">&quot;quantile_</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">&quot;</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">quantiles</span><span class="p">])</span>
+
+    <span class="k">if</span> <span class="n">pca_num_components</span><span class="p">:</span>
+        <span class="n">pca</span> <span class="o">=</span> <span class="n">PCA</span><span class="p">(</span><span class="n">n_components</span><span class="o">=</span><span class="n">pca_num_components</span><span class="p">)</span>
+        <span class="n">pca_a</span> <span class="o">=</span> <span class="n">pca</span><span class="o">.</span><span class="n">fit_transform</span><span class="p">(</span><span class="n">A</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">features</span><span class="p">:</span>
+            <span class="n">v</span> <span class="o">=</span> <span class="nb">eval</span><span class="p">(</span><span class="n">f</span><span class="p">)(</span><span class="n">pca_a</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">))</span>
+            <span class="n">values</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
+            <span class="n">labels</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;pca_</span><span class="si">{</span><span class="n">f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">eigenvalues</span><span class="p">:</span>
+        <span class="n">eigen_vals_A</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">LA</span><span class="o">.</span><span class="n">eig</span><span class="p">(</span><span class="n">A</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">features</span><span class="p">:</span>
+            <span class="n">v</span> <span class="o">=</span> <span class="nb">eval</span><span class="p">(</span><span class="n">f</span><span class="p">)(</span><span class="n">np</span><span class="o">.</span><span class="n">real</span><span class="p">(</span><span class="n">eigen_vals_A</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]))</span>
+            <span class="n">values</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
+            <span class="n">labels</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;full_</span><span class="si">{</span><span class="n">f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">features</span><span class="p">:</span>
+        <span class="n">v</span> <span class="o">=</span> <span class="nb">eval</span><span class="p">(</span><span class="n">f</span><span class="p">)(</span><span class="n">A_ut</span><span class="p">)</span>
+        <span class="n">values</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
+        <span class="n">labels</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;ut_</span><span class="si">{</span><span class="n">f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+    <span class="n">values</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">off_diag_sum_A</span><span class="p">)</span>
+    <span class="n">labels</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;sum&quot;</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">values</span><span class="p">,</span> <span class="n">labels</span></div>
+
+
+<div class="viewcode-block" id="report_cfg"><a class="viewcode-back" href="../../../feature_extraction.html#vbi.feature_extraction.features_utils.report_cfg">[docs]</a><span class="k">def</span> <span class="nf">report_cfg</span><span class="p">(</span><span class="n">cfg</span><span class="p">:</span> <span class="nb">dict</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    report the features in provided config file</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Selected features:&quot;</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;------------------&quot;</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">cfg</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">d</span> <span class="o">==</span> <span class="s2">&quot;features_path&quot;</span><span class="p">:</span>
+            <span class="k">continue</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">cfg</span><span class="p">[</span><span class="n">d</span><span class="p">]:</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;■ Domain:&quot;</span><span class="p">,</span> <span class="n">d</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">cfg</span><span class="p">[</span><span class="n">d</span><span class="p">]:</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot; ▢ Function: &quot;</span><span class="p">,</span> <span class="n">f</span><span class="p">)</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;   ▫ description: &quot;</span><span class="p">,</span> <span class="n">cfg</span><span class="p">[</span><span class="n">d</span><span class="p">][</span><span class="n">f</span><span class="p">][</span><span class="s2">&quot;description&quot;</span><span class="p">])</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;   ▫ function   : &quot;</span><span class="p">,</span> <span class="n">cfg</span><span class="p">[</span><span class="n">d</span><span class="p">][</span><span class="n">f</span><span class="p">][</span><span class="s2">&quot;function&quot;</span><span class="p">])</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;   ▫ parameters : &quot;</span><span class="p">,</span> <span class="n">cfg</span><span class="p">[</span><span class="n">d</span><span class="p">][</span><span class="n">f</span><span class="p">][</span><span class="s2">&quot;parameters&quot;</span><span class="p">])</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;   ▫ tag        : &quot;</span><span class="p">,</span> <span class="n">cfg</span><span class="p">[</span><span class="n">d</span><span class="p">][</span><span class="n">f</span><span class="p">][</span><span class="s2">&quot;tag&quot;</span><span class="p">])</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;   ▫ use        : &quot;</span><span class="p">,</span> <span class="n">cfg</span><span class="p">[</span><span class="n">d</span><span class="p">][</span><span class="n">f</span><span class="p">][</span><span class="s2">&quot;use&quot;</span><span class="p">])</span></div>
+
+
+<div class="viewcode-block" id="get_jar_location"><a class="viewcode-back" href="../../../feature_extraction.html#vbi.feature_extraction.features_utils.get_jar_location">[docs]</a><span class="k">def</span> <span class="nf">get_jar_location</span><span class="p">():</span>
+
+    <span class="n">jar_file_name</span> <span class="o">=</span> <span class="s2">&quot;infodynamics.jar&quot;</span>
+    <span class="n">jar_location</span> <span class="o">=</span> <span class="n">join</span><span class="p">(</span><span class="n">vbi</span><span class="o">.</span><span class="vm">__file__</span><span class="p">,</span> <span class="s2">&quot;feature_extraction&quot;</span><span class="p">)</span>
+    <span class="n">jar_location</span> <span class="o">=</span> <span class="n">jar_location</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;__init__.py&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)</span>
+    <span class="n">jar_location</span> <span class="o">=</span> <span class="n">join</span><span class="p">(</span><span class="n">jar_location</span><span class="p">,</span> <span class="n">jar_file_name</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">jar_location</span></div>
+
+
+<div class="viewcode-block" id="init_jvm"><a class="viewcode-back" href="../../../feature_extraction.html#vbi.feature_extraction.features_utils.init_jvm">[docs]</a><span class="k">def</span> <span class="nf">init_jvm</span><span class="p">():</span>
+
+    <span class="n">jar_location</span> <span class="o">=</span> <span class="n">get_jar_location</span><span class="p">()</span>
+
+    <span class="k">if</span> <span class="n">jp</span><span class="o">.</span><span class="n">isJVMStarted</span><span class="p">():</span>
+        <span class="k">return</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">jp</span><span class="o">.</span><span class="n">startJVM</span><span class="p">(</span><span class="n">jp</span><span class="o">.</span><span class="n">getDefaultJVMPath</span><span class="p">(),</span> <span class="s2">&quot;-ea&quot;</span><span class="p">,</span> <span class="s2">&quot;-Djava.class.path=&quot;</span> <span class="o">+</span> <span class="n">jar_location</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="nat2bit"><a class="viewcode-back" href="../../../feature_extraction.html#vbi.feature_extraction.features_utils.nat2bit">[docs]</a><span class="k">def</span> <span class="nf">nat2bit</span><span class="p">(</span><span class="n">x</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    convert nats to bits</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">x</span> <span class="o">*</span> <span class="mf">1.4426950408889634</span></div>
+
+
+<div class="viewcode-block" id="compute_time"><a class="viewcode-back" href="../../../feature_extraction.html#vbi.feature_extraction.features_utils.compute_time">[docs]</a><span class="k">def</span> <span class="nf">compute_time</span><span class="p">(</span><span class="n">ts</span><span class="p">,</span> <span class="n">fs</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Creates the signal correspondent time array.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    signal: nd-array</span>
+<span class="sd">        Input from which the time is computed.</span>
+<span class="sd">    fs: int</span>
+<span class="sd">        Sampling Frequency</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    time : float list</span>
+<span class="sd">        Signal time</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">ts</span><span class="p">))</span> <span class="o">/</span> <span class="n">fs</span></div>
+
+
+<div class="viewcode-block" id="calc_fft"><a class="viewcode-back" href="../../../feature_extraction.html#vbi.feature_extraction.features_utils.calc_fft">[docs]</a><span class="k">def</span> <span class="nf">calc_fft</span><span class="p">(</span><span class="n">ts</span><span class="p">,</span> <span class="n">fs</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;This functions computes the fft of a signal.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    signal : nd-array [n_regions, n_timepoints]</span>
+<span class="sd">        The input signal from which fft is computed</span>
+<span class="sd">    fs : float</span>
+<span class="sd">        Sampling frequency</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    f: nd-array</span>
+<span class="sd">        Frequency values (xx axis)</span>
+<span class="sd">    fmag: nd-array [n_regions, n_freqs]</span>
+<span class="sd">        Amplitude of the frequency values (yy axis)</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">fmag</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">fft</span><span class="o">.</span><span class="n">rfft</span><span class="p">(</span><span class="n">ts</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">))</span>
+    <span class="n">f</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">fft</span><span class="o">.</span><span class="n">rfftfreq</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">ts</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="n">d</span><span class="o">=</span><span class="mi">1</span> <span class="o">/</span> <span class="n">fs</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">f</span><span class="p">,</span> <span class="n">fmag</span></div>
+
+
+<div class="viewcode-block" id="fundamental_frequency"><a class="viewcode-back" href="../../../feature_extraction.html#vbi.feature_extraction.features_utils.fundamental_frequency">[docs]</a><span class="k">def</span> <span class="nf">fundamental_frequency</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">fmag</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Computes fundamental frequency of the signal.</span>
+
+<span class="sd">    The fundamental frequency integer multiple best explain</span>
+<span class="sd">    the content of the signal spectrum.</span>
+
+<span class="sd">    Feature computational cost: 1</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    ts : nd-array [n_regions x n_samples]</span>
+<span class="sd">        Input from which fundamental frequency is computed</span>
+<span class="sd">    fs : float</span>
+<span class="sd">        Sampling frequency</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    f0: array of floats</span>
+<span class="sd">       Predominant frequency of the signals</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">one_dim</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">fmag</span><span class="p">):</span>
+        <span class="n">bp</span> <span class="o">=</span> <span class="n">scipy</span><span class="o">.</span><span class="n">signal</span><span class="o">.</span><span class="n">find_peaks</span><span class="p">(</span><span class="n">fmag</span><span class="p">,</span> <span class="n">height</span><span class="o">=</span><span class="nb">max</span><span class="p">(</span><span class="n">fmag</span><span class="p">)</span> <span class="o">*</span> <span class="mf">0.3</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+
+        <span class="c1"># Condition for offset removal, since the offset generates a peak at frequency zero</span>
+        <span class="n">bp</span> <span class="o">=</span> <span class="n">bp</span><span class="p">[</span><span class="n">bp</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">]</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">list</span><span class="p">(</span><span class="n">bp</span><span class="p">):</span>
+            <span class="n">f0</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># f0 is the minimum big peak frequency</span>
+            <span class="n">f0</span> <span class="o">=</span> <span class="n">f</span><span class="p">[</span><span class="nb">min</span><span class="p">(</span><span class="n">bp</span><span class="p">)]</span>
+
+        <span class="k">return</span> <span class="n">f0</span>
+
+    <span class="n">r</span><span class="p">,</span> <span class="n">c</span> <span class="o">=</span> <span class="n">fmag</span><span class="o">.</span><span class="n">shape</span>
+    <span class="n">f0</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">r</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">r</span><span class="p">):</span>
+        <span class="n">f0</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">one_dim</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">fmag</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
+    <span class="n">labels</span> <span class="o">=</span> <span class="p">[</span><span class="sa">f</span><span class="s2">&quot;fundamental_frequency_</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">&quot;</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">f0</span><span class="p">))]</span>
+    <span class="k">return</span> <span class="n">f0</span><span class="p">,</span> <span class="n">labels</span></div>
+
+
+<div class="viewcode-block" id="spectral_distance"><a class="viewcode-back" href="../../../feature_extraction.html#vbi.feature_extraction.features_utils.spectral_distance">[docs]</a><span class="k">def</span> <span class="nf">spectral_distance</span><span class="p">(</span><span class="n">freq</span><span class="p">,</span> <span class="n">fmag</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Computes the signal spectral distance.</span>
+
+<span class="sd">    Distance of the signal&#39;s cumulative sum of the FFT elements to</span>
+<span class="sd">    the respective linear regression.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    fmag: nd-array [n_regions x n_freqs]</span>
+<span class="sd">        power spectrum of the signal</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    values: array-like</span>
+<span class="sd">        spectral distances</span>
+<span class="sd">    labels: array-like</span>
+<span class="sd">        labels of the features</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">r</span><span class="p">,</span> <span class="n">c</span> <span class="o">=</span> <span class="n">fmag</span><span class="o">.</span><span class="n">shape</span>
+    <span class="n">values</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">r</span><span class="p">)</span>
+    <span class="n">cum_fmag</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">cumsum</span><span class="p">(</span><span class="n">fmag</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">r</span><span class="p">):</span>
+        <span class="n">points_y</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">cum_fmag</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">c</span><span class="p">)</span>
+        <span class="n">values</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">points_y</span> <span class="o">-</span> <span class="n">cum_fmag</span><span class="p">[</span><span class="n">i</span><span class="p">])</span> <span class="o">/</span> <span class="n">c</span>
+    <span class="n">labels</span> <span class="o">=</span> <span class="p">[</span><span class="sa">f</span><span class="s2">&quot;spectral_distance_</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">&quot;</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">r</span><span class="p">)]</span>
+    <span class="k">return</span> <span class="n">values</span><span class="p">,</span> <span class="n">labels</span></div>
+
+
+<div class="viewcode-block" id="max_frequency"><a class="viewcode-back" href="../../../feature_extraction.html#vbi.feature_extraction.features_utils.max_frequency">[docs]</a><span class="k">def</span> <span class="nf">max_frequency</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">fmag</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Computes the maximum frequency of the signals.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">one_d</span><span class="p">(</span><span class="n">cum_fmag</span><span class="p">):</span>
+
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">ind_mag</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">cum_fmag</span> <span class="o">&gt;</span> <span class="n">cum_fmag</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">*</span> <span class="mf">0.95</span><span class="p">)[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">except</span><span class="p">:</span>
+            <span class="n">ind_mag</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argmax</span><span class="p">(</span><span class="n">cum_fmag</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">f</span><span class="p">[</span><span class="n">ind_mag</span><span class="p">]</span>
+
+    <span class="n">cum_fmag</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">cumsum</span><span class="p">(</span><span class="n">fmag</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+    <span class="c1"># use map to apply one_d to each row of cum_fmag</span>
+    <span class="n">fmax</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="n">one_d</span><span class="p">,</span> <span class="n">cum_fmag</span><span class="p">)))</span>
+    <span class="n">labels</span> <span class="o">=</span> <span class="p">[</span><span class="sa">f</span><span class="s2">&quot;max_frequency_</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">&quot;</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">fmax</span><span class="p">))]</span>
+    <span class="k">return</span> <span class="n">fmax</span><span class="p">,</span> <span class="n">labels</span></div>
+
+
+<div class="viewcode-block" id="median_frequency"><a class="viewcode-back" href="../../../feature_extraction.html#vbi.feature_extraction.features_utils.median_frequency">[docs]</a><span class="k">def</span> <span class="nf">median_frequency</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">fmag</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Computes the median frequency of the signals.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">one_d</span><span class="p">(</span><span class="n">cum_fmag</span><span class="p">):</span>
+
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">ind_mag</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">cum_fmag</span> <span class="o">&gt;</span> <span class="n">cum_fmag</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">*</span> <span class="mf">0.5</span><span class="p">)[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">except</span><span class="p">:</span>
+            <span class="n">ind_mag</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argmax</span><span class="p">(</span><span class="n">cum_fmag</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">f</span><span class="p">[</span><span class="n">ind_mag</span><span class="p">]</span>
+
+    <span class="n">cum_fmag</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">cumsum</span><span class="p">(</span><span class="n">fmag</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+    <span class="c1"># use map to apply one_d to each row of cum_fmag</span>
+    <span class="n">fmed</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="n">one_d</span><span class="p">,</span> <span class="n">cum_fmag</span><span class="p">)))</span>
+    <span class="n">labels</span> <span class="o">=</span> <span class="p">[</span><span class="sa">f</span><span class="s2">&quot;median_frequency_</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">&quot;</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">fmed</span><span class="p">))]</span>
+    <span class="k">return</span> <span class="n">fmed</span><span class="p">,</span> <span class="n">labels</span></div>
+
+
+<div class="viewcode-block" id="spectral_centroid"><a class="viewcode-back" href="../../../feature_extraction.html#vbi.feature_extraction.features_utils.spectral_centroid">[docs]</a><span class="k">def</span> <span class="nf">spectral_centroid</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">fmag</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Calculate the spectral centroid of the signals.</span>
+<span class="sd">    The Timbre Toolbox: Extracting audio descriptors from musicalsignals</span>
+<span class="sd">    Authors Peeters G., Giordano B., Misdariis P., McAdams S.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    f: nd-array</span>
+<span class="sd">        frequency values</span>
+<span class="sd">    fmag: nd-array [n_regions x n_freqs]</span>
+<span class="sd">        power spectrum of the signal</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    values: array-like</span>
+<span class="sd">        spectral centroids</span>
+<span class="sd">    labels: array-like</span>
+<span class="sd">        labels of the features</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">one_d</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">fmag</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">fmag</span><span class="p">):</span>
+            <span class="k">return</span> <span class="mi">0</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">f</span> <span class="o">*</span> <span class="n">fmag</span><span class="p">)</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">fmag</span><span class="p">)</span>
+
+    <span class="c1"># use map to apply one_d to each row of fmag</span>
+    <span class="n">values</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="n">one_d</span><span class="p">,</span> <span class="n">f</span><span class="p">,</span> <span class="n">fmag</span><span class="p">)))</span>
+    <span class="n">labels</span> <span class="o">=</span> <span class="p">[</span><span class="sa">f</span><span class="s2">&quot;spectral_centroid_</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">&quot;</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">values</span><span class="p">))]</span>
+    <span class="k">return</span> <span class="n">values</span><span class="p">,</span> <span class="n">labels</span></div>
+
+
+<div class="viewcode-block" id="spectral_kurtosis"><a class="viewcode-back" href="../../../feature_extraction.html#vbi.feature_extraction.features_utils.spectral_kurtosis">[docs]</a><span class="k">def</span> <span class="nf">spectral_kurtosis</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">fmag</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Measure the flatness of the power spectrum of the signals.</span>
+<span class="sd">    The Timbre Toolbox: Extracting audio descriptors from musicalsignals</span>
+<span class="sd">    Authors Peeters G., Giordano B., Misdariis P., McAdams S.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    f: nd-array</span>
+<span class="sd">        frequency values</span>
+<span class="sd">    fmag: nd-array [n_regions x n_freqs]</span>
+<span class="sd">        power spectrum of the signal</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    values: array-like</span>
+<span class="sd">        spectral kurtosis</span>
+<span class="sd">    labels: array-like</span>
+<span class="sd">        labels of the features</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">spread</span> <span class="o">=</span> <span class="n">spectral_spread</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">fmag</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">centroid</span> <span class="o">=</span> <span class="n">spectral_centroid</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">fmag</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">values</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">spread</span><span class="p">))</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">spread</span><span class="p">)):</span>
+        <span class="k">if</span> <span class="n">spread</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">values</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">spect_kurt</span> <span class="o">=</span> <span class="p">((</span><span class="n">f</span> <span class="o">-</span> <span class="n">centroid</span><span class="p">[</span><span class="n">i</span><span class="p">])</span> <span class="o">**</span> <span class="mi">4</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="n">fmag</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">fmag</span><span class="p">))</span>
+            <span class="n">values</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">spect_kurt</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="n">spread</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">**</span> <span class="mi">4</span><span class="p">)</span>
+    <span class="n">labels</span> <span class="o">=</span> <span class="p">[</span><span class="sa">f</span><span class="s2">&quot;spectral_kurtosis_</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">&quot;</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">values</span><span class="p">))]</span>
+
+    <span class="k">return</span> <span class="n">values</span><span class="p">,</span> <span class="n">labels</span></div>
+
+
+<div class="viewcode-block" id="spectral_spread"><a class="viewcode-back" href="../../../feature_extraction.html#vbi.feature_extraction.features_utils.spectral_spread">[docs]</a><span class="k">def</span> <span class="nf">spectral_spread</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">fmag</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Measures the spread of the spectrum around its mean value.</span>
+
+<span class="sd">    Description and formula in Article:</span>
+<span class="sd">    The Timbre Toolbox: Extracting audio descriptors from musicalsignals</span>
+<span class="sd">    Authors Peeters G., Giordano B., Misdariis P., McAdams S.</span>
+
+<span class="sd">    Feature computational cost: 2</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    signal : nd-array</span>
+<span class="sd">        Signal from which spectral spread is computed.</span>
+<span class="sd">    fs : float</span>
+<span class="sd">        Sampling frequency</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    float</span>
+<span class="sd">        Spectral Spread</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">n</span> <span class="o">=</span> <span class="n">fmag</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">centroid</span> <span class="o">=</span> <span class="n">spectral_centroid</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">fmag</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">values</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">n</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">fmag</span><span class="p">[</span><span class="n">i</span><span class="p">]):</span>
+            <span class="n">values</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">values</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(((</span><span class="n">f</span> <span class="o">-</span> <span class="n">centroid</span><span class="p">[</span><span class="n">i</span><span class="p">])</span> <span class="o">**</span> <span class="mi">2</span><span class="p">),</span> <span class="p">(</span><span class="n">fmag</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">fmag</span><span class="p">[</span><span class="n">i</span><span class="p">])))</span> <span class="o">**</span> <span class="mf">0.5</span>
+            <span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">values</span><span class="p">,</span> <span class="p">[</span><span class="sa">f</span><span class="s2">&quot;spectral_spread_</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">&quot;</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">values</span><span class="p">))]</span></div>
+
+
+<div class="viewcode-block" id="spectral_variation"><a class="viewcode-back" href="../../../feature_extraction.html#vbi.feature_extraction.features_utils.spectral_variation">[docs]</a><span class="k">def</span> <span class="nf">spectral_variation</span><span class="p">(</span><span class="n">freq</span><span class="p">,</span> <span class="n">fmag</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Computes the amount of variation of the spectrum along time.</span>
+<span class="sd">    Spectral variation is computed from the normalized cross-correlation between two consecutive amplitude spectra.</span>
+
+<span class="sd">    Description and formula in Article:</span>
+<span class="sd">    The Timbre Toolbox: Extracting audio descriptors from musicalsignals</span>
+<span class="sd">    Authors Peeters G., Giordano B., Misdariis P., McAdams S.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">one_d</span><span class="p">(</span><span class="n">sum1</span><span class="p">,</span> <span class="n">sum2</span><span class="p">,</span> <span class="n">sum3</span><span class="p">):</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">sum2</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">sum3</span><span class="p">:</span>
+            <span class="k">return</span> <span class="mi">1</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="mi">1</span> <span class="o">-</span> <span class="p">(</span><span class="n">sum1</span> <span class="o">/</span> <span class="p">((</span><span class="n">sum2</span><span class="o">**</span><span class="mf">0.5</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="n">sum3</span><span class="o">**</span><span class="mf">0.5</span><span class="p">)))</span>
+
+    <span class="n">sum1</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">fmag</span><span class="p">[:,</span> <span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">*</span> <span class="n">fmag</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">:],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">sum2</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">fmag</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">:]</span> <span class="o">**</span> <span class="mi">2</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">sum3</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">fmag</span><span class="p">[:,</span> <span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">**</span> <span class="mi">2</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">sums</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">sum1</span><span class="p">,</span> <span class="n">sum2</span><span class="p">,</span> <span class="n">sum3</span><span class="p">])</span><span class="o">.</span><span class="n">T</span>
+
+    <span class="n">n</span> <span class="o">=</span> <span class="n">fmag</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">values</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">one_d</span><span class="p">(</span><span class="o">*</span><span class="n">x</span><span class="p">),</span> <span class="n">sums</span><span class="p">)))</span>
+    <span class="n">labels</span> <span class="o">=</span> <span class="p">[</span><span class="sa">f</span><span class="s2">&quot;spectral_variation_</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">&quot;</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">values</span><span class="p">))]</span>
+    <span class="k">return</span> <span class="n">values</span><span class="p">,</span> <span class="n">labels</span></div>
+
+
+<div class="viewcode-block" id="wavelet"><a class="viewcode-back" href="../../../feature_extraction.html#vbi.feature_extraction.features_utils.wavelet">[docs]</a><span class="k">def</span> <span class="nf">wavelet</span><span class="p">(</span><span class="n">signal</span><span class="p">,</span> <span class="n">function</span><span class="o">=</span><span class="n">scipy</span><span class="o">.</span><span class="n">signal</span><span class="o">.</span><span class="n">ricker</span><span class="p">,</span> <span class="n">widths</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">10</span><span class="p">)):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Computes CWT (continuous wavelet transform) of the signal.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    signal : nd-array</span>
+<span class="sd">        Input from which CWT is computed</span>
+<span class="sd">    function :  wavelet function</span>
+<span class="sd">        Default: scipy.signal.ricker</span>
+<span class="sd">    widths :  nd-array</span>
+<span class="sd">        Widths to use for transformation</span>
+<span class="sd">        Default: np.arange(1,10)</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    nd-array</span>
+<span class="sd">        The result of the CWT along the time axis</span>
+<span class="sd">        matrix with size (len(widths),len(signal))</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">function</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+        <span class="n">function</span> <span class="o">=</span> <span class="nb">eval</span><span class="p">(</span><span class="n">function</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">widths</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+        <span class="n">widths</span> <span class="o">=</span> <span class="nb">eval</span><span class="p">(</span><span class="n">widths</span><span class="p">)</span>
+
+    <span class="n">cwt</span> <span class="o">=</span> <span class="n">scipy</span><span class="o">.</span><span class="n">signal</span><span class="o">.</span><span class="n">cwt</span><span class="p">(</span><span class="n">signal</span><span class="p">,</span> <span class="n">function</span><span class="p">,</span> <span class="n">widths</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">cwt</span></div>
+
+
+<div class="viewcode-block" id="km_order"><a class="viewcode-back" href="../../../feature_extraction.html#vbi.feature_extraction.features_utils.km_order">[docs]</a><span class="k">def</span> <span class="nf">km_order</span><span class="p">(</span><span class="n">ts</span><span class="p">,</span> <span class="n">indices</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">avg</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Calculate the (local) Kuramoto order parameter (KOP) of the given time series</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    ts: np.ndarray (2d) [n_regions, n_timepoints]</span>
+<span class="sd">        input array</span>
+<span class="sd">    indices: list</span>
+<span class="sd">        list of indices of the regions of interest</span>
+<span class="sd">    avg: bool</span>
+<span class="sd">        if True, average the KOP across time</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    values: np.ndarray (1d) or float</span>
+<span class="sd">        feature values</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">ts</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">):</span>
+        <span class="n">ts</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">ts</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">ts</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Input array must be 2d&quot;</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">indices</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">indices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">ts</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="nb">max</span><span class="p">(</span><span class="n">indices</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="n">ts</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Invalid indices&quot;</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">all</span><span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="p">(</span><span class="nb">int</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">int64</span><span class="p">))</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">indices</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Indices must be integers&quot;</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">indices</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">2</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;At least two indices are required&quot;</span><span class="p">)</span>
+
+    <span class="n">ts</span> <span class="o">=</span> <span class="n">ts</span><span class="p">[</span><span class="n">indices</span><span class="p">,</span> <span class="p">:]</span>
+
+    <span class="n">nn</span><span class="p">,</span> <span class="n">nt</span> <span class="o">=</span> <span class="n">ts</span><span class="o">.</span><span class="n">shape</span>
+    <span class="n">r</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="mi">1</span><span class="n">j</span> <span class="o">*</span> <span class="n">ts</span><span class="p">),</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span> <span class="o">/</span> <span class="n">nn</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">avg</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">r</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">r</span></div>
+
+
+<div class="viewcode-block" id="normalize_signal"><a class="viewcode-back" href="../../../feature_extraction.html#vbi.feature_extraction.features_utils.normalize_signal">[docs]</a><span class="k">def</span> <span class="nf">normalize_signal</span><span class="p">(</span><span class="n">ts</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="s2">&quot;zscore&quot;</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Normalize the input time series</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    ts: np.ndarray (2d) [n_regions, n_timepoints]</span>
+<span class="sd">        input array</span>
+<span class="sd">    method: str</span>
+<span class="sd">        normalization method</span>
+<span class="sd">    index: int</span>
+<span class="sd">        index of the times point to normalize with respect to</span>
+<span class="sd">        x = x / x[:, index]</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    ts: np.ndarray (2d) [n_regions, n_timepoints]</span>
+<span class="sd">        normalized array</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">ts</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">):</span>
+        <span class="n">ts</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">ts</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">ts</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">ts</span> <span class="o">=</span> <span class="n">ts</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">method</span> <span class="o">==</span> <span class="s2">&quot;zscore&quot;</span><span class="p">:</span>
+        <span class="n">ts</span> <span class="o">=</span> <span class="n">stats</span><span class="o">.</span><span class="n">zscore</span><span class="p">(</span><span class="n">ts</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="k">elif</span> <span class="n">method</span> <span class="o">==</span> <span class="s2">&quot;minmax&quot;</span><span class="p">:</span>
+        <span class="n">ts</span> <span class="o">=</span> <span class="p">(</span><span class="n">ts</span> <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">min</span><span class="p">(</span><span class="n">ts</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)[:,</span> <span class="kc">None</span><span class="p">])</span> <span class="o">/</span> <span class="p">(</span>
+            <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">ts</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span> <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">min</span><span class="p">(</span><span class="n">ts</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+        <span class="p">)[:,</span> <span class="kc">None</span><span class="p">]</span>
+
+    <span class="k">elif</span> <span class="n">method</span> <span class="o">==</span> <span class="s2">&quot;mean&quot;</span><span class="p">:</span>
+        <span class="n">ts</span> <span class="o">=</span> <span class="p">(</span><span class="n">ts</span> <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">ts</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)[:,</span> <span class="kc">None</span><span class="p">])</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">std</span><span class="p">(</span><span class="n">ts</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)[:,</span> <span class="kc">None</span><span class="p">]</span>
+
+    <span class="k">elif</span> <span class="n">method</span> <span class="o">==</span> <span class="s2">&quot;max&quot;</span><span class="p">:</span>
+        <span class="n">ts</span> <span class="o">=</span> <span class="n">ts</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">ts</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)[:,</span> <span class="kc">None</span><span class="p">]</span>
+
+    <span class="k">elif</span> <span class="n">method</span> <span class="o">==</span> <span class="s2">&quot;none&quot;</span><span class="p">:</span>
+        <span class="k">pass</span>
+
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Invalid method&quot;</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">ts</span></div>
+
+
+<div class="viewcode-block" id="state_duration"><a class="viewcode-back" href="../../../feature_extraction.html#vbi.feature_extraction.features_utils.state_duration">[docs]</a><span class="k">def</span> <span class="nf">state_duration</span><span class="p">(</span>
+    <span class="n">hmm_z</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">n_states</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">avg</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span> <span class="n">tcut</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">5</span><span class="p">,</span> <span class="n">bins</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">10</span>
+<span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Measure the duration of each state</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    hmm_z : nd-array [n_samples]</span>
+<span class="sd">        The most likely states for each time point</span>
+<span class="sd">    n_states : int</span>
+<span class="sd">        The number of states</span>
+<span class="sd">    avg : bool</span>
+<span class="sd">        If True, the average duration of each state is returned.</span>
+<span class="sd">        Otherwise, the duration of each state is returned.</span>
+<span class="sd">    t_cut : int</span>
+<span class="sd">        maximum duration of a state, default is 5</span>
+<span class="sd">    bins : int</span>
+<span class="sd">        number of bins for the histogram, default is 10</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    stat_vec : array-like</span>
+<span class="sd">        The duration of each state</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">infered_state</span> <span class="o">=</span> <span class="n">hmm_z</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
+    <span class="n">inferred_state_list</span><span class="p">,</span> <span class="n">inffered_dur</span> <span class="o">=</span> <span class="n">ssm</span><span class="o">.</span><span class="n">util</span><span class="o">.</span><span class="n">rle</span><span class="p">(</span><span class="n">infered_state</span><span class="p">)</span>
+
+    <span class="n">inferred_dur_stack</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n_states</span><span class="p">):</span>
+        <span class="n">inferred_dur_stack</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">inffered_dur</span><span class="p">[</span><span class="n">inferred_state_list</span> <span class="o">==</span> <span class="n">s</span><span class="p">])</span>
+
+    <span class="n">V</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n_states</span><span class="p">):</span>
+        <span class="n">v</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">histogram</span><span class="p">(</span><span class="n">inferred_dur_stack</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">bins</span><span class="o">=</span><span class="n">bins</span><span class="p">,</span> <span class="nb">range</span><span class="o">=</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">tcut</span><span class="p">))</span>
+        <span class="n">V</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
+    <span class="n">V</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">V</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">avg</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">V</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">V</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span></div>
+
+
+<span class="c1"># not used in the code</span>
+<div class="viewcode-block" id="set_attribute"><a class="viewcode-back" href="../../../feature_extraction.html#vbi.feature_extraction.features_utils.set_attribute">[docs]</a><span class="k">def</span> <span class="nf">set_attribute</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">decorate_func</span><span class="p">(</span><span class="n">func</span><span class="p">):</span>
+        <span class="nb">setattr</span><span class="p">(</span><span class="n">func</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">func</span>
+
+    <span class="k">return</span> <span class="n">decorate_func</span></div>
+</pre></div>
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>document.getElementById('searchbox').style.display = "block"</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../../index.html">vbi 0.1.dev1+g9cc934d documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="../../index.html" >Module code</a> &#187;</li>
+        <li class="nav-item nav-item-this"><a href="">vbi.feature_extraction.features_utils</a></li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+    &#169; Copyright 2023, Abolfazl Ziaeemehr.
+      Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 7.1.2.
+    </div>
+  </body>
+</html>
