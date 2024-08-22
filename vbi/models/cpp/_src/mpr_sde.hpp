@@ -272,6 +272,17 @@ public:
     {
         return time_buffer;
     }
+
+    dim2 get_d_fmri()
+    {
+        return bold_buffer;
+    }
+
+    dim1 get_t_fmri()
+    {
+        return time_buffer;
+    }
+
 };
 
 #endif

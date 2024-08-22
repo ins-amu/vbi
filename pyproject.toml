@@ -1,0 +1,58 @@
+[build-system]
+requires = [
+    "hatchling",
+    "setuptools", 
+    "wheel"
+]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vbi"
+# version = "0.0.2"
+dynamic = ['version']
+description = "Virtual brain inference."
+
+# add multiple authors
+authors = [
+    { name = "Abolfazl Ziaeemehr", email = "a.ziaeemehr@gmail.com" },
+    { name = "Meysam Hashemi", email = "meysam.hashemi@gmail.com" },
+    { name = "Marmaduke Woodman", email = "marmaduke.woodman@gmail.com" }
+]
+readme = "README.md"
+dependencies = [
+    "wheel",
+    "numpy",
+    "scipy",
+    "numba",
+    "networkx",
+    "nbconvert",
+    "nbformat",
+    "numpydoc",
+    "matplotlib",
+    "setuptools-scm",
+    "tqdm",
+    "nbsphinx",
+    "sbi",
+    "pytorch",
+    "cupy",
+    "parameterized",
+    "scikit-learn",
+    "pandas",
+    "h5py",
+    "cloud_sptheme",
+    "sphinx_bootstrap_theme",
+    "pycatch22"
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+]
+
+[project.urls]
+homepage = "https://ziaeemehr.github.io/vbi_paper/"
+repository = "https://github.com/Ziaeemehr/vbi_paper"
+
+[tool.hatch.version]
+path = "vbi/_version.py"

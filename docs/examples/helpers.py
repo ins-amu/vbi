@@ -143,30 +143,6 @@ def plot_ts_pxx_km_cupy(data, params, ax, **kwargs):
 
 
 
-def plot_ts_pxx_wc(data, par, ax, **kwargs):
-
-    nn = par['weights'].shape[0]
-    tspan = data['t']
-    E = data['x'][:nn, :]
-    I = data['x'][nn:, :]
-    ax[0].plot(tspan, E.T, label='E', color="r", **kwargs)
-    ax[0].plot(tspan, I.T, label='I', color="b", **kwargs)
-
-    y = E - np.mean(E, axis=1, keepdims=True)
-    freq, pxx = signal.welch(y, 1000/par['dt'], nperseg=E.shape[1])
-    ax[1].plot(freq, pxx.T, **kwargs)
-    ax[1].set_xlim(0, 50)
-    ax[1].set_xlabel("frequency [Hz]")
-    ax[0].set_xlabel("time [ms]")
-    ax[0].set_ylabel("activity")
-    ax[1].set_ylabel("PSD")
-    # show 10 last % of time series
-    t_end = par['t_end']
-    # ax[0].set_xlim(t_end * 0.9, t_end)
-    ax[0].set_xlim(0,200)
-    ax[0].margins(x=0)
-
-    plt.tight_layout()
 
 def plot_mat(mat, ax, **kwargs):
     im = ax.imshow(mat, **kwargs)

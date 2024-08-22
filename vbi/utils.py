@@ -11,8 +11,11 @@ from typing import Union
 
 
 import re
-import nbformat
-from nbconvert import PythonExporter
+try :
+    import nbformat
+    from nbconvert import PythonExporter
+except:
+    pass
 
 
 def timer(func):
@@ -158,7 +161,7 @@ def posterior_peaks(samples, return_dict=False, **kwargs):
 
 
 def p2j(modulePath):
-    '''convert python script to jupyter notebook'''
+    """convert python script to jupyter notebook"""
     os.system(f"p2j -o {modulePath}")
 
 
@@ -187,6 +190,7 @@ def j2p(notebookPath, modulePath=None):
 
     with open(modulePath, "w+") as fh:
         fh.writelines(source)
+
 
 def posterior_shrinkage(
     prior_samples: Union[Tensor, np.ndarray], post_samples: Union[Tensor, np.ndarray]
@@ -268,3 +272,33 @@ def posterior_zscore(
     post_std = torch.std(post_samples, dim=0)
 
     return torch.abs((post_mean - true_theta) / post_std)
+
+
+def set_diag(A: np.ndarray, k: int = 0, value: float = 0.0):
+    """
+    set k diagonals of the given matrix to given value.
+    
+    Parameters
+    ----------
+    A: np.ndarray
+        matrix
+    k: int
+        number of diagonals
+    value: float
+        value to be set
+    
+    Returns
+    -------
+    A: np.ndarray
+        matrix with k diagonals set to value
+    
+    """
+
+    assert len(A.shape) == 2
+    n = A.shape[0]
+    assert k < n
+    for i in range(-k, k + 1):
+        a1 = np.diag(np.random.randint(1, 2, n - abs(i)), i)
+        idx = np.where(a1)
+        A[idx] = value
+    return A
