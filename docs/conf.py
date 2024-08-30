@@ -14,7 +14,7 @@ extensions = [
     "numpydoc",
     "sphinx.ext.graphviz",
     "sphinx.ext.viewcode",
-    # 'nbsphinx'
+    'nbsphinx'
 ]
 
 source_suffix = ".rst"
@@ -22,17 +22,17 @@ master_doc = "index"
 project = "vbi"
 copyright = "2023, Abolfazl Ziaeemehr"
 release = version = get_version(root="..", relative_to=__file__)
+nbsphinx_execute = 'never'
 
 default_role = "any"
-add_function_parentheses = True
 add_module_names = False
 html_theme = 'nature'
-# hrml_theme = "sphinx_pdj_theme"
+pygments_style = "colorful"
+add_function_parentheses = True
 
 # html_theme = "bootstrap"
-html_theme_path = sphinx_bootstrap_theme.get_html_theme_path()
+# html_theme_path = sphinx_bootstrap_theme.get_html_theme_path()
 
-pygments_style = "colorful"
 exclude_patterns = ["_build", "**.ipynb_checkpoints"]
 
 numpydoc_show_class_members = False

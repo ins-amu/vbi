@@ -5,39 +5,19 @@
 
 ## installation
 
-### Requirements
-
-- Python3
-- Matplotlib
-- Scipy
-- numpy
-- C++ >= 11
-- jidt [optional]
-
-```sh
-conda env create --file environment.yml --name vbi
-conda activate vbi
-
-# gpu support
-# conda install -c conda-forge cupy cudatoolkit=11.3
-# conda install -c conda-forge pytorch-gpu
-
-# If you need to use models implemented in C++ :
-cd vbi/CPPModels
-make
-# you need to install swig if you get an error and probably write the version of
-# python you are using at makefile
-PYTHON_VERSION = 3.8 # or whatever version you have
-
-# optional
-conda install -c conda-forge jpype1
+```bash
+    conda env create --file environment.yml --name vbi python=3.11
+    conda activate vbi
+    git clone https://github.com/Ziaeemehr/vbi.git
+    cd vbi
+    pip install .
 ```
 
-you need to have install swig on you machine to compile C++ codes.
+### Optional dependencies
 
-```sh
-sudo apt-get install clang
-sudo apt-get install swig
-sudo apt-get install python3-dev # or [python3.9-dev] depends the default version of python on your machine.
-# unless you get an error which says: fatal error,  Python.h not found.
+`swig` need to be installed for using models implemented in C++ .
+
+```bash
+    sudo apt-get install swig
+    sudo apt-get install python3-dev 
 ```
