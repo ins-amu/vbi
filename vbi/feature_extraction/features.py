@@ -20,6 +20,7 @@ from vbi.feature_extraction.features_utils import (
     state_duration,
     seizure_onset_indicator,
     max_frequency,
+    max_psd,
     spectral_distance,
     fundamental_frequency,
     spectral_centroid,
@@ -1448,7 +1449,7 @@ def spectrum_stats(
         "spectral_distance",
         "fundamental_frequency",
         "max_frequency",
-        "max_power",
+        "max_psd"
         "median_frequency",
         "spectral_centroid",
         "spectral_kurtosis",

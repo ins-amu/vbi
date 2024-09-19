@@ -438,6 +438,7 @@
           "spectral_distance",
           "fundamental_frequency",
           "max_frequency",
+          "max_psd",
           "median_frequency",
           "spectral_centroid",
           "spectral_kurtosis",

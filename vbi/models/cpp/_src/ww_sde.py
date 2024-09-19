@@ -656,8 +656,8 @@ class WW_sde(object):
     thisown = property(lambda x: x.this.own(), lambda x, v: x.this.own(v), doc="The membership flag")
     __repr__ = _swig_repr
 
-    def __init__(self, N, dt, G, t_cut, t_end, y0, weights, a, b, d, gamma, tau_s, w, J_N, I_o, sigma, decimate=1, record_step=1, RECORD_TS=1, RECORD_FMRI=1, SPARSE=0, fix_seed=0):
-        _ww_sde.WW_sde_swiginit(self, _ww_sde.new_WW_sde(N, dt, G, t_cut, t_end, y0, weights, a, b, d, gamma, tau_s, w, J_N, I_o, sigma, decimate, record_step, RECORD_TS, RECORD_FMRI, SPARSE, fix_seed))
+    def __init__(self, N, dt, dt_bold, G, t_cut, t_end, y0, weights, a, b, d, gamma, tau_s, w, J_N, I_o, sigma, decimate_fmri=1, decimate_ts=1, RECORD_TS=1, RECORD_FMRI=1, fix_seed=0):
+        _ww_sde.WW_sde_swiginit(self, _ww_sde.new_WW_sde(N, dt, dt_bold, G, t_cut, t_end, y0, weights, a, b, d, gamma, tau_s, w, J_N, I_o, sigma, decimate_fmri, decimate_ts, RECORD_TS, RECORD_FMRI, fix_seed))
 
     def H(self, x):
         return _ww_sde.WW_sde_H(self, x)
@@ -665,11 +665,23 @@ class WW_sde(object):
     def f_ww(self, S, dSdt, t):
         return _ww_sde.WW_sde_f_ww(self, S, dSdt, t)
 
-    def heun_sde(self, y, t):
-        return _ww_sde.WW_sde_heun_sde(self, y, t)
+    def heun_sde_step(self, y, t):
+        return _ww_sde.WW_sde_heun_sde_step(self, y, t)
 
-    def Integrate(self):
-        return _ww_sde.WW_sde_Integrate(self)
+    def euler_sde_step(self, y, t):
+        return _ww_sde.WW_sde_euler_sde_step(self, y, t)
+
+    def bw_ode(self, xin, x):
+        return _ww_sde.WW_sde_bw_ode(self, xin, x)
+
+    def bw_ode_step(self, xin, x, dt_bold):
+        return _ww_sde.WW_sde_bw_ode_step(self, xin, x, dt_bold)
+
+    def get_ybold(self, y):
+        return _ww_sde.WW_sde_get_ybold(self, y)
+
+    def integrate(self):
+        return _ww_sde.WW_sde_integrate(self)
 
     def get_states(self):
         return _ww_sde.WW_sde_get_states(self)

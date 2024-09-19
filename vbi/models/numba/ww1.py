@@ -57,14 +57,14 @@ b_spec = [
 class ParWW:
     def __init__(
         self,
-        G=0.2,
+        G=0.0,
         a=270.0,
         b=108.0,
         d=0.154,
-        gamma=0.641/1000,
-        tau_s=100.0,
+        gamma=0.641,
+        tau_s=0.1,
         w=np.array([0.9]),
-        dt=10.0,
+        dt=0.01,
         J_N=0.2609,
         I_o=np.array([0.3]), # 0.33
         sigma_noise=0.001,
@@ -72,10 +72,10 @@ class ParWW:
         weights=np.array([[], []]),
         seed=-1,
         method="heun",
-        t_end=5*60*1000.0,
+        t_end=3000.0,
         t_cut=0.0,
-        ts_decimate=10,   #  [ms]
-        fmri_decimate=10, #  [ms]
+        ts_decimate=10,
+        fmri_decimate=10,
         RECORD_TS=True,
         RECORD_FMRI=True,
     ):
@@ -280,8 +280,8 @@ def integrate(P, B, intg=heun_sde_step):
         S = S[T >= P.t_cut, :]
         T = T[T >= P.t_cut]
     if P.RECORD_FMRI:
-        d_fmri = d_fmri[t_fmri >= P.t_cut/1000.0, :]
-        t_fmri = t_fmri[t_fmri >= P.t_cut/1000.0]
+        d_fmri = d_fmri[t_fmri >= P.t_cut, :]
+        t_fmri = t_fmri[t_fmri >= P.t_cut]
 
     return T, S.T, t_fmri, d_fmri.T
 
@@ -359,7 +359,7 @@ class WW_sde(object):
         assert self.P.initial_state is not None
         assert len(self.P.initial_state) == self.P.weights.shape[0]
         self.B.nn = self.P.nn
-        self.B.dt_bold = self.P.dt / 1000.0
+        # self.B.dt = self.P.dt
 
     def run(self, par={}, parB={}, x0=None, verbose=True):
 

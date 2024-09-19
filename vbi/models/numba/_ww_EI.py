@@ -10,16 +10,36 @@ warnings.simplefilter("ignore", category=NumbaPerformanceWarning)
 
 w_spec = [
     ("G", float64),
-    ("a", float64),
-    ("b", float64),
-    ("d", float64),
+    
+    ("a_I", float64),
+    ("b_I", float64),
+    ("d_I", float64),
+    ("tau_I", float64),
+    
+    ("a_E", float64),
+    ("b_E", float64),
+    ("d_E", float64),
+    ("tau_E", float64),
+    
+    ("w_II", float64),
+    ("w_EE", float64),
+    ("w_IE", float64),
+    ("w_EI", float64),
+    
+    ("W_E", float64),
+    ("W_I", float64),
+    
     ("gamma", float64),
-    ("tau_s", float64),
-    ("w", float64[:]),
     ("dt", float64),
-    ("J_N", float64),
-    ("I_o", float64[:]),
-    ("sigma_noise", float64),
+    ("J_NMDA", float64),
+    ("J_I", float64),
+    
+    ("I_I", float64[:]),
+    ("I_E", float64[:]),
+    
+    # ("sigma_I", float64),
+    # ("sigma_E", float64),
+    
     ("initial_state", float64[:]),
     ("weights", float64[:, :]),
     ("seed", int64),
@@ -57,39 +77,77 @@ b_spec = [
 class ParWW:
     def __init__(
         self,
-        G=0.2,
-        a=270.0,
-        b=108.0,
-        d=0.154,
-        gamma=0.641/1000,
-        tau_s=100.0,
-        w=np.array([0.9]),
-        dt=10.0,
-        J_N=0.2609,
-        I_o=np.array([0.3]), # 0.33
-        sigma_noise=0.001,
+        G=0.0,
+        a_I=615.0,
+        b_I=177.0,
+        d_I=0.087,
+        tau_I=0.01,
+        
+        a_E=310.0,
+        b_E=125.0,
+        d_E=0.16,
+        tau_E=0.1,
+        
+        gamma=0.641,
+        
+        w_II=1.0,
+        w_IE=1.4,
+        w_EI=1.0,
+        w_EE=1.0,
+        dt=0.01,
+        
+        W_E=1.0,
+        W_I =0.7,
+        
+        I0 = 0.382,
+        J_NMDA=0.15,
+        
+        
+        I_I=np.array([0.296]),  # 0.296
+        I_E=np.array([0.377]),  # 0.377
+        sigma_I=0.001,
+        sigma_E=0.001,
         initial_state=np.array([]),
         weights=np.array([[], []]),
         seed=-1,
         method="heun",
-        t_end=5*60*1000.0,
+        t_end=300.0,
         t_cut=0.0,
-        ts_decimate=10,   #  [ms]
-        fmri_decimate=10, #  [ms]
+        ts_decimate=10,
+        fmri_decimate=10,
         RECORD_TS=True,
         RECORD_FMRI=True,
     ):
         self.G = G
-        self.a = a
-        self.b = b
-        self.d = d
+        self.a_I = a_I
+        self.b_I = b_I
+        self.d_I = d_I
+        self.tau_I = tau_I
+        
+        self.a_E = a_E
+        self.b_E = b_E
+        self.d_E = d_E
+        self.tau_E = tau_E
+
+        self.w_II = w_II
+        self.w_IE = w_IE
+        self.w_EI = w_EI
+        self.w_EE = w_EE
         self.gamma = gamma
-        self.tau_s = tau_s
-        self.w = w
+
         self.dt = dt
-        self.J_N = J_N
-        self.I_o = I_o
-        self.sigma_noise = sigma_noise
+        
+        self.W_E = W_E
+        self.W_I = W_I
+        
+        self.I0 = I0
+        self.I_E = I_E
+        self.I_I = I_I
+        self.J_NMDA = J_NMDA
+
+        self.sigma_I = sigma_I
+        self.sigma_E = sigma_E
+
         self.initial_state = initial_state
         self.weights = weights
         self.seed = seed
@@ -109,7 +167,8 @@ class ParWW:
 @jitclass(b_spec)
 class ParBaloon:
     def __init__(
-        self, eps=0.5, E0=0.4, V0=4.0, alpha=0.32, taus=1.54, tauo=0.98, tauf=1.44
+        self, eps=0.5, E0=0.4, V0=4.0, 
+        alpha=0.32, taus=1.54, tauo=0.98, tauf=1.44
     ):
         self.eps = eps
         self.E0 = E0
@@ -260,7 +319,7 @@ def integrate(P, B, intg=heun_sde_step):
     jj = 0
     ii = 0
     for i in range(1, nt):
-        
+
         t = i * P.dt
         t_bold = i * B.dt_bold
         x0 = intg(x0, P)
@@ -274,16 +333,15 @@ def integrate(P, B, intg=heun_sde_step):
             y0, fmri_i = integrate_fmri(x0, y0, t, B)
             if i % P.fmri_decimate == 0:
                 d_fmri[jj, :] = fmri_i
+                # t_fmri[jj] = t[i]
                 t_fmri[jj] = t_bold
                 jj += 1
-    if P.RECORD_TS:
-        S = S[T >= P.t_cut, :]
-        T = T[T >= P.t_cut]
-    if P.RECORD_FMRI:
-        d_fmri = d_fmri[t_fmri >= P.t_cut/1000.0, :]
-        t_fmri = t_fmri[t_fmri >= P.t_cut/1000.0]
+    S = S[T >= P.t_cut, :]
+    T = T[T >= P.t_cut]
+    d_fmri = d_fmri[t_fmri >= P.t_cut, :]
+    t_fmri = t_fmri[t_fmri >= P.t_cut]
 
-    return T, S.T, t_fmri, d_fmri.T
+    return T, S, t_fmri, d_fmri
 
 
 class WW_sde(object):
@@ -359,7 +417,7 @@ class WW_sde(object):
         assert self.P.initial_state is not None
         assert len(self.P.initial_state) == self.P.weights.shape[0]
         self.B.nn = self.P.nn
-        self.B.dt_bold = self.P.dt / 1000.0
+        # self.B.dt = self.P.dt
 
     def run(self, par={}, parB={}, x0=None, verbose=True):
 

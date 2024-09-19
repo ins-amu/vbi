@@ -963,25 +963,64 @@ def spectral_distance(freq, fmag):
     return values, labels
 
 
-def max_frequency(f, fmag):
+def max_frequency(f, psd):
     """
     Computes the maximum frequency of the signals.
+    
+    parameters
+    ----------
+    f: nd-array
+        frequency values
+    psd: nd-array [n_regions x n_freqs]
+        power spectral density of the signal
+        
+    Returns
+    -------
+    values: array-like
+        maximum frequencies
 
     """
-
-    def one_d(cum_fmag):
-
-        try:
-            ind_mag = np.where(cum_fmag > cum_fmag[-1] * 0.95)[0][0]
-        except:
-            ind_mag = np.argmax(cum_fmag)
-        return f[ind_mag]
-
-    cum_fmag = np.cumsum(fmag, axis=1)
-    # use map to apply one_d to each row of cum_fmag
-    fmax = np.array(list(map(one_d, cum_fmag)))
+    if not isinstance(f, np.ndarray):
+        f = np.array(f)
+    if not isinstance(psd, np.ndarray):
+        psd = np.array(psd)
+    if psd.ndim == 1:
+        psd = psd.reshape(1, -1)
+        
+    nn, nt = psd.shape
+    fmax = np.zeros(nn)
+    ind_max = np.argmax(psd, axis=1)
+    fmax = f[ind_max]
+    
+    
     labels = [f"max_frequency_{i}" for i in range(len(fmax))]
     return fmax, labels
+
+def max_psd(f, psd):
+    """
+    Computes the maximum power spectral density of the signals.
+    
+    Parameters
+    ----------
+    f: nd-array
+        frequency values
+    psd: nd-array [n_regions x n_freqs]
+        power spectral density of the signal
+        
+    Returns
+    -------
+    values: array-like
+        maximum power spectral densities
+    """
+    nn, nt = psd.shape
+    if not isinstance(psd, np.ndarray):
+        psd = np.array(psd)
+    if psd.ndim == 1:
+        psd = psd.reshape(1, -1)
+        
+    pmax = np.max(psd, axis=1)    
+    labels = [f"max_psd_{i}" for i in range(len(pmax))]
+    return pmax, labels
 
 
 def median_frequency(f, fmag):
