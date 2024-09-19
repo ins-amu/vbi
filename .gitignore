@@ -35,5 +35,5 @@ _e/
 *.csv
 *.json
 tt.ipynb
-
+*.egg
 examples_dev/

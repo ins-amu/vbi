@@ -33,7 +33,7 @@ dependencies = [
     "tqdm",
     "nbsphinx",
     "sbi",
-    "pytorch",
+    "torch",
     "cupy",
     "parameterized",
     "scikit-learn",
