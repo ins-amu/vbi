@@ -90,10 +90,10 @@ def integrate(P, B):
     tr = P.tr
     rv_decimate = P.rv_decimate
     dt = P.dt
-    r_perior = P.dt * rv_decimate  #
-    bold_decimate = int(np.round(tr / r_perior))
+    r_period = P.dt * rv_decimate  #
+    bold_decimate = int(np.round(tr / r_period))
 
-    dtt = r_perior / 1000.0  # in seconds
+    dtt = r_period / 1000.0  # in seconds
     k1 = 4.3 * B.theta0 * B.Eo * B.TE
     k2 = B.epsilon * B.r0 * B.Eo * B.TE
     k3 = 1 - B.epsilon
@@ -115,9 +115,6 @@ def integrate(P, B):
         rv_t = np.zeros((nt // rv_decimate), dtype=np.float32)
 
     def compute():
-
-        rv_d = np.zeros((nt // rv_decimate, 2 * nn), dtype=np.float32)
-        rv_t = np.zeros((nt // rv_decimate), dtype=np.float32)
 
         s = np.zeros((2, nn))
         f = np.zeros((2, nn))
@@ -162,9 +159,9 @@ def integrate(P, B):
     rv_t, rv_d, bold_t, bold_d = compute()
 
     return {
-        "rv_t": rv_t,
+        "rv_t": rv_t * 10,
         "rv_d": rv_d,
-        "bold_t": bold_t.astype("f"),
+        "bold_t": bold_t.astype("f") * 10,
         "bold_d": bold_d.astype("f"),
     }
 
