@@ -2,15 +2,19 @@
 requires = [
     "hatchling",
     "setuptools", 
-    "wheel"
+    "wheel",
+    "swig>=4.0",
+    "setuptools>=45"
 ]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "vbi"
-# version = "0.0.2"
-dynamic = ['version']
+version = "0.1.0"
+# dynamic = ['version']
 description = "Virtual brain inference."
+requires-python = ">=3.8"
+license = { text = "MIT" }
 
 # add multiple authors
 authors = [
@@ -24,23 +28,18 @@ dependencies = [
     "numpy",
     "scipy",
     "numba",
+    "h5py",
+    "pandas",
     "networkx",
     "nbconvert",
-    "nbformat",
-    "numpydoc",
     "matplotlib",
     "setuptools-scm",
     "tqdm",
-    "nbsphinx",
     "sbi",
     "torch",
     "cupy",
     "parameterized",
     "scikit-learn",
-    "pandas",
-    "h5py",
-    "cloud_sptheme",
-    "sphinx_bootstrap_theme",
     "pycatch22"
 ]
 classifiers = [
@@ -56,3 +55,23 @@ repository = "https://github.com/Ziaeemehr/vbi_paper"
 
 [tool.hatch.version]
 path = "vbi/_version.py"
+
+
+[tool.setuptools]
+packages = { find = { where = ["vbi"] } }
+include-package-data = true
+
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+]
+
+docs = [
+    "sphinx",
+    "numpydoc",
+    "nbformat",
+    "nbsphinx",
+    "cloud_sptheme",
+    "sphinx_bootstrap_theme",
+]

@@ -11,6 +11,7 @@
     git clone https://github.com/Ziaeemehr/vbi.git
     cd vbi
     pip install .
+    # pip install -e .[dev,docs] # with all depencendies
 ```
 
 ### Optional dependencies

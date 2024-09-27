@@ -46,6 +46,6 @@ _%.so: %_wrap.o
 .PHONY: help clean all
 
 clean:
-	rm -rf *.o *.so *.pyc *_wrap.cpp
+	rm -rf *.o *.so *.pyc *_wrap.cpp *_wrap.cxx
 	rm -rf __pycache__
 	rm -rf *.py

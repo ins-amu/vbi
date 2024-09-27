@@ -9,6 +9,7 @@ _build/
 vbi.egg-info/
 html/
 */cpp/_src*.py
+*/cpp/_src/*.py
 .ipynb_checkpoints/
 latex/
 html/
