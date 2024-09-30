@@ -11,7 +11,6 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "vbi"
 version = "0.1.0"
-# dynamic = ['version']
 description = "Virtual brain inference."
 requires-python = ">=3.8"
 license = { text = "MIT" }
