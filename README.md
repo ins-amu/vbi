@@ -11,7 +11,8 @@
     git clone https://github.com/Ziaeemehr/vbi.git
     cd vbi
     pip install .
-    # pip install -e .[dev,docs] # with all depencendies
+
+    # pip install -e .[all,dev,docs,cu] # cu for GPU support
 ```
 
 ### Optional dependencies
