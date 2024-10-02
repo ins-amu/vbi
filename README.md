@@ -6,9 +6,9 @@
 ## installation
 
 ```bash
-    conda env create --file environment.yml --name vbi python=3.11
+    conda env create --name vbi python=3.11
     conda activate vbi
-    git clone https://github.com/Ziaeemehr/vbi.git
+    git clone https://github.com/ins-amu/vbi.git
     cd vbi
     pip install .
 
