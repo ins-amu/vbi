@@ -274,7 +274,7 @@ def get_fcd(
     return FCDs
 
 
-def get_fcd2(ts, wwidth, maxNwindows, olap, indices=[], verbose=False):
+def get_fcd2(ts, wwidth=30, maxNwindows=200, olap=0.94, indices=[], verbose=False):
     """
     Functional Connectivity Dynamics from the given of time series
 
@@ -295,18 +295,18 @@ def get_fcd2(ts, wwidth, maxNwindows, olap, indices=[], verbose=False):
     assert olap <= 1 and olap >= 0, "olap must be between 0 and 1"
 
     all_corr_matrix = []
-    lenseries = len(ts[0])
+    nt = len(ts[0]) # number of time points/ samples
 
     try:
         Nwindows = min(
-            ((lenseries - wwidth * olap) // (wwidth * (1 - olap)), maxNwindows)
+            ((nt - wwidth * olap) // (wwidth * (1 - olap)), maxNwindows)
         )
-        shift = int((lenseries - wwidth) // (Nwindows - 1))
+        shift = int((nt - wwidth) // (Nwindows - 1))
         if Nwindows == maxNwindows:
             wwidth = int(shift // (1 - olap))
 
-        indx_start = range(0, (lenseries - wwidth + 1), shift)
-        indx_stop = range(wwidth, (1 + lenseries), shift)
+        indx_start = range(0, (nt - wwidth + 1), shift)
+        indx_stop = range(wwidth, (1 + nt), shift)
 
         nnodes = ts.shape[0]
 

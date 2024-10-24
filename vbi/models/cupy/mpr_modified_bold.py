@@ -1,3 +1,4 @@
+import os
 import tqdm
 import logging
 import numpy as np
@@ -63,6 +64,8 @@ class MPR_sde:
         self.xp = get_module(self.engine)
         if self.seed is not None:
             self.xp.random.seed(self.seed)
+            
+        os.makedirs(self.output, exist_ok=True)
 
     def __call__(self):
         print("Montbrió, Pazó, Roxin model.")
@@ -276,9 +279,6 @@ class MPR_sde:
         n_steps = np.ceil(self.t_end / dt).astype(int)
         bold_decimate = int(np.round(tr / r_period))
         
-        # print(n_steps, rv_decimate, bold_decimate, r_period, dtt)
-        # exit(0)
-
         vo = self.vo
         k1 = 4.3 * self.theta0 * self.Eo * self.TE
         k2 = self.epsilon * self.r0 * self.Eo * self.TE
@@ -291,8 +291,8 @@ class MPR_sde:
         qtilde = xp.zeros((2, nn, ns), dtype=self.dtype)
         v = xp.zeros((2, nn, ns), dtype=self.dtype)
         q = xp.zeros((2, nn, ns), dtype=self.dtype)
-        vv = xp.zeros((n_steps // bold_decimate, nn, ns), dtype=self.dtype)
-        qq = xp.zeros((n_steps // bold_decimate, nn, ns), dtype=self.dtype)
+        vv = xp.zeros((n_steps // bold_decimate + 1, nn, ns), dtype=self.dtype)
+        qq = xp.zeros((n_steps // bold_decimate + 1, nn, ns), dtype=self.dtype)
         s[0] = 1
         f[0] = 1
         v[0] = 1
