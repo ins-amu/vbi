@@ -291,8 +291,8 @@ class MPR_sde:
         qtilde = xp.zeros((2, nn, ns), dtype=self.dtype)
         v = xp.zeros((2, nn, ns), dtype=self.dtype)
         q = xp.zeros((2, nn, ns), dtype=self.dtype)
-        vv = xp.zeros((n_steps // bold_decimate + 1, nn, ns), dtype=self.dtype)
-        qq = xp.zeros((n_steps // bold_decimate + 1, nn, ns), dtype=self.dtype)
+        vv = np.zeros((n_steps // bold_decimate + 1, nn, ns), dtype="f")
+        qq = np.zeros((n_steps // bold_decimate + 1, nn, ns), dtype="f")
         s[0] = 1
         f[0] = 1
         v[0] = 1
@@ -323,14 +323,14 @@ class MPR_sde:
                     rv_t[i // rv_decimate] = t_curr
 
             if i % bold_decimate == 0:
-                vv[i // bold_decimate] = v[1]
-                qq[i // bold_decimate] = q[1]
+                vv[i // bold_decimate] = get_(v[1], engine, "f") #v[1]
+                qq[i // bold_decimate] = get_(q[1], engine, "f") # q[1]
 
         bold_d = vo * (k1 * (1 - qq) + k2 * (1 - qq / vv) + k3 * (1 - vv))
         bold_t = np.linspace(0, self.t_end - dt * bold_decimate, len(bold_d))
         bold_t = bold_t * 10.0
         rv_t = np.asarray(rv_t).astype("f") * 10.0
-        bold_d = get_(bold_d, engine, "f")
+        # bold_d = get_(bold_d, engine, "f")
         
 
         return {
