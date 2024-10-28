@@ -15,7 +15,7 @@ def calc_features(
     fs: float,
     cfg: dict,
     preprocess=None,
-    preprocess_args: dict = None,
+    preprocess_args: dict = {},
     verbose: bool = False,
 ):
     """
@@ -152,7 +152,7 @@ def extract_features(
     dtype = kwargs.get("dtype", np.float32)
     verbose = kwargs.get("verbose", True)
     preprocess = kwargs.get("preprocess", None)
-    preprocess_args = kwargs.get("preprocess_args", None)
+    preprocess_args = kwargs.get("preprocess_args", {})
     n_trial = kwargs.get("n_trial", len(ts))
 
     def update_bar(verbose):
@@ -174,14 +174,14 @@ def extract_features(
     else:
 
         for i in range(n_trial):
-            _, labels, info = calc_features(
+            values, labels, info = calc_features(
                 ts[i],
                 fs,
                 cfg,
                 preprocess=preprocess,
                 preprocess_args=preprocess_args
             )
-            if info:
+            if not np.isnan(values).any():
                 break
         with Pool(processes=n_workers) as pool:
             with tqdm.tqdm(total=n_trial, disable=not verbose) as pbar:
