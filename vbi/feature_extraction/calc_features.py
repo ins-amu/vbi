@@ -162,26 +162,31 @@ def extract_features(
             pass
 
     # ts, n_trial = prepare_input(ts)
+    labels = None
+    info = None
 
     if n_workers == 1:
         features = []
-
         for i in tqdm.tqdm(range(n_trial), disable=not verbose):
-            fea, labels, info = calc_features(
+            values, _labels, _info = calc_features(
                 ts[i], fs, cfg, preprocess, preprocess_args
             )
-            features.append(np.array(fea).astype(dtype))
+            features.append(np.array(values).astype(dtype))
+            if (labels is None) and (not np.isnan(values).any()):
+                labels = _labels
+                info = _info
     else:
-
         for i in range(n_trial):
-            values, labels, info = calc_features(
+            values, _labels, _info = calc_features(
                 ts[i],
                 fs,
                 cfg,
                 preprocess=preprocess,
                 preprocess_args=preprocess_args
             )
-            if not np.isnan(values).any():
+            if (labels is None) and (not np.isnan(values).any()):
+                labels = _labels
+                info = _info
                 break
         with Pool(processes=n_workers) as pool:
             with tqdm.tqdm(total=n_trial, disable=not verbose) as pbar:
@@ -197,9 +202,10 @@ def extract_features(
                 features = [np.array(res.get()[0]).astype(dtype) for res in async_res]
 
     if output_type == "dataframe":
-        features = pd.DataFrame(features)
-        features.columns = labels
-        return features
+        df = pd.DataFrame(features)
+        if labels is not None:
+            df.columns = labels
+        return df
     elif output_type == "list":
         return features, labels
 
