@@ -264,7 +264,7 @@ def get_fcd(
 
     FCDs = {}
     for _, key in enumerate(masks.keys()):
-        mask = masks[key]
+        mask = masks[key].astype(np.float64)
         mask *= np.triu(mask_full, k=1)
         nonzero_idx = np.nonzero(mask)
         fc_stream_masked = fc_stream[:, nonzero_idx[0], nonzero_idx[1]]
