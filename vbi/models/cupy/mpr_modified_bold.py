@@ -314,6 +314,7 @@ class MPR_sde:
         if self.RECORD_AVG_r:
             avg_r = np.zeros((nn, ns), dtype="f")
             
+        cc = 0
         for i in tqdm.trange(n_steps, disable=not verbose, desc="Integrating"):
 
             t_curr = i * dt
@@ -328,8 +329,9 @@ class MPR_sde:
                     rv_d[i // rv_decimate] = get_(rv_curr, engine, "f")
                     rv_t[i // rv_decimate] = t_curr
                     
-                if self.RECORD_AVG_r:
+                if self.RECORD_AVG_r and i > n_steps // 2 :
                     avg_r += get_(rv_curr[:nn, :], engine, "f")
+                    cc +=1
 
             if i % bold_decimate == 0:
                 vv[i // bold_decimate] = get_(v[1], engine, "f") #v[1]
@@ -339,7 +341,7 @@ class MPR_sde:
         bold_t = np.linspace(0, self.t_end - dt * bold_decimate, len(bold_d))
         bold_t = bold_t * 10.0
         rv_t = np.asarray(rv_t).astype("f") * 10.0
-        avg_r = avg_r / (n_steps // rv_decimate)
+        avg_r = avg_r / cc
 
         return {
             "rv_t": rv_t,
