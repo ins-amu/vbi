@@ -172,6 +172,7 @@ class MPR_sde:
         self.t_cut = self.t_cut / 10.0
         self.eta = prepare_vec(self.eta, self.num_sim, self.engine, self.dtype)
         self.J = prepare_vec(self.J, self.num_sim, self.engine, self.dtype)
+        self.delta = prepare_vec(self.delta, self.num_sim, self.engine, self.dtype)
 
     def f_mpr(self, x, t):
         """
@@ -192,12 +193,12 @@ class MPR_sde:
         x0 = x[:nn, :]
         x1 = x[nn:, :]
         dxdt = xp.zeros((2 * nn, ns)).astype(self.dtype)
-        delta_over_tau_pi = delta / (tau * np.pi)
+        tau_pi_inv = 1.0 / (tau * np.pi)
         pi2 = np.pi * np.pi
         tau2 = tau * tau
 
         coupling = weights @ x0
-        dxdt[:nn, :] = rtau * (delta_over_tau_pi + 2 * x0 * x1)
+        dxdt[:nn, :] = rtau * (delta * tau_pi_inv + 2 * x0 * x1)
         dxdt[nn:, :] = rtau * (
             x1 * x1 + eta + iapp + J * tau * x0 - (pi2 * tau2 * x0 * x0) + G * coupling
         )
