@@ -305,6 +305,7 @@ class MPR_sde:
         rv_curr = copy(self.initial_state)
         rv_d = np.array([])
         rv_t = np.array([])
+        avg_r = np.array([])
 
         if self.RECORD_RV:
             rv_d = np.zeros((n_steps // rv_decimate, 2 * nn, ns), dtype="f")
