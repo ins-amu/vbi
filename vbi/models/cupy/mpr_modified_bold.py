@@ -133,6 +133,7 @@ class MPR_sde:
             "output": "output",  # output directory
             "RECORD_RV": False,  # store r and v time series
             "RECORD_BOLD": True,  # store BOLD signal
+            "RECORD_AVG_r": False, # store average_r 
             "num_sim": 1,
             "method": "heun",
             "engine": "cpu",
@@ -309,6 +310,9 @@ class MPR_sde:
             rv_d = np.zeros((n_steps // rv_decimate, 2 * nn, ns), dtype="f")
             rv_t = np.zeros((n_steps // rv_decimate), dtype="f")
             
+        if self.RECORD_AVG_r:
+            avg_r = np.zeros((nn, ns), dtype="f")
+            
         for i in tqdm.trange(n_steps, disable=not verbose, desc="Integrating"):
 
             t_curr = i * dt
@@ -322,6 +326,9 @@ class MPR_sde:
                 if self.RECORD_RV:
                     rv_d[i // rv_decimate] = get_(rv_curr, engine, "f")
                     rv_t[i // rv_decimate] = t_curr
+                    
+                if self.RECORD_AVG_r:
+                    avg_r += get_(rv_curr[:nn, :], engine, "f")
 
             if i % bold_decimate == 0:
                 vv[i // bold_decimate] = get_(v[1], engine, "f") #v[1]
@@ -331,14 +338,14 @@ class MPR_sde:
         bold_t = np.linspace(0, self.t_end - dt * bold_decimate, len(bold_d))
         bold_t = bold_t * 10.0
         rv_t = np.asarray(rv_t).astype("f") * 10.0
-        # bold_d = get_(bold_d, engine, "f")
-        
+        avg_r = avg_r / (n_steps // rv_decimate)
 
         return {
             "rv_t": rv_t,
             "rv_d": rv_d,
             "fmri_t": bold_t,
             "fmri_d": bold_d,
+            "avg_r": avg_r,
         }
 
 
