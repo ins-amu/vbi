@@ -38,3 +38,5 @@ _e/
 tt.ipynb
 *.egg
 examples_dev/
+
+vbi/models/cupy/_mpr.py
