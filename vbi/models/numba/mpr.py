@@ -88,9 +88,10 @@ def integrate(P, B):
 
     nn = P.nn
     tr = P.tr
-    rv_decimate = P.rv_decimate
     dt = P.dt
-    r_period = P.dt * rv_decimate  #
+    dt = P.dt
+    rv_decimate = P.rv_decimate
+    r_period = P.dt * rv_decimate
     bold_decimate = int(np.round(tr / r_period))
 
     dtt = r_period / 1000.0  # in seconds
@@ -284,7 +285,7 @@ class ParMPR:
         eta=np.array([-4.6]),
         tau=1.0,
         delta=0.7,
-        rv_decimate=10,
+        rv_decimate=1.0,
         noise_amp=0.037,
         weights=np.array([[], []]),
         t_init=0.0,

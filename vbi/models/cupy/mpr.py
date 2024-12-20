@@ -278,7 +278,7 @@ class MPR_sde:
         nn = self.num_nodes
         engine = self.engine
 
-        n_steps = np.ceil(self.t_end / dt).astype(int)
+        n_steps = int(self.t_end / dt)
         bold_decimate = int(np.round(tr / r_period))
         
         vo = self.vo
@@ -293,8 +293,8 @@ class MPR_sde:
         qtilde = xp.zeros((2, nn, ns), dtype=self.dtype)
         v = xp.zeros((2, nn, ns), dtype=self.dtype)
         q = xp.zeros((2, nn, ns), dtype=self.dtype)
-        vv = np.zeros((n_steps // bold_decimate + 1, nn, ns), dtype="f")
-        qq = np.zeros((n_steps // bold_decimate + 1, nn, ns), dtype="f")
+        vv = np.zeros((n_steps // bold_decimate, nn, ns), dtype="f")
+        qq = np.zeros((n_steps // bold_decimate, nn, ns), dtype="f")
         s[0] = 1
         f[0] = 1
         v[0] = 1
@@ -315,7 +315,7 @@ class MPR_sde:
             avg_r = np.zeros((nn, ns), dtype="f")
             
         cc = 0
-        for i in tqdm.trange(n_steps, disable=not verbose, desc="Integrating"):
+        for i in tqdm.trange(n_steps-1, disable=not verbose, desc="Integrating"):
 
             t_curr = i * dt
             self.heunStochastic(rv_curr, t_curr, dt)
@@ -333,9 +333,9 @@ class MPR_sde:
                     avg_r += get_(rv_curr[:nn, :], engine, "f")
                     cc +=1
 
-            if i % bold_decimate == 0:
-                vv[i // bold_decimate] = get_(v[1], engine, "f") #v[1]
-                qq[i // bold_decimate] = get_(q[1], engine, "f") # q[1]
+            if (i % bold_decimate == 0) and ((i // bold_decimate) < vv.shape[0]):
+                vv[i // bold_decimate] = get_(v[1], engine, "f")
+                qq[i // bold_decimate] = get_(q[1], engine, "f")
 
         bold_d = vo * (k1 * (1 - qq) + k2 * (1 - qq / vv) + k3 * (1 - vv))
         bold_t = np.linspace(0, self.t_end - dt * bold_decimate, len(bold_d))
