@@ -64,7 +64,7 @@ class MPR_sde:
         self.xp = get_module(self.engine)
         if self.seed is not None:
             self.xp.random.seed(self.seed)
-            
+
         os.makedirs(self.output, exist_ok=True)
 
     def __call__(self):
@@ -133,7 +133,7 @@ class MPR_sde:
             "output": "output",  # output directory
             "RECORD_RV": False,  # store r and v time series
             "RECORD_BOLD": True,  # store BOLD signal
-            "RECORD_AVG_r": False, # store average_r 
+            "RECORD_AVG_r": False,  # store average_r
             "num_sim": 1,
             "method": "heun",
             "engine": "cpu",
@@ -230,13 +230,13 @@ class MPR_sde:
         y[:nn, :] += dW_r
         y[:nn, :] = (y[:nn, :] > 0) * y[:nn, :]  # set zero if negative
         y[nn:, :] += dW_v
-        
+
     @staticmethod
     def do_bold_step(r_in, s, f, ftilde, vtilde, qtilde, v, q, dtt, P):
-    
+
         kappa, gamma, alpha, tau, Eo = P
         ialpha = 1 / alpha
-        
+
         s[1] = s[0] + dtt * (r_in - kappa * s[0] - gamma * (f[0] - 1))
         f[0] = np.clip(f[0], 1, None)
         ftilde[1] = ftilde[0] + dtt * (s[0] / f[0])
@@ -257,7 +257,6 @@ class MPR_sde:
         qtilde[0] = qtilde[1]
         v[0] = v[1]
         q[0] = q[1]
-
 
     def sync_(self, engine="gpu"):
         if engine == "gpu":
@@ -280,7 +279,7 @@ class MPR_sde:
 
         n_steps = int(self.t_end / dt)
         bold_decimate = int(np.round(tr / r_period))
-        
+
         vo = self.vo
         k1 = 4.3 * self.theta0 * self.Eo * self.TE
         k2 = self.epsilon * self.r0 * self.Eo * self.TE
@@ -306,40 +305,53 @@ class MPR_sde:
         rv_d = np.array([])
         rv_t = np.array([])
         avg_r = np.array([])
+        bold_d = np.array([])
+        bold_t = np.array([])
 
         if self.RECORD_RV:
             rv_d = np.zeros((n_steps // rv_decimate, 2 * nn, ns), dtype="f")
             rv_t = np.zeros((n_steps // rv_decimate), dtype="f")
-            
+
         if self.RECORD_AVG_r:
             avg_r = np.zeros((nn, ns), dtype="f")
-            
+
         cc = 0
-        for i in tqdm.trange(n_steps-1, disable=not verbose, desc="Integrating"):
+        for i in tqdm.trange(n_steps - 1, disable=not verbose, desc="Integrating"):
 
             t_curr = i * dt
             self.heunStochastic(rv_curr, t_curr, dt)
-            self.do_bold_step(rv_curr[:nn, :], s, f, ftilde, vtilde, qtilde, v, q, dtt,
-                         [self.kappa, self.gamma, self.alpha, self.tau, self.Eo])
-            # self.sync_(engine)
 
             if (i % rv_decimate) == 0:
 
                 if self.RECORD_RV:
                     rv_d[i // rv_decimate] = get_(rv_curr, engine, "f")
                     rv_t[i // rv_decimate] = t_curr
-                    
-                if self.RECORD_AVG_r and i > n_steps // 2 :
+
+                if self.RECORD_AVG_r and i > n_steps // 2:
                     avg_r += get_(rv_curr[:nn, :], engine, "f")
-                    cc +=1
+                    cc += 1
 
-            if (i % bold_decimate == 0) and ((i // bold_decimate) < vv.shape[0]):
-                vv[i // bold_decimate] = get_(v[1], engine, "f")
-                qq[i // bold_decimate] = get_(q[1], engine, "f")
+            if self.RECORD_BOLD:
+                self.do_bold_step(
+                    rv_curr[:nn, :],
+                    s,
+                    f,
+                    ftilde,
+                    vtilde,
+                    qtilde,
+                    v,
+                    q,
+                    dtt,
+                    [self.kappa, self.gamma, self.alpha, self.tau, self.Eo],
+                )
+                if (i % bold_decimate == 0) and ((i // bold_decimate) < vv.shape[0]):
+                    vv[i // bold_decimate] = get_(v[1], engine, "f")
+                    qq[i // bold_decimate] = get_(q[1], engine, "f")
 
-        bold_d = vo * (k1 * (1 - qq) + k2 * (1 - qq / vv) + k3 * (1 - vv))
-        bold_t = np.linspace(0, self.t_end - dt * bold_decimate, len(bold_d))
-        bold_t = bold_t * 10.0
+        if self.RECORD_BOLD:
+            bold_d = vo * (k1 * (1 - qq) + k2 * (1 - qq / vv) + k3 * (1 - vv))
+            bold_t = np.linspace(0, self.t_end - dt * bold_decimate, len(bold_d))
+            bold_t = bold_t * 10.0
         rv_t = np.asarray(rv_t).astype("f") * 10.0
         avg_r = avg_r / cc
 
@@ -387,5 +399,3 @@ def set_initial_state(nn, ns, engine, seed=None, same_initial_state=False, dtype
     y0[nn:, :] = y0[nn:, :] * 4 - 2
 
     return y0.astype(dtype)
-
-

@@ -117,6 +117,8 @@ def integrate(P, B):
 
     def compute():
 
+        bold_d = np.array([])
+        bold_t = np.array([])
         s = np.zeros((2, nn))
         f = np.zeros((2, nn))
         ftilde = np.zeros((2, nn))
@@ -147,7 +149,7 @@ def integrate(P, B):
                 do_bold_step(
                     rv_current[:nn], s, f, ftilde, vtilde, qtilde, v, q, dtt, B
                 )
-                if (i % bold_decimate) == 0:
+                if (i % bold_decimate == 0) and ((i // bold_decimate) < vv.shape[0]):
                     vv[i // bold_decimate] = v[1]
                     qq[i // bold_decimate] = q[1]
 
