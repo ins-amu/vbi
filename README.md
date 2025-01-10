@@ -15,11 +15,3 @@
     # pip install -e .[all,dev,docs,cu] # cu for GPU support
 ```
 
-### Optional dependencies
-
-`swig` need to be installed for using models implemented in C++ .
-
-```bash
-    sudo apt-get install swig
-    sudo apt-get install python3-dev 
-```
