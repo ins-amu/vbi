@@ -11,6 +11,8 @@ except ImportError:
     logging.warning("Cupy is not installed. Using Numpy instead.")
 
 
+#!TODO: Add BoldParams class seperately
+
 class MPR_sde:
     """
     Montbrio-Pazo-Roxin model Cupy and Numpy implementation.

@@ -2,21 +2,15 @@ import numpy as np
 from typing import Union
 from copy import deepcopy
 from vbi.models.cpp._src.mpr_sde import MPR_sde as _MPR_sde
+from vbi.models.cpp._src.mpr_sde import BoldParams as _BoldParams
 
 
 class MPR_sde:
     """
-    Montbrio-Pazo-Roxin model C++ implementation.
-
-    Parameters
-    ----------
-    par : dict
-        Dictionary of parameters.
-
-
+    MPR model
     """
 
-    def __init__(self, par: dict = {}) -> None:
+    def __init__(self, par: dict = {}, parbold={}) -> None:
 
         par = deepcopy(par)
         self._par = self.get_default_parameters()
@@ -35,7 +29,7 @@ class MPR_sde:
         if self.initial_state is None:
             self.INITIAL_STATE_SET = False
 
-    # -------------------------------------------------------------------------
+        self.BP = BoldParams(parbold)
 
     def set_initial_state(self):
         self.num_nodes = self.weights.shape[0]
@@ -75,30 +69,22 @@ class MPR_sde:
             "eta": -4.6,  # model parameter
             "tau": 1.0,  # model parameter
             "delta": 0.7,  # model parameter
-            "decimate": 500,  # sampling from mpr time series
+            "tr": 500,  # sampling from mpr time series
+            "rv_decimate": 10,  # sampling from activity time series
             "noise_amp": 0.037,  # amplitude of noise
             "noise_seed": 0,  # fix seed for noise
             "iapp": 0.0,  # constant applyed current
             "seed": None,
-            "square_wave_stimulation": 0,
-            "sti_indices": [],  # indices of stimulated nodes
-            # "alpha_sc": 0.0,  # interhemispheric mask gain
-            # "beta_sc": 0.0,  # region mask gain
             "initial_state": None,  # initial condition of the system
-            "t_start": 0.0,  # initial time * 10[ms]
             "t_cut": 0.5 * 60 * 1000,  # transition time [ms]
             "t_end": 5 * 60 * 1000.0,  # end time  [ms]
             "weights": None,  # weighted connection matrix
-            # "weights_A": None,  # weighted connection matrix
-            # "weights_B": None,  # weighted connection matrix
-            "record_step": 10,  # sampling every n step from mpr time series
             "output": "output",  # output directory
-            "RECORD_AVG": 0,  # true to store large time series in file
+            "RECORD_R": 0,  # true to store large time series in file
+            "RECORD_BOLD": 1,
         }
 
         return params
-
-    # -------------------------------------------------------------------------
 
     def prepare_input(self):
         """
@@ -107,41 +93,25 @@ class MPR_sde:
 
         self.dt = float(self.dt)
         self.dt_bold = float(self.dt_bold)
-        self.decimate = int(self.decimate)
+        self.tr = float(self.tr)
         self.initial_state = np.asarray(self.initial_state).astype(np.float64)
         self.weights = np.asarray(self.weights).astype(np.float64)
         self.num_nodes = self.weights.shape[0]
-        # if self.weights_A is None:
-        #     self.weights_A = np.zeros_like(self.weights)
-        # self.weights_A = np.asarray(self.weights_A).astype(np.float64)
-        # if self.weights_B is None:
-        #     self.weights_B = np.zeros_like(self.weights)
-        # self.weights_B = np.asarray(self.weights_B).astype(np.float64)
         self.G = float(self.G)
-        self.eta = check_sequence(self.eta, self.num_nodes)  # check eta be array-like
+        self.eta = check_sequence(self.eta, self.num_nodes)
         self.eta = np.asarray(self.eta).astype(np.float64)
-        # self.alpha_sc = float(self.alpha_sc)
-        # self.beta_sc = float(self.beta_sc)
-        
-        #!TODO check sti_indices be array-like
-        #!TODO add sti_ti for initial time of stimulation
-        #!TODO add sti_duration for duration of stimulation
-        #!TODO add sti_amp for amplitude of stimulation as an array of shape (nn,)
-        #!TODO add sti_gain for grain of stimulation as scalar
-        self.J = float(self.J)
-        self.tau = float(self.tau)
-        self.delta = float(self.delta)
-        self.iapp = float(self.iapp)
-        self.square_wave_stimulation = int(self.square_wave_stimulation)
+
+        self.J = check_sequence(self.J, self.num_nodes)
+        self.tau = check_sequence(self.tau, self.num_nodes)
+        self.delta = check_sequence(self.delta, self.num_nodes)
+        self.iapp = check_sequence(self.iapp, self.num_nodes)
         self.noise_amp = float(self.noise_amp)
-        self.record_step = int(self.record_step)
-        self.t_start = float(self.t_start) / 10.0
+        self.rv_decimate = int(self.rv_decimate)
         self.t_cut = float(self.t_cut) / 10.0
         self.t_end = float(self.t_end) / 10.0
-        self.RECORD_AVG = int(self.RECORD_AVG)
+        self.RECORD_R = int(self.RECORD_R)
+        self.RECORD_BOLD = int(self.RECORD_BOLD)
         self.noise_seed = int(self.noise_seed)
-
-    # -------------------------------------------------------------------------
 
     def run(self, par: dict = {}, x0: np.ndarray = None, verbose: bool = False):
         """
@@ -175,9 +145,6 @@ class MPR_sde:
         for key in par.keys():
             if key not in self.valid_parameters:
                 raise ValueError(f"Invalid parameter {key:s} provided.")
-            # if key in ['eta']:
-            #     self.set_eta(key, par[key])
-            # else:
             setattr(self, key, par[key])
 
         self.prepare_input()
@@ -185,39 +152,101 @@ class MPR_sde:
         obj = _MPR_sde(
             self.dt,
             self.dt_bold,
-            self.decimate,
-            self.initial_state,
+            self.rv_decimate,
             self.weights,
-            # self.weights_A,
-            # self.weights_B,
-            self.G,
-            self.eta,
-            # self.alpha_sc,
-            # self.beta_sc,
-            [int(i) for i in self.sti_indices],
-            self.J,
-            self.tau,
+            self.initial_state,
             self.delta,
+            self.tau,
+            self.eta,
+            self.J,
             self.iapp,
-            int(self.square_wave_stimulation),
             self.noise_amp,
-            self.record_step,
-            self.t_start,
-            0.0,  # self.t_cut,
+            self.G,
             self.t_end,
-            self.RECORD_AVG,
+            self.t_cut,
+            self.tr,
+            self.RECORD_R,
+            self.RECORD_BOLD,
             self.noise_seed,
+            self.BP.get_params()
         )
 
-        obj.heunStochasticIntegrate()
-        bold = np.asarray(obj.get_bold()).astype(np.float32).T
-        t = np.asarray(obj.get_time())
+        obj.integrate()
 
-        if bold.ndim == 2:
-            bold = bold[:, t >= self.t_cut]
-            t = t[t >= self.t_cut] * 10.0  # [ms]
+        bold_d = np.array([])
+        bold_t = np.array([])
+        r_d = np.array([])
+        r_t = np.array([])
 
-        return {"t": t, "x": bold}
+        if self.RECORD_BOLD:
+            bold_d = np.asarray(obj.get_bold_d()).astype(np.float32).T
+            bold_t = np.asarray(obj.get_bold_t())
+
+        if self.RECORD_R:
+            r_d = np.asarray(obj.get_r_d()).astype(np.float32).T
+            r_t = np.asarray(obj.get_r_t())
+            # if bold_d.ndim == 2:
+            # bold_d = bold_d[:, r_t >= self.t_cut]
+            # r_t = r_t[r_t >= self.t_cut] * 10.0
+
+        return {
+            "r_t": r_t,
+            "r_d": r_d,
+            "bold_t": bold_t,
+            "bold_d": bold_d,
+        }
+
+
+class BoldParams:
+
+    def __init__(self, par={}):
+
+        self._par = self.get_default_parameters()
+        self.valid_parameters = list(self._par.keys())
+        self.check_parameters(par)
+        self._par.update(par)
+
+        for item in self._par.items():
+            name = item[0]
+            value = item[1]
+            setattr(self, name, value)
+
+    def check_parameters(self, par):
+        for key in par.keys():
+            if key not in self.valid_parameters:
+                raise ValueError(f"Invalid parameter {key:s} provided.")
+
+    def get_default_parameters(self):
+        return {
+            "kappa": 0.7,
+            "gamma": 0.5,
+            "tau": 1.0,
+            "alpha": 0.35,
+            "epsilon": 0.36,
+            "Eo": 0.42,
+            "TE": 0.05,
+            "vo": 0.09,
+            "r0": 26.0,
+            "theta0": 41.0,
+            "rtol": 1e-6,
+            "atol": 1e-9,
+        }
+
+    def get_params(self):
+        bp = _BoldParams()
+        bp.kappa = self.kappa
+        bp.gamma = self.gamma
+        bp.tau = self.tau
+        bp.alpha = self.alpha
+        bp.epsilon = self.epsilon
+        bp.Eo = self.Eo
+        bp.TE = self.TE
+        bp.vo = self.vo
+        bp.r0 = self.r0
+        bp.theta0 = self.theta0
+        bp.rtol = self.rtol
+        bp.atol = self.atol
+        return bp
 
 
 def check_sequence(x: Union[int, float, np.ndarray], n: int):
