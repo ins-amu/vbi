@@ -16,6 +16,7 @@ html/
 
 sbi-logs/
 e/
+e_*/
 _e/
 */*/*/_src/*.py
 
@@ -38,3 +39,5 @@ _e/
 tt.ipynb
 *.egg
 examples_dev/
+
+vbi/models/cupy/_mpr.py

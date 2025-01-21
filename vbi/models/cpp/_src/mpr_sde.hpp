@@ -9,7 +9,6 @@
 #include <assert.h>
 #include <iostream>
 #include "utility.hpp"
-#include "bold.hpp"
 
 using std::string;
 using std::vector;
@@ -19,164 +18,177 @@ typedef std::vector<dim1> dim2;
 typedef std::vector<float> dim1f;
 typedef std::vector<dim1f> dim2f;
 
+struct BoldParams
+{
+    double kappa = 0.65;
+    double gamma = 0.41;
+    double tau = 0.98;
+    double alpha = 0.32;
+    double epsilon = 0.34;
+    double Eo = 0.4;
+    double TE = 0.04;
+    double vo = 0.08;
+    double r0 = 25.0;
+    double theta0 = 40.3;
+    double rtol = 1e-5;
+    double atol = 1e-8;
+    double dt_b = 0.001;
+    double K1 = 4.3 * theta0 * Eo * TE;
+    double K2 = epsilon * r0 * Eo * TE;
+    double K3 = 1 - epsilon;
+    double ialpha = 1 / alpha;
+
+    BoldParams() = default;
+
+    BoldParams(double kappa, double gamma, double tau,
+               double alpha, double epsilon, double Eo, double TE,
+               double vo, double r0, double theta0, double rtol,
+               double atol) : kappa(kappa), gamma(gamma), tau(tau),
+                              alpha(alpha), epsilon(epsilon), Eo(Eo),
+                              TE(TE), vo(vo), r0(r0), theta0(theta0),
+                              rtol(rtol), atol(atol)
+    {
+        K1 = 4.3 * theta0 * Eo * TE;
+        K2 = epsilon * r0 * Eo * TE;
+        K3 = 1 - epsilon;
+        ialpha = 1 / alpha;
+    }
+};
+
 class MPR_sde
 {
+
 private:
-    double delta;
-    dim1 iapp;
-    double tau;
+    dim1 delta;
+    dim1 tau;
     dim1 eta;
+    dim1 J;
+    dim1 i_app;
     double dt;
-    double J;
+    double dt_b;
     double G;
-    size_t decimate;
-    BOLD_4D boldObj;
 
     double rNoise;
     double vNoise;
+    double noise_amp;
 
     size_t num_nodes;
     size_t num_steps;
-    size_t record_step;
-    size_t index_transition;
-    size_t RECORD_AVG;
-    int APPLY_STIMULATION; // to apply stimulation
+    size_t r_decimate;
+    size_t idx_cut;
+    unsigned RECORD_R;
+    unsigned RECORD_BOLD;
 
-    double t_final;
-    double t_initial;
-    double t_transition;
+    double t_end;
+    double t_cut;
+    double tr; // TR: repetition time [time interval for bold sampling]
     vector<vector<unsigned>> adjlist;
 
-    dim2 adj;
-    dim2 adj_A;
-    dim2 adj_B;
-    dim1 times;
+    dim2 weights;
+    dim1 t_arr;
     int fix_seed;
     dim1 initial_state;
-    vector<int> sti_indices; // indices of nodes to be stimulated
-    double sti_amplitude;
+    BoldParams bp;
 
 public:
-    dim2 bold_buffer;
-    dim1 time_buffer;
+    dim2 bold_d;
+    dim1 bold_t;
+    dim2 r_d;
+    dim1 r_t;
 
     MPR_sde(double dt,
-            double dt_bold,
-            size_t decimate,
-            dim1 y,
-            dim2 adj,
-            double G,
+            double dt_b,
+            size_t r_decimate,
+            dim2 weights,
+            dim1 initial_state,
+            dim1 delta,
+            dim1 tau,
             dim1 eta,
-            dim1 sti_indices_,
-            double J = 14.5,
-            double tau = 1.0,
-            double delta = 0.7,
-            double i_app = 0.0,
-            int apply_sti = 0, // to apply stimulation
-            double noise_amp = 0.35,
-            size_t record_step = 10,
-            double t_initial = 0.0,
-            double t_transition = 10.0,
-            double t_final = 4000.0,
-            size_t RECORD_AVG = 0,
-            int fix_seed = 0) : dt(dt),
-                                G(G),
-                                eta(eta),
-                                J(J),
-                                tau(tau),
-                                delta(delta),
-                                boldObj(int(y.size() / 2), dt_bold)
+            dim1 J,
+            dim1 i_app,
+            double noise_amp,
+            double G,
+            double t_end,
+            double t_cut,
+            double tr,
+            size_t RECORD_R,
+            size_t RECORD_BOLD,
+            int fix_seed,
+            const BoldParams& bp) : dt(dt),
+                            dt_b(dt_b),
+                            G(G),
+                            delta(delta),
+                            tau(tau),
+                            eta(eta),
+                            J(J),
+                            t_end(t_end),
+                            t_cut(t_cut),
+                            tr(tr),
+                            RECORD_R(RECORD_R),
+                            RECORD_BOLD(RECORD_BOLD),
+                            fix_seed(fix_seed),
+                            weights(weights),
+                            initial_state(initial_state),
+                            r_decimate(r_decimate),
+                            noise_amp(noise_amp),
+                            i_app(i_app)
+
     {
+        assert(t_end > t_cut);
+        assert(tr > 0);
+        assert(r_decimate > 0);
 
-        assert(t_final > t_initial);
-        assert(t_final > t_transition);
-
-        this->adj = adj;
-        this->t_final = t_final;
-        this->t_initial = t_initial;
-        this->record_step = record_step;
-        this->t_transition = t_transition;
-        this->decimate = decimate;
-        this->RECORD_AVG = RECORD_AVG;
-        this->APPLY_STIMULATION = apply_sti;
-        this->fix_seed = fix_seed;
-        // this->sti_indices = sti_indices;
-        initial_state = y;
-
-        if (sti_indices_.size() > 0)
-        {
-            sti_indices.resize(sti_indices_.size());
-            for (int i = 0; i < sti_indices_.size(); i++)
-                sti_indices[i] = int(sti_indices_[i]);
-        }
-        else
-            sti_indices.resize(0);
-
-        num_nodes = adj.size();
-        num_steps = int((t_final - t_initial) / dt);
-        index_transition = int(t_transition / dt);
-
-        // consistent with the TVB
+        num_nodes = weights.size();
+        num_steps = int((t_end) / dt);
+        idx_cut = int((t_cut) / dt);
         rNoise = sqrt(dt) * sqrt(2 * noise_amp);
-        vNoise = sqrt(dt) * sqrt(2 * 2 * noise_amp);
+        adjlist = adjmat_to_adjlist(weights);
 
-        adjlist = adjmat_to_adjlist(adj);
-
-        // preaparing input current vector if stimulation is applied
-        iapp.resize(num_nodes);
-        std::fill(this->iapp.begin(), this->iapp.end(), 0.0);
-        if (apply_sti)
-            sti_amplitude = i_app;
     }
-    // ------------------------------------------------------------------------
-    void derivative(
-        const vector<double> &x,
-        vector<double> &dxdt,
+
+    void f_mpr(
+        const dim1 &x,
+        dim1 &dxdt,
         const double t)
     {
-        size_t N = num_nodes;
+        size_t nn = num_nodes;
+        double p2 = M_PI * M_PI;
 
-        double rtau = 1.0 / tau;
-        double tau2 = tau * tau;
-        double PI2 = M_PI * M_PI;
-        double delta_over_tau_pi = delta / (tau * M_PI);
-        double J_tau = J * tau;
-
-        for (size_t i = 0; i < N; ++i)
+        for (unsigned i = 0; i < nn; i++)
         {
-            double CP0 = 0;
-            for (size_t j = 0; j < adjlist[i].size(); ++j)
+            double cpl = 0;
+            for (unsigned j = 0; j < adjlist[i].size(); j++)
             {
-                int k = adjlist[i][j];
-                CP0 += adj[i][k] * x[k];
+                unsigned k = adjlist[i][j];
+                cpl += weights[i][k] * x[k];
             }
-            dxdt[i] = rtau * (delta_over_tau_pi + 2 * x[i] * x[i + N]);
-            dxdt[i + N] = rtau * (x[i + N] * x[i + N] + eta[i] + iapp[i] + J_tau * x[i] - (PI2 * tau2 * x[i] * x[i]) + G * CP0);
+            dxdt[i] = 1.0 / tau[i] * (delta[i] / (tau[i] * M_PI) + 2 * x[i] * x[i + nn]);
+            dxdt[i + nn] = 1.0 / tau[i] * (x[i + nn] * x[i + nn] + i_app[i] + eta[i] + J[i] * tau[i] * x[i] - (p2 * tau[i] * tau[i] * x[i] * x[i]) + G * cpl);
         }
     }
-    // ------------------------------------------------------------------------
-    void heun(dim1 &y, const double t)
+
+    void heun_step(dim1 &y, const double t)
     {
         std::normal_distribution<> normal(0, 1);
 
         size_t nn = 2 * num_nodes;
-        size_t N = num_nodes;
+        size_t n = num_nodes;
         dim1 tmp(nn);
         dim1 k1(nn);
         dim1 k2(nn);
 
-        derivative(y, k1, t);
+        f_mpr(y, k1, t);
 
         for (size_t i = 0; i < nn; ++i)
-            if (i < N)
+            if (i < n)
                 tmp[i] = y[i] + dt * k1[i] + rNoise * normal(rng(fix_seed));
             else
                 tmp[i] = y[i] + dt * k1[i] + vNoise * normal(rng(fix_seed));
 
-        derivative(tmp, k2, t + dt);
+        f_mpr(tmp, k2, t + dt);
         for (size_t i = 0; i < nn; ++i)
         {
-            if (i < N)
+            if (i < n)
             {
                 y[i] += 0.5 * dt * (k1[i] + k2[i]) + rNoise * normal(rng(fix_seed));
                 if (y[i] < 0)
@@ -186,103 +198,141 @@ public:
                 y[i] += 0.5 * dt * (k1[i] + k2[i]) + vNoise * normal(rng(fix_seed));
         }
     }
-    // ------------------------------------------------------------------------
-    void heunStochasticIntegrate()
+
+    void bold_step(
+        const dim1 &r_in,
+        dim2 &s,
+        dim2 &f,
+        dim2 &ftilde,
+        dim2 &vtilde,
+        dim2 &qtilde,
+        dim2 &v,
+        dim2 &q)
     {
-        size_t nn = 2 * num_nodes;
-        size_t N = num_nodes;
-        dim1 k1(nn);
-        dim1 k2(nn);
-        dim1 tmp(nn);
-        dim1 y = initial_state;
+        unsigned n = num_nodes;
+        double dtt = dt_b;
 
-        size_t counter = 0;
-        size_t buffer_counter = 0;
-
-        //---------------------------------------------------------------------
-        dim1 y_tmp(4 * N, 1.0);
-        for (size_t i = 0; i < N; ++i)
-            y_tmp[i] = 0.0;
-        // Stimulation parameters ---------------------------------------------
-        int sti_interval = int(1.0 / dt * decimate);        // interval between stimulation
-        int sti_duration = int(sti_interval / record_step); // stimulus duration
-        int sti_aux = 0;                                    // auxulary variable for counting the stimulus duration
-        bool sti_state = false;
-
-        for (int itr = 1; itr < num_steps + 1; ++itr)
+        for (int i = 0; i < n; i++)
         {
-            double t = itr * dt;
+            s[1][i] = s[0][i] + dtt * (r_in[i] - bp.kappa * s[0][i] - bp.gamma * (f[0][i] - 1));
+            f[0][i] = std::max(f[0][i], 1.0);
+            ftilde[1][i] = ftilde[0][i] + dtt * (s[0][i] / f[0][i]);
+            double fv = pow(v[0][i], bp.ialpha);
+            vtilde[1][i] = vtilde[0][i] + dtt * ((f[0][i] - fv) / (bp.tau * v[0][i]));
+            q[0][i] = std::max(q[0][i], 0.01);
+            double ff = (1 - pow((1 - bp.Eo), 1 / f[0][i])) / bp.Eo;
+            qtilde[1][i] = qtilde[0][i] + dtt * ((f[0][i] * ff - fv * q[0][i] / v[0][i]) / (bp.tau * q[0][i]));
 
-            if (APPLY_STIMULATION) // apply stimulation
-            {
-                if ((itr % sti_interval) == 0)
-                {
-                    fill_vector(iapp, sti_indices, sti_amplitude);
-                    sti_aux = sti_duration;
-                    sti_state = true;
-                }
+            f[1][i] = exp(ftilde[1][i]);
+            v[1][i] = exp(vtilde[1][i]);
+            q[1][i] = exp(qtilde[1][i]);
 
-                if (sti_aux > 0)
-                    --sti_aux;
-                else if ((sti_aux == 0) && (sti_state))
-                {
-                    fill(iapp.begin(), iapp.end(), 0.0);
-                    sti_state = false;
-                }
-            } // end of apply stimulation
-
-            heun(y, t); // integrate one step
-
-            // Apply BOLD and record after a transiant period
-            // if (((itr % record_step) == 0) && (itr > index_transition))
-            if (((itr % record_step) == 0) && (itr > 1))
-            {
-
-                dim1 y_bold = boldObj.integrate(y_tmp, t, y, num_nodes, "r"); // update y_tmp and y_bold
-
-                if (((buffer_counter % decimate) == 0) && (buffer_counter != 0))
-                {
-                    bold_buffer.push_back(y_bold);
-                    time_buffer.push_back(t);
-
-                    // check for NAN and Break if True
-                    {
-                        size_t ind = y_bold.size() - 1;
-                        if (std::isnan(y_bold[ind]))
-                        {
-                            std::cout << "nan found! "
-                                      << "\n";
-                            bold_buffer.clear();
-                            break;
-                        }
-                    }
-
-                    buffer_counter = 0;
-                }
-                buffer_counter++;
-            }
+            f[0][i] = f[1][i];
+            s[0][i] = s[1][i];
+            ftilde[0][i] = ftilde[1][i];
+            vtilde[0][i] = vtilde[1][i];
+            qtilde[0][i] = qtilde[1][i];
+            v[0][i] = v[1][i];
+            q[0][i] = q[1][i];
         }
     }
 
-    dim2 get_bold()
+    void integrate()
     {
-        return bold_buffer;
-    }
-    dim1 get_time()
-    {
-        return time_buffer;
+        unsigned n = num_nodes;
+        double r_period = dt * 10;  // we extend time 10 times 
+        unsigned b_decimate = (int)(std::round(tr / r_period));
+        double dtt = r_period / 1000.0; // in seconds
+
+        size_t nt = (int)(t_end / dt);
+        dim1 rv_current = initial_state;
+
+        if (RECORD_R)
+        {
+            r_d.resize((int)(nt / r_decimate), dim1(n, 0.0));
+            r_t.resize((int)(nt / r_decimate), 0.0);
+        }
+
+        dim2 s(2, dim1(n, 0.0));
+        dim2 f(2, dim1(n, 0.0));
+        dim2 ftilde(2, dim1(n, 0.0));
+        dim2 vtilde(2, dim1(n, 0.0));
+        dim2 qtilde(2, dim1(n, 0.0));
+        dim2 v(2, dim1(n, 0.0));
+        dim2 q(2, dim1(n, 0.0));
+        dim2 vv((int(nt / b_decimate)), dim1(n, 0.0));
+        dim2 qq((int(nt / b_decimate)), dim1(n, 0.0));
+
+        if (RECORD_BOLD)
+        {
+            bold_d.resize((int)(nt / b_decimate), dim1(n, 0.0));
+            bold_t.resize((int)(nt / b_decimate), 0.0);
+        }
+
+        s[0] = dim1(n, 1.0);
+        f[0] = dim1(n, 1.0);
+        v[0] = dim1(n, 1.0);
+        q[0] = dim1(n, 1.0);
+
+        for (unsigned itr = 0; itr < nt - 1; ++itr)
+        {
+            double t_current = itr * dt;
+            heun_step(rv_current, t_current);
+
+            if (RECORD_R)
+            {
+                if (((itr % r_decimate) == 0) && ((int)(itr / r_decimate) < r_d.size()))
+                {
+                    unsigned idx = (int)(itr / r_decimate);
+                    r_d[idx] = rv_current;
+                    r_t[idx] = t_current;
+                }
+            }
+            if (RECORD_BOLD)
+            {
+                bold_step(rv_current, s, f, ftilde, vtilde, qtilde, v, q);
+
+                if (((itr % b_decimate) == 0) && ((int)(itr / b_decimate) < bold_d.size()))
+                {
+                    unsigned idx = (int)(itr / b_decimate);
+                    vv[idx] = v[1];
+                    qq[idx] = q[1];
+                    bold_t[idx] = t_current;
+                    {
+                        if (std::isnan(qq[idx][0]))
+                        {
+                            std::cout << "nan found! " << "\n";
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        for (unsigned i = 0; i < bold_d.size(); i++)
+        {
+            for (int j = 0; j < n; ++j)
+                bold_d[i][j] = bp.vo * (bp.K1 * (1 - qq[i][j]) + bp.K2 * (1 - qq[i][j] / vv[i][j]) + bp.K3 * (1 - vv[i][j]));
+        }
     }
 
-    dim2 get_d_fmri()
+    dim2 get_bold_d()
     {
-        return bold_buffer;
+        return bold_d;
+    }
+    dim1 get_bold_t()
+    {
+        return bold_t;
     }
 
-    dim1 get_t_fmri()
+    dim2 get_r_d()
     {
-        return time_buffer;
+        return r_d;
     }
-
+    dim1 get_r_t()
+    {
+        return r_t;
+    }
 };
 
 #endif
