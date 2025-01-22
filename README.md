@@ -12,6 +12,6 @@
     cd vbi
     pip install .
 
-    # pip install -e .[all,dev,docs,cu] # cu for GPU support
+    # pip install -e .[all,dev,docs]
 ```
 
