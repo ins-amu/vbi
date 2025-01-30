@@ -57,7 +57,7 @@ path = "vbi/_version.py"
 
 
 [tool.setuptools]
-packages = { find = { where = ["vbi"] } }
+packages = ["vbi"]
 include-package-data = true
 
 [tool.setuptools.package-data]
