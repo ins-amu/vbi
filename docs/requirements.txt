@@ -1,0 +1,10 @@
+sphinx
+numpydoc
+nbformat
+nbsphinx
+cloud_sptheme
+sphinx_bootstrap_theme
+setuptools_scm 
+pandoc
+sphinx_rtd_theme 
+myst_parser   
