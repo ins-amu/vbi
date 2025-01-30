@@ -1,0 +1,6 @@
+sphinx
+numpydoc
+nbformat
+nbsphinx
+cloud_sptheme
+sphinx_bootstrap_theme
