@@ -8,3 +8,5 @@ setuptools_scm
 pandoc
 sphinx_rtd_theme 
 myst_parser   
+sphinx-autoapi
+sphinxcontrib-napoleon
