@@ -11,3 +11,12 @@ sphinx:
 python:
   install:
   - requirements: docs/requirements.txt
+
+build:
+  max_jobs: 2
+
+
+versions:
+  only:
+    - main      # Stable version
+    - develop   # Latest version
