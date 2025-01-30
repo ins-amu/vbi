@@ -60,10 +60,10 @@ path = "vbi/_version.py"
 packages = ["vbi"]
 include-package-data = true
 
-# [tool.setuptools.package-data]
-# vbi = [
-#     "models/pytorch/data/*",  # Include all files in the pytorch directory #!TODO: check this
-# ]
+[tool.setuptools.package-data]
+vbi = [
+    "models/pytorch/data/*",  # Include all files in the pytorch directory #!TODO: check this
+]
 
 
 [project.optional-dependencies]
