@@ -12,11 +12,11 @@ python:
   install:
   - requirements: docs/requirements.txt
 
+# Define branches to build
 build:
   max_jobs: 2
 
-
 versions:
   only:
-    - main      # Stable version
-    - develop   # Latest version
+    - main       # Stable version
+    - develop    # Latest version
