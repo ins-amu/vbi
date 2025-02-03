@@ -54,7 +54,7 @@ extensions = [create_extension(model) for model in models]
 # Setup function
 setup(
     name="vbi",
-    version="0.1.0",
+    version="0.1.2",
     description="A Python package with C++ integration via SWIG",
     packages=find_packages(),  # Use find_packages() to automatically discover packages
     ext_modules=extensions,  # Include all the C++ extensions
