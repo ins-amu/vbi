@@ -4,7 +4,7 @@ from numpy.matlib import repmat
 try:
     import cupy as cp
 except:
-    pass
+    cp = None
 
 
 def get_module(engine="gpu"):
@@ -20,7 +20,7 @@ def get_module(engine="gpu"):
 
 def tohost(x):
     '''
-    move data to cpu
+    move data to cpu if it is on gpu
 
     Parameters
     ----------
@@ -32,7 +32,9 @@ def tohost(x):
     array
         data moved to cpu
     '''
-    return cp.asnumpy(x)
+    if cp is not None and isinstance(x, cp.ndarray):
+        return cp.asnumpy(x)
+    return x
 
 
 def todevice(x):
