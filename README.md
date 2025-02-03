@@ -7,7 +7,7 @@
 ## installation
 
 ```bash
-    conda env create --name vbi python=3.11
+    conda env create --name vbi python=3.10
     conda activate vbi
     git clone https://github.com/ins-amu/vbi.git
     cd vbi
