@@ -1,5 +1,5 @@
 import numpy as np
-from numpy.matlib import repmat
+# from numpy.matlib import repmat
 
 try:
     import cupy as cp
@@ -81,7 +81,7 @@ def repmat_vec(vec, ns, engine):
         repeated vector
 
     '''
-    vec = repmat(vec, ns, 1).T
+    vec = np.tile(vec, (ns, 1)).T
     vec = move_data(vec, engine)
     return vec
 
