@@ -39,7 +39,8 @@ dependencies = [
     "parameterized",
     "scikit-learn",
     "pycatch22",
-    "pytest"
+    "pytest",
+    "swig"
 ]
 classifiers = [
     "Programming Language :: Python :: 3",

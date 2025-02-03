@@ -1,8 +1,12 @@
 import numpy as np
 from typing import Union
 from copy import deepcopy
-from vbi.models.cpp._src.mpr_sde import MPR_sde as _MPR_sde
-from vbi.models.cpp._src.mpr_sde import BoldParams as _BoldParams
+
+try:
+    from vbi.models.cpp._src.mpr_sde import MPR_sde as _MPR_sde
+    from vbi.models.cpp._src.mpr_sde import BoldParams as _BoldParams
+except ImportError as e:
+    print(f"Could not import modules: {e}, probably C++ code is not compiled.")
 
 
 class MPR_sde:

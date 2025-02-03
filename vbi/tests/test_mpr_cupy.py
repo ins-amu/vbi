@@ -3,7 +3,12 @@ import unittest
 import numpy as np
 import networkx as nx
 from copy import deepcopy
-from vbi.models.cupy.mpr import MPR_sde
+
+MPR_AVAILABLE = True
+try:
+    from vbi.models.cupy.mpr import MPR_sde
+except ImportError:
+    MPR_AVAILABLE = False
 
 
 seed = 2
@@ -15,6 +20,7 @@ g = nx.complete_graph(nn)
 sc = nx.to_numpy_array(g) / 10.0
 
 
+@unittest.skipIf(not MPR_AVAILABLE, "vbi.models.cupy.mpr.MPR_sde module not available")
 class testMPRSDE(unittest.TestCase):
     
     mpr = MPR_sde()
