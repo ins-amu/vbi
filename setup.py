@@ -1,7 +1,8 @@
 import os
 import subprocess
-from setuptools import setup, Extension
+from setuptools import setup, Extension, find_packages
 from setuptools.command.build_ext import build_ext
+
 
 # Custom command to compile C++ and SWIG wrapper
 class CustomBuildExtCommand(build_ext):
@@ -34,7 +35,7 @@ class CustomBuildExtCommand(build_ext):
 def create_extension(model):
     
     return Extension(
-        f"models/cpp/_src._{model}",
+        f"vbi.models.cpp._src._{model}",  # Corrected
         sources=[f"vbi/models/cpp/_src/{model}_wrap.cxx"],
         include_dirs=[],  # Include your header directory "vbi/models/cpp/_src"
         extra_compile_args=["-O2", "-fPIC" ],  # Compilation flags
@@ -55,8 +56,7 @@ setup(
     name="vbi",
     version="0.1.0",
     description="A Python package with C++ integration via SWIG",
-    packages=["vbi"],
-    package_dir={"": "vbi"},
+    packages=find_packages(),  # Use find_packages() to automatically discover packages
     ext_modules=extensions,  # Include all the C++ extensions
     cmdclass={
         "build_ext": CustomBuildExtCommand,  # Override the default build_ext
