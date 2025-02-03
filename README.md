@@ -1,3 +1,6 @@
+[![Test](https://github.com/ins-amu/vbi/actions/workflows/tests.yml/badge.svg)](https://github.com/ins-amu/vbi/actions/workflows/tests.yml)
+
+
 # Virtual Brain Inference (VBI)
 <p align="center">
 <img src="https://github.com/Ziaeemehr/vbi_paper/blob/main/vbi_log.png"  width="250">
