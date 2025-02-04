@@ -2,6 +2,8 @@ name: build & push Docker image to ghcr
 
 on:
   push:
+    branches:
+      - develop
     tags:
       - v*
 
