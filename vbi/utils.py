@@ -302,3 +302,68 @@ def set_diag(A: np.ndarray, k: int = 0, value: float = 0.0):
         idx = np.where(a1)
         A[idx] = value
     return A
+
+
+def test_imports():
+    """ 
+    Import some of required dependencies and print their versions if available 
+    and warn if not available.
+    
+    The required dependencies are:
+    - vbi
+    - numpy
+    - scipy
+    - matplotlib
+    - sbi
+    - torch [also check if GPU is available]
+    - cupy [also check if GPU is available]
+    
+    """
+    
+    try:
+        import vbi
+        print(f"vbi: {vbi.__version__}")
+    except ImportError:
+        print("vbi not found")
+    
+    try:
+        import numpy
+        print(f"numpy: {numpy.__version__}")
+    except ImportError:
+        print("numpy not found")
+        
+    try:
+        import scipy
+        print(f"scipy: {scipy.__version__}")
+    except ImportError:
+        print("scipy not found")
+        
+    try:
+        import matplotlib
+        print(f"matplotlib: {matplotlib.__version__}")
+    except ImportError:
+        print("matplotlib not found")
+        
+    try:
+        import sbi
+        print(f"sbi: {sbi.__version__}")
+    except ImportError:
+        print("sbi not found")
+        
+    try:
+        import torch
+        print(f"torch: {torch.__version__}")
+        print(f"GPU available: {torch.cuda.is_available()}")
+    except ImportError:
+        print("torch not found")
+        
+    try:
+        import cupy
+        print(f"cupy: {cupy.__version__}")
+        print(f"GPU available: {cupy.cuda.is_available()}")
+    except ImportError:
+        print("cupy not found")
+        
+        
+    
+    
