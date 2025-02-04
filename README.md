@@ -22,6 +22,18 @@
     # pip install -e .[all,dev,docs]
 ```
 
+## Using Docker
+
+To use the Docker image, you can pull it from the GitHub Container Registry and run it as follows:
+
+```bash
+    docker run --rm -it ghcr.io/ins-amu/vbi:main python3 -c 'from vbi.utils import test_imports; test_imports()'
+```
+
+This will pull the [`vbi`](command:_github.copilot.openRelativePath?%5B%7B%22scheme%22%3A%22file%22%2C%22authority%22%3A%22%22%2C%22path%22%3A%22%2Fhome%2Fziaee%2Fgit%2Finference%2Fvbi_develop%2Fvbi%22%2C%22query%22%3A%22%22%2C%22fragment%22%3A%22%22%7D%2C%2273990f0b-2a51-464e-8b96-c3d433a432df%22%5D "/home/ziaee/git/inference/vbi_develop/vbi") image tagged `develop` from the GitHub Container Registry and run it in an interactive terminal.
+
+
+
 
 ## Citation
 
