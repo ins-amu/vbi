@@ -22,6 +22,14 @@
     # pip install -e .[all,dev,docs]
 ```
 
+## Using Docker
+
+To use the Docker image, you can pull it from the GitHub Container Registry and run it as follows:
+
+```bash
+    docker run --rm -it ghcr.io/ins-amu/vbi:main python3 -c 'from vbi.utils import test_imports; test_imports()'
+```
+
 
 ## Citation
 
