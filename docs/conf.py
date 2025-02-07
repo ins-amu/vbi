@@ -1,5 +1,6 @@
 import sys
 import os
+import subprocess
 import sphinx_bootstrap_theme
 from setuptools_scm import get_version
 
@@ -51,3 +52,10 @@ def on_missing_reference(app, env, node, contnode):
 
 def setup(app):
     app.connect("missing-reference", on_missing_reference)
+
+    # cpp_src = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "vbi", "models", "cpp", "_src"))
+    # try:
+    #     subprocess.run(["make"], cwd=cpp_src, check=True)
+    #     app.info("C++ code compiled successfully.")
+    # except subprocess.CalledProcessError as err:
+    #     app.warn(f"Failed to compile C++ code in {cpp_src}: {err}")

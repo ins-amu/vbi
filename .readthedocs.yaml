@@ -4,10 +4,16 @@ build:
   os: ubuntu-22.04
   tools:
     python: "3.10"
+  apt_packages:
+    - swig
+    - build-essential
+
 
 sphinx:
   configuration: docs/conf.py
 
 python:
   install:
+  - method: pip
+    path: .
   - requirements: docs/requirements.txt
