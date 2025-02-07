@@ -15,5 +15,7 @@ sphinx:
 python:
   install:
   - requirements: docs/requirements.txt
-  - pip_install: .
-    pip_args: ["--no-deps"]
+
+build:
+  commands:
+    - pip install --no-deps .
