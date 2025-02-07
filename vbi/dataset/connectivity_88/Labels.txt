@@ -1,0 +1,17 @@
+1	Cingulum_Ant_L                   
+2	Cingulum_Ant_R          
+3	Cingulum_Mid_L           
+4	Cingulum_Mid_R           
+5	Cingulum_Post_L           
+6	Cingulum_Post_R          
+7	Hippocampus_L             
+8	Hippocampus_R             
+9	ParaHippocampal_L       
+10	ParaHippocampal_R      
+11	Amygdala_L                    
+12	Amygdala_R                   
+13	Temporal_Pole_Sup_L    
+14	Temporal_Pole_Sup_R   
+15	Temporal_Mid_L     
+16	Temporal_Mid_R    
+	
