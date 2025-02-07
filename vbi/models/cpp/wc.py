@@ -14,19 +14,20 @@ class WC_ode(object):
         journal, 12: 1-24, 1972.
     .. [WC_1973] Wilson, H.R. and Cowan, J.D  *A Mathematical Theory of the
         Functional Dynamics of Cortical and Thalamic Nervous Tissue*
-
     .. [D_2011] Daffertshofer, A. and van Wijk, B. *On the influence of
         amplitude on the connectivity between phases*
         Frontiers in Neuroinformatics, July, 2011
-        
+
     Used Eqns 11 and 12 from [WC_1972]_ in ``rhs``.  P and Q represent external
     inputs, which when exploring the phase portrait of the local model are set
     to constant values. However in the case of a full network, P and Q are the
     entry point to our long range and local couplings, that is, the  activity
-    from all other nodes is the external input to the local population.
+    from all other nodes is the external input to the local population [WC_1973]_, [D_2011]_ .
 
-    The default parameters are taken from figure 4 of [WC_1972]_, pag. 10
+    The default parameters are taken from figure 4 of [WC_1972]_, pag. 10.
+    
     """
+
 
 
     def __init__(self, par={}) -> None:
