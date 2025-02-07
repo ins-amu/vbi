@@ -3,7 +3,8 @@ import os
 import sphinx_bootstrap_theme
 from setuptools_scm import get_version
 
-sys.path.insert(0, os.path.abspath("../vbi"))
+# sys.path.insert(0, os.path.abspath("../vbi"))
+sys.path.insert(0, os.path.abspath(".."))
 
 needs_sphinx = "1.3"
 
