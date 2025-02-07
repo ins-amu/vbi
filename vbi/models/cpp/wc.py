@@ -1,5 +1,9 @@
 import numpy as np
-from vbi.models.cpp._src.wc_ode import WC_ode as _WC_ode
+
+try:
+    from vbi.models.cpp._src.wc_ode import WC_ode as _WC_ode
+except ImportError as e:
+    print(f"Could not import modules: {e}, probably C++ code is not compiled.")
 
 
 ################################## Wilson-Cowan ode ###########################

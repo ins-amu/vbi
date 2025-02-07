@@ -1,8 +1,12 @@
 import os
 import numpy as np
 from os.path import join
-from vbi.models.cpp._src.jr_sde import JR_sde as _JR_sde
-from vbi.models.cpp._src.jr_sdde import JR_sdde as _JR_sdde
+
+try:
+    from vbi.models.cpp._src.jr_sde import JR_sde as _JR_sde
+    from vbi.models.cpp._src.jr_sdde import JR_sdde as _JR_sdde
+except ImportError as e:
+    print(f"Could not import modules: {e}, probably C++ code is not compiled.")
 
 
 class JR_sde:

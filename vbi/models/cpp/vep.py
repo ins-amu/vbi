@@ -3,7 +3,11 @@ import numpy as np
 from copy import deepcopy
 from os.path import join
 from typing import Union
-from vbi.models.cpp._src.vep import VEP as _VEP
+
+try:
+    from vbi.models.cpp._src.vep import VEP as _VEP
+except ImportError as e:
+    print(f"Could not import modules: {e}, probably C++ code is not compiled.")
 
 
 class VEP:
