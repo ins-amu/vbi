@@ -2,6 +2,13 @@ import torch
 import unittest
 import numpy as np
 import networkx as nx
+import warnings
+
+warnings.filterwarnings(
+    "ignore",
+    category=DeprecationWarning,
+    message="builtin type .* has no __module__ attribute",
+)
 
 MPR_AVAILABLE = True
 try:
