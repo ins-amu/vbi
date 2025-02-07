@@ -16,6 +16,4 @@ python:
   install:
   - method: pip
     path: .
-    extra_requirements:
-        - --no-deps
   - requirements: docs/requirements.txt
