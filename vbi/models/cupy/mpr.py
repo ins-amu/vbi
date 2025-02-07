@@ -353,9 +353,16 @@ class MPR_sde:
         if self.RECORD_BOLD:
             bold_d = vo * (k1 * (1 - qq) + k2 * (1 - qq / vv) + k3 * (1 - vv))
             bold_t = np.linspace(0, self.t_end - dt * bold_decimate, len(bold_d))
+            bold_d = bold_d[bold_t > self.t_cut, ...]
+            bold_t = bold_t[bold_t > self.t_cut]
             bold_t = bold_t * 10.0
-        rv_t = np.asarray(rv_t).astype("f") * 10.0
         avg_r = avg_r / cc
+        
+        if self.RECORD_RV:
+            rv_t = np.asarray(rv_t).astype("f")
+            rv_d = rv_d[rv_t > self.t_cut, ...]
+            rv_t = rv_t[rv_t > self.t_cut] * 10.0
+        
 
         return {
             "rv_t": rv_t,
