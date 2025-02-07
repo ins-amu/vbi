@@ -36,6 +36,8 @@ Examples
    examples/do_cpp
    examples/do_nb
    examples/vep_sde
+   example/mpr_sde_cupy
+   example/ww_sde_torch_kong
 
 
 Indices and tables
