@@ -1,5 +1,4 @@
 import numpy as np
-# from numpy.matlib import repmat
 
 try:
     import cupy as cp

@@ -1,7 +1,11 @@
 import os
 from typing import Any
 import numpy as np
-from vbi.models.cpp._src.do import DO as _DO
+
+try:
+    from vbi.models.cpp._src.do import DO as _DO
+except ImportError as e:
+    print(f"Could not import modules: {e}, probably C++ code is not compiled.")
 
 class DO_cpp:
 

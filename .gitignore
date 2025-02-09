@@ -31,6 +31,8 @@ _e/
 *.gz
 *.pickle
 *.jpeg
+*.pickle
+*.pkl
 .DS_Store
 .editorconfig
 *.mat

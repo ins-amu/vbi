@@ -1,5 +1,9 @@
 import numpy as np
-from vbi.models.cpp._src.km_sde import KM_sde as _KM_sde
+
+try:
+    from vbi.models.cpp._src.km_sde import KM_sde as _KM_sde
+except ImportError as e:
+    print(f"Could not import modules: {e}, probably C++ code is not compiled.")
 
 
 class KM_sde:
