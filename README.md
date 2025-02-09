@@ -28,6 +28,9 @@ To use the Docker image, you can pull it from the GitHub Container Registry and 
 
 ```bash
     docker run --rm -it ghcr.io/ins-amu/vbi:main python3 -c 'from vbi.utils import test_imports; test_imports()'
+
+    # if gpu available:
+    docker run --rm -it --gpus all -e GPU_SUPPORT=true ghcr.io/ins-amu/vbi:main python3 -c 'from vbi.utils import test_imports; test_imports()'
 ```
 
 
