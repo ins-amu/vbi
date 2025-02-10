@@ -924,12 +924,12 @@ def fc_stat(
     info, ts = prepare_input_ts(ts)
     if not info:
         if verbose:
-            print("Error in fc_stat")
-        return [np.nan], ["fc_stat_0"]
+            print("Error in fc_")
+        return [np.nan], ["fc_0"]
 
     nn = ts.shape[0]
     if nn < 2:
-        return [np.nan], ["fc_stat_0"]
+        return [np.nan], ["fc_0"]
 
     if masks is None:
         masks = {"full": np.ones((nn, nn))}
@@ -953,7 +953,7 @@ def fc_stat(
             eigenvalues=eigenvalues,
             pca_num_components=pca_num_components,
         )
-        labels = [f"fc_stat_{key}_{label}" for label in labels]
+        labels = [f"fc_{key}_{label}" for label in labels]
         Values.extend(values)
         Labels.extend(labels)
 
