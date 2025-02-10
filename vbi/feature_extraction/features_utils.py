@@ -781,7 +781,7 @@ def matrix_stat(
         for f in features:
             v = eval(f)(np.real(eigen_vals_A[:-1]))
             values.append(v)
-            labels.append(f"full_{f}")
+            labels.append(f"eig_{f}")
 
     for f in features:
         v = eval(f)(A_ut)
