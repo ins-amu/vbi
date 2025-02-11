@@ -353,14 +353,14 @@ def test_imports():
     try:
         import torch
         print(f"torch: {torch.__version__}")
-        print(f"GPU available: {torch.cuda.is_available()}")
+        print(f"GPU available: {torch.cuda.is_available()=}")
     except ImportError:
         print("torch not found")
         
     try:
         import cupy
         print(f"cupy: {cupy.__version__}")
-        print(f"GPU available: {cupy.cuda.is_available()}")
+        print(f"GPU available: {cupy.cuda.is_available()=}")
     except ImportError:
         print("cupy not found")
         
