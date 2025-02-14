@@ -345,15 +345,52 @@ def test_imports():
         import torch
         console.print(f"[bold blue]Torch GPU available:[/bold blue] {torch.cuda.is_available()}")
         console.print(f"[bold blue]Torch device count:[/bold blue] {torch.cuda.device_count()}")
+        console.print(f"[bold blue]Torch CUDA version:[/bold blue] {torch.version.cuda}")  # Display CUDA version used by PyTorch
     except ImportError:
         pass
-    
+
     try:
         import cupy
         console.print(f"[bold blue]CuPy GPU available:[/bold blue] {cupy.cuda.is_available()}")
         console.print(f"[bold blue]CuPy device count:[/bold blue] {cupy.cuda.runtime.getDeviceCount()}")
+        info = get_cuda_info()
+        if isinstance(info, dict):
+            print(f"CUDA Version: {info['cuda_version']}")
+            print(f"Device Name: {info['device_name']}")
+            print(f"Total Memory: {info['total_memory']:.2f} GB")
+            print(f"Compute Capability: {info['compute_capability']}")
+
     except ImportError:
         pass
 
     
     
+def get_cuda_info():
+    """
+    Get CUDA version and device information using CuPy.
+    
+    Returns:
+        dict: Dictionary containing CUDA version and device information
+    """
+    import cupy as cp
+    
+    try:
+        # Get CUDA version
+        cuda_version = cp.cuda.runtime.runtimeGetVersion()
+        major = cuda_version // 1000
+        minor = (cuda_version % 1000) // 10
+        
+        # Get device info
+        device = cp.cuda.runtime.getDeviceProperties(0)
+        
+        return {
+            'cuda_version': f"{major}.{minor}",
+            'device_name': device['name'].decode(),
+            'total_memory': device['totalGlobalMem'] / (1024**3),  # Convert to GB
+            'compute_capability': f"{device['major']}.{device['minor']}"
+        }
+    except ImportError:
+        return "CuPy is not installed"
+    except Exception as e:
+        return f"Error getting CUDA information: {str(e)}"
+
