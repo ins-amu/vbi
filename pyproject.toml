@@ -64,6 +64,7 @@ include-package-data = true
 [tool.setuptools.package-data]
 vbi = [
     "models/pytorch/data/*",  # Include all files in the pytorch directory #!TODO: check this
+    "models/cpp/_src/*",  # Include all files in the cpp directory
 ]
 
 
