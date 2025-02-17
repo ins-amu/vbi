@@ -2,6 +2,11 @@ import os
 import time
 import torch
 import numpy as np
+
+from rich import box
+from rich.table import Table
+from rich.console import Console
+
 from os.path import join
 from scipy.stats import gaussian_kde
 from sbi.analysis.plot import _get_default_opts, _update, ensure_numpy
@@ -305,65 +310,87 @@ def set_diag(A: np.ndarray, k: int = 0, value: float = 0.0):
 
 
 def test_imports():
-    """ 
-    Import some of required dependencies and print their versions if available 
-    and warn if not available.
+    """Check required dependencies, print versions, and warn if unavailable."""
+    console = Console()
+    table = Table(title="Dependency Check", box=box.SIMPLE_HEAVY)
+    table.add_column("Package", style="bold cyan")
+    table.add_column("Version", style="bold green")
+    table.add_column("Status", style="bold yellow")
     
-    The required dependencies are:
-    - vbi
-    - numpy
-    - scipy
-    - matplotlib
-    - sbi
-    - torch [also check if GPU is available]
-    - cupy [also check if GPU is available]
+    dependencies = [
+        ("vbi", "vbi"),
+        ("numpy", "numpy"),
+        ("scipy", "scipy"),
+        ("matplotlib", "matplotlib"),
+        ("sbi", "sbi"),
+        ("torch", "torch"),
+        ("cupy", "cupy")
+    ]
     
-    """
+    for name, module in dependencies:
+        try:
+            pkg = __import__(module)
+            version = pkg.__version__
+            status = "✅ Available"
+        except ImportError:
+            version = "-"
+            status = "❌ Not Found"
+        
+        table.add_row(name, version, status)
     
-    try:
-        import vbi
-        print(f"vbi: {vbi.__version__}")
-    except ImportError:
-        print("vbi not found")
+    console.print(table)
     
-    try:
-        import numpy
-        print(f"numpy: {numpy.__version__}")
-    except ImportError:
-        print("numpy not found")
-        
-    try:
-        import scipy
-        print(f"scipy: {scipy.__version__}")
-    except ImportError:
-        print("scipy not found")
-        
-    try:
-        import matplotlib
-        print(f"matplotlib: {matplotlib.__version__}")
-    except ImportError:
-        print("matplotlib not found")
-        
-    try:
-        import sbi
-        print(f"sbi: {sbi.__version__}")
-    except ImportError:
-        print("sbi not found")
-        
+    # Additional GPU checks
     try:
         import torch
-        print(f"torch: {torch.__version__}")
-        print(f"GPU available: {torch.cuda.is_available()=}")
+        console.print(f"[bold blue]Torch GPU available:[/bold blue] {torch.cuda.is_available()}")
+        console.print(f"[bold blue]Torch device count:[/bold blue] {torch.cuda.device_count()}")
+        console.print(f"[bold blue]Torch CUDA version:[/bold blue] {torch.version.cuda}")  # Display CUDA version used by PyTorch
     except ImportError:
-        print("torch not found")
-        
+        pass
+
     try:
         import cupy
-        print(f"cupy: {cupy.__version__}")
-        print(f"GPU available: {cupy.cuda.is_available()=}")
+        console.print(f"[bold blue]CuPy GPU available:[/bold blue] {cupy.cuda.is_available()}")
+        console.print(f"[bold blue]CuPy device count:[/bold blue] {cupy.cuda.runtime.getDeviceCount()}")
+        info = get_cuda_info()
+        if isinstance(info, dict):
+            print(f"CUDA Version: {info['cuda_version']}")
+            print(f"Device Name: {info['device_name']}")
+            print(f"Total Memory: {info['total_memory']:.2f} GB")
+            print(f"Compute Capability: {info['compute_capability']}")
+
     except ImportError:
-        print("cupy not found")
-        
-        
+        pass
+
     
     
+def get_cuda_info():
+    """
+    Get CUDA version and device information using CuPy.
+    
+    Returns:
+        dict: Dictionary containing CUDA version and device information
+    """
+    import cupy as cp
+    
+    try:
+        # Get CUDA version
+        cuda_version = cp.cuda.runtime.runtimeGetVersion()
+        major = cuda_version // 1000
+        minor = (cuda_version % 1000) // 10
+        
+        # Get device info
+        device = cp.cuda.runtime.getDeviceProperties(0)
+        
+        return {
+            'cuda_version': f"{major}.{minor}",
+            'device_name': device['name'].decode(),
+            'total_memory': device['totalGlobalMem'] / (1024**3),  # Convert to GB
+            'compute_capability': f"{device['major']}.{device['minor']}"
+        }
+    except ImportError:
+        return "CuPy is not installed"
+    except Exception as e:
+        return f"Error getting CUDA information: {str(e)}"
+
