@@ -2,6 +2,10 @@ Virtual Brain Inference (VBI)
 ##############################
 
 
+.. image:: _static/vbi_log.png
+   :alt: VBI Logo
+   :width: 300px
+
 Installation
 ============
 
@@ -15,6 +19,13 @@ Installation
     cd vbi
     pip install .
     # pip install -e .[all,dev,docs]
+
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Contents:
+
+   models
 
 
 Examples

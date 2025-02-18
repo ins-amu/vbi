@@ -31,6 +31,7 @@ add_module_names = False
 html_theme = 'nature'
 pygments_style = "colorful"
 add_function_parentheses = True
+html_static_path = ['_static']
 
 # html_theme = "bootstrap"
 # html_theme_path = sphinx_bootstrap_theme.get_html_theme_path()
