@@ -5,3 +5,19 @@
 .color-caption caption {
     color: rgb(139, 68, 206);
 }
+
+
+/* Change the color of module headers */
+.py.mod > .descclassname, .py.mod > .descname {
+    color: #FF5733; /* Orange */
+}
+
+/* Change the color of function signatures */
+.sig.sig-object.py {
+    color: #327219; /* Green */
+}
+
+/* Change the background color of code blocks */
+.highlight {
+    background-color: #F0F8FF; /* Light blue */
+}

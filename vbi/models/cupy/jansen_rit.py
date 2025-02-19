@@ -5,14 +5,11 @@ from vbi.models.cupy.utils import *
 
 class JR_sde:
 
-    valid_parameters = [
-        "weights", "delays", "dt", "t_end", "G", "A", "a", "B", "b", "mu", "SC",
-        "t_cut", "noise_amp", "C0", "C1", "C2", "C3", "dtype", "same_initial_state",
-        "C_vec", "decimate", "method", "same_noise_per_sim",
-        "vmax", "r", "v0", "output", "seed", "num_sim", "engine"]
+    
 
     def __init__(self, par: dict = {}):
 
+        self.valid_parameters = list(self.get_default_parameters().keys())
         self.check_parameters(par)
         self._par = self.get_default_parameters()
         self._par.update(par)
@@ -41,6 +38,19 @@ class JR_sde:
         return self._par
 
     def check_parameters(self, par):
+        """
+        Check if the provided parameters are valid.
+
+        Parameters
+        ----------
+        par : dict
+            Dictionary of parameters to check.
+
+        Raises
+        ------
+        ValueError
+            If any parameter in `par` is not valid.
+        """
         for key in par.keys():
             if key not in self.valid_parameters:
                 raise ValueError("Invalid parameter: " + key)
@@ -116,9 +126,43 @@ class JR_sde:
         assert (self.t_cut < self.t_end), "t_cut must be smaller than t_end"
 
     def S_(self, x):
+        """
+        Compute the sigmoid function.
+
+        This function calculates the sigmoid of the input `x` using the parameters
+        `vmax`, `r`, and `v0`.
+
+        Parameters
+        ----------
+        x : float or array-like
+            The input value(s) for which to compute the sigmoid function.
+
+        Returns
+        -------
+        float or array-like
+            The computed sigmoid value(s).
+
+        """
         return self.vmax / (1.0 + self.xp.exp(self.r*(self.v0-x)))
 
     def f_sys(self, x0, t):
+        """
+        Compute the derivatives of the Jansen-Rit neural mass model.
+
+        Parameters
+        ----------
+        x0 : array_like
+            Initial state vector of the system. It should have a shape of (6*nn, ns), where nn is the number of neurons and ns is the number of simulations.
+        t : float
+            Current time point (not used in the computation but required for compatibility with ODE solvers).
+
+        Returns
+        -------
+        dx : array_like
+            Derivatives of the state vector. It has the same shape as `x0`.
+
+        The function computes the derivatives of the state vector based on the Jansen-Rit model equations.
+        """
 
         nn = self.nn
         ns = self.num_sim
@@ -161,6 +205,21 @@ class JR_sde:
         return dx
 
     def euler(self, x0, t):
+        """
+        Perform one step of the Euler-Maruyama method for stochastic differential equations.
+
+        Parameters
+        ----------
+        x0 : array_like
+            The initial state of the system.
+        t : float
+            The current time.
+
+        Returns
+        -------
+        array_like
+            The updated state of the system after one Euler step.
+        """
 
         _xp = self.xp
         nn = self.nn
@@ -180,6 +239,21 @@ class JR_sde:
         return x0
 
     def heun(self, x0, t):
+        """
+        Perform a single step of the Heun's method for stochastic differential equations.
+
+        Parameters
+        ----------
+        x0 : ndarray
+            The initial state of the system.
+        t : float
+            The current time.
+
+        Returns
+        -------
+        ndarray
+            The updated state of the system after one Heun step.
+        """
 
         nn = self.nn
         ns = self.num_sim

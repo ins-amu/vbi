@@ -7,11 +7,33 @@ except:
 
 
 def get_module(engine="gpu"):
-    '''
-    to switch engine between gpu and cpu
-    '''
+    """
+    Switches the computational engine between GPU and CPU.
+
+    Parameters
+    ----------
+    engine : str, optional
+        The computational engine to use. Can be either "gpu" or "cpu". 
+        Default is "gpu".
+
+    Returns
+    -------
+    module
+        The appropriate array module based on the specified engine. 
+        If "gpu", returns the CuPy module. If "cpu", returns the NumPy module.
+
+    Raises
+    ------
+    ValueError
+        - If the specified engine is not "gpu" or "cpu".
+        - If CuPy is not installed.
+    """
+    
     if engine == "gpu":
-        return cp.get_array_module(cp.array([1]))
+        if cp is None:
+            raise ValueError("CuPy is not installed.")
+        else:
+            return cp.get_array_module(cp.array([1]))
     else:
         return np
         # return cp.get_array_module(np.array([1]))
@@ -139,6 +161,23 @@ def prepare_vec(x, ns, engine, dtype="float"):
 
 
 def get_(x, engine="cpu", dtype="f"):
+    """
+    Parameters
+    ----------
+    x : array-like
+        The input array to be converted.
+    engine : str, optional
+        The computation engine to use. If "gpu", the array is transferred from GPU to CPU. Defaults to "cpu".
+    dtype : str, optional
+        The desired data type for the output array. Defaults to "f".
+
+    Returns
+    -------
+    array-like
+        The converted array with the specified data type.
+    
+    """
+    
     if engine == "gpu":
         return x.get().astype(dtype)
     else:
