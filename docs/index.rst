@@ -9,7 +9,15 @@ Virtual Brain Inference (VBI)
 
 .. image:: _static/vbi_log.png
    :alt: VBI Logo
-   :width: 300px
+   :width: 200px
+   :align: center
+
+Workflow
+========
+
+.. image:: _static/Fig1.png
+   :alt: VBI Logo
+   :width: 800px
 
 Installation
 ============

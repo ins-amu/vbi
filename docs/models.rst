@@ -46,110 +46,110 @@ The nominal parameter values and the prior range for the target parameters are s
      - Description
      - Value
      - Prior
-   * - T\ :sub:`SG`
+   * - :math:`T_{SG}`
      - Delay from STN to GPe
      - 6 ms
      -
-   * - T\ :sub:`GS`
+   * - :math:`T_{GS}`
      - Delay from GPe to STN
      - 6 ms
      -
-   * - T\ :sub:`GG`
+   * - :math:`T_{GG}`
      - Self delay of GPe
      - 4 ms
      -
-   * - T\ :sub:`CS`
+   * - :math:`T_{CS}`
      - Delay from cortex to STN
      - 5.5 ms
      -
-   * - T\ :sub:`SC`
+   * - :math:`T_{SC}`
      - Delay from STN to cortex
      - 21.5 ms
      -
-   * - T\ :sub:`CC`
+   * - :math:`T_{CC}`
      - Self delay of cortex
      - 4.65 ms
      -
-   * - τ\ :sub:`S`
+   * - :math:`\tau_{S}`
      - Time constant for STN
      - 12.8 ms
      -
-   * - τ\ :sub:`G`
+   * - :math:`\tau_{G}`
      - Time constant for GPe
      - 20 ms
      -
-   * - τ\ :sub:`E`
+   * - :math:`\tau_{E}`
      - Time constant for excitatory neurons
      - 11.59 ms
      -
-   * - τ\ :sub:`I`
+   * - :math:`\tau_{I}`
      - Time constant for inhibitory neurons
      - 13.02 ms
      -
-   * - M\ :sub:`S`
+   * - :math:`M_{S}`
      - Maximum firing rate of STN
      - 300 spk/s
      -
-   * - M\ :sub:`G`
+   * - :math:`M_{G}`
      - Maximum firing rate of GPe
      - 400 spk/s
      -
-   * - M\ :sub:`EI`
+   * - :math:`M_{EI}`
      - Maximum firing rate of excitatory neurons
      - 75.77 spk/s
      -
-   * - M\ :sub:`I`
+   * - :math:`M_{I}`
      - Maximum firing rate of inhibitory neurons
      - 205.72 spk/s
      -
-   * - B\ :sub:`S`
+   * - :math:`B_{S}`
      - Baseline firing rate of STN
      - 10 spk/s
      -
-   * - B\ :sub:`G`
+   * - :math:`B_{G}`
      - Baseline firing rate of GPe
      - 20 spk/s
      -
-   * - B\ :sub:`EI`
+   * - :math:`B_{EI}`
      - Baseline firing rate of excitatory neurons
      - 17.85 spk/s
      -
-   * - B\ :sub:`I`
+   * - :math:`B_{I}`
      - Baseline firing rate of inhibitory neurons
      - 9.87 spk/s
      -
-   * - C
+   * - :math:`C`
      - Excitatory input to cortex
      - 172.18 spk/s
      -
-   * - Str
+   * - :math:`Str`
      - Inhibitory input from striatum to GPe
      - 8.46 spk/s
      -
-   * - w\ :sub:`GS`
+   * - :math:`w_{GS}`
      - Synaptic weight from GPe to STN
      - 1.33
-     - U(0,10)
-   * - w\ :sub:`SG`
+     - :math:`U(0,10)`
+   * - :math:`w_{SG}`
      - Synaptic weight from STN to GPe
      - 4.87
-     - U(0,10)
-   * - w\ :sub:`GG`
+     - :math:`U(0,10)`
+   * - :math:`w_{GG}`
      - Self synaptic weight among GPe
      - 0.53
-     - U(0,20)
-   * - w\ :sub:`CS`
+     - :math:`U(0,20)`
+   * - :math:`w_{CS}`
      - Synaptic weight from cortex to STN
      - 9.97
-     - U(0,20)
-   * - w\ :sub:`SC`
+     - :math:`U(0,20)`
+   * - :math:`w_{SC}`
      - Synaptic weight from STN to cortex
      - 8.93
-     - U(0,10)
-   * - w\ :sub:`CC`
+     - :math:`U(0,10)`
+   * - :math:`w_{CC}`
      - Self synaptic weight among cortex
      - 6.17
-     - U(0,10)
+     - :math:`U(0,10)`
 
 Jansen-Rit model
 ----------------
@@ -177,50 +177,50 @@ This biologically motivated model comprises of three main populations of neurons
      - **Description**
      - **Value**
      - **Prior**
-   * - *A*
+   * - :math:`A`
      - Excitatory PSPA
      - 3.25 mV
      -
-   * - *B*
+   * - :math:`B`
      - Inhibitory PSPA
      - 22 mV
      -
-   * - *1/a*
+   * - :math:`1/a`
      - Time constant of excitatory PSP (*a* = 100 s\ :sup:`-1`)
      -
      -
-   * - *1/b*
+   * - :math:`1/b`
      - Time constant of inhibitory PSP (*b* = 50 s\ :sup:`-1`)
      -
      -
-   * - C\ :sub:`1`, C\ :sub:`2`
+   * - :math:`C_1, C_2`
      - Average numbers of synapses between EP
      - 1 C, 0.8 C
      -
-   * - C\ :sub:`3`, C\ :sub:`4`
+   * - :math:`C_3, C_4`
      - Average numbers of synapses between IP
      - 0.25 C
      -
-   * - v\ :sub:`max`
+   * - :math:`v_{max}`
      - Maximum firing rate
      - 5 Hz
      -
-   * - v\ :sub:`0`
+   * - :math:`v_0`
      - Potential at half of maximum firing rate
      - 6 mV
      -
-   * - r
+   * - :math:`r`
      - Slope of sigmoid function at *v\ :sub:`0`*
      - 0.56 mV\ :sup:`-1`
      -
-   * - C
+   * - :math:`C`
      - Average numbers of synapses between neural populations
      - 135
-     - U(100, 500)
-   * - G
+     - :math:`U(100, 500)`
+   * - :math:`G`
      - Scaling the strength of network connections
      - 1.5
-     - U(0, 5)
+     - :math:`U(0, 5)`
 
 EP: excitatory populations, IP: inhibitory populations, PSP: post synaptic potential, PSPA: post synaptic potential amplitude.
 
@@ -327,6 +327,162 @@ where :math:`x_i` and :math:`z_i` indicate the fast and slow variables correspon
      - 1.0
      - :math:`\mathcal{U}(0,2)`
 
+Wong-Wang model
+---------------
+
+Another commonly used whole-brain model  for simulation of neural activity  is the so-called  parameterized dynamics mean-field (pDMF) model [Hansen2015]_, [Kong2021]_, [Deco2013b]_. At each region, it comprises a simplified system of two non-linear coupled differential equations, motivated by the attractor network model, which integrates sensory information over time to make perceptual decisions, known as Wong-Wang model [Wong2006]_. 
+This biophysically realistic cortical network model of decision making then has been simplified further into a single-population model [Deco2013b]_, which has been widely used to understand the mechanisms underpinning brain resting state dynamics [Kong2021]_, [Deco2021]_, [Zhang2024]_. The pDMF model has been also used to study whole-brain dynamics in various brain disorders, including Alzheimer's disease [Monteverdi2023]_, schizophrenia [klein2021brain]_, and stroke [Klein2021]_.
+The pDMF model equations are given as:
+
+.. math::
+
+   \frac{dS_i(t)}{dt} &= -\frac{S_i}{\tau_s} + (1 - S_i) \gamma H(x_i) + \sigma \xi_i(t) \\
+   H(x_i) &= \frac{a x_i - b}{1 - \exp(-d(a x_i - b))} \\
+   x_i &= w J S_i + GJ \sum_{j=1}^{N} \text{SC}_{ij} S_j + I
+
+
+where :math:`H(x_i)` and :math:`S_i`, and :math:`x_i` denote the population firing rate, the average synaptic gating variable, and the total input current at the :math:`i_{th}` brain region, respectively.
+:math:`\xi_i(t)` is uncorrelated standard Gaussian noise and the noise amplitude is controlled by :math:`\sigma`.
+The nominal parameter values and the prior range for the target parameters are summarized in the following table.
+
+According to recent studies [Kong2021]_, [Zhang2024]_, we can parameterize the set of :math:`w`, :math:`I` and :math:`\sigma` as linear combinations of group-level T1w/T2w myelin maps [Glasser2011]_ and the first principal gradient of functional connectivity:
+
+.. math::
+
+   w_i &= a_w \textbf{Mye}_i + b_w \textbf{Grad}_i + c_w \\
+   I_i &= a_I \textbf{Mye}_i + b_I \textbf{Grad}_i + c_I  \\
+   \sigma_i &= a_{\sigma} \textbf{Mye}_i + b_{\sigma} \textbf{Grad}_i + c_{\sigma}
+
+
+.. list-table:: Parameter descriptions for capturing whole-brain dynamics using **Wong-Wang** model.
+   :widths: auto
+   :header-rows: 1
+   :class: color-caption
+
+   * - **Parameter**
+     - **Description**
+     - **Value**
+     - **Prior**
+   * - :math:`a`
+     - Max feeding rate of `H(x)`
+     - 270 n/C
+     - 
+   * - :math:`b`
+     - Half saturation of `H(x)`
+     - 108 Hz
+     - 
+   * - :math:`d`
+     - Control the steepness of curve of `H(x)`
+     - 0.154 s
+     - 
+   * - :math:`\gamma`
+     - Kinetic parameter
+     - 0.641/1000
+     - 
+   * - :math:`\tau_s`
+     - Synaptic time constant
+     - 100 ms
+     - 
+   * - :math:`J`
+     - Synaptic coupling
+     - 0.2609 nA
+     - 
+   * - :math:`w`
+     - Local excitatory recurrence
+     - 0.6 
+     - :math:`\mathcal{U}(0,1)`
+   * - :math:`I`
+     - Overall effective external input
+     - 0.3 nA
+     - :math:`\mathcal{U}(0, 0.5)`
+   * - :math:`G`
+     - Scaling the strength of network connections
+     - 6.28 
+     - :math:`\mathcal{U}(1,10)`
+   * - :math:`\sigma`
+     - Noise amplitude
+     - 0.005 
+     - :math:`\mathcal{U}(0.0005, 0.01)`
+      
+
+The Balloon-Windkessel model
+-----------------------------
+
+The Balloon-Windkessel model is a biophysical framework that links neural activity to the BOLD signals detected in fMRI. This is not a neuronal model but rather a representation of neurovascular coupling, describing how neural activity influences hemodynamic responses. The model is characterized by two state variables: venous blood volume (:math:`v`) and deoxyhemoglobin content (:math:`q`). The system's input is blood flow (:math:`f_{in}`), and the output is the BOLD signal (:math:`y`):
+
+.. math::
+
+   y(t) &= \lambda(v, q, E_0) = V_0 \big(k_1(1-q) + k_2(1-\frac{q}{v}) + k_3(1-v)\big) \\    
+   k_1 &= 4.3 \vartheta_0 E_0\,   \mathit{TE} \\
+   k_2 &= \varepsilon r_0 E_0 \,   \mathit{TE} \\
+   k_3 &= 1 - \varepsilon 
+
+where :math:`V_0` represents the resting blood volume fraction, :math:`E_0` is the oxygen extraction fraction at rest, :math:`\epsilon` is the ratio of intra- to extravascular signals, :math:`r_0` is the slope of the relationship between the intravascular relaxation rate and oxygen saturation, :math:`\vartheta_0` is the frequency offset at the surface of a fully deoxygenated vessel at 1.5T, and :math:`\mathit{TE}` is the echo time. The dynamics of venous blood volume :math:`v` and deoxyhemoglobin content :math:`q` are governed by the Balloon model's hemodynamic state equations:
+
+.. math::
+
+    \tau_0 \frac{dv}{dt} &= f(t) - v(t)^{1/\alpha} \\
+    \tau_0 \frac{dq}{dt} &= f(t) \frac{1-(1-E_0)^{1/f}}{E_0} - v(t)^{1/\alpha} q(t)  
+
+where :math:`\tau_0` is the transit time of blood flow, :math:`\alpha` reflects the resistance of the venous vessel (stiffness), and :math:`f(t)` denotes blood inflow at time :math:`t`, given by 
+
+.. math::
+
+   \frac{df}{dt} = s,
+
+where :math:`s` is an exponentially decaying vasodilatory signal defined by
+
+.. math::
+
+    \frac{ds}{dt} = \epsilon x - \frac{s}{\tau_s} - \frac{(f-1)}{\tau_f}
+
+where, :math:`\epsilon` represents the efficacy of neuronal activity :math:`x(t)` (i.e., integrated synaptic activity) in generating a signal increase, :math:`\tau_s` is the time constant for signal decay, and :math:`\tau_f` is the time constant for autoregulatory blood flow feedback [Friston2000nonlinear]_. For parameter values, see the following table, taken from [Friston2000nonlinear]_, [stephan2007comparing]_, [stephan2008nonlinear]_. The resulting time series is downsampled to match the `TR` value in seconds.
+
+.. list-table:: Parameter descriptions for the **Balloon-Windkessel** model to map neural activity to the BOLD signals detected in fMRI.
+   :widths: auto
+   :header-rows: 1
+   :class: color-caption
+
+   * - **Parameter**
+     - **Description**
+     - **Value**
+   * - :math:`\tau_s`
+     - Rate constant of vasodilatory signal decay in seconds
+     - 1.5
+   * - :math:`\tau_f`
+     - Time of flow-dependent elimination in seconds
+     - 4.5
+   * - :math:`\alpha`
+     - Grubb's vessel stiffness exponent
+     - 0.2
+   * - :math:`\tau_0`
+     - Hemodynamic transit time in seconds
+     - 1.0
+   * - :math:`\epsilon`
+     - Efficacy of synaptic activity to induce signal
+     - 0.1
+   * - :math:`r_0`
+     - Slope of intravascular relaxation rate in Hertz
+     - 25.0
+   * - :math:`\vartheta_0`
+     - Frequency offset at outer surface of magnetized vessels
+     - 40.3
+   * - :math:`\varepsilon`
+     - Ratio of intra- and extravascular BOLD signal at rest
+     - 1.43
+   * - :math:`V_0`
+     - Resting blood volume fraction
+     - 0.02
+   * - :math:`E_0`
+     - Resting oxygen extraction fraction
+     - 0.8
+   * - :math:`TE`
+     - Echo time, 1.5T scanner
+     - 0.04
+
+.. _table:balloon:
+
+
 
 References
 ----------
@@ -362,3 +518,15 @@ References
 .. [Hashemi2021] Hashemi, Meysam; Vattikonda, Anirudh N; Sip, Viktor; Diaz-Pier, Sandra; Peyser, Alexander; Wang, Huifang; Guye, Maxime; Bartolomei, Fabrice; Woodman, Marmaduke M; Jirsa, Viktor K (2021). *On the influence of prior information evaluated by fully Bayesian criteria in a personalized whole-brain model of epilepsy spread*. PLoS computational biology, 17(7), e1009129.
 .. [Hashemi2023] Hashemi, Meysam; Vattikonda, Anirudh N; Jha, Jayant; Sip, Viktor; Woodman, Marmaduke M; Bartolomei, Fabrice; Jirsa, Viktor K (2023). *Amortized Bayesian inference on generative dynamical network models of epilepsy using deep neural density estimators*. Neural Networks, 163, 178-194.
 .. [Wang2023] Wang, Huifang E; Woodman, Marmaduke; Triebkorn, Paul; Lemarechal, Jean-Didier; Jha, Jayant; Dollomaja, Borana; Vattikonda, Anirudh Nihalani; Sip, Viktor; Medina Villalon, Samuel; Hashemi, Meysam; et al. (2023). *Delineating epileptogenic networks using brain imaging data and personalized modeling in drug-resistant epilepsy*. Science Translational Medicine, 15(680), eabp8982.
+.. [Hansen2015] Enrique C.A. Hansen, Demian Battaglia, Andreas Spiegler, Gustavo Deco, and Viktor K. Jirsa. "Functional connectivity dynamics: Modeling the switching behavior of the resting state."  *NeuroImage*, 105:525-535, 2015.
+.. [Kong2021] Xiaolu Kong, Ru Kong, Csaba Orban, Peng Wang, Shaoshi Zhang, Kevin Anderson, Avram Holmes, John D. Murray, Gustavo Deco, Martijn van den Heuvel, et al. "Sensory-motor cortices shape functional connectivity dynamics in the human brain."  *Nature Communications*, 12(1):1-15, 2021.
+.. [Deco2013b] Gustavo Deco, Adrián Ponce-Alvarez, Dante Mantini, Gian Luca Romani, Patric Hagmann, and Maurizio Corbetta. "Resting-state functional connectivity emerges from structurally and dynamically shaped slow linear fluctuations." *Journal of Neuroscience*, 33(27):11239-11252, 2013.
+.. [Wong2006] Kong-Fatt Wong and Xiao-Jing Wang. "A recurrent network mechanism of time integration in perceptual decisions." *Journal of Neuroscience*, 26(4):1314-1328, 2006.
+.. [Deco2021] Gustavo Deco, Morten L Kringelbach, Aurina Arnatkeviciute, Stuart Oldham, Kristina Sabaroedin, Nigel C Rogasch, Kevin M Aquino, Alex Fornito. "Dynamical consequences of regional heterogeneity in the brain's transcriptional landscape." *Science Advances*, 7(29):eabf4752, 2021.
+.. [Zhang2024] Shaoshi Zhang, Bart Larsen, Valerie J Sydnor, Tianchu Zeng, Lijun An, Xiaoxuan Yan, Ru Kong, Xiaolu Kong, Ruben C Gur, Raquel E Gur, et al. "In vivo whole-cortex marker of excitation-inhibition ratio indexes cortical maturation and cognitive ability in youth." *Proceedings of the National Academy of Sciences*, 121(23):e2318641121, 2024.
+.. [Monteverdi2023] Anita Monteverdi, Fulvia Palesi, Michael Schirner, Francesca Argentino, Mariateresa Merante, Alberto Redolfi, Francesca Conca, Laura Mazzocchi, Stefano F Cappa, Matteo Cotta Ramusino, et al. "Virtual brain simulations reveal network-specific parameters in neurodegenerative dementias." *Frontiers in Aging Neuroscience*, 15:1204134, 2023.
+.. [Klein2021] Pedro Costa Klein, Ulrich Ettinger, Michael Schirner, Petra Ritter, Dan Rujescu, Peter Falkai, Nikolaos Koutsouleris, Lana Kambeitz-Ilankovic, Joseph Kambeitz. "Brain network simulations indicate effects of neuregulin-1 genotype on excitation-inhibition balance in cortical dynamics." *Cerebral Cortex*, 31(4):2013-2025, 2021.
+.. [Glasser2011] Matthew F Glasser, David C Van Essen. "Mapping human cortical areas in vivo based on myelin content as revealed by T1-and T2-weighted MRI." *Journal of Neuroscience*, 31(32):11597-11616, 2011.
+.. [stephan2007comparing] Klaas Enno Stephan, Nikolaus Weiskopf, Peter M Drysdale, Peter A Robinson, Karl J Friston. "Comparing hemodynamic models with DCM." *Neuroimage*, 38(3):387-401, 2007.
+.. [stephan2008nonlinear] Klaas Enno Stephan, Lars Kasper, Lee M Harrison, Jean Daunizeau, Hanneke EM den Ouden, Michael Breakspear, Karl J Friston. "Nonlinear dynamic causal models for fMRI." *Neuroimage*, 42(2):649-662, 2008.
+.. [klein2021brain] Pedro Costa Klein, Ulrich Ettinger, Michael Schirner, Petra Ritter, Dan Rujescu, Peter Falkai, Nikolaos Koutsouleris, Lana Kambeitz-Ilankovic, Joseph Kambeitz. "Brain network simulations indicate effects of neuregulin-1 genotype on excitation-inhibition balance in cortical dynamics." *Cerebral Cortex*, 31(4):2013-2025, 2021.
