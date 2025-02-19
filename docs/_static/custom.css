@@ -21,3 +21,11 @@
 .highlight {
     background-color: #F0F8FF; /* Light blue */
 }
+
+.section {
+    background-color: #f0f8ff; /* Light blue background for sections */
+}
+
+.descclassname, .descname {
+    color: #327219;  /* Green color for class and function names */
+}
