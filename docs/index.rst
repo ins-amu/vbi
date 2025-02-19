@@ -48,6 +48,7 @@ Examples
    examples/mpr_sde_cupy
    examples/mpr_sde_numba
    examples/jansen_rit_sde_cpp
+   examples/jansen_rit_sde_cupy
    examples/ww_sde_torch_kong
    examples/ghb_sde_cupy
 
