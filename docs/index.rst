@@ -1,6 +1,23 @@
+.. raw:: html
+
+   <link rel="stylesheet" type="text/css" href="_static/custom.css">
+
+
 Virtual Brain Inference (VBI)
 ##############################
 
+
+.. image:: _static/vbi_log.png
+   :alt: VBI Logo
+   :width: 200px
+   :align: center
+
+Workflow
+========
+
+.. image:: _static/Fig1.png
+   :alt: VBI Logo
+   :width: 800px
 
 Installation
 ============
@@ -15,6 +32,13 @@ Installation
     cd vbi
     pip install .
     # pip install -e .[all,dev,docs]
+
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Contents:
+
+   models
 
 
 Examples
@@ -32,8 +56,17 @@ Examples
    examples/mpr_sde_cupy
    examples/mpr_sde_numba
    examples/jansen_rit_sde_cpp
+   examples/jansen_rit_sde_cupy
    examples/ww_sde_torch_kong
    examples/ghb_sde_cupy
+
+
+
+.. toctree::
+    :maxdepth: 2
+    :caption: API Reference
+
+    API
 
 
 Indices and tables
@@ -45,71 +78,3 @@ Indices and tables
 
 
 
-API and documentation
-=====================
-
-C++ models
--------------------------
-
-.. automodule:: vbi
-    :members:
-    :undoc-members:
-
-vbi.models.cpp.jansen_rit
--------------------------
-    .. automodule:: vbi.models.cpp.jansen_rit
-        :members:
-        :undoc-members:
-
-vbi.models.cpp.km
--------------------------
-    .. automodule:: vbi.models.cpp.km
-        :members:
-        :undoc-members:
-
-vbi.models.cpp.mpr 
--------------------------
-    .. automodule:: vbi.models.cpp.mpr
-        :members:
-        :undoc-members:
-
-vbi.models.cpp.vep 
--------------------------
-    .. automodule:: vbi.models.cpp.vep
-        :members:
-        :undoc-members:
-
-
-vbi.models.cpp.wc 
--------------------------
-    .. automodule:: vbi.models.cpp.wc
-        :members:
-        :undoc-members:
-
-
-Cupy models 
--------------------------
-
-vbi.models.cupy.mpr 
--------------------------
-    .. automodule:: vbi.models.cupy.mpr
-        :members:
-        :undoc-members:
-
-vbi.models.cupy.ghb
--------------------------
-    .. automodule:: vbi.models.cupy.ghb
-        :members:
-        :undoc-members:
-
-vbi.models.cupy.jansen_rit
-----------------------------
-    .. automodule:: vbi.models.cupy.jansen_rit
-        :members:
-        :undoc-members:
-
-vbi.models.cupy.utils 
--------------------------
-    .. automodule:: vbi.models.cupy.utils
-        :members:
-        :undoc-members:

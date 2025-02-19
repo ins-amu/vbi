@@ -1,2 +1,3 @@
 include LICENSE
 graft docs
+graft vbi/models/cpp/_src

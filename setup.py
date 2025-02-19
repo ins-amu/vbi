@@ -4,6 +4,13 @@ from setuptools import setup, Extension, find_packages
 from setuptools.command.build_ext import build_ext
 
 
+def get_version():
+    version_file = os.path.join(os.path.dirname(__file__), 'vbi', '_version.py')
+    with open(version_file) as f:
+        for line in f:
+            if line.startswith('__version__'):
+                return line.split('=')[1].strip().strip('"\'')
+
 # Custom command to compile C++ and SWIG wrapper
 class CustomBuildExtCommand(build_ext):
     def run(self):
@@ -54,10 +61,10 @@ extensions = [create_extension(model) for model in models]
 # Setup function
 setup(
     name="vbi",
-    version="0.1.2",
+    version=get_version(),
     description="A Python package with C++ integration via SWIG",
     packages=find_packages(),  # Use find_packages() to automatically discover packages
-    ext_modules=extensions,  # Include all the C++ extensions
+    # ext_modules=extensions,  # Include all the C++ extensions
     cmdclass={
         "build_ext": CustomBuildExtCommand,  # Override the default build_ext
     },
