@@ -49,9 +49,9 @@ VBI is a Python-based toolkit tailored for probabilistic inference at the whole-
 - **Brain models**: Wilson-Cowan, Montbrió, Jansen-Rit, Stuart-Landau, Wong-Wang, and Epileptor.
 - **Fast simulation**: Just-in-time compilation of models across Python/C++ and CPU/GPU devices.
 - **Feature extraction**: Functional connectivity (FC), functional connectivity dynamics (FCD), and power spectral density (PSD).
-- **Deep neural density estimators**: Masked autoregressive flows (MAFs) and neural spline flows (NSFs).
+- **Deep neural density estimators**: Masked autoregressive flows (MAFs) [@Papamakarios2017] and neural spline flows (NSFs) [@Durkan2019].
 
-VBI integrates structural and functional neuroimaging data, supporting space-efficient storage and memory-efficient batch processing. Traditional methods like Markov Chain Monte Carlo (MCMC) and Approximate Bayesian Computation (ABC) face significant challenges in this context. MCMC struggles with convergence in high-dimensional spaces and complex geometries, often requiring extensive tuning and computational resources. ABC, while likelihood-free, relies on predefined thresholds for sample acceptance, leading to inefficiencies and potential biases when rejecting samples that fall outside narrow criteria. In contrast, VBI leverages Simulation-Based Inference (SBI), which sidesteps these issues by using forward simulations and deep neural density estimators to directly approximate posterior distributions. This approach enhances efficiency, scalability, and robustness, making VBI particularly suited for inverting complex virtual brain models.
+VBI integrates structural and functional neuroimaging data, supporting space-efficient storage and memory-efficient batch processing. Traditional methods like Markov Chain Monte Carlo (MCMC) and Approximate Bayesian Computation (ABC) face significant challenges in this context [@Sisson2007]. MCMC struggles with convergence in high-dimensional spaces and complex geometries, often requiring extensive tuning and computational resources [@Betancourt2013b], [@Betancourt2014], [@Hashemi2020]. ABC, while likelihood-free, relies on predefined thresholds for sample acceptance, leading to inefficiencies and potential biases when rejecting samples that fall outside narrow criteria. In contrast, VBI leverages Simulation-Based Inference (SBI), which sidesteps these issues by using forward simulations and deep neural density estimators to directly approximate posterior distributions. This approach enhances efficiency, scalability, and robustness, making VBI particularly suited for inverting complex virtual brain models.
 
 Designed for researchers and clinical applications, VBI enables personalized simulations of normal and pathological brain activity, aiding in distinguishing healthy from diseased states and informing targeted interventions. By addressing the inverse problem—estimating control parameters that best explain observed data—VBI leverages high-performance computing for parallel processing of large-scale datasets.
 
@@ -61,16 +61,17 @@ Designed for researchers and clinical applications, VBI enables personalized sim
 Brain network dynamics at the regional scale are modeled as:
 
 $$
-\dot{\mathbf{\psi}}_i(t) = \mathcal{N}(\mathbf{\psi}_i) + G \sum_{j=1}^{N} \mathrm{w}_{ij} \mathcal{H}(\psi_i, \psi_j(t - \tau_{ij})) + z(\mathbf{\psi}_i) \xi_i(t),
+\dot {\psi}_i (t) = \mathcal{N} (\psi_i) + G \sum_{j=1}^{N}  \mathrm{w}_{ij} \mathcal{H}(\psi_i,  \psi_j(t-\tau_{ij}) )  + z (\psi_i) \xi_i(t),
 $$
 
-where $i = 1, 2, \ldots, N$, and $N$ is the number of brain regions. Here, $\mathbf{\psi}_i(t)$ represents local neural activity in region $i$, governed by the nonlinear function $\mathcal{N}(\mathbf{\psi}_i)$ when uncoupled. Interactions between regions are mediated by the coupling function $\mathcal{H}(\psi_i, \psi_j(t - \tau_{ij}))$, weighted by the structural connectivity $\mathrm{w}_{ij}$ (derived from diffusion-weighted MRI tractography) and delayed by axonal transmission times $\tau_{ij}$. A noise term, $z(\mathbf{\psi}_i) \xi_i(t)$, incorporates Gaussian noise with:
+
+where $i = 1, 2, \ldots, N$, and $N$ is the number of brain regions. Here, $\psi_i(t)$ represents local neural activity in region $i$, governed by the nonlinear function $\mathcal{N}(\psi_i)$ when uncoupled. Interactions between regions are mediated by the coupling function $\mathcal{H}(\psi_i, \psi_j(t - \tau_{ij}))$, weighted by the structural connectivity $\mathrm{w}_{ij}$ (derived from diffusion-weighted MRI tractography) and delayed by axonal transmission times $\tau_{ij}$. A noise term, $z(\psi_i) \xi_i(t)$, incorporates Gaussian noise with:
 
 $$
 \langle \xi_i(t) \rangle = 0, \quad \langle \xi_i(t) \xi_j(t') \rangle = 2 D \delta(t - t') \delta_{i,j},
 $$
 
-where $D$ is the noise strength. The system’s operating regime emerges from the interplay of global coupling $G$, local bifurcation parameters, and noise, with connectivity structure shaping macroscopic brain activity through delays and weights.
+where $D$ is the noise strength. The system’s operating regime emerges from the interplay of global coupling $G$, local bifurcation parameters, and noise, with connectivity structure shaping macroscopic brain activity through delays and weights [@ghosh2008noise], [@ziaeemehr2020frequency], [@petkoski2019transmission]. 
 
 Simulation-based inference (SBI) in VBI avoids convergence issues of gradient-based MCMC methods and outperforms approximate Bayesian computation (ABC) by using deep neural density estimators to approximate posterior distributions, $p(\vec{\theta} \mid \vec{x}_{obs})$. SBI requires three components:
 
@@ -112,4 +113,3 @@ where $\bar{\theta}$ is the posterior mean, $\theta^\ast$ is the true parameter,
 This research has received funding from EU’s Horizon 2020 Framework Programme for Research and Innovation under the Specific Grant Agreements No. 101147319 (EBRAINS 2.0 Project), No. 101137289 (Virtual Brain Twin Project), No. 101057429 (project environMENTAL), and government grant managed by the Agence Nationale de la Recherche reference ANR-22-PESN-0012 (France 2030 program). We acknowledge the use of Fenix Infrastructure resources, which are partially funded from the European Union’s Horizon 2020 research and innovation programme through the ICEI project under the grant agreement No. 800858. The funders had no role in study design, data collection and analysis, decision to publish, or preparation of the manuscript.
 
 # References
-
