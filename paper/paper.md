@@ -105,7 +105,7 @@ where $\bar{\theta}$ is the posterior mean, $\theta^\ast$ is the true parameter,
 - **Simulation-based inference**: A likelihood-free approach using forward simulations for inference in complex systems.
 - **Virtual brain models**: Computational models of regional brain dynamics linked by a personalized structural connectivity matrix.
 
-![Figure 1: Overview of the VBI workflow, integrating connectome construction, simulation, and inference.](figures/vbi_workflow.png)
+![Figure 1: Overview of the VBI workflow, integrating connectome construction, simulation, and inference.](Fig1.png)
 
 # Acknowledgements
 
