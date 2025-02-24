@@ -1,8 +1,7 @@
 [![Test](https://github.com/ins-amu/vbi/actions/workflows/tests.yml/badge.svg)](https://github.com/ins-amu/vbi/actions/workflows/tests.yml)
 [![Documentation Status](https://readthedocs.org/projects/vbi/badge/?version=latest)](https://vbi.readthedocs.io/latest/)
 [![DOI](https://zenodo.org/badge/681090816.svg)](https://doi.org/10.5281/zenodo.14795543)
-
-
+[![Docker Build](https://github.com/ins-amu/vbi/actions/workflows/docker-image.yml/badge.svg)](https://github.com/ins-amu/vbi/actions/workflows/docker-image.yml)
 
 # Virtual Brain Inference (VBI)
 <p align="center">
@@ -62,9 +61,6 @@ To use the Docker image, you can pull it from the GitHub Container Registry and 
     Device Name: NVIDIA RTX A5000
     Total Memory: 23.68 GB
     Compute Capability: 8.6
-
-    ```
-
 
 ```
 
