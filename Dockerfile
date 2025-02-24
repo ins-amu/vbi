@@ -1,28 +1,42 @@
-# Use the smallest official Python image
-FROM python:3.9-slim
+FROM nvidia/cuda:11.8.0-cudnn8-runtime-ubuntu20.04
 
-# Set environment variables to avoid interactive prompts
+# Set environment to avoid interactive prompts
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Set the working directory inside the container
-WORKDIR /app
-
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    swig \
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    python3.10 \
+    python3-pip \
     build-essential \
-    git \
+    gcc \
+    g++ \
+    libatlas-base-dev \
+    libopenblas-dev \
+    libhdf5-dev \
+    swig \
+    tzdata \
+    && ln -s /usr/bin/python3 /usr/bin/python \
     && rm -rf /var/lib/apt/lists/*
 
+# Set timezone (e.g., UTC) to avoid configuration prompts
+RUN echo "Etc/UTC" > /etc/timezone && \
+    ln -fs /usr/share/zoneinfo/Etc/UTC /etc/localtime && \
+    dpkg-reconfigure -f noninteractive tzdata
 
-# Copy only the package files (without installing dependencies)
+WORKDIR /app
+
+RUN pip install --upgrade pip
+
+RUN pip install --no-cache-dir \
+    hatchling \
+    setuptools>=45 \
+    wheel \
+    swig>=4.0
+
 COPY . .
 
-# Install Python dependencies
-RUN pip install --no-cache-dir hatchling setuptools wheel && \
-    pip install .
+RUN pip install . --no-cache-dir
+RUN pip install cupy-cuda11x
 
-# Optional: Support GPU version (comment out if not needed)
-ARG GPU_SUPPORT=false
-RUN if [ "$GPU_SUPPORT" = "true" ]; then pip install cupy; fi
-
+# Set the default command (modify as needed)
 CMD ["python", "-c", "from vbi.utils import test_imports; test_imports()"]
