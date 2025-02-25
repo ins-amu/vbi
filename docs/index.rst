@@ -47,7 +47,7 @@ To use the Docker image, you can pull it from the GitHub Container Registry and 
    
     # Get it without building anything locally
     # without GPU
-    docker run --rm -it ghcr.io/ins-amu/vbi:main
+    docker run --rm -it -p 8888:8888 ghcr.io/ins-amu/vbi:main
 
     # with GPU
     docker run --gpus all --rm -it -p 8888:8888 ghcr.io/ins-amu/vbi:main
