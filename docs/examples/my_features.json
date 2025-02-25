@@ -1,0 +1,25 @@
+{
+    "statistical":
+    {
+        "mean": {
+            "description": "Calculate mean value of the time series",
+            "function": "mean",
+            "parameters": {
+                "arg1": 1.0,
+                "arg2": 2.0
+            },
+            "use": "yes",
+            "tag": "all"
+        },
+        "std": {
+            "description": "Calculate standard deviation of the time series",
+            "function": "std",
+            "parameters": {
+                "arg1": 1.0,
+                "arg2": 2.0
+            },
+            "use": "yes",
+            "tag": "all"
+        }
+    }
+}
