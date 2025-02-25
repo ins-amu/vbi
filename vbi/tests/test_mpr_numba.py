@@ -57,7 +57,7 @@ def plot(rv_t, r, v, bold_d, bold_t, g, close=True):
 
 class testMPRSDE(unittest.TestCase):
 
-    @timer
+    # @timer
     def test_run(self):
 
         # warm up

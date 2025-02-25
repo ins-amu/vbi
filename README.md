@@ -2,6 +2,8 @@
 [![Documentation Status](https://readthedocs.org/projects/vbi/badge/?version=latest)](https://vbi.readthedocs.io/latest/)
 [![DOI](https://zenodo.org/badge/681090816.svg)](https://doi.org/10.5281/zenodo.14795543)
 [![Docker Build](https://github.com/ins-amu/vbi/actions/workflows/docker-image.yml/badge.svg)](https://github.com/ins-amu/vbi/actions/workflows/docker-image.yml)
+[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/ins-amu/vbi/main?labpath=docs/examples/intro.ipynb)
+
 
 # Virtual Brain Inference (VBI)
 <p align="center">
@@ -31,15 +33,24 @@ To use the Docker image, you can pull it from the GitHub Container Registry and 
     docker run --rm -it ghcr.io/ins-amu/vbi:main
 
     # with GPU
-    docker run --gpus all --rm -it ghcr.io/ins-amu/vbi:main
+    docker run --gpus all --rm -it -p 8888:8888 ghcr.io/ins-amu/vbi:main
 
 
     # or build it locally:
-    docker build -t vbi-project .         # build
-    docker run --gpus all -it vbi-project # use with gpu
+    docker build -t vbi-project .                      # build
+    docker run --gpus all -it -p 8888:8888 vbi-project # use with gpu
 
-    # Output is expected to be something like this:
+```    
 
+- Quick check :
+
+```python
+
+    import vbi
+    vbi.tests()
+    vbi.test_imports()
+
+    
                 Dependency Check              
                                            
     Package      Version       Status        
