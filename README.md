@@ -76,6 +76,11 @@ To use the Docker image, you can pull it from the GitHub Container Registry and 
 ```
 
 
+## Feedback and Contributions
+
+We welcome contributions to the VBI project! If you have suggestions, bug reports, or feature requests, please open an issue on our [GitHub repository](https://github.com/ins-amu/vbi/issues). To contribute code, fork the repository, create a new branch for your feature or bugfix, and submit a pull request. Make sure to follow our coding standards and include tests for your changes. For detailed guidelines, please refer to our [CONTRIBUTING.md](https://github.com/ins-amu/vbi/blob/main/CONTRIBUTING.md) file. Thank you for helping us improve VBI!
+
+
 ## Citation
 
 ```bibtex
