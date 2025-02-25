@@ -1,5 +1,6 @@
 import os
 from .tests.test_suite import tests
+from .utils import test_imports
 from ._version import __version__
 
 from .feature_extraction.calc_features import (

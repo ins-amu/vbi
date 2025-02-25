@@ -35,8 +35,17 @@ RUN pip install --no-cache-dir \
 
 COPY . .
 
-RUN pip install . --no-cache-dir
+RUN pip install -e . --no-cache-dir
 RUN pip install cupy-cuda11x
 
+# Install Jupyter Notebook and related packages
+RUN pip install --no-cache-dir \
+    notebook \
+    ipykernel \
+    ipython
+
+EXPOSE 8888
+
 # Set the default command (modify as needed)
-CMD ["python", "-c", "from vbi.utils import test_imports; test_imports()"]
+# CMD ["python", "-c", "from vbi.utils import test_imports; test_imports()"]
+CMD ["jupyter", "notebook", "--ip=0.0.0.0", "--port=8888", "--no-browser", "--allow-root"]

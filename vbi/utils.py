@@ -394,3 +394,9 @@ def get_cuda_info():
     except Exception as e:
         return f"Error getting CUDA information: {str(e)}"
 
+
+
+# def tests():
+#     from vbi.tests.test_suite import tests
+#     tests()
+    
