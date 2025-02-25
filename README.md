@@ -35,11 +35,20 @@ To use the Docker image, you can pull it from the GitHub Container Registry and 
 
 
     # or build it locally:
-    docker build -t vbi-project .         # build
-    docker run --gpus all -it vbi-project # use with gpu
+    docker build -t vbi-project .                      # build
+    docker run --gpus all -it -p 8888:8888 vbi-project # use with gpu
 
-    # Output is expected to be something like this:
+```    
 
+- Quick check :
+
+```python
+
+    import vbi
+    vbi.tests()
+    vbi.test_imports()
+
+    
                 Dependency Check              
                                            
     Package      Version       Status        
