@@ -5,7 +5,11 @@
 <!-- [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/ins-amu/vbi/main?labpath=docs/examples/intro.ipynb) -->
 
 
-# Virtual Brain Inference (VBI)
+# VBI: Virtual Brain Inference
+---
+[Getting Started](https://github.com/ins-amu/vbi/tree/main/docs/examples) |
+[Documentation](https://vbi.readthedocs.io/latest/) | 
+
 <p align="center">
 <img src="https://github.com/Ziaeemehr/vbi_paper/blob/main/vbi_log.png"  width="250">
 </p>
