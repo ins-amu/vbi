@@ -5,7 +5,11 @@
 <!-- [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/ins-amu/vbi/main?labpath=docs/examples/intro.ipynb) -->
 
 
-# Virtual Brain Inference (VBI)
+# VBI: Virtual Brain Inference
+---
+[Getting Started](https://github.com/ins-amu/vbi/tree/main/docs/examples) |
+[Documentation](https://vbi.readthedocs.io/latest/) | 
+
 <p align="center">
 <img src="https://github.com/Ziaeemehr/vbi_paper/blob/main/vbi_log.png"  width="250">
 </p>
@@ -51,29 +55,34 @@ To use the Docker image, you can pull it from the GitHub Container Registry and 
     vbi.test_imports()
 
     
-                Dependency Check              
-                                           
-    Package      Version       Status        
-  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 
-    vbi          v0.1.3        ✅ Available  
-    numpy        1.24.4        ✅ Available  
-    scipy        1.10.1        ✅ Available  
-    matplotlib   3.7.5         ✅ Available  
-    sbi          0.22.0        ✅ Available  
-    torch        2.4.1+cu121   ✅ Available  
-    cupy         12.3.0        ✅ Available  
-                                            
-    Torch GPU available: True
-    Torch device count: 1
-    Torch CUDA version: 12.1
-    CuPy GPU available: True
-    CuPy device count: 1
-    CUDA Version: 11.8
-    Device Name: NVIDIA RTX A5000
-    Total Memory: 23.68 GB
-    Compute Capability: 8.6
+  #              Dependency Check              
+  #                                         
+  #  Package      Version       Status        
+  #━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 
+  #  vbi          v0.1.3        ✅ Available  
+  #  numpy        1.24.4        ✅ Available  
+  #  scipy        1.10.1        ✅ Available  
+  #  matplotlib   3.7.5         ✅ Available  
+  #  sbi          0.22.0        ✅ Available  
+  #  torch        2.4.1+cu121   ✅ Available  
+  #  cupy         12.3.0        ✅ Available  
+  #                                          
+  #  Torch GPU available: True
+  #  Torch device count: 1
+  #  Torch CUDA version: 12.1
+  #  CuPy GPU available: True
+  #  CuPy device count: 1
+  #  CUDA Version: 11.8
+  #  Device Name: NVIDIA RTX A5000
+  #  Total Memory: 23.68 GB
+  #  Compute Capability: 8.6
 
 ```
+
+
+## Feedback and Contributions
+
+We welcome contributions to the VBI project! If you have suggestions, bug reports, or feature requests, please open an issue on our [GitHub repository](https://github.com/ins-amu/vbi/issues). To contribute code, fork the repository, create a new branch for your feature or bugfix, and submit a pull request. Make sure to follow our coding standards and include tests for your changes. For detailed guidelines, please refer to our [CONTRIBUTING.md](https://github.com/ins-amu/vbi/blob/main/CONTRIBUTING.md) file. Thank you for helping us improve VBI!
 
 
 ## Citation
