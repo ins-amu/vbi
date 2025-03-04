@@ -54,9 +54,6 @@ repository = "https://github.com/Ziaeemehr/vbi_paper"
 
 [tool.hatch.version]
 path = "vbi/_version.py"
-
-[tool.setuptools]
-packages = ["vbi"]  # Explicitly include vbi.tests
 include-package-data = true
 
 [tool.setuptools.package-data]
