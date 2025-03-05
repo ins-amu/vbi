@@ -91,7 +91,7 @@ def integrate(P, B):
     dt = P.dt
     dt = P.dt
     rv_decimate = P.rv_decimate
-    r_period = P.dt * 10 # rv_decimate
+    r_period = P.dt * 10 # extenting time 
     bold_decimate = int(np.round(tr / r_period))
 
     dtt = r_period / 1000.0  # in seconds
