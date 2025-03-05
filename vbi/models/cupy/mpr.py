@@ -295,7 +295,7 @@ class MPR_sde:
         self.prepare_input()
         dt = self.dt
         rv_decimate = self.rv_decimate
-        r_period = dt * rv_decimate
+        r_period = dt * 10 # extenting time
         dtt = r_period / 1000.0  # in seconds
         tr = self.tr
         xp = self.xp
@@ -347,7 +347,7 @@ class MPR_sde:
             t_curr = i * dt
             self.heunStochastic(rv_curr, t_curr, dt)
 
-            if (i % rv_decimate) == 0:
+            if ((i % rv_decimate) == 0) and ((i // rv_decimate) < rv_d.shape[0]):
 
                 if self.RECORD_RV:
                     rv_d[i // rv_decimate] = get_(rv_curr, engine, "f")
