@@ -1,3 +1,7 @@
 include LICENSE
 graft docs
 graft vbi/models/cpp/_src
+graft vbi/dataset
+prune docs/_build
+prune docs/_static
+recursive-include vbi/feature_extraction *.json *.jar
