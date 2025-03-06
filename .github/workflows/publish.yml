@@ -28,7 +28,7 @@ jobs:
 
       - name: Build package
         run: |
-          python -m build --wheel --no-deps  # Build the wheel explicitly
+          python -m build --wheel # Build the wheel explicitly
 
       - name: Publish to PyPI
         env:
