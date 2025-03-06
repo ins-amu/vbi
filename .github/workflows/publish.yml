@@ -16,27 +16,19 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Build and publish with manylinux
+        uses: pypa/manylinux-action@v1
         with:
-          python-version: "3.10"  # Set to Python 3.10
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install build twine
-        
-      - name: Compile C++ extension
-        run: |
-          cd vbi/models/cpp/_src
-          make
-
-      - name: Build package
-        run: |
-          python -m build 
-
-      - name: Publish to PyPI
+          manylinux-version: "2014"  # Use manylinux2014 for broader compatibility
+          python-version: "3.10"     # Match your Python version
+          command: |
+            pip install --upgrade pip
+            pip install build twine
+            cd vbi/models/cpp/_src
+            make
+            cd ../../../..  # Navigate back to the root directory
+            python -m build
+            twine upload --verbose dist/* --repository-url https://upload.pypi.org/legacy/
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
-        run: twine upload --verbose dist/* --repository-url https://upload.pypi.org/legacy/
