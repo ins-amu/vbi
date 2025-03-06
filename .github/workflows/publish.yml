@@ -18,7 +18,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4  # Use GitHub's official Python setup action
         with:
-          python-version: '3.x'  # Specify your desired Python version (e.g., '3.9', '3.10')
+          python-version: '3.10'  # Specify your desired Python version (e.g., '3.9', '3.10')
 
       - name: Install Python dependencies
         run: |
