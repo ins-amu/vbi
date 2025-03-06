@@ -13,22 +13,67 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-
       - uses: actions/checkout@v3
-      - name: setup python
-        run: sudo apt-get update && sudo apt-get install -y python3-pip
-      - name: debug git status
+
+      - name: Set up Python
+        uses: actions/setup-python@v4  # Use GitHub's official Python setup action
+        with:
+          python-version: '3.x'  # Specify your desired Python version (e.g., '3.9', '3.10')
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install build twine  # Install build and twine explicitly
+
+      - name: Debug git status
         run: git status && cat vbi/_version.py
-      - name: pip install dependencies
+
+      - name: Install project dependencies
         run: pip install .
-      # - name: run tests
+
+      # - name: Run tests
       #   run: pytest -m 'not slow'
-      - name: build packages
+
+      - name: Build packages
         run: python -m build
+
       - name: Compile C++
         run: cd vbi/models/cpp/_src && make
-      - name: upload packages to pypi
+
+      - name: Upload packages to PyPI
         run: twine upload -u __token__ -p "${{ secrets.PYPI_API_TOKEN }}" dist/*
+
+# name: Publish to PyPI
+
+# on:
+#   push:
+#     tags:
+#       - "v*"  # Runs when you push a version tag like "v1.0.0"
+#     branches:
+#       - develop  # Runs when you push to the given branch
+
+# jobs:
+#   build-and-publish:
+#     name: Build and publish Python package
+#     runs-on: ubuntu-latest
+
+#     steps:
+
+#       - uses: actions/checkout@v3
+#       - name: setup python
+#         run: sudo apt-get update && sudo apt-get install -y python3-pip
+#       - name: debug git status
+#         run: git status && cat vbi/_version.py
+#       - name: pip install dependencies
+#         run: pip install .
+#       # - name: run tests
+#       #   run: pytest -m 'not slow'
+#       - name: build packages
+#         run: python -m build
+#       - name: Compile C++
+#         run: cd vbi/models/cpp/_src && make
+#       - name: upload packages to pypi
+#         run: twine upload -u __token__ -p "${{ secrets.PYPI_API_TOKEN }}" dist/*
 
       # - name: Checkout repository
       #   uses: actions/checkout@v4
