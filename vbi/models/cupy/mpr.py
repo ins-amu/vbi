@@ -19,36 +19,60 @@ class MPR_sde:
 
     Parameters
     ----------
-    par : dict
-        Dictionary of parameters.
-        - G: global coupling strength
-        - dt: time step
-        - dt_bold: time step for Balloon model
-        - J: model parameter
-        - eta: model parameter
-        - tau: model parameter
-        - delta: model parameter
-        - tr: repetition time of fMRI
-        - noise_amp: amplitude of noise
-        - same_noise_per_sim: same noise for all simulations
-        - iapp: external input
-        - t_start: initial time
-        - t_cut: transition time
-        - t_end: end time
-        - num_nodes: number of nodes
-        - weights: weighted connection matrix
-        - rv_decimate: sampling step from r and v
-        - output: output directory
-        - RECORD_TS: store r and v time series
-        - num_sim: number of simulations
-        - method: integration method
-        - engine: cpu or gpu
-        - seed: seed for random number generator
-        - dtype: float or f
-        - initial_state: initial state
-        - same_initial_state: same initial state for all simulations
-        #!TODO: add more details about the parameters
-        #TODO: add references
+    
+    G: float. np.ndarray
+        global coupling strength
+    dt: float
+        time step
+    dt_bold: float   
+        time step for Balloon model
+    J: float, np.ndarray
+        model parameter
+    eta: float, np.ndarray
+        model parameter
+    tau: 
+        model parameter
+    delta: 
+        model parameter
+    tr: float
+        repetition time of fMRI
+    noise_amp: float
+        amplitude of noise
+    same_noise_per_sim: 
+        same noise for all simulations
+    iapp: float, np.ndarray
+        external input
+    t_start: float
+        initial time
+    t_cut: float
+        transition time
+    t_end: float
+        end time
+    num_nodes: int
+        number of nodes
+    weights: np.ndarray
+        weighted connection matrix
+    rv_decimate: int
+        sampling step from r and v
+    output: str
+        output directory
+    RECORD_TS:  bool
+        store r and v time series
+    num_sim: int
+        number of simulations
+    method: str
+        integration method
+    engine: str
+        cpu or gpu
+    seed: int
+        seed for random number generator
+    dtype: str
+        float or f
+    initial_state: np.ndarray
+        initial state
+    same_initial_state: bool
+        same initial state for all simulations
+    
     """
 
     def __init__(self, par: dict = {}) -> None:
@@ -271,7 +295,7 @@ class MPR_sde:
         self.prepare_input()
         dt = self.dt
         rv_decimate = self.rv_decimate
-        r_period = dt * rv_decimate
+        r_period = dt * 10 # extenting time
         dtt = r_period / 1000.0  # in seconds
         tr = self.tr
         xp = self.xp
@@ -323,7 +347,7 @@ class MPR_sde:
             t_curr = i * dt
             self.heunStochastic(rv_curr, t_curr, dt)
 
-            if (i % rv_decimate) == 0:
+            if ((i % rv_decimate) == 0) and ((i // rv_decimate) < rv_d.shape[0]):
 
                 if self.RECORD_RV:
                     rv_d[i // rv_decimate] = get_(rv_curr, engine, "f")

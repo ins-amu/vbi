@@ -35,11 +35,8 @@ RUN pip install --no-cache-dir \
 
 COPY . .
 
-RUN pip install -e . --no-cache-dir
+RUN pip install . --no-cache-dir
 RUN pip install cupy-cuda11x
-
-# Compile the C++ code
-RUN cd vbi/models/cpp/_src && make
 
 # Install Jupyter Notebook and related packages
 RUN pip install --no-cache-dir \
