@@ -40,7 +40,7 @@ bibliography: paper.bib
 
 # Summary
 
-Understanding complex brain dynamics and their neurobiological basis is a core challenge in neuroscience. Virtual brain modeling integrates computational models of brain dynamics with personalized anatomical data to address this challenge. Virtual Brain Inference (VBI) is a flexible, integrative Python toolkit designed for efficient probabilistic inference on virtual brain models. It fills a critical gap in tools for model inversion, enabling estimation of control parameters across neuroimaging modalities such as fMRI, EEG, and MEG. VBI provides fast simulations, feature extraction, efficient data storage, and probabilistic machine learning algorithms, delivering biophysically interpretable inferences from diverse recordings.
+Understanding complex brain dynamics and their neurobiological basis is a core challenge in neuroscience. Virtual brain modeling combines neural mass models with personalized anatomical data to simulate brain activity and its corresponding brain imaging signals. However, there is a lack of tools for addressing the inverse problem of inferring neural mechanisms from observed brain activity. This work introduces Virtual Brain Inference (VBI), a flexible and integrative Python toolkit designed for efficient probabilistic inference on virtual brain models. VBI provides fast simulations, feature extraction, efficient data storage, and probabilistic machine learning algorithms, delivering biophysically interpretable inferences from neuroimaging recordings with different spatiotemporal resolutions.
 
 # Statement of Need
 
@@ -49,16 +49,16 @@ VBI is a Python-based toolkit tailored for probabilistic inference at the whole-
 - **Brain models**: Wilson-Cowan, Montbrió, Jansen-Rit, Stuart-Landau, Wong-Wang, and Epileptor.
 - **Fast simulation**: Just-in-time compilation of models across Python/C++ and CPU/GPU devices.
 - **Feature extraction**: Functional connectivity (FC), functional connectivity dynamics (FCD), and power spectral density (PSD).
-- **Deep neural density estimators**: Masked autoregressive flows (MAFs) [@Papamakarios2017], [@gonccalves2020training] and neural spline flows (NSFs) [@Durkan2019].
+- **Deep neural density estimators**: Masked autoregressive flows (MAFs) [@Papamakarios2017], and neural spline flows (NSFs) [@Durkan2019].
 
-Traditional methods like Markov Chain Monte Carlo (MCMC) and Approximate Bayesian Computation (ABC) face significant challenges in this context [@Sisson2007]. MCMC struggles with convergence in high-dimensional spaces and complex geometries, often requiring extensive tuning and computational resources [@Betancourt2013b], [@Hashemi2020]. ABC, while likelihood-free, relies on predefined thresholds for sample acceptance, leading to inefficiencies and potential biases when rejecting samples that fall outside narrow criteria. In contrast, VBI leverages Simulation-Based Inference (SBI), which sidesteps these issues by using forward simulations and deep neural density estimators to directly approximate posterior distributions [@cranmer2020frontier]. This approach enhances efficiency, scalability, and robustness, making VBI particularly suited for inverting complex virtual brain models [@hashemi2024simulation].
+Traditional methods like Markov Chain Monte Carlo (MCMC) and Approximate Bayesian Computation (ABC) face significant challenges in this context [@Sisson2007]. MCMC struggles with convergence in high-dimensional spaces and complex geometries, often requiring extensive tuning and computational resources [@Betancourt2013b], [@Hashemi2020]. ABC, while likelihood-free, relies on predefined thresholds for sample acceptance, leading to inefficiencies and potential biases when rejecting samples that fall outside narrow criteria. VBI leverages Simulation-Based Inference (SBI; [@cranmer2020frontier]), which sidesteps these issues by using forward simulations and deep neural density estimators to directly approximate posterior distributions [@gonccalves2020training, hashemi2023amortized]. This approach enhances efficiency, scalability, and robustness for inverting  whole-brain models [@hashemi2024simulation].
 
-Designed for researchers and clinical applications, VBI enables personalized simulations of normal and pathological brain activity, aiding in distinguishing healthy from diseased states and informing targeted interventions. By addressing the inverse problem—estimating control parameters that best explain observed data—VBI leverages high-performance computing for parallel processing of large-scale datasets [@Ziaeemehr2025],[@Hashemi2024vbt].
+Designed for researchers and clinical applications, VBI enables personalized simulations of normal and pathological brain activity, aiding in distinguishing healthy from diseased states and potentially informing clinical decision making. By addressing the inverse problem—estimating generative parameters that best explain observed data—VBI leverages high-performance computing for parallel processing of large-scale datasets [@Ziaeemehr2025].
 
 
 # Methods
 
-Brain network dynamics at the regional scale are modeled as:
+Brain network dynamics at the regional scale are modeled as [@Hashemi2024vbt]:
 
 $$
 \dot {\psi}_i (t) = \mathcal{N} (\psi_i) + G \sum_{j=1}^{N}  \mathrm{w}_{ij} \mathcal{H}(\psi_i,  \psi_j(t-\tau_{ij}) )  + z (\psi_i) \xi_i(t),
@@ -73,13 +73,13 @@ $$
 
 where $D$ is the noise strength. The system’s operating regime emerges from the interplay of global coupling $G$, local bifurcation parameters, and noise, with connectivity structure shaping macroscopic brain activity through delays and weights [@ghosh2008noise], [@ziaeemehr2020frequency], [@petkoski2019transmission], [@sanz2013virtual]. 
 
-Simulation-based inference (SBI) in VBI avoids convergence issues of gradient-based MCMC methods and outperforms approximate Bayesian computation (ABC) by using deep neural density estimators to approximate posterior distributions, $p(\vec{\theta} \mid \vec{x}_{obs})$. SBI requires three components:
+Simulation-based inference (SBI) approach used in VBI avoids geometrical and convergence issues for gradient-based MCMC methods and outperforms ABC by leveraging deep neural density estimators to efficiently approximate posterior distributions. This approach requires three components:
 
 1. A prior distribution, $p(\vec{\theta})$, for sampling parameters $\vec{\theta}$.
-2. A simulator, $p(\vec{x} \mid \vec{\theta})$, generating data $\vec{x}$ from parameters $\vec{\theta}$.
+2. A simulator, $p(\vec{x} \mid \vec{\theta})$, generating data $\vec{x}$ given parameters $\vec{\theta}$.
 3. Low-dimensional features (e.g., FC, FCD, PSD) informative of target parameters.
 
-These yield a training dataset $\{(\vec{\theta}_i, \vec{x}_i)\}_{i=1}^{N_{sim}}$, where $N_{sim}$ is the simulation budget. VBI uses MAFs or NSFs to learn the posterior distribution from observed data.
+These yield a training dataset $\{(\vec{\theta}_i, \vec{x}_i)\}_{i=1}^{N_{sim}}$, where $N_{sim}$ is the simulation budget. MAFs or NSFs estimates $p(\vec{\theta} \mid \vec{x}_{obs})$, i.e., the posterior distribution given observed data.
 
 The VBI workflow comprises:
 
@@ -91,7 +91,7 @@ The VBI workflow comprises:
 
 ### Evaluation of Posterior Fit
 
-Posterior reliability is assessed using synthetic data via posterior z-scores ($z$) and shrinkage ($s$) [@betancourt2017geometric]:
+Posterior reliability is assessed using posterior z-scores ($z$) and shrinkage ($s$) [@betancourt2017geometric]:
 
 $$
 z = \left| \frac{\bar{\theta} - \theta^\ast}{\sigma_{post}} \right|, \quad s = 1 - \frac{\sigma^2_{post}}{\sigma^2_{prior}},
@@ -99,7 +99,7 @@ $$
 
 where $\bar{\theta}$ is the posterior mean, $\theta^\ast$ is the true parameter, and $\sigma_{post}$ and $\sigma_{prior}$ are posterior and prior standard deviations, respectively. High shrinkage indicates well-identified posteriors, while low z-scores confirm accurate capture of true values.
 
-![Overview of the VBI workflow: (**A**) A personalized connectome is built using diffusion tensor imaging and a brain parcellation atlas. (**B**) This forms the basis of a virtual brain model with initial control parameters randomly sampled from a prior distribution. (**C**) The VBI simulates time series data associated to neuroimaging recordings using these parameters. (**D**) Summary statistics (FC, FCD, PSD) are extracted from the simulation features for training. (**E**) Deep neural density estimators are trained on parameter-feature pairs to learn the joint posterior distribution. (**F**) The trained network rapidly approximates the posterior for new empirical data, enabling probabilistic predictions consistent with observations. (**G**) Flowchart of the VBI Structure.](Fig1.png)
+![Overview of the VBI workflow: (**A**) A personalized connectome is built using diffusion tensor imaging and a brain parcellation atlas. (**B**) This forms the basis to build virtual brain model, given control parameters sampled from a prior distribution. (**C**) The VBI simulates time series data associated to neuroimaging recordings. (**D**) Summary statistics (FC, FCD, PSD) are extracted from the simulation features. (**E**) Deep neural density estimators are trained on parameter-feature pairs to learn the joint posterior distribution. (**F**) The trained network rapidly approximates the posterior for any new observation. (**G**) Flowchart of the modules in VBI. A key feature of the VBI pipeline is its modularity and flexibility in integrating various simulators and toolboxes for feature extraction. ](Fig1.png)
 
 # Acknowledgements
 
