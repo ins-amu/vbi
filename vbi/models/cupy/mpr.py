@@ -11,7 +11,121 @@ except ImportError:
     logging.warning("Cupy is not installed. Using Numpy instead.")
 
 
-#!TODO: Add BoldParams class seperately
+class Bold:
+
+    def __init__(self, par: dict = {}) -> None:
+
+        self._par = self.get_default_parameters()
+        self.valid_parameters = list(self._par.keys())
+        self.check_parameters(par)
+        self._par.update(par)
+
+        for item in self._par.items():
+            setattr(self, item[0], item[1])
+        self.update_dependent_parameters()
+            
+
+    def get_default_parameters(self):
+        """get balloon model parameters."""
+
+        vo = 0.08
+        theta = 40.3
+        TE = 0.04
+        Eo = 0.4
+        r0 = 25.0
+        epsilon = 0.34
+        k1 = 4.3 * theta * Eo * TE
+        k2 = epsilon * r0 * Eo * TE
+        k3 = 1 - epsilon
+
+        par = {
+            "kappa": 0.65,
+            "gamma": 0.41,
+            "tau": 0.98,
+            "alpha": 0.32,
+            "epsilon": epsilon,
+            "Eo": Eo,
+            "TE": TE,
+            "vo": vo,
+            "r0": r0,
+            "theta": theta,
+            "t_min": 0.0,
+            "rtol": 1e-5,
+            "atol": 1e-8,
+            "k1": k1,
+            "k2": k2,
+            "k3": k3,
+        }
+        return par
+    
+    def update_dependent_parameters(self):
+        self.k1 = 4.3 * self.theta * self.Eo * self.TE
+        self.k2 = self.epsilon * self.r0 * self.Eo * self.TE
+        self.k3 = 1 - self.epsilon
+
+    def check_parameters(self, par):
+        for key in par.keys():
+            if key not in self.valid_parameters:
+                raise ValueError(f"Invalid parameter {key:s} provided.")
+            
+    def allocate_memory(self, xp, nn, ns, n_steps, bold_decimate):
+    
+        self.s = xp.zeros((2, nn, ns), dtype=self.dtype)
+        self.f = xp.zeros((2, nn, ns), dtype=self.dtype)
+        self.ftilde = xp.zeros((2, nn, ns), dtype=self.dtype)
+        self.vtilde = xp.zeros((2, nn, ns), dtype=self.dtype)
+        self.qtilde = xp.zeros((2, nn, ns), dtype=self.dtype)
+        self.v = xp.zeros((2, nn, ns), dtype=self.dtype)
+        self.q = xp.zeros((2, nn, ns), dtype=self.dtype)
+        self.vv = np.zeros((n_steps // bold_decimate, nn, ns), dtype="f")
+        self.qq = np.zeros((n_steps // bold_decimate, nn, ns), dtype="f")
+        self.s[0] = 1
+        self.f[0] = 1
+        self.v[0] = 1
+        self.q[0] = 1
+        self.ftilde[0] = 0
+        self.vtilde[0] = 0
+        self.qtilde[0] = 0
+
+    def do_bold_step(self, r_in, dtt):
+
+        Eo = self.Eo
+        tau = self.tau
+        kappa = self.kappa
+        gamma = self.gamma
+        alpha = self.alpha
+        ialpha = 1 / alpha
+        
+        v = self.v
+        q = self.q
+        s = self.s
+        f = self.f 
+        ftilde = self.ftilde
+        vtilde = self.vtilde
+        qtilde = self.qtilde
+
+        s[1] = s[0] + dtt * (r_in - kappa * s[0] - gamma * (f[0] - 1))
+        f[0] = np.clip(f[0], 1, None)
+        ftilde[1] = ftilde[0] + dtt * (s[0] / f[0])
+        fv = v[0] ** ialpha  # outflow
+        vtilde[1] = vtilde[0] + dtt * ((f[0] - fv) / (tau * v[0]))
+        q[0] = np.clip(q[0], 0.01, None)
+        ff = (1 - (1 - Eo) ** (1 / f[0])) / Eo  # oxygen extraction
+        qtilde[1] = qtilde[0] + dtt * ((f[0] * ff - fv * q[0] / v[0]) / (tau * q[0]))
+
+        f[1] = np.exp(ftilde[1])
+        v[1] = np.exp(vtilde[1])
+        q[1] = np.exp(qtilde[1])
+
+        f[0] = f[1]
+        s[0] = s[1]
+        ftilde[0] = ftilde[1]
+        vtilde[0] = vtilde[1]
+        qtilde[0] = qtilde[1]
+        v[0] = v[1]
+        q[0] = q[1]
+
+
 
 class MPR_sde:
     """
@@ -19,26 +133,26 @@ class MPR_sde:
 
     Parameters
     ----------
-    
+
     G: float. np.ndarray
         global coupling strength
     dt: float
         time step
-    dt_bold: float   
+    dt_bold: float
         time step for Balloon model
     J: float, np.ndarray
         model parameter
     eta: float, np.ndarray
         model parameter
-    tau: 
+    tau:
         model parameter
-    delta: 
+    delta:
         model parameter
     tr: float
         repetition time of fMRI
     noise_amp: float
         amplitude of noise
-    same_noise_per_sim: 
+    same_noise_per_sim:
         same noise for all simulations
     iapp: float, np.ndarray
         external input
@@ -72,10 +186,10 @@ class MPR_sde:
         initial state
     same_initial_state: bool
         same initial state for all simulations
-    
+
     """
 
-    def __init__(self, par: dict = {}) -> None:
+    def __init__(self, par: dict = {}, Bpar:dict = {}) -> None:
 
         self._par = self.get_default_parameters()
         self.valid_parameters = list(self._par.keys())
@@ -86,6 +200,8 @@ class MPR_sde:
             name = item[0]
             value = item[1]
             setattr(self, name, value)
+            
+        self.B = Bold(Bpar)
 
         self.xp = get_module(self.engine)
         if self.seed is not None:
@@ -115,25 +231,6 @@ class MPR_sde:
             self.same_initial_state,
             self.dtype,
         )
-
-    def get_balloon_parameters(self):
-        """get balloon model parameters."""
-        par = {
-            "kappa": 0.65,
-            "gamma": 0.41,
-            "tau": 0.98,
-            "alpha": 0.32,
-            "epsilon": 0.34,
-            "Eo": 0.4,
-            "TE": 0.04,
-            "vo": 0.08,
-            "r0": 25.0,
-            "theta0": 40.3,
-            "t_min": 0.0,
-            "rtol": 1e-5,
-            "atol": 1e-8,
-        }
-        return par
 
     def get_default_parameters(self):
 
@@ -174,7 +271,7 @@ class MPR_sde:
         sigma_v = np.sqrt(dt) * np.sqrt(4 * noise_amp)
         par["sigma_r"] = sigma_r
         par["sigma_v"] = sigma_v
-        par.update(self.get_balloon_parameters())
+        # par.update(self.get_balloon_parameters())
 
         return par
 
@@ -257,33 +354,6 @@ class MPR_sde:
         y[:nn, :] = (y[:nn, :] > 0) * y[:nn, :]  # set zero if negative
         y[nn:, :] += dW_v
 
-    @staticmethod
-    def do_bold_step(r_in, s, f, ftilde, vtilde, qtilde, v, q, dtt, P):
-
-        kappa, gamma, alpha, tau, Eo = P
-        ialpha = 1 / alpha
-
-        s[1] = s[0] + dtt * (r_in - kappa * s[0] - gamma * (f[0] - 1))
-        f[0] = np.clip(f[0], 1, None)
-        ftilde[1] = ftilde[0] + dtt * (s[0] / f[0])
-        fv = v[0] ** ialpha  # outflow
-        vtilde[1] = vtilde[0] + dtt * ((f[0] - fv) / (tau * v[0]))
-        q[0] = np.clip(q[0], 0.01, None)
-        ff = (1 - (1 - Eo) ** (1 / f[0])) / Eo  # oxygen extraction
-        qtilde[1] = qtilde[0] + dtt * ((f[0] * ff - fv * q[0] / v[0]) / (tau * q[0]))
-
-        f[1] = np.exp(ftilde[1])
-        v[1] = np.exp(vtilde[1])
-        q[1] = np.exp(qtilde[1])
-
-        f[0] = f[1]
-        s[0] = s[1]
-        ftilde[0] = ftilde[1]
-        vtilde[0] = vtilde[1]
-        qtilde[0] = qtilde[1]
-        v[0] = v[1]
-        q[0] = q[1]
-
     def sync_(self, engine="gpu"):
         if engine == "gpu":
             cp.cuda.Stream.null.synchronize()
@@ -295,7 +365,7 @@ class MPR_sde:
         self.prepare_input()
         dt = self.dt
         rv_decimate = self.rv_decimate
-        r_period = dt * 10 # extenting time
+        r_period = dt * 10  # extenting time
         dtt = r_period / 1000.0  # in seconds
         tr = self.tr
         xp = self.xp
@@ -305,28 +375,10 @@ class MPR_sde:
 
         n_steps = int(self.t_end / dt)
         bold_decimate = int(np.round(tr / r_period))
-
-        vo = self.vo
-        k1 = 4.3 * self.theta0 * self.Eo * self.TE
-        k2 = self.epsilon * self.r0 * self.Eo * self.TE
-        k3 = 1 - self.epsilon
-
-        s = xp.zeros((2, nn, ns), dtype=self.dtype)
-        f = xp.zeros((2, nn, ns), dtype=self.dtype)
-        ftilde = xp.zeros((2, nn, ns), dtype=self.dtype)
-        vtilde = xp.zeros((2, nn, ns), dtype=self.dtype)
-        qtilde = xp.zeros((2, nn, ns), dtype=self.dtype)
-        v = xp.zeros((2, nn, ns), dtype=self.dtype)
-        q = xp.zeros((2, nn, ns), dtype=self.dtype)
-        vv = np.zeros((n_steps // bold_decimate, nn, ns), dtype="f")
-        qq = np.zeros((n_steps // bold_decimate, nn, ns), dtype="f")
-        s[0] = 1
-        f[0] = 1
-        v[0] = 1
-        q[0] = 1
-        ftilde[0] = 0
-        vtilde[0] = 0
-        qtilde[0] = 0
+        
+        B = self.B
+        B.allocate_memory(xp, nn, ns, n_steps, bold_decimate)
+        
         rv_curr = copy(self.initial_state)
         rv_d = np.array([])
         rv_t = np.array([])
@@ -358,35 +410,24 @@ class MPR_sde:
                     cc += 1
 
             if self.RECORD_BOLD:
-                self.do_bold_step(
-                    rv_curr[:nn, :],
-                    s,
-                    f,
-                    ftilde,
-                    vtilde,
-                    qtilde,
-                    v,
-                    q,
-                    dtt,
-                    [self.kappa, self.gamma, self.alpha, self.tau, self.Eo],
-                )
-                if (i % bold_decimate == 0) and ((i // bold_decimate) < vv.shape[0]):
-                    vv[i // bold_decimate] = get_(v[1], engine, "f")
-                    qq[i // bold_decimate] = get_(q[1], engine, "f")
+                B.do_bold_step(rv_curr[:nn, :], dtt)
+                
+                if (i % bold_decimate == 0) and ((i // bold_decimate) < B.vv.shape[0]):
+                    B.vv[i // bold_decimate] = get_(B.v[1], engine, "f")
+                    B.qq[i // bold_decimate] = get_(B.q[1], engine, "f")
 
         if self.RECORD_BOLD:
-            bold_d = vo * (k1 * (1 - qq) + k2 * (1 - qq / vv) + k3 * (1 - vv))
+            bold_d = B.vo * (B.k1 * (1 - B.qq) + B.k2 * (1 - B.qq / B.vv) + B.k3 * (1 - B.vv))
             bold_t = np.linspace(0, self.t_end - dt * bold_decimate, len(bold_d))
             bold_d = bold_d[bold_t > self.t_cut, ...]
             bold_t = bold_t[bold_t > self.t_cut]
             bold_t = bold_t * 10.0
         avg_r = avg_r / cc
-        
+
         if self.RECORD_RV:
             rv_t = np.asarray(rv_t).astype("f")
             rv_d = rv_d[rv_t > self.t_cut, ...]
             rv_t = rv_t[rv_t > self.t_cut] * 10.0
-        
 
         return {
             "rv_t": rv_t,
