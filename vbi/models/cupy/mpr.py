@@ -54,7 +54,7 @@ class Bold:
             "atol": 1e-8,
             "k1": k1,
             "k2": k2,
-            "k3": k3,
+            "k3": k3
         }
         return par
     
@@ -68,15 +68,15 @@ class Bold:
             if key not in self.valid_parameters:
                 raise ValueError(f"Invalid parameter {key:s} provided.")
             
-    def allocate_memory(self, xp, nn, ns, n_steps, bold_decimate):
+    def allocate_memory(self, xp, nn, ns, n_steps, bold_decimate, dtype):
     
-        self.s = xp.zeros((2, nn, ns), dtype=self.dtype)
-        self.f = xp.zeros((2, nn, ns), dtype=self.dtype)
-        self.ftilde = xp.zeros((2, nn, ns), dtype=self.dtype)
-        self.vtilde = xp.zeros((2, nn, ns), dtype=self.dtype)
-        self.qtilde = xp.zeros((2, nn, ns), dtype=self.dtype)
-        self.v = xp.zeros((2, nn, ns), dtype=self.dtype)
-        self.q = xp.zeros((2, nn, ns), dtype=self.dtype)
+        self.s = xp.zeros((2, nn, ns), dtype=dtype)
+        self.f = xp.zeros((2, nn, ns), dtype=dtype)
+        self.ftilde = xp.zeros((2, nn, ns), dtype=dtype)
+        self.vtilde = xp.zeros((2, nn, ns), dtype=dtype)
+        self.qtilde = xp.zeros((2, nn, ns), dtype=dtype)
+        self.v = xp.zeros((2, nn, ns), dtype=dtype)
+        self.q = xp.zeros((2, nn, ns), dtype=dtype)
         self.vv = np.zeros((n_steps // bold_decimate, nn, ns), dtype="f")
         self.qq = np.zeros((n_steps // bold_decimate, nn, ns), dtype="f")
         self.s[0] = 1
@@ -377,7 +377,7 @@ class MPR_sde:
         bold_decimate = int(np.round(tr / r_period))
         
         B = self.B
-        B.allocate_memory(xp, nn, ns, n_steps, bold_decimate)
+        B.allocate_memory(xp, nn, ns, n_steps, bold_decimate, self.dtype)
         
         rv_curr = copy(self.initial_state)
         rv_d = np.array([])
