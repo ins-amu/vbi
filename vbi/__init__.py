@@ -1,7 +1,9 @@
 import os
 from .tests.test_suite import tests
 from .utils import test_imports
+from . import models
 from ._version import __version__
+
 
 from .feature_extraction.calc_features import (
     extract_features_df,
