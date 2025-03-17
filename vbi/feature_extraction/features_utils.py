@@ -672,7 +672,7 @@ def gaussian(features):
     return np.array(pdf_gauss / np.sum(pdf_gauss))
 
 
-def wavelet(signal, function=scipy.signal.morlet2, widths=np.arange(1, 10)):
+def wavelet(signal, function=None, widths=np.arange(1, 10)):
     """Computes CWT (continuous wavelet transform) of the signal.
 
     Parameters
@@ -692,6 +692,9 @@ def wavelet(signal, function=scipy.signal.morlet2, widths=np.arange(1, 10)):
         matrix with size (len(widths),len(signal))
 
     """
+    
+    if function is None:
+        function = scipy.signal.ricker
 
     if isinstance(function, str):
         function = eval(function)
