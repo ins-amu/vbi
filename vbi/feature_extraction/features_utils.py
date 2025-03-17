@@ -10,6 +10,7 @@ from numpy import linalg as LA
 from sklearn.decomposition import PCA
 from scipy.signal import butter, detrend, filtfilt, hilbert
 from vbi.feature_extraction.features_settings import load_json
+from scipy.signal import cwt, ricker
 from vbi.feature_extraction.utility import *
 
 try:
@@ -672,7 +673,7 @@ def gaussian(features):
     return np.array(pdf_gauss / np.sum(pdf_gauss))
 
 
-def wavelet(signal, function=scipy.signal.ricker, widths=np.arange(1, 10)):
+def wavelet(signal, function=ricker, widths=np.arange(1, 10)):
     """Computes CWT (continuous wavelet transform) of the signal.
 
     Parameters
