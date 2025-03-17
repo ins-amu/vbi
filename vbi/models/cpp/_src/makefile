@@ -49,4 +49,4 @@ _%.so: %_wrap.o
 clean:
 	rm -rf *.o *.so *.pyc *_wrap.cpp *_wrap.cxx
 	rm -rf __pycache__
-	rm -rf *.py
+	rm -rf do.py jr_sdde.py jr_sde.py km_sde.py mpr_sde.py wc_ode.py vep.py

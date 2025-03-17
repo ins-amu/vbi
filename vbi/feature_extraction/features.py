@@ -1772,7 +1772,7 @@ def psd_raw(
         return psd_bands, labels
 
 
-def wavelet_abs_mean_1d(ts, function=scipy.signal.ricker, widths=np.arange(1, 10), verbose=False):
+def wavelet_abs_mean_1d(ts, function=None, widths=np.arange(1, 10), verbose=False):
     """Computes CWT absolute mean value of each wavelet scale.
 
     Parameters
@@ -1791,10 +1791,13 @@ def wavelet_abs_mean_1d(ts, function=scipy.signal.ricker, widths=np.arange(1, 10
         CWT absolute mean value
 
     """
+    if function is None:
+        function = scipy.signal.ricker
+    
     return tuple(np.abs(np.mean(wavelet(ts, function, widths), axis=1)))
 
 
-def wavelet_abs_mean(ts, function=scipy.signal.ricker, widths=np.arange(1, 10), verbose=False):
+def wavelet_abs_mean(ts, function=None, widths=np.arange(1, 10), verbose=False):
     '''
     """Computes CWT absolute mean value of each wavelet scale.
 
@@ -1815,6 +1818,9 @@ def wavelet_abs_mean(ts, function=scipy.signal.ricker, widths=np.arange(1, 10), 
     labels: array-like
         labels of the features
     '''
+    
+    if function is None:
+        function = scipy.signal.ricker
 
     info, n = prepare_input_ts(ts)
     if not info:
@@ -1835,7 +1841,7 @@ def wavelet_abs_mean(ts, function=scipy.signal.ricker, widths=np.arange(1, 10), 
         return values, labels
 
 
-def wavelet_std(ts, function=scipy.signal.ricker, widths=np.arange(1, 10), verbose=False):
+def wavelet_std(ts, function=None, widths=np.arange(1, 10), verbose=False):
     """
     Computes CWT std value of each wavelet scale.
 
@@ -1857,6 +1863,9 @@ def wavelet_std(ts, function=scipy.signal.ricker, widths=np.arange(1, 10), verbo
         labels of the features
 
     """
+    
+    if function is None:
+        function = scipy.signal.ricker
 
     info, n = prepare_input_ts(ts)
     if not info:
@@ -1877,7 +1886,7 @@ def wavelet_std(ts, function=scipy.signal.ricker, widths=np.arange(1, 10), verbo
         return values, labels
 
 
-def wavelet_energy_1d(ts, function=scipy.signal.ricker, widths=np.arange(1, 10), verbose=False):
+def wavelet_energy_1d(ts, function=None, widths=np.arange(1, 10), verbose=False):
     """Computes CWT energy of each wavelet scale.
 
     Implementation details:
@@ -1901,13 +1910,15 @@ def wavelet_energy_1d(ts, function=scipy.signal.ricker, widths=np.arange(1, 10),
         CWT energy
 
     """
+    if function is None:
+        function = scipy.signal.ricker
     cwt = wavelet(ts, function, widths)
     energy = np.sqrt(np.sum(cwt**2, axis=1) / np.shape(cwt)[1])
 
     return tuple(energy)
 
 
-def wavelet_energy(ts, function=scipy.signal.ricker, widths=np.arange(1, 10), verbose=False):
+def wavelet_energy(ts, function=None, widths=np.arange(1, 10), verbose=False):
     """
     Computes CWT energy of each wavelet scale.
 
@@ -1929,6 +1940,8 @@ def wavelet_energy(ts, function=scipy.signal.ricker, widths=np.arange(1, 10), ve
         labels of the features
 
     """
+    if function is None:
+        function = scipy.signal.ricker
 
     info, n = prepare_input_ts(ts)
     if not info:
