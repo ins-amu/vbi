@@ -10,7 +10,7 @@ from numpy import linalg as LA
 from sklearn.decomposition import PCA
 from scipy.signal import butter, detrend, filtfilt, hilbert
 from vbi.feature_extraction.features_settings import load_json
-from scipy.signal import cwt, ricker
+from scipy.signal import ricker
 from vbi.feature_extraction.utility import *
 
 try:
