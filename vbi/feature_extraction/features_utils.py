@@ -737,8 +737,12 @@ def matrix_stat(
         labels.extend([f"quantile_{i}" for i in quantiles])
 
     if pca_num_components:
-        pca = PCA(n_components=pca_num_components)
-        pca_a = pca.fit_transform(A)
+        try: 
+            pca = PCA(n_components=pca_num_components)
+            pca_a = pca.fit_transform(A)
+        except:
+            return [np.nan], ["pca_error"]
+        
         for f in features:
             v = eval(f)(pca_a.reshape(-1))
             values.append(v)
