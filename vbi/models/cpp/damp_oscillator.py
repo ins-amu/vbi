@@ -7,7 +7,7 @@ try:
 except ImportError as e:
     print(f"Could not import modules: {e}, probably C++ code is not compiled.")
 
-class DO_cpp:
+class DO:
 
     '''
     Damp Oscillator model class.
