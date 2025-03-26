@@ -7,7 +7,7 @@ from typing import Union
 try:
     from vbi.models.cpp._src.vep import VEP as _VEP
 except ImportError as e:
-    print(f"Could not import modules: {e}, probably C++ code is not compiled.")
+    print(f"Could not import modules: {e}, probably C++ code is not compiled or properly linked.")
 
 
 class VEP:

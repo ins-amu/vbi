@@ -6,7 +6,7 @@ try:
     from vbi.models.cpp._src.mpr_sde import MPR_sde as _MPR_sde
     from vbi.models.cpp._src.mpr_sde import BoldParams as _BoldParams
 except ImportError as e:
-    print(f"Could not import modules: {e}, probably C++ code is not compiled.")
+    print(f"Could not import modules: {e}, probably C++ code is not compiled or properly linked.")
 
 
 class MPR_sde:

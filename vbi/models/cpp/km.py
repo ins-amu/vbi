@@ -3,7 +3,7 @@ import numpy as np
 try:
     from vbi.models.cpp._src.km_sde import KM_sde as _KM_sde
 except ImportError as e:
-    print(f"Could not import modules: {e}, probably C++ code is not compiled.")
+    print(f"Could not import modules: {e}, probably C++ code is not compiled or properly linked.")
 
 
 class KM_sde:

@@ -6,7 +6,7 @@ try:
     from vbi.models.cpp._src.jr_sde import JR_sde as _JR_sde
     from vbi.models.cpp._src.jr_sdde import JR_sdde as _JR_sdde
 except ImportError as e:
-    print(f"Could not import modules: {e}, probably C++ code is not compiled.")
+    print(f"Could not import modules: {e}, probably C++ code is not compiled or properly linked.")
 
 
 class JR_sde:

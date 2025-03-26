@@ -5,7 +5,7 @@ import numpy as np
 try:
     from vbi.models.cpp._src.do import DO as _DO
 except ImportError as e:
-    print(f"Could not import modules: {e}, probably C++ code is not compiled.")
+    print(f"Could not import modules: {e}, probably C++ code is not compiled or properly linked.")
 
 class DO:
 
