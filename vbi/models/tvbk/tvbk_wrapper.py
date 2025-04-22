@@ -17,7 +17,6 @@ class MPR:
     )
     num_svar = 2  # number of state variables
     num_parm = 6  # number of parameters
-    dtype = np.float32
 
     def __init__(self, par: dict = {}) -> None:
 
@@ -53,6 +52,7 @@ class MPR:
             "horizon": 256,
             "width": 8,
             "dt": 0.01,
+            "dtype": np.float32,
             "weights": None,
             "delays": None,
             "num_node": None,
