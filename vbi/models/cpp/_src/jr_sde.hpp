@@ -30,7 +30,7 @@ private:
     size_t index_transition;
     vector<vector<unsigned>> adjlist;
 
-    double par_A;
+    dim1 A;
     double par_a;
     double par_B;
     double par_b;
@@ -64,7 +64,7 @@ public:
         double coupling,
         dim2 adj,
         dim1 y,
-        double A,
+        dim1 A,
         double B,
         double a,
         double b,
@@ -81,7 +81,7 @@ public:
     {
         assert(t_final > t_transition);
 
-        par_A = A;
+        this->A = A;
         par_B = B;
         par_a = a;
         par_b = b;
@@ -131,7 +131,6 @@ public:
 
         double a2 = par_a * par_a;
         double b2 = par_b * par_b;
-        double Aa = par_A * par_a;
         double Bb = par_B * par_b;
 
         size_t N2 = 2 * N;
@@ -152,8 +151,8 @@ public:
             dxdt[i] = y[i + N3];
             dxdt[i + N] = y[i + N4];
             dxdt[i + N2] = y[i + N5];
-            dxdt[i + N3] = par_A * par_a * sigma(y[i + N] - y[i + N2]) - 2 * par_a * y[i + N3] - a2 * y[i];
-            dxdt[i + N4] = Aa * (noise_mu + C1[i] * sigma(C0[i] * y[i]) + coupling * coupling_term) - 2 * par_a * y[i + N4] - a2 * y[i + N];
+            dxdt[i + N3] = A[i] * par_a * sigma(y[i + N] - y[i + N2]) - 2 * par_a * y[i + N3] - a2 * y[i];
+            dxdt[i + N4] = A[i] * par_a * (noise_mu + C1[i] * sigma(C0[i] * y[i]) + coupling * coupling_term) - 2 * par_a * y[i + N4] - a2 * y[i + N];
             dxdt[i + N5] = Bb * C3[i] * sigma(C2[i] * y[i]) - 2 * par_b * y[i + N5] -
                            b2 * y[i + N2];
         }
