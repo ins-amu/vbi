@@ -150,7 +150,7 @@ class MPR_sde:
         model parameter
     tr: float
         repetition time of fMRI
-    noise_amp: float
+    noise_amp: float, np.array
         amplitude of noise
     same_noise_per_sim:
         same noise for all simulations
@@ -200,6 +200,8 @@ class MPR_sde:
             name = item[0]
             value = item[1]
             setattr(self, name, value)
+        
+        self.update_dependent_parameters()
             
         self.B = Bold(Bpar)
 
@@ -266,7 +268,7 @@ class MPR_sde:
             "same_initial_state": False,
         }
         dt = par["dt"]
-        noise_amp = par["noise_amp"]
+        noise_amp = np.array(par["noise_amp"])
         sigma_r = np.sqrt(dt) * np.sqrt(2 * noise_amp)
         sigma_v = np.sqrt(dt) * np.sqrt(4 * noise_amp)
         par["sigma_r"] = sigma_r
@@ -274,15 +276,33 @@ class MPR_sde:
         # par.update(self.get_balloon_parameters())
 
         return par
+    
+    def update_dependent_parameters(self):
+        dt = self.dt
+        noise_amp = self.noise_amp
+        if hasattr(noise_amp, "__iter__"):
+            noise_amp = np.array(noise_amp)
+        else:
+            noise_amp = np.array([noise_amp])
+            
+        sigma_r = np.sqrt(dt) * np.sqrt(2 * noise_amp)
+        sigma_v = np.sqrt(dt) * np.sqrt(4 * noise_amp)
+        self.sigma_r = sigma_r
+        self.sigma_v = sigma_v
+        self._par["sigma_r"] = sigma_r
+        self._par["sigma_v"] = sigma_v
+
 
     def check_parameters(self, par):
         for key in par.keys():
             if key not in self.valid_parameters:
                 raise ValueError(f"Invalid parameter {key:s} provided.")
-
+        
     def prepare_input(self):
 
         self.G = self.xp.array(self.G)
+        self.sigma_r = self.xp.array(self.sigma_r)
+        self.sigma_v = self.xp.array(self.sigma_v)
         assert self.weights is not None, "weights must be provided"
         self.weights = self.xp.array(self.weights).T  # ! Directed network #!TODO: check
         self.weights = move_data(self.weights, self.engine)
