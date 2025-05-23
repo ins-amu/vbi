@@ -304,7 +304,7 @@ class MPR_sde:
         self.sigma_r = self.xp.array(self.sigma_r)
         self.sigma_v = self.xp.array(self.sigma_v)
         assert self.weights is not None, "weights must be provided"
-        self.weights = self.xp.array(self.weights).T  # ! Directed network #!TODO: check
+        self.weights = self.xp.array(self.weights).T  # !TODO: Directed network #!TODO: check
         self.weights = move_data(self.weights, self.engine)
         self.nn = self.num_nodes = self.weights.shape[0]
 
