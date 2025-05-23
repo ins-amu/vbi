@@ -75,6 +75,47 @@ def todevice(x):
     '''
     return cp.asarray(x)
 
+# write a function to detexct where is x on cpu or gpu
+
+def is_on_cpu(x):
+    '''
+    Check if input is on CPU (i.e., not a CuPy array)
+
+    Parameters
+    ----------
+    x: any
+        Input to check
+
+    Returns
+    -------
+    bool
+        True if input is not a CuPy array (i.e., is on CPU), False otherwise
+    '''
+    if cp is None:
+        return None
+    return not isinstance(x, cp.ndarray)
+
+def is_on_gpu(x):
+    '''
+    Check if input is on GPU (i.e., is a CuPy array)
+
+    Parameters
+    ----------
+    x: any
+        Input to check
+
+    Returns
+    -------
+    bool or None
+        True if input is a CuPy array (i.e., is on GPU)
+        False if input is not a CuPy array
+        None if CuPy is not installed
+    '''
+    if cp is None:
+        return None
+    return isinstance(x, cp.ndarray)
+
+
 
 def move_data(x, engine):
     if engine == "cpu":
@@ -137,6 +178,8 @@ def prepare_vec(x, ns, engine, dtype="float"):
         number of simulations
     engine: str
         cpu or gpu
+    dtype: str or numpy.dtype
+        data type to convert to
 
     Returns
     -------
@@ -145,9 +188,18 @@ def prepare_vec(x, ns, engine, dtype="float"):
 
     '''
     xp = get_module(engine)
-
     if not is_seq(x):
-        return eval(f"{dtype}({x})")
+        # Convert dtype string to numpy dtype
+        if isinstance(dtype, str):
+            if dtype == "float":
+                dtype = np.float64
+            elif dtype == "float32":
+                dtype = np.float32
+            elif dtype == "float64":
+                dtype = np.float64
+            else:
+                raise ValueError(f"Unsupported dtype: {dtype}")
+        x = xp.array(x, dtype=dtype)
     else:
         x = np.array(x)
         if x.ndim == 1:
@@ -157,6 +209,28 @@ def prepare_vec(x, ns, engine, dtype="float"):
             x = move_data(x, engine)
         else:
             raise ValueError("x.ndim must be 1 or 2")
+    return x.astype(dtype)
+
+def prepare_vec_1d(x, ns, engine, dtype="float"):
+    '''
+    check and prepare vector dimension and type
+    '''
+    if not is_seq(x):
+        # Convert dtype string to numpy dtype
+        if isinstance(dtype, str):
+            if dtype == "float":
+                dtype = np.float64
+            elif dtype == "float32":
+                dtype = np.float32
+            elif dtype == "float64":
+                dtype = np.float64
+            else:
+                raise ValueError(f"Unsupported dtype: {dtype}")
+        x = np.array(x, dtype=dtype)
+    else:
+        assert(x.ndim == 1), "x must be a 1d array"
+        assert(x.shape[0] == ns), "x must have the same number of elements as ns"
+    x = move_data(x, engine)
     return x.astype(dtype)
 
 

@@ -124,7 +124,7 @@ class JR_sde:
             "method": "heun",
             "t_transition": 500.0,      # ms
             "t_end": 2501.0,            # ms
-            "output": "output",      # output directory
+            "output": "output",         # output directory
             "RECORD_AVG": False         # true to store large time series in file
         }
         return par
@@ -181,17 +181,13 @@ class JR_sde:
         self.t_transition = float(self.t_transition)
         self.t_end = float(self.t_end)
         self.G = float(self.G)
-        self.A = float(self.A)
         self.B = float(self.B)
         self.a = float(self.a)
         self.b = float(self.b)
         self.r = float(self.r)
         self.v0 = float(self.v0)
         self.vmax = float(self.vmax)
-        # self.C0 = np.asarray(self.C0)
-        # self.C1 = np.asarray(self.C1)
-        # self.C2 = np.asarray(self.C2)
-        # self.C3 = np.asarray(self.C3)
+        self.A = check_sequence(self.A, self.N)
         self.C0 = check_sequence(self.C0, self.N)
         self.C1 = check_sequence(self.C1, self.N)
         self.C2 = check_sequence(self.C2, self.N)
@@ -236,9 +232,6 @@ class JR_sde:
         for key in par.keys():
             if key not in self.valid_params:
                 raise ValueError("Invalid parameter: " + key)
-            # if key in ["C0", "C1", "C2", "C3"]:
-            #     self.set_C(key, par[key])
-            # else:
             setattr(self, key, par[key])
 
         self.prepare_input()

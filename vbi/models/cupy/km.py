@@ -4,40 +4,61 @@ from vbi.models.cupy.utils import *
 
 
 class KM_sde:
-
-    valid_parameters = [
-        "num_sim",        # number of simulations
-        "G",              # global coupling strength
-        "dt",             # time step
-        "noise_amp",      # noise amplitude
-        "omega",          # natural angular frequency
-        "weights",        # weighted connection matrix
-        "seed",
-        "alpha",          # frustration matrix
-        "t_initial",      # initial time
-        "t_transition",   # transition time
-        "t_end",          # end time
-        "output",         # output directory
-        "num_threads",    # number of threads using openmp
-        "initial_state",
-        "type",           # output times series data type
-        "engine",         # cpu or gpu
-    ]
+    
+    """
+    Kuramoto model with noise (stochastic differential equation)
+    
+    Parameters
+    ----------
+    G: float
+        global coupling strength
+    dt: float
+        time step
+    noise_amp: float
+        noise amplitude
+    weights: array
+        weighted connection matrix
+    omega: array
+        natural angular frequency
+    seed: int
+        fix random seed for initial state
+    t_cut: float
+        transition time
+    t_end: float
+        end time
+    decimate: int
+        decimate the output time series
+    output: str
+        output directory
+    initial_state: array
+        initial state
+    engine: str
+        cpu or gpu
+    type: type
+        data type for calculations, default is np.float32
+    alpha: array # TODO not implemented
+        frustration matrix 
+    num_sim: int
+        number of simulations
+    method: str
+        integration method, default is heun
+    same_initial_state: bool
+        use the same initial state for all simulations, default is False    
+    
+    """
 
     def __init__(self, par={}) -> None:
 
-        self.check_parameters(par)
         self._par = self.get_default_parameters()
+        self.valid_parameters = list(self._par.keys())
+        self.check_parameters(par)
         self._par.update(par)
 
         for item in self._par.items():
-            name = item[0]
-            value = item[1]
-            setattr(self, name, value)
+            setattr(self, item[0], item[1])
 
         self.xp = get_module(self.engine)
         self.ns = self.num_sim
-
         self.nn = self.num_nodes = self.weights.shape[0]
 
         if self.seed is not None:
@@ -55,9 +76,7 @@ class KM_sde:
         print (f"Kuramoto model with noise (sde), {self.engine} implementation.")
         print ("----------------")
         for item in self._par.items():
-            name = item[0]
-            value = item[1]
-            print (f"{name} = {value}")
+            print (f"{item[0]} = {item[1]}")
         return ""
 
     def __call__(self):
@@ -74,18 +93,18 @@ class KM_sde:
             "weights": None,                 # weighted connection matrix
             "omega": None,                   # natural angular frequency
             "seed": None,                    # fix random seed for initial state
-            "t_initial": 0.0,                # initial time
-            "t_transition": 0.0,             # transition time
+            "t_start": 0.0,                  # initial time
+            "t_cut": 0.0,                    # transition time
             "t_end": 100.0,                  # end time
-            "num_threads": 1,                # number of threads using openmp
             "output": "output",              # output directory
             "initial_state": None,           # initial state
             "engine": "cpu",                 # cpu or gpu
             "type": np.float32,              # output times series data type
-            "alpha": None,                   # frustration matrix
+            "alpha": None,                   # frustration matrix # TODO not implemented
             "num_sim": 1,                    # number of simulations
             "method": "heun",                # integration method
             "same_initial_state": False,     # use the same initial state for all simulations
+            "decimate": 1,                   # decimate the output time series
 
         }
 
@@ -130,12 +149,12 @@ class KM_sde:
         x = self.initial_state
         xs = []
         integrator = self.euler if self.method == "euler" else self.heun
-        n_transition = int(self.t_transition /
-                           self.dt) if self.t_transition > 0 else 1
+        n_transition = int(self.t_cut /
+                           self.dt) if self.t_cut > 0 else 1
 
         for it in tqdm.tqdm(range(1, len(t)), disable=not verbose, desc="Integrating"):
             x = integrator(x, t[it])
-            if it >= n_transition:
+            if (it >= n_transition) and (it % self.decimate == 0):
                 if self.engine == "gpu":
                     xs.append(x.get())
                 else:
@@ -144,6 +163,15 @@ class KM_sde:
         t = t[n_transition:]
 
         return {"t": t, "x": xs}
+    
+    def step(self, x, t):
+        ''' Step function for the model'''
+        if self.method == "euler":
+            return self.euler(x, t)
+        elif self.method == "heun":
+            return self.heun(x, t)
+        else:
+            raise ValueError(f"Invalid method: {self.method}")
 
     def run(self, x0=None, verbose=True):
         '''
