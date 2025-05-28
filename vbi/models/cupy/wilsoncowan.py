@@ -235,7 +235,8 @@ class WC_sde:
         decimate = self.decimate
         RECORD_EI = self.RECORD_EI.lower()       
         
-        buffer_size = len(t) // decimate
+        valid_points = np.sum(t > t_cut)
+        buffer_size = valid_points // decimate
         t_buffer = np.zeros((buffer_size), dtype=np.float32)
         E = I = None
         
@@ -245,24 +246,24 @@ class WC_sde:
         if "i" in RECORD_EI:
             I = np.zeros((buffer_size, self.nn, self.num_sim), dtype=np.float32)
             
+        
+        buffer_idx = 0
         for i in tqdm.trange(len(t), disable=not verbose, desc="Integrating"):
             t_curr = i * self.dt
             
-            if i < len(t) - 1:
-                self.x0 = self.heunStochastic(self.x0, t_curr)
-                t_buffer[i // decimate] = t_curr
+            self.x0 = self.heunStochastic(self.x0, t_curr)
             
-            if ("e" in RECORD_EI) and (i % decimate == 0) and (i // decimate < E.shape[0]):
-                E[i // decimate] = get_(self.x0[:nn, :], self.engine, "f")
-                
-            if ("i" in RECORD_EI) and (i % decimate == 0) and (i // decimate < I.shape[0]):
-                I[i // decimate] = get_(self.x0[nn:, :], self.engine, "f")
-        
-        if "e" in RECORD_EI:
-            E = E[t_buffer > t_cut, ...].astype(np.float32)
-        if "i" in RECORD_EI:
-            I = I[t_buffer > t_cut, ...].astype(np.float32)
-        t_buffer = t_buffer[t_buffer > t_cut]
+            if (t_curr > t_cut) and (i % decimate == 0):
+                if buffer_idx < buffer_size:
+                    t_buffer[buffer_idx] = t_curr
+                    
+                    if "e" in RECORD_EI:
+                        E[buffer_idx] = get_(self.x0[:nn, :], self.engine, "f")
+                        
+                    if "i" in RECORD_EI:
+                        I[buffer_idx] = get_(self.x0[nn:, :], self.engine, "f")
+                        
+                    buffer_idx += 1
             
         return {"t": t_buffer, "E": E, "I": I}
     
