@@ -19,6 +19,31 @@ class Inference(object):
         device="cpu",
         density_estimator="maf",
     ):
+        '''
+        train the inference model
+        
+        Parameters
+        ----------
+        theta: torch.tensor float32 (n, d)
+            parameter samples, where n is the number of samples and d is the dimension of the parameter space
+        x: torch.tensor float32 (n, d)
+            feature samples, where n is the number of samples and d is the dimension of the feature space
+        prior: sbi.utils object 
+            prior distribution object
+        num_threads: int
+            number of threads to use for training, for multi-threading support, default is 1
+        method: str
+            inference method to use, one of "SNPE", "SNLE", "SNRE", default is "SNPE"
+        device: str
+            device to use for training, one of "cpu", "cuda", default is "cpu"
+        density_estimator: str
+            density estimator to use, one of "maf", "nsf", default is "maf"
+        Returns
+        -------
+        posterior: sbi.utils object
+            posterior distribution object trained on the given data
+            
+        '''
 
         torch.set_num_threads(num_threads)
 
