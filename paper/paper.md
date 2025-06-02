@@ -1,5 +1,5 @@
 ---
-title: 'VBI: A toolkit for Virtual Brain Inference'
+title: 'Virtual Brain Inference (VBI) on EBRAINS'
 tags:
   - Python
   - Neuroscience
@@ -14,12 +14,12 @@ authors:
     orcid: 0000-0002-4696-9947
     affiliation: 1
     corresponding: true
-  - name: Marmaduke Woodman
-    orcid: 0000-0002-8410-4581
-    affiliation: 1
   - name: Lia Domide
     orcid: 0000-0002-4822-2046
     affiliation: 2
+  - name: Marmaduke Woodman
+    orcid: 0000-0002-8410-4581
+    affiliation: 1
   - name: Spase Petkoski
     orcid: 0000-0003-4540-6293
     affiliation: 1
@@ -40,7 +40,7 @@ bibliography: paper.bib
 
 # Summary
 
-Understanding complex brain dynamics and their neurobiological basis is a core challenge in neuroscience. Virtual brain modeling combines neural mass models with personalized anatomical data to simulate brain activity and its corresponding brain imaging signals. However, there is a lack of tools for addressing the inverse problem of inferring neural mechanisms from observed brain activity. This work introduces Virtual Brain Inference (VBI), a flexible and integrative Python toolkit designed for efficient probabilistic inference on virtual brain models. VBI provides fast simulations, feature extraction, efficient data storage, and probabilistic machine learning algorithms, delivering biophysically interpretable inferences from neuroimaging recordings with different spatiotemporal resolutions.
+Understanding complex brain dynamics and their neurobiological basis is a core challenge in neuroscience. Virtual brain modeling combines neural mass models with personalized anatomical data to simulate brain activity and its corresponding brain imaging signals. However, there is a lack of tools for addressing the inverse problem of inferring neural mechanisms from observed brain activity. This work introduces Virtual Brain Inference (VBI), a flexible and integrative Python toolkit designed for efficient probabilistic inference on virtual brain models. VBI is now available as an open-source service on the cloud research platform EBRAINS (ebrains.eu). It offers fast simulations of virtual brain models, feature extraction from simulated and empirical data, efficient data storage, and advanced probabilistic machine learning algorithms for biophysically interpretable inferences from neuroimaging recordings with varying spatiotemporal resolutions. VBI cloud services on EBRAINS enable reproducible online collaboration, seamless integration with scalable and secure workflows, and access to extensive data assets, fostering research on large cohort datasets, improved generalizability, and potential clinical translation.
 
 # Statement of Need
 
