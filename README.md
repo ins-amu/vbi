@@ -20,6 +20,9 @@
 ```bash
     conda env create --name vbi python=3.10
     conda activate vbi
+    # from pip: Recommended
+    pip install vbi
+    # from source: More recent update
     git clone https://github.com/ins-amu/vbi.git
     cd vbi
     pip install .
