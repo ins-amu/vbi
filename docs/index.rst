@@ -118,10 +118,12 @@ Examples
    examples/vep_sde
    examples/mpr_sde_cupy
    examples/mpr_sde_numba
+   examples/mpr_sde_cpp
    examples/jansen_rit_sde_cpp
    examples/jansen_rit_sde_cupy
    examples/ww_sde_torch_kong
    examples/ghb_sde_cupy
+   examples/wilson_cowan_cupy
 
 
 
