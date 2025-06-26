@@ -28,8 +28,8 @@
     pip install .
 
     # pip install -e .[all,dev,docs]
+    
     # To skip C++ compilation, use the following environment variable and install from source:
-    # add --no-deps to ignore all dependencies 
     SKIP_CPP=1 pip install -e . 
 ```
 
