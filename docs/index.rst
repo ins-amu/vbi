@@ -32,10 +32,16 @@ Installation
 
     conda env create --name vbi python=3.10
     conda activate vbi
+    # from pip: Recommended
+    pip install vbi
+    # from source: More recent update
     git clone https://github.com/ins-amu/vbi.git
     cd vbi
     pip install .
     # pip install -e .[all,dev,docs]
+    
+    # To skip C++ compilation, use the following environment variable and install from source:
+    SKIP_CPP=1 pip install -e . 
 
 Using Docker
 ============
@@ -118,10 +124,14 @@ Examples
    examples/vep_sde
    examples/mpr_sde_cupy
    examples/mpr_sde_numba
+   examples/mpr_sde_cpp
+   examples/mpr_tvbk
    examples/jansen_rit_sde_cpp
    examples/jansen_rit_sde_cupy
    examples/ww_sde_torch_kong
    examples/ghb_sde_cupy
+   examples/wilson_cowan_cupy
+
 
 
 

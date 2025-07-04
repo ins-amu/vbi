@@ -165,6 +165,10 @@ def is_seq(x):
     '''
     return hasattr(x, '__iter__')
 
+# def is_seq(x):
+#     """Check if x is a sequence (list, tuple, array) but not a string"""
+#     return hasattr(x, '__len__') and not isinstance(x, (str, bytes))
+
 
 def prepare_vec(x, ns, engine, dtype="float"):
     '''
@@ -233,7 +237,9 @@ def prepare_vec_1d(x, ns, engine, dtype="float"):
     x = move_data(x, engine)
     return x.astype(dtype)
 
-
+                    
+        
+    
 def get_(x, engine="cpu", dtype="f"):
     """
     Parameters
@@ -256,3 +262,84 @@ def get_(x, engine="cpu", dtype="f"):
         return x.get().astype(dtype)
     else:
         return x.astype(dtype)
+
+
+def dtype_convert(dtype):
+    """
+    Convert a string representation of a data type to a numpy dtype.
+
+    Parameters
+    ----------
+    dtype : str
+        The string representation of the data type (e.g., "float", "float32", "float64").
+
+    Returns
+    -------
+    numpy.dtype
+        The corresponding numpy dtype.
+    
+    Raises
+    ------
+    ValueError
+        If the input string does not match any known data type.
+    """
+    
+    if dtype == "float":
+        return np.float64
+    elif dtype == "f":
+        return np.float32
+    elif dtype == "float32":
+        return np.float32
+    elif dtype == "float64":
+        return np.float64
+    else:
+        raise ValueError(f"Unsupported dtype: {dtype}")
+
+
+def prepare_vec_2d(x, nn, ns, engine, dtype="float"):
+    ''' 
+    if x is scalar pass 
+    if x is 1d array, shape should be (ns,)
+    if x is 2d array, shape should be (nn, ns)
+    '''
+    import numpy as np
+    
+    # Determine target numpy dtype
+    try:
+        target_dtype = dtype_convert(dtype)
+    except ValueError:
+        target_dtype = np.dtype(dtype)
+    
+    if not is_seq(x):
+        # x is scalar - return
+        return x
+    
+    # Convert x to numpy array if it isn't already
+    x = np.asarray(x)
+    
+    if x.ndim == 1:
+        # 1D array - should have shape (ns,)
+        if x.shape[0] != ns:
+            raise ValueError(f"1D array should have shape ({ns},), got {x.shape}")
+        
+        # Change dtype
+        x = x.astype(target_dtype)
+        
+        # Move to appropriate device
+        x = move_data(x, engine)
+        
+    elif x.ndim == 2:
+        # 2D array - should have shape (nn, ns)
+        if x.shape != (nn, ns):
+            raise ValueError(f"2D array should have shape ({nn}, {ns}), got {x.shape}")
+        
+        # Change dtype
+        x = x.astype(target_dtype)
+        
+        # Move to appropriate device
+        x = move_data(x, engine)
+        
+    else:
+        raise ValueError(f"Array should be 1D or 2D, got {x.ndim}D")
+    
+    return x

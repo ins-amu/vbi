@@ -11,11 +11,150 @@ To build a virtual brain model the process begins with parcellating the brain in
    :alt: VBI Logo
    :width: 800px
 
-Wilson-Cowan model
-------------------
-
+Wilson-Cowan whole-brain model
+------------------------------
 The Wilson-Cowan model [Wilson72]_ is a seminal neural mass model that describes the dynamics of connected excitatory and inhibitory neural populations, at cortical microcolumn level. It has been widely used to understand the collective behavior of neurons and simulate neural activities recorded by methods such as local field potentials (LFPs) and EEG. The model effectively captures phenomena such as oscillations, wave propagation, pattern formation in neural tissue, and responses to external stimuli, offering insights into various brain (dys)functions, particularly in Parkinson's disease [Duchet2021average]_, [Sermon2023sub]_.
 
+The Wilson-Cowan equations model the temporal evolution of the mean firing rates of excitatory (:math:`E`) and inhibitory (:math:`I`) populations using non-linear differential equations. Each population's activity is governed by a balance of self-excitation, cross-inhibition, external inputs, and network interactions mediated through long-range coupling. The nonlinearity arises from a sigmoidal transfer function :math:`S_{i,e}(x)`, which maps the total synaptic input to a firing rate, capturing saturation effects and thresholds in neural response. In a networked extension of the model, each neural population at node :math:`i` receives input from other nodes via a weighted connectivity matrix, allowing the study of large-scale brain dynamics and spatial pattern formation [wilson1972excitatory]_, [wilson1973mathematical]_, [daffertshofer2011influence]_.
+
+.. math::
+
+    \tau_e \frac{dE_k}{dt} = -E_k + (k_e - r_e E_k) \cdot S_e\left( \alpha_e \left( c_{ee} E_k - c_{ei} I_k + P_k - \theta_e + g_e \sum_{l} w_{kl} E_l \right) \right) + \sigma \xi_k(t),
+
+.. math::
+
+    \tau_i \frac{dI_k}{dt} = -I_k + (k_i - r_i I_k) \cdot S_i\left( \alpha_i \left( c_{ie} E_k - c_{ii} I_k + Q_k - \theta_i + g_i \sum_{l} w_{kl} I_l \right) \right) + \sigma \xi_k(t),
+
+.. math::
+
+    S_k(x) =
+    \begin{cases}
+    c_k \left( \dfrac{1}{1 + e^{-a_k(x - b_k)}} - \dfrac{1}{1 + e^{a_k b_k}} \right), & \text{if shifted}, \\
+    \dfrac{c_k}{1 + e^{-a_k(x - b_k)}}, & \text{otherwise}, \quad k=i,e
+    \end{cases}
+
+which incorporates both local dynamics and global interactions, modulated by coupling strengths and synaptic weights.
+The nominal parameter values and the prior range for the target parameters are summarized in the following table.
+
+
+.. list-table:: Parameter descriptions for capturing **whole-brain** dynamics using the **Wilson-Cowan** neural mass model.
+   :name: table:wc_whole_brain
+   :header-rows: 1
+   :class: color-caption
+
+   * - **Parameter**
+     - **Description**
+     - **Value**
+     - **Prior**
+   * - :math:`c_{ee}`
+     - Excitatory to excitatory synaptic strength
+     - 16.0
+     - 
+   * - :math:`c_{ei}`
+     - Inhibitory to excitatory synaptic strength
+     - 12.0
+     - 
+   * - :math:`c_{ie}`
+     - Excitatory to inhibitory synaptic strength
+     - 15.0
+     - 
+   * - :math:`c_{ii}`
+     - Inhibitory to inhibitory synaptic strength
+     - 3.0
+     - 
+   * - :math:`\tau_e`
+     - Time constant of excitatory population
+     - 8.0
+     - 
+   * - :math:`\tau_i`
+     - Time constant of inhibitory population
+     - 8.0
+     - 
+   * - :math:`a_e`
+     - Sigmoid slope for excitatory population
+     - 1.3
+     - 
+   * - :math:`a_i`
+     - Sigmoid slope for inhibitory population
+     - 2.0
+     - 
+   * - :math:`b_e`
+     - Sigmoid threshold for excitatory population
+     - 4.0
+     - 
+   * - :math:`b_i`
+     - Sigmoid threshold for inhibitory population
+     - 3.7
+     - 
+   * - :math:`c_e`
+     - Maximum output of sigmoid for excitatory population
+     - 1.0
+     - 
+   * - :math:`c_i`
+     - Maximum output of sigmoid for inhibitory population
+     - 1.0
+     - 
+   * - :math:`\theta_e`
+     - Firing threshold for excitatory population
+     - 0.0
+     - 
+   * - :math:`\theta_i`
+     - Firing threshold for inhibitory population
+     - 0.0
+     - 
+   * - :math:`r_e`
+     - Refractoriness of excitatory population
+     - 1.0
+     - 
+   * - :math:`r_i`
+     - Refractoriness of inhibitory population
+     - 1.0
+     - 
+   * - :math:`k_e`
+     - Scaling constant for excitatory output
+     - 0.994
+     - 
+   * - :math:`k_i`
+     - Scaling constant for inhibitory output
+     - 0.999
+     - 
+   * - :math:`\alpha_e`
+     - Gain of excitatory population
+     - 1.0
+     - 
+   * - :math:`\alpha_i`
+     - Gain of inhibitory population
+     - 1.0
+     - 
+   * - :math:`P`
+     - External input to excitatory population
+     - 0.0
+     - :math:`\mathcal{U}(0, 3)`
+   * - :math:`Q`
+     - External input to inhibitory population
+     - 0.0
+     - :math:`\mathcal{U}(0, 3)`
+   * - :math:`g_e`
+     - Global coupling strength (excitatory)
+     - 0.0
+     - :math:`\mathcal{U}(0, 1)`
+   * - :math:`g_i`
+     - Global coupling strength (inhibitory)
+     - 0.0
+     - :math:`\mathcal{U}(0, 1)`
+   * - :math:`\text{weights}`
+     - Structural connectivity matrix
+     - 
+     - 
+   * - :math:`\sigma`
+     - Standard deviation of Gaussian noise
+     - 0.005
+     - 
+
+
+
+Wilson-Cowan model, (Pavlides, Parkinson's disease, and beta oscillations) 
+--------------------------------------------------------------------------
 
 We focused on a simplified model for generation of beta oscillation within the cortex-subthalamic nucleus-globus pallidus network [Pavlides2015]_. The model incorporates a closed-loop connection from the STN back to the cortex, represented by a single inhibitory connection with a time delay. However, it does not include feedback via the indirect pathway (cortex-striatum-GPe), as experimental evidence suggests this pathway is not essential for generating beta oscillations [Wei2015]_. Instead, the GPe receives a constant inhibitory input from the striatum, consistent with observations from Parkinson's disease models:
 
@@ -37,7 +176,7 @@ The nominal parameter values and the prior range for the target parameters are s
 
 
 
-.. list-table:: Parameter descriptions for capturing whole-brain dynamics using **Wilson-Cowan** neural mass model.
+.. list-table:: Parameter descriptions for capturing dynamics using **Wilson-Cowan** neural mass model.
    :name: table:WCo
    :header-rows: 1
    :class: color-caption
@@ -151,8 +290,8 @@ The nominal parameter values and the prior range for the target parameters are s
      - 6.17
      - :math:`U(0,10)`
 
-Jansen-Rit model
-----------------
+Jansen-Rit whole-brain model
+----------------------------
 
 The Jansen-Rit neural mass model [Jansen1995]_ has been widely used to simulate physiological signals from various recording methods like intracranial LFPs, and scalp MEG/EEG recordings. For example, it has been shown to recreate responses similar to evoked-related potentials after a series of impulse stimulations [David2003]_, [David_etal06]_, generating high-alpha and low-beta oscillations (with added recurrent inhibitory connections and spike-rate modulation) [Moran2007]_, and also seizure patterns similar to those seen in temporal lobe epilepsy [Wendling2001]_.
 This biologically motivated model comprises of three main populations of neurons: excitatory pyramidal neurons, inhibitory interneurons, and excitatory interneurons. These populations interact with each other through synaptic connections, forming a feedback loop that produces oscillatory activity governed by a set of nonlinear ordinary differential equations [JansenRit]_, [David2003]_, [Kazemi2022]_.
@@ -225,8 +364,8 @@ This biologically motivated model comprises of three main populations of neurons
 EP: excitatory populations, IP: inhibitory populations, PSP: post synaptic potential, PSPA: post synaptic potential amplitude.
 
 
-Montbri\'o model
-----------------
+Montbri\'o whole-brain model
+----------------------------
 
 The exact macroscopic dynamics of a specific brain region (represented as a node in the network) can be analytically derived in the thermodynamic limit of infinitely all-to-all coupled spiking neurons [Montbrio2015]_ or :math:`\Theta` neuron representation [Byrne2020next]_. By assuming a Lorentzian distribution on excitabilities in large ensembles of quadratic integrate-and-fire neurons with synaptic weights :math:`J` and a half-width :math:`\Delta` centered at :math:`\eta`, the macroscopic dynamics has been derived in terms of the collective firing activity and mean membrane potential [Montbrio2015]_. Then, by coupling the brain regions via an additive current (e.g., in the average membrane potential equations), the dynamics of the whole-brain network can be described as follows [Rabuffo2021]_, [Fousek2022]_:
 
@@ -286,8 +425,8 @@ The nominal parameter values and the prior range for the target parameters are s
      - :math:`\mathcal{U}(0,1)`
 
 
-Epileptor model
----------------
+Epileptor whole-brain model
+---------------------------
 
 In personalized whole-brain network modeling of epilepsy spread [Jirsa2017]_, the dynamics of each brain region are governed by the Epileptor model [Jirsa2014]_. The Epileptor model provides a comprehensive description of epileptic seizures, encompassing the complete taxonomy of system bifurcations to simultaneously reproduce the dynamics of seizure onset, progression, and termination [Saggio2020]_. The full Epileptor model comprises five state variables that couple two oscillatory dynamical systems operating on three different time scales [Jirsa2014]_. Then motivated by Synergetic theory [Haken1997]_, [JirsaHaken1997]_ and under time-scale separation [Proix2014]_, the fast variables rapidly collapse on the slow manifold [McIntoshJirsa2019]_, whose dynamics is governed by the slow variable. This adiabatic approximation yields the 2D reduction of whole-brain model of epilepsy spread, also known as the Virtual Epileptic Patient (VEP) as follows:
 
@@ -327,8 +466,8 @@ where :math:`x_i` and :math:`z_i` indicate the fast and slow variables correspon
      - 1.0
      - :math:`\mathcal{U}(0,2)`
 
-Wong-Wang model
----------------
+Wong-Wang, parameterized dynamics mean-field (pDMF) model
+---------------------------------------------------------
 
 Another commonly used whole-brain model  for simulation of neural activity  is the so-called  parameterized dynamics mean-field (pDMF) model [Hansen2015]_, [Kong2021]_, [Deco2013b]_. At each region, it comprises a simplified system of two non-linear coupled differential equations, motivated by the attractor network model, which integrates sensory information over time to make perceptual decisions, known as Wong-Wang model [Wong2006]_. 
 This biophysically realistic cortical network model of decision making then has been simplified further into a single-population model [Deco2013b]_, which has been widely used to understand the mechanisms underpinning brain resting state dynamics [Kong2021]_, [Deco2021]_, [Zhang2024]_. The pDMF model has been also used to study whole-brain dynamics in various brain disorders, including Alzheimer's disease [Monteverdi2023]_, schizophrenia [klein2021brain]_, and stroke [Klein2021]_.
@@ -403,6 +542,7 @@ According to recent studies [Kong2021]_, [Zhang2024]_, we can parameterize the s
      - Noise amplitude
      - 0.005 
      - :math:`\mathcal{U}(0.0005, 0.01)`
+
       
 
 The Balloon-Windkessel model
@@ -530,3 +670,6 @@ References
 .. [stephan2007comparing] Klaas Enno Stephan, Nikolaus Weiskopf, Peter M Drysdale, Peter A Robinson, Karl J Friston. "Comparing hemodynamic models with DCM." *Neuroimage*, 38(3):387-401, 2007.
 .. [stephan2008nonlinear] Klaas Enno Stephan, Lars Kasper, Lee M Harrison, Jean Daunizeau, Hanneke EM den Ouden, Michael Breakspear, Karl J Friston. "Nonlinear dynamic causal models for fMRI." *Neuroimage*, 42(2):649-662, 2008.
 .. [klein2021brain] Pedro Costa Klein, Ulrich Ettinger, Michael Schirner, Petra Ritter, Dan Rujescu, Peter Falkai, Nikolaos Koutsouleris, Lana Kambeitz-Ilankovic, Joseph Kambeitz. "Brain network simulations indicate effects of neuregulin-1 genotype on excitation-inhibition balance in cortical dynamics." *Cerebral Cortex*, 31(4):2013-2025, 2021.
+.. [wilson1972excitatory] Wilson, H.R. and Cowan, J.D., 1972. Excitatory and inhibitory interactions in localized populations of model neurons. Biophysical journal, 12(1), pp.1-24.
+.. [wilson1973mathematical] Wilson, H.R. and Cowan, J.D., 1973. A mathematical theory of the functional dynamics of cortical and thalamic nervous tissue. Kybernetik, 13(2), pp.55-80.
+.. [daffertshofer2011influence] Daffertshofer, A. and van Wijk, B.C., 2011. On the influence of amplitude on the connectivity between phases. Frontiers in neuroinformatics, 5, p.6.

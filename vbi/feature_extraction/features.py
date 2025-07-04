@@ -1128,6 +1128,7 @@ def fcd_stat(
     pca_num_components=3,
     quantiles=[0.05, 0.25, 0.5, 0.75, 0.95],
     features=["sum", "max", "min", "mean", "std", "skew", "kurtosis"],
+    k=None,
     verbose=False,
 ):
     
@@ -1142,8 +1143,7 @@ def fcd_stat(
 
     Values = []
     Labels = []
-
-    k = int(win_len / TR)
+    k = k if k is not None else int(win_len / TR)
     fcd = get_fcd(ts=ts, TR=TR, win_len=win_len, positive=positive, masks=masks)
     for key in fcd.keys():
         values, labels = matrix_stat(
