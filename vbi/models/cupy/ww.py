@@ -84,7 +84,6 @@ class WW_sde:
         """Get default parameters for the Wong-Wang full model."""
 
         par = {
-            
             # Excitatory parameters
             "a_exc": 310,  # n/C
             "a_inh": 0.615,  # nC^-1
@@ -93,9 +92,9 @@ class WW_sde:
             "d_exc": 0.16,  # s
             "d_inh": 0.087,  # ms
             "tau_exc": 100.0,  # ms
-            "tau_inh": 10.0,   # ms
-            "gamma_exc": 0.641/1000.0,
-            "gamma_inh": 1./1000.0, # ms
+            "tau_inh": 10.0,  # ms
+            "gamma_exc": 0.641 / 1000.0,
+            "gamma_inh": 1.0 / 1000.0,  # ms
             "W_exc": 1.0,
             "W_inh": 0.7,
             "ext_current": 0.382,  # nA external current
@@ -134,6 +133,10 @@ class WW_sde:
 
     def prepare_input(self):
         self.G_exc = self.xp.array(self.G_exc, dtype=self.dtype)
+
+        self.ext_current = prepare_vec_2d(
+            self.ext_current, self.nn, self.num_sim, self.engine, self.dtype
+        )
         self.sigma = self.xp.array(self.sigma, dtype=self.dtype)
         assert self.weights is not None, "Weights must be provided."
         self.weights = self.xp.array(self.weights, dtype=self.dtype)
@@ -182,7 +185,7 @@ class WW_sde:
 
         r_exc = self.get_firing_rate(current_exc, is_exc=True)
         r_inh = self.get_firing_rate(current_inh, is_exc=False)
-        dSdt = xp.zeros((2 * nn,  ns)).astype(self.dtype)
+        dSdt = xp.zeros((2 * nn, ns)).astype(self.dtype)
 
         # exc
         dSdt[:nn, :] = (-S_exc / self.tau_exc) + (1.0 - S_exc) * self.gamma_exc * r_exc
@@ -227,7 +230,7 @@ class WW_sde:
             x0 = copy(self.set_initial_state())
         else:
             x0 = copy(self.x0)
-        
+
         if tspan is None:
             t = np.arange(0.0, self.t_end, self.dt)
         else:
@@ -235,7 +238,7 @@ class WW_sde:
 
         dt = self.dt
         t_cut = self.t_cut
-        dt_bold = dt / 1000.0 # BOLD time step in seconds
+        dt_bold = dt / 1000.0  # BOLD time step in seconds
 
         tr = self.tr
         xp = self.xp
@@ -250,14 +253,14 @@ class WW_sde:
         # b_buffer_size = int(np.ceil(len(t)/ bold_decimate))
         t_buffer = np.zeros((s_buffer_size), dtype=np.float32)
         n_steps = len(t)
-        
-        B = self.B 
+
+        B = self.B
         B.allocate_memory(xp, nn, ns, n_steps, bold_decimate, self.dtype)
         S_exc = np.array([])
-        
+
         if self.RECORD_S:
             S_exc = np.zeros((s_buffer_size, nn, ns), dtype=np.float32)
-        
+
         buffer_idx = 0
         for i in tqdm.trange(len(t), disable=not verbose, desc="Integrating"):
             t_curr = i * dt
@@ -265,7 +268,7 @@ class WW_sde:
             s_curr = self.do_step(s_curr, t_curr, dt)
 
             if (t_curr > t_cut) and (i % s_decimate == 0):
-                
+
                 if buffer_idx < s_buffer_size:
                     t_buffer[buffer_idx] = t_curr
 
@@ -273,33 +276,36 @@ class WW_sde:
                         S_exc[buffer_idx] = get_(s_curr[:nn, :], engine, "f")
 
                     buffer_idx += 1
-                    
+
             if self.RECORD_BOLD:
                 B.do_bold_step(s_curr[:nn, :], dt_bold)
-                
+
                 if (i % bold_decimate == 0) and ((i // bold_decimate) < B.vv.shape[0]):
                     B.vv[i // bold_decimate] = get_(B.v[1], engine, "f")
                     B.qq[i // bold_decimate] = get_(B.q[1], engine, "f")
-        
+
         if self.RECORD_BOLD:
             # Calculate indices for t_cut
             bold_t = np.linspace(0, self.t_end - dt * bold_decimate, len(B.vv))
             valid_indices = np.where(bold_t > self.t_cut)[0]
             if len(valid_indices) > 0:
                 start_idx = valid_indices[0]
-                bold_d = B.vo * (B.k1 * (1 - B.qq[start_idx:]) + B.k2 * (1 - B.qq[start_idx:] / B.vv[start_idx:]) + B.k3 * (1 - B.vv[start_idx:]))
+                bold_d = B.vo * (
+                    B.k1 * (1 - B.qq[start_idx:])
+                    + B.k2 * (1 - B.qq[start_idx:] / B.vv[start_idx:])
+                    + B.k3 * (1 - B.vv[start_idx:])
+                )
                 bold_t = bold_t[start_idx:]
             else:
                 bold_d = np.array([])
                 bold_t = np.array([])
-        
+
         return {
             "S": S_exc,
             "t": t_buffer,
             "bold_t": bold_t,
             "bold_d": bold_d,
         }
-    
 
 
 def set_initial_state(nn, ns, engine, seed=None, same_initial_state=False, dtype=float):
