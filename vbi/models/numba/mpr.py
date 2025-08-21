@@ -116,6 +116,7 @@ def integrate(P, B):
         rv_t = np.zeros((nt // rv_decimate), dtype=np.float32)
 
     def compute():
+        nonlocal rv_d, rv_t, bold_d, bold_t
 
         bold_d = np.array([])
         bold_t = np.array([])
@@ -152,10 +153,16 @@ def integrate(P, B):
                 if (i % bold_decimate == 0) and ((i // bold_decimate) < vv.shape[0]):
                     vv[i // bold_decimate] = v[1]
                     qq[i // bold_decimate] = q[1]
+                    
+        if RECORD_RV:
+            rv_d = rv_d[rv_t >= P.t_cut, :]
+            rv_t = rv_t[rv_t >= P.t_cut]
 
         if RECORD_BOLD:
             bold_d = vo * (k1 * (1 - qq) + k2 * (1 - qq / vv) + k3 * (1 - vv))
             bold_t = np.linspace(0, P.t_end - dt * bold_decimate, len(bold_d))
+            bold_d = bold_d[bold_t >= P.t_cut, :]
+            bold_t = bold_t[bold_t >= P.t_cut]
 
         return rv_t, rv_d, bold_t, bold_d
 
@@ -215,6 +222,7 @@ class MPR_sde:
         assert self.P.weights.shape[0] == self.P.weights.shape[1]
         assert self.P.initial_state is not None
         assert len(self.P.initial_state) == 2 * self.P.weights.shape[0]
+        assert self.P.t_cut < self.P.t_end, "t_cut must be less than t_end"
         self.P.eta = check_vec_size(self.P.eta, self.P.nn)
         self.P.t_end /= 10
         self.P.t_cut /= 10
