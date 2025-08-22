@@ -171,8 +171,6 @@ def f_jr(x, t, P):
     bb = P.b * P.b
 
     # Coupling term: weights @ (y - z)
-    # Note: choose convention so that weights are NOT transposed here.
-    # If your SC was built as in the CuPy code (transposed), pass weights.T to ParJR.
     couplings = S_sigmoid(P.weights.dot(y0 - z0), P.vmax, P.r, P.v0)
 
     # Allocate derivative
@@ -405,6 +403,48 @@ class JR_sde:
             self.P.initial_state = set_initial_state_jr(self.P.nn, self.seed)
 
         self._checked = False
+
+    def __str__(self) -> str:
+        """
+        Return a string representation of the model parameters.
+        
+        Returns
+        -------
+        str
+            Formatted string showing all model parameters and their values.
+        """
+        print("Jansen-Rit Model (Numba)")
+        print("------------------------")
+        
+        # Model parameters
+        print(f"G = {self.P.G}")
+        print(f"A = {self.P.A}")
+        print(f"B = {self.P.B}")
+        print(f"a = {self.P.a}")
+        print(f"b = {self.P.b}")
+        print(f"v0 = {self.P.v0}")
+        print(f"vmax = {self.P.vmax}")
+        print(f"r = {self.P.r}")
+        print(f"mu = {self.P.mu}")
+        print(f"noise_amp = {self.P.noise_amp}")
+        
+        # Connectivity parameters
+        print(f"C0 = {self.P.C0}")
+        print(f"C1 = {self.P.C1}")
+        print(f"C2 = {self.P.C2}")
+        print(f"C3 = {self.P.C3}")
+        
+        # Simulation parameters
+        print(f"dt = {self.P.dt}")
+        print(f"t_end = {self.P.t_end}")
+        print(f"t_cut = {self.P.t_cut}")
+        print(f"decimate = {self.P.decimate}")
+        print(f"nn = {self.P.nn}")
+        print(f"seed = {self.P.seed}")
+        print(f"sigma = {self.P.sigma}")
+        print(f"weights shape = {self.P.weights.shape}")
+        
+        return ""
 
     def check_input(self):
         """
