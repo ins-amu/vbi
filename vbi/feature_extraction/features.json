@@ -460,7 +460,9 @@
         "moments": [2, 3, 4, 5, 6],
         "normalize": false,
         "verbose": false,
-        "indices": null
+        "indices": null,
+        "average": false
+
       },
       "use": "yes",
       "tag": "all"

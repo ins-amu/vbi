@@ -1598,6 +1598,7 @@ def spectrum_moments(
     moments=[2, 3, 4, 5, 6],
     normalize=False,
     indices=None,
+    average=False,
     verbose=False,
 ):
     """
@@ -1660,8 +1661,13 @@ def spectrum_moments(
 
         for i in moments:
             _m = moment(psd, i, axis=1)
-            Values = np.append(Values, _m)
-            Labels = Labels + [f"spectrum_moment_{i}_{j}" for j in range(len(_m))]
+            if not average:
+                Values = np.append(Values, _m)
+                Labels = Labels + [f"spectrum_moment_{i}_{j}" for j in range(len(_m))]
+            else:
+                Values = np.append(Values, np.mean(_m))
+                Labels = Labels + [f"spectrum_moment_{i}"]
+
     return Values, Labels
 
 
