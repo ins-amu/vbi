@@ -199,7 +199,7 @@ class JR_sde:
 
         self.G = self.xp.array(self.G)
         assert self.weights is not None, "weights must be provided"
-        self.weights = self.xp.array(self.weights).T  # ! check this
+        self.weights = self.xp.array(self.weights) 
         self.weights = move_data(self.weights, self.engine)
         self.nn = self.num_nodes = self.weights.shape[0]
 
