@@ -426,7 +426,7 @@ class WW_sde:
         if self.P.seed >= 0:
             # set_seed_compat(self.P.seed)
             initialize_random_state(self.P.seed)
-            print(f"WW_sde: setting random seed to {self.P.seed}")
+            # print(f"WW_sde: setting random seed to {self.P.seed}")
 
     def __str__(self) -> str:
         lines = [
