@@ -7,7 +7,7 @@ from setuptools_scm import get_version
 # sys.path.insert(0, os.path.abspath("../vbi"))
 sys.path.insert(0, os.path.abspath(".."))
 
-needs_sphinx = "1.3"
+needs_sphinx = "0.2"
 
 extensions = [
     "sphinx.ext.autodoc",

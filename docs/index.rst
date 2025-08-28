@@ -128,10 +128,13 @@ Examples
    examples/mpr_tvbk
    examples/jansen_rit_sde_cpp
    examples/jansen_rit_sde_cupy
+   examples/jansen_rit_sde_numba
    examples/ww_sde_torch_kong
    examples/ghb_sde_cupy
    examples/wilson_cowan_cupy
-
+   examples/wilson_cowan_sde_numba
+   examples/ww_full_sde_cupy
+   examples/ww_full_sde_numba
 
 
 
