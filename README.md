@@ -44,13 +44,29 @@ To use the Docker image, you can pull it from the GitHub Container Registry and 
 
     # with GPU
     docker run --gpus all --rm -it -p 8888:8888 ghcr.io/ins-amu/vbi:main
+```
 
+## Building and Using Docker Locally
 
-    # or build it locally:
-    docker build -t vbi-project .                      # build
-    docker run --gpus all -it -p 8888:8888 vbi-project # use with gpu
+For local development and customization, you can build the VBI Docker image yourself:
 
-```    
+**Quick Start:**
+
+```bash
+    # Build the optimized image
+    docker build -t vbi:latest .
+    
+    # Start with convenience script
+    ./run-vbi.sh start
+    
+    # Or start manually
+    docker run --gpus all -p 8888:8888 vbi:latest
+```
+
+**Complete Guides:**
+
+- [Docker Build Guide](docs/docker_build.rst) - Comprehensive building guide with optimizations and troubleshooting
+- [Docker Quickstart](docs/docker_quickstart.rst) - Quick reference for daily usage and container management    
 
 - Quick check :
 

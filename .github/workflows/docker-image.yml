@@ -2,8 +2,8 @@ name: build & push Docker image to ghcr
 
 on:
   push:
-    branches:
-      - develop  # Runs when pushing to develop branch
+    # branches:
+    #   - develop  # Runs when pushing to develop branch
     tags:
       - v*  # Runs when pushing tags starting with 'v'
 

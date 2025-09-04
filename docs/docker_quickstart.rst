@@ -1,5 +1,5 @@
 VBI Docker Quick Start
-#####################
+######################
 
 Your VBI Docker image has been built successfully! 🎉
 
