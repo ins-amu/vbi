@@ -27,20 +27,43 @@ Installation
 ============
 
 
-.. code-block:: bash
+**Prerequisites:**
 
+First, create and activate a conda environment (Python 3.10+ recommended):
+
+.. code-block:: bash
 
     conda env create --name vbi python=3.10
     conda activate vbi
-    # from pip: Recommended
+
+**Installation Options:**
+
+**Option 1: From PyPI (Recommended)**
+
+.. code-block:: bash
+
     pip install vbi
-    # from source: More recent update
+
+**Option 2: From Source (Latest Development Version)**
+
+.. code-block:: bash
+
     git clone https://github.com/ins-amu/vbi.git
     cd vbi
     pip install .
-    # pip install -e .[all,dev,docs]
-    
-    # To skip C++ compilation, use the following environment variable and install from source:
+
+**For developers:**
+
+.. code-block:: bash
+
+    pip install -e .[all,dev,docs]
+
+**Optional: Skip C++ Compilation**
+
+If you encounter compilation issues, you can skip C++ components during installation:
+
+.. code-block:: bash
+
     SKIP_CPP=1 pip install -e . 
 
 Using Docker
@@ -58,18 +81,28 @@ To use the Docker image, you can pull it from the GitHub Container Registry and 
     # with GPU
     docker run --gpus all --rm -it -p 8888:8888 ghcr.io/ins-amu/vbi:main
 
+Building and Using Docker Locally
+==================================
 
-    # or build it locally:
-    docker build -t vbi-project .                      # build
-    docker run --gpus all -it -p 8888:8888 vbi-project # use with gpu
+For local development and customization, you can build the VBI Docker image yourself:
 
-    # Open the browser and go to
-    http://127.0.0.1:8888
+**Quick Start:**
+
+.. code-block:: bash
+
+    # Build the optimized image
+    docker build -t vbi:latest .
     
-    #Adding Your Notebooks
-    #If your notebooks are in /path/examples. To access them in Jupyter, add the volume mapping:
-    docker run --gpus all -it -p 8888:8888 -v /path/examples:/app/notebooks vbi-project
-    #In the Jupyter interface, you’ll see a notebooks directory containing your .ipynb files.
+    # Start with convenience script
+    ./run-vbi.sh start
+    
+    # Or start manually
+    docker run --gpus all -p 8888:8888 vbi:latest
+
+**Complete Guides:**
+
+- :doc:`docker_build` - Comprehensive building guide with optimizations and troubleshooting
+- :doc:`docker_quickstart` - Quick reference for daily usage and container management
 
    
 
@@ -108,6 +141,8 @@ To use the Docker image, you can pull it from the GitHub Container Registry and 
    :caption: Contents:
 
    models
+   docker_build
+   docker_quickstart
 
 
 Examples

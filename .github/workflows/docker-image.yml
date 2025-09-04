@@ -3,7 +3,7 @@ name: build & push Docker image to ghcr
 on:
   push:
     # branches:
-    #   - main  # Runs when pushing to develop branch
+    #   - develop  # Runs when pushing to develop branch
     tags:
       - v*  # Runs when pushing tags starting with 'v'
 
@@ -14,6 +14,9 @@ env:
 jobs:
   docker-build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
     steps:
       - uses: actions/checkout@v3
 
@@ -21,8 +24,8 @@ jobs:
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.CR_PAT }}  # Use the PAT here
+          username: Ziaeemehr
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Extract metadata (tags, labels) for Docker
         id: meta
