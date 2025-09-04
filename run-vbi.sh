@@ -295,35 +295,18 @@ run_test() {
     print_info "Running VBI functionality test..."
     docker run --rm $gpu_flag $IMAGE_NAME python -c "
 import vbi
-print('✅ VBI version:', vbi.__version__)
+print('VBI Docker Test Results')
+print('=' * 50)
+print('VBI version:', vbi.__version__)
+print()
 
+# Run VBI comprehensive test imports
 try:
-    import torch
-    print('✅ PyTorch imported successfully')
-    print('   CUDA available:', torch.cuda.is_available())
+    vbi.test_imports()
+    print('\\n🎉 VBI Docker image is working correctly!')
 except Exception as e:
-    print('❌ PyTorch error:', e)
-
-try:
-    import cupy
-    print('✅ CuPy imported successfully')
-    print('   CuPy version:', cupy.__version__)
-    # Test basic CuPy functionality
-    import cupy as cp
-    x = cp.array([1, 2, 3])
-    print('   CuPy basic test passed')
-except Exception as e:
-    print('❌ CuPy error:', e)
-
-try:
-    import numpy as np
-    import scipy
-    import matplotlib
-    print('✅ Scientific packages (NumPy, SciPy, Matplotlib) imported successfully')
-except Exception as e:
-    print('❌ Scientific packages error:', e)
-
-print('\\n🎉 VBI Docker image is working correctly!')
+    print('❌ Error running vbi.test_imports():', e)
+    print('\\n❌ VBI Docker image test failed!')
 "
 }
 

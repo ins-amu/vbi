@@ -308,14 +308,32 @@ Expected output:
 
     [INFO] Running VBI functionality test...
     [INFO] GPU support detected, testing with GPU access
-    ✅ VBI version: v0.2.1
-    ✅ PyTorch imported successfully
-       CUDA available: True
-    ✅ CuPy imported successfully
-       CuPy version: 12.3.0
-       CuPy basic test passed
-    ✅ Scientific packages (NumPy, SciPy, Matplotlib) imported successfully
-    
+    VBI Docker Test Results
+    ==================================================
+    VBI version: v0.2
+
+                 Dependency Check              
+                                               
+      Package      Version       Status        
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 
+      vbi          v0.2          ✅ Available  
+      numpy        2.1.2         ✅ Available  
+      scipy        1.15.3        ✅ Available  
+      matplotlib   3.10.6        ✅ Available  
+      sbi          0.24.0        ✅ Available  
+      torch        2.5.1+cu121   ✅ Available  
+      cupy         13.6.0        ✅ Available  
+                                               
+    Torch GPU available: True
+    Torch device count: 1
+    Torch CUDA version: 12.1
+    CuPy GPU available: True
+    CuPy device count: 1
+    CUDA Version: 12.9
+    Device Name: NVIDIA RTX A5000
+    Total Memory: 23.68 GB
+    Compute Capability: 8.6
+
     🎉 VBI Docker image is working correctly!
 
 **2. Manual Import Test**
