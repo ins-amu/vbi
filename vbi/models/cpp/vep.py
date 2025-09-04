@@ -10,7 +10,7 @@ except ImportError as e:
     print(f"Could not import modules: {e}, probably C++ code is not compiled or properly linked.")
 
 
-class VEP:
+class VEP_sde:
     """
     Virtual Epileptic Patient (VEP) model
     """
@@ -100,7 +100,7 @@ class VEP:
                 raise ValueError(f"Invalid parameter: {key}")
             setattr(self, key, par[key])
         self.prepare_input()
-
+        
         obj = _VEP(
             self.G,
             self.iext,
