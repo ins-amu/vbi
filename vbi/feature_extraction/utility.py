@@ -1,9 +1,17 @@
-import torch 
 import logging
 import numpy as np
 import pandas as pd
-from torch import Tensor
 from typing import Union, List
+
+# Optional torch import
+try:
+    import torch
+    from torch import Tensor
+    _TORCH_AVAILABLE = True
+except ImportError:
+    _TORCH_AVAILABLE = False
+    # Create a dummy Tensor type for type hints
+    Tensor = type(None)
 
 
 def count_depth(ls):

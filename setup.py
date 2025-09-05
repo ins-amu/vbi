@@ -73,7 +73,7 @@ setup(
     description="A Python package with C++ integration via SWIG",
     packages=find_packages(),
     package_data={"vbi.models.cpp._src": [".so", "*.h", "*.i", "*.py"]},
-    ext_modules=extensions,
+    ext_modules=extensions,  # comment this line to skip C++ extensions
     cmdclass={
         "build_ext": CustomBuildExtCommand,
     },

@@ -1,6 +1,5 @@
 import os
 import time
-import torch
 import numpy as np
 
 from rich import box
@@ -9,14 +8,21 @@ from rich.console import Console
 
 from os.path import join
 from scipy.stats import gaussian_kde
-from sbi.analysis.plot import _get_default_opts, _update, ensure_numpy
-
-from torch import Tensor
 from typing import Union
 
+# Optional imports
+from .optional_deps import torch, require_optional, optional_import
+
+# Handle Tensor type for type hints
+if torch is not None:
+    from torch import Tensor
+else:
+    # Create a dummy Tensor type for type hints when torch is not available
+    Tensor = type(None)
 
 import re
 try :
+    import nbformat
     import nbformat
     from nbconvert import PythonExporter
 except:

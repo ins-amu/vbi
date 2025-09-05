@@ -15,22 +15,56 @@
 </p>
 
 
-## installation
+## Installation
+
+### Quick Start
+```bash
+conda env create --name vbi python=3.10
+conda activate vbi
+```
+
+### Installation Options
+
+VBI offers flexible installation options for different use cases:
 
 ```bash
-    conda env create --name vbi python=3.10
-    conda activate vbi
-    # from pip: Recommended
-    pip install vbi
-    # from source: More recent update
-    git clone https://github.com/ins-amu/vbi.git
-    cd vbi
-    pip install .
+# Light version - CPU simulation only (numba + C++), without PyTorch and CuPy
+# Includes: Brain simulation models, feature extraction, visualization
+# Best for: Users who only need simulation capabilities, minimal dependencies
+pip install vbi
 
-    # pip install -e .[all,dev,docs]
-    
-    # To skip C++ compilation, use the following environment variable and install from source:
-    SKIP_CPP=1 pip install -e . 
+# Light version with GPU acceleration (adds CuPy)
+# Includes: Everything in light + CuPy for GPU-accelerated simulations
+# Best for: GPU users who want fast simulations but don't need inference
+pip install vbi[light-gpu]
+
+# Parameter inference (CPU) - adds PyTorch and SBI
+# Includes: Everything in light + PyTorch (CPU) + SBI for Bayesian inference
+# Best for: Users who need parameter estimation but don't have GPU
+pip install vbi[inference]
+
+# Parameter inference with GPU - adds PyTorch, SBI, and CuPy
+# Includes: Full functionality with GPU acceleration for both simulation and inference
+# Best for: GPU users who need both fast simulation and parameter inference
+pip install vbi[inference-gpu]
+
+# All features - complete installation
+# Includes: All above + documentation tools, development dependencies
+# Best for: Developers, researchers who want all functionality
+pip install vbi[all]
+```
+
+### From Source
+```bash
+git clone https://github.com/ins-amu/vbi.git
+cd vbi
+pip install .
+
+# Development installation with all dependencies
+pip install -e .[all]
+
+# To skip C++ compilation, use:
+SKIP_CPP=1 pip install -e . 
 ```
 
 ## Using Docker

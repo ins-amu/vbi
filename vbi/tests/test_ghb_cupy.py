@@ -1,4 +1,3 @@
-import torch
 import unittest
 import numpy as np
 import networkx as nx
@@ -6,6 +5,13 @@ from copy import deepcopy
 from vbi import LoadSample
 from numpy.random import uniform
 import matplotlib.pyplot as plt
+
+# Optional torch import
+try:
+    import torch
+    TORCH_AVAILABLE = True
+except ImportError:
+    TORCH_AVAILABLE = False
 
 GHB_AVAILABLE = True
 try:
@@ -25,7 +31,8 @@ except ImportError:
 
 seed = 2
 np.random.seed(seed)
-torch.manual_seed(seed)
+if TORCH_AVAILABLE:
+    torch.manual_seed(seed)
 
 weights = LoadSample(nn=84).get_weights()
 nn = len(weights)
