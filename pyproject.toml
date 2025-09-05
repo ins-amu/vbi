@@ -111,3 +111,11 @@ all = [
 
 # Legacy compatibility
 cu = ["cupy"]
+
+[tool.pytest.ini_options]
+markers = [
+    "short: marks tests as short/fast (deselect with '-m \"not short\"')",
+    "long: marks tests as long/slow (deselect with '-m \"not long\"')", 
+    "fast: alias for short tests",
+    "slow: alias for long tests"
+]
