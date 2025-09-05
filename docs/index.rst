@@ -26,7 +26,6 @@ Workflow
 Installation
 ============
 
-
 **Prerequisites:**
 
 First, create and activate a conda environment (Python 3.10+ recommended):
@@ -38,13 +37,102 @@ First, create and activate a conda environment (Python 3.10+ recommended):
 
 **Installation Options:**
 
-**Option 1: From PyPI (Recommended)**
+VBI offers flexible installation options tailored for different use cases and hardware configurations:
+
+**Light Version - CPU Simulation Only**
+
+For basic brain simulation with minimal dependencies (numba + C++):
 
 .. code-block:: bash
 
     pip install vbi
 
-**Option 2: From Source (Latest Development Version)**
+*Includes:* Brain simulation models, feature extraction, visualization  
+*Best for:* Users who only need simulation capabilities, minimal dependencies
+
+**Light Version with GPU Acceleration**
+
+Adds CuPy for GPU-accelerated simulations:
+
+.. code-block:: bash
+
+    pip install vbi[light-gpu]
+
+*Includes:* Everything in light + CuPy for GPU-accelerated simulations  
+*Best for:* GPU users who want fast simulations but don't need inference  
+*Requirements:* NVIDIA GPU with CUDA support
+
+**Parameter Inference (CPU)**
+
+Adds PyTorch and SBI for Bayesian parameter inference:
+
+.. code-block:: bash
+
+    pip install vbi[inference]
+
+*Includes:* Everything in light + PyTorch (CPU) + SBI for Bayesian inference  
+*Best for:* Users who need parameter estimation but don't have GPU
+
+**Parameter Inference with GPU**
+
+Full functionality with GPU acceleration for both simulation and inference:
+
+.. code-block:: bash
+
+    pip install vbi[inference-gpu]
+
+*Includes:* Full functionality with GPU acceleration for both simulation and inference  
+*Best for:* GPU users who need both fast simulation and parameter inference  
+*Requirements:* NVIDIA GPU with CUDA support
+
+**Complete Installation**
+
+All features including documentation tools and development dependencies:
+
+.. code-block:: bash
+
+    pip install vbi[all]
+
+*Includes:* All above + documentation tools, development dependencies  
+*Best for:* Developers, researchers who want all functionality
+
+**Combining Options:**
+
+You can combine multiple options as needed:
+
+.. code-block:: bash
+
+    # Inference + GPU + Development tools
+    pip install vbi[inference-gpu,dev]
+    
+    # Light GPU + Documentation building
+    pip install vbi[light-gpu,docs]
+
+**Hardware-Specific Recommendations:**
+
+**CPU-Only Systems:**
+
+.. code-block:: bash
+
+    pip install vbi[inference]        # For inference work
+    pip install vbi                   # For simulation only
+
+**Systems with NVIDIA GPU:**
+
+.. code-block:: bash
+
+    pip install vbi[inference-gpu]    # For GPU inference
+    pip install vbi[light-gpu]        # For GPU simulation only
+
+**Use Case Guide:**
+
+- **Researchers doing parameter inference:** ``pip install vbi[inference-gpu]``
+- **Students learning brain modeling:** ``pip install vbi``
+- **HPC users with GPU clusters:** ``pip install vbi[light-gpu]``
+- **Developers contributing to VBI:** ``pip install vbi[all,dev,docs]``
+- **Classroom/workshop environments:** ``pip install vbi[inference]``
+
+**From Source (Latest Development Version):**
 
 .. code-block:: bash
 
@@ -106,33 +194,54 @@ For local development and customization, you can build the VBI Docker image your
 
    
 
+**Verify Installation:**
+
 .. code-block:: python 
 
    import vbi 
    vbi.tests()
    vbi.test_imports()  
 
-   #             Dependency Check              
+**Example output for full installation:**
+
+.. code-block:: text
+
+   Dependency Check              
                                            
-   # Package      Version       Status        
-   # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 
-   # vbi          v0.1.3        ✅ Available  
-   # numpy        1.24.4        ✅ Available  
-   # scipy        1.10.1        ✅ Available  
-   # matplotlib   3.7.5         ✅ Available  
-   # sbi          0.22.0        ✅ Available  
-   # torch        2.4.1+cu121   ✅ Available  
-   # cupy         12.3.0        ✅ Available  
+   Package      Version       Status        
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 
+   vbi          v0.2.1        ✅ Available  
+   numpy        1.24.4        ✅ Available  
+   scipy        1.10.1        ✅ Available  
+   matplotlib   3.7.5         ✅ Available  
+   sbi          0.22.0        ✅ Available  
+   torch        2.4.1+cu121   ✅ Available  
+   cupy         12.3.0        ✅ Available  
                                             
-   # Torch GPU available: True
-   # Torch device count: 1
-   # Torch CUDA version: 12.1
-   # CuPy GPU available: True
-   # CuPy device count: 1
-   # CUDA Version: 11.8
-   # Device Name: NVIDIA RTX A5000
-   # Total Memory: 23.68 GB
-   # Compute Capability: 8.6
+   Torch GPU available: True
+   Torch device count: 1
+   Torch CUDA version: 12.1
+   CuPy GPU available: True
+   CuPy device count: 1
+
+**Example output for light version:**
+
+.. code-block:: text
+
+   Dependency Check              
+                                           
+   Package      Version       Status        
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 
+   vbi          v0.2.1        ✅ Available  
+   numpy        1.24.4        ✅ Available  
+   scipy        1.10.1        ✅ Available  
+   matplotlib   3.7.5         ✅ Available  
+   sbi          -             ❌ Not Found  
+   torch        -             ❌ Not Found  
+   cupy         -             ❌ Not Found  
+
+   Note: Missing packages are expected for light installation.
+   Install vbi[inference] or vbi[inference-gpu] for additional functionality.
 
 
 

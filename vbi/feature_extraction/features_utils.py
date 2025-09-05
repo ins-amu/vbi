@@ -1,6 +1,5 @@
 import vbi
 import scipy
-import torch
 import numpy as np
 from os.path import join
 from typing import Union
@@ -8,6 +7,15 @@ from copy import deepcopy
 import scipy.stats as stats
 from numpy import linalg as LA
 from sklearn.decomposition import PCA
+
+# Optional torch import
+try:
+    import torch
+    _TORCH_AVAILABLE = True
+except ImportError:
+    _TORCH_AVAILABLE = False
+    # Create a dummy torch for type hints
+    torch = type('torch', (), {'Tensor': type(None)})
 from scipy.signal import butter, detrend, filtfilt, hilbert
 from vbi.feature_extraction.features_settings import load_json
 from vbi.feature_extraction.utility import *

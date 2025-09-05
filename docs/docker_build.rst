@@ -179,7 +179,7 @@ The build process consists of the following stages:
    .. code-block:: text
    
     => COPY . .
-    => RUN pip install . --no-cache-dir
+    => RUN pip install .[all] --no-cache-dir
     => RUN pip install cupy-cuda12x
 
 6. **Jupyter Ecosystem Installation** (2-3 minutes)

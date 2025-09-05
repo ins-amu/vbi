@@ -1,8 +1,15 @@
-import torch
 import unittest
 import numpy as np
 import networkx as nx
+import pytest
 from copy import deepcopy
+
+# Optional torch import
+try:
+    import torch
+    TORCH_AVAILABLE = True
+except ImportError:
+    TORCH_AVAILABLE = False
 
 MPR_AVAILABLE = True
 try:
@@ -13,7 +20,8 @@ except ImportError:
 
 seed = 2
 np.random.seed(seed)
-torch.manual_seed(seed)
+if TORCH_AVAILABLE:
+    torch.manual_seed(seed)
 
 nn = 3
 g = nx.complete_graph(nn)
@@ -36,6 +44,8 @@ class testMPRSDE(unittest.TestCase):
         with self.assertRaises(ValueError):
             MPR_sde(par=invalid_params)
 
+    @pytest.mark.long
+    @pytest.mark.slow
     def test_run(self):
         
         par = deepcopy(self.p)

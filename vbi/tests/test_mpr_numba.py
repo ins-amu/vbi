@@ -1,6 +1,7 @@
 import unittest
 import numpy as np
 import networkx as nx
+import pytest
 from vbi.utils import timer
 from copy import deepcopy
 import matplotlib.pyplot as plt
@@ -57,6 +58,8 @@ def plot(rv_t, r, v, bold_d, bold_t, g, close=True):
 
 class testMPRSDE(unittest.TestCase):
 
+    @pytest.mark.long
+    @pytest.mark.slow
     # @timer
     def test_run(self):
 

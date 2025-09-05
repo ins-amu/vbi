@@ -10,7 +10,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "vbi"
-version = "0.2.1"
+dynamic = ["version"]
 description = "Virtual brain inference."
 requires-python = ">=3.8"
 license = { text = "MIT" }
@@ -32,9 +32,6 @@ dependencies = [
     "matplotlib",
     "setuptools-scm",
     "tqdm",
-    # "ipywidgets",
-    "sbi",
-    "torch",
     "parameterized",
     "scikit-learn",
     "pycatch22",
@@ -65,7 +62,30 @@ vbi = [
 "vbi.tests" = ["*"]  # Include all files in tests/
 
 [project.optional-dependencies]
+# Light version - CPU simulation only (numba + C++ models)
+# No additional deps needed, uses core dependencies
+light = []
+
+# Light with GPU - adds CuPy for GPU acceleration 
+light-gpu = ["cupy"]
+
+# Inference CPU - adds PyTorch and SBI for parameter inference (CPU only)
+inference = [
+    "sbi",
+    "torch",
+]
+
+# Inference GPU - PyTorch with CUDA + SBI for GPU-accelerated inference
+inference-gpu = [
+    "sbi",
+    "torch",
+    "cupy",
+]
+
+# Development tools
 dev = []
+
+# Documentation building
 docs = [
     "sphinx",
     "numpydoc",
@@ -74,15 +94,28 @@ docs = [
     "cloud_sptheme",
     "sphinx_bootstrap_theme",
 ]
-cu = ["cupy"]
+
+# All dependencies (torch, cupy, sbi, dev tools, docs, notebooks)
 all = [
-    "pytest",
+    "sbi",
+    "torch",
+    "cupy",
     "sphinx",
     "numpydoc",
     "nbformat",
     "nbsphinx",
     "cloud_sptheme",
     "sphinx_bootstrap_theme",
-    "cupy",
     # "ipywidgets",
+]
+
+# Legacy compatibility
+cu = ["cupy"]
+
+[tool.pytest.ini_options]
+markers = [
+    "short: marks tests as short/fast (deselect with '-m \"not short\"')",
+    "long: marks tests as long/slow (deselect with '-m \"not long\"')", 
+    "fast: alias for short tests",
+    "slow: alias for long tests"
 ]
