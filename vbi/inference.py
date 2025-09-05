@@ -1,7 +1,28 @@
-import torch
+# Check for required dependencies with informative error messages
+try:
+    import torch
+except ImportError as e:
+    raise ImportError(
+        "PyTorch is required for inference functionality but is not available. "
+        "You may have installed VBI with the light version (pip install vbi) "
+        "which excludes heavy inference dependencies to reduce installation size. "
+        "To enable inference capabilities, install with: pip install vbi[inference] "
+        "or add PyTorch manually: pip install torch"
+    ) from e
+
+try:
+    from sbi.inference import SNPE, SNLE, SNRE
+    from sbi.utils.user_input_checks import process_prior
+except ImportError as e:
+    raise ImportError(
+        "SBI (Simulation-Based Inference) is required for inference functionality but is not available. "
+        "You may have installed VBI with the light version (pip install vbi) "
+        "which excludes heavy inference dependencies to reduce installation size. "
+        "To enable inference capabilities, install with: pip install vbi[inference] "
+        "or add SBI manually: pip install sbi"
+    ) from e
+
 from vbi.utils import *
-from sbi.inference import SNPE, SNLE, SNRE
-from sbi.utils.user_input_checks import process_prior
 
 
 class Inference(object):
