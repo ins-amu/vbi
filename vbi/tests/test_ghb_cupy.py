@@ -1,6 +1,7 @@
 import unittest
 import numpy as np
 import networkx as nx
+import pytest
 from copy import deepcopy
 from vbi import LoadSample
 from numpy.random import uniform
@@ -63,6 +64,8 @@ params = {
 
 
 @unittest.skipIf(not GHB_AVAILABLE, "vbi.models.cupy.ghb.GHB_sde module not available")
+@pytest.mark.short  # Note: may be long when GHB is available - monitor execution time
+@pytest.mark.fast   # Note: may be slow when GHB is available - monitor execution time
 class testGHBSDE(unittest.TestCase):
     def test_GHB_sde_cupy(self):
         ghb = GHB_sde(params)

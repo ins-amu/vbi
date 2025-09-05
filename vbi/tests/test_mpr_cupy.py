@@ -1,6 +1,7 @@
 import unittest
 import numpy as np
 import networkx as nx
+import pytest
 from copy import deepcopy
 
 # Optional torch import
@@ -43,6 +44,8 @@ class testMPRSDE(unittest.TestCase):
         with self.assertRaises(ValueError):
             MPR_sde(par=invalid_params)
 
+    @pytest.mark.long
+    @pytest.mark.slow
     def test_run(self):
         
         par = deepcopy(self.p)

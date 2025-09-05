@@ -1,9 +1,12 @@
 import unittest
 import numpy as np
+import pytest
 from vbi.feature_extraction.features import (abs_energy, average_power, auc, auc_lim, calc_var, calc_std, calc_mean, calc_centroid, calc_kurtosis, calc_skewness, calc_max, calc_min, calc_median, mean_abs_dev, median_abs_dev, rms, interq_range, zero_crossing)
 from parameterized import parameterized
 
 
+@pytest.mark.short
+@pytest.mark.fast
 class TestAbsEnergy(unittest.TestCase):
 
     @parameterized.expand([
@@ -24,6 +27,8 @@ class TestAbsEnergy(unittest.TestCase):
         self.assertEqual(labels, expected_labels)
 
 
+@pytest.mark.short
+@pytest.mark.fast
 class TestAveragePower(unittest.TestCase):
 
     @parameterized.expand([
@@ -43,6 +48,8 @@ class TestAveragePower(unittest.TestCase):
         self.assertEqual(labels, expected_labels)
 
 
+@pytest.mark.short
+@pytest.mark.fast
 class TestAuc(unittest.TestCase):
 
     @parameterized.expand([
@@ -62,6 +69,8 @@ class TestAuc(unittest.TestCase):
         self.assertEqual(labels, expected_labels)
 
 
+@pytest.mark.short
+@pytest.mark.fast
 class TestAucLim(unittest.TestCase):
 
     @parameterized.expand([
@@ -83,6 +92,8 @@ class TestAucLim(unittest.TestCase):
             self.assertEqual(labels, expected_labels)
 
 
+@pytest.mark.short
+@pytest.mark.fast
 class TestCalcVar(unittest.TestCase):
 
     @parameterized.expand([
@@ -101,6 +112,8 @@ class TestCalcVar(unittest.TestCase):
             np.testing.assert_allclose(values, expected_values)
             self.assertEqual(labels, expected_labels)
 
+@pytest.mark.short
+@pytest.mark.fast
 class TestCalcStd(unittest.TestCase):
 
     @parameterized.expand([
@@ -120,6 +133,8 @@ class TestCalcStd(unittest.TestCase):
                 np.testing.assert_allclose(values[i], expected_values[i])
         self.assertEqual(labels, expected_labels)
 
+@pytest.mark.short
+@pytest.mark.fast
 class TestCalcMean(unittest.TestCase):
 
     @parameterized.expand([
@@ -139,6 +154,8 @@ class TestCalcMean(unittest.TestCase):
                 np.testing.assert_allclose(values[i], expected_values[i])
         self.assertEqual(labels, expected_labels)
 
+@pytest.mark.short
+@pytest.mark.fast
 class TestCalcCentroid(unittest.TestCase):
 
     @parameterized.expand([
@@ -158,6 +175,8 @@ class TestCalcCentroid(unittest.TestCase):
                 np.testing.assert_allclose(values[i], expected_values[i])
         self.assertEqual(labels, expected_labels)
 
+@pytest.mark.short
+@pytest.mark.fast
 class TestCalcKurtosis(unittest.TestCase):
 
     @parameterized.expand([
@@ -177,6 +196,8 @@ class TestCalcKurtosis(unittest.TestCase):
                 np.testing.assert_allclose(values[i], expected_values[i])
         self.assertEqual(labels, expected_labels)
 
+@pytest.mark.short
+@pytest.mark.fast
 class TestSkewness(unittest.TestCase):
 
     @parameterized.expand([
@@ -196,6 +217,8 @@ class TestSkewness(unittest.TestCase):
                 np.testing.assert_allclose(values[i], expected_values[i])
         self.assertEqual(labels, expected_labels)
 
+@pytest.mark.short
+@pytest.mark.fast
 class TestMax(unittest.TestCase):
 
     @parameterized.expand([
@@ -215,6 +238,8 @@ class TestMax(unittest.TestCase):
                 np.testing.assert_allclose(values[i], expected_values[i])
         self.assertEqual(labels, expected_labels)
 
+@pytest.mark.short
+@pytest.mark.fast
 class TestMin(unittest.TestCase):
 
     @parameterized.expand([
@@ -234,6 +259,8 @@ class TestMin(unittest.TestCase):
                 np.testing.assert_allclose(values[i], expected_values[i])
         self.assertEqual(labels, expected_labels)
 
+@pytest.mark.short
+@pytest.mark.fast
 class TestMedian(unittest.TestCase):
 
     @parameterized.expand([
@@ -254,6 +281,8 @@ class TestMedian(unittest.TestCase):
         self.assertEqual(labels, expected_labels)
 
 
+@pytest.mark.short
+@pytest.mark.fast
 class TestMeanAbsDev(unittest.TestCase):
 
     @parameterized.expand([
@@ -273,6 +302,8 @@ class TestMeanAbsDev(unittest.TestCase):
                 np.testing.assert_allclose(values[i], expected_values[i])
         self.assertEqual(labels, expected_labels)
 
+@pytest.mark.short
+@pytest.mark.fast
 class TestMedianAbsDev(unittest.TestCase):
 
     @parameterized.expand([
@@ -292,6 +323,8 @@ class TestMedianAbsDev(unittest.TestCase):
                 np.testing.assert_allclose(values[i], expected_values[i])
         self.assertEqual(labels, expected_labels)
 
+@pytest.mark.short
+@pytest.mark.fast
 class TestRms(unittest.TestCase):
 
     @parameterized.expand([
@@ -312,6 +345,8 @@ class TestRms(unittest.TestCase):
         self.assertEqual(labels, expected_labels)
 
 
+@pytest.mark.short
+@pytest.mark.fast
 class TestInterqRange(unittest.TestCase):
 
     @parameterized.expand([
@@ -328,6 +363,8 @@ class TestInterqRange(unittest.TestCase):
                 np.testing.assert_allclose(values[i], expected_values[i])
         self.assertEqual(labels, expected_labels)
 
+@pytest.mark.short
+@pytest.mark.fast
 class TestZeroCrossing(unittest.TestCase):
 
     @parameterized.expand([
@@ -345,6 +382,8 @@ class TestZeroCrossing(unittest.TestCase):
                 np.testing.assert_allclose(values[i], expected_values[i])
         self.assertEqual(labels, expected_labels)
 
+@pytest.mark.short
+@pytest.mark.fast
 class TestCalcRess(unittest.TestCase):
     pass
 

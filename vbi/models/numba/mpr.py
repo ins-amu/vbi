@@ -27,7 +27,7 @@ def f_mpr(x, t, P):
     tau2 = P.tau * P.tau
     rtau = 1.0 / P.tau
 
-    coupling = np.dot(P.weights, x0)
+    coupling = np.dot(np.ascontiguousarray(P.weights), np.ascontiguousarray(x0))
     dxdt[:nn] = rtau * (delta_over_tau_pi + 2 * x0 * x1)
     dxdt[nn:] = rtau * (
         x1 * x1 + P.eta + P.iapp + J_tau * x0 - (pi2 * tau2 * x0 * x0) + P.G * coupling
