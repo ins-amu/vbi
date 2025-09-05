@@ -49,7 +49,7 @@ RUN pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cu12
 
 COPY . .
 
-RUN pip install .[all] --no-cache-dir
+RUN pip install .[all-docker] --no-cache-dir
 
 # Install CuPy for CUDA 12.x
 RUN pip install --no-cache-dir cupy-cuda12x

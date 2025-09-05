@@ -109,6 +109,19 @@ all = [
     # "ipywidgets",
 ]
 
+# All dependencies without CuPy (for Docker builds where CuPy is installed separately)
+all-docker = [
+    "sbi",
+    "torch",
+    "sphinx",
+    "numpydoc",
+    "nbformat",
+    "nbsphinx",
+    "cloud_sptheme",
+    "sphinx_bootstrap_theme",
+    # "ipywidgets",
+]
+
 # Legacy compatibility
 cu = ["cupy"]
 
