@@ -31,6 +31,14 @@ from vbi.feature_extraction.features_utils import (
 
 from typing import List, Tuple, Dict
 
+# Handle NumPy version compatibility for trapezoid function
+try:
+    # NumPy >= 1.22
+    trapz_func = np.trapezoid
+except AttributeError:
+    # NumPy < 1.22
+    trapz_func = np.trapz
+
 try:
     import ssm
 except:
@@ -149,7 +157,7 @@ def auc(
 
     if dx is None:
         dx = 1
-    values = np.trapz(ts, x=x, dx=dx, axis=1)
+    values = trapz_func(ts, x=x, dx=dx, axis=1)
     labels = [f"auc_{i}" for i in range(len(values))]
 
     return values, labels
@@ -214,7 +222,7 @@ def auc_lim(
         idx = np.where((x >= xmin) & (x <= xmax))[0]
         if len(idx) == 0:
             continue
-        values.extend(np.trapz(ts[:, idx], x=x[idx], dx=dx, axis=1))
+        values.extend(trapz_func(ts[:, idx], x=x[idx], dx=dx, axis=1))
     labels = [f"auc_lim_{i}" for i in range(len(values))]
 
     return values, labels
@@ -1577,7 +1585,7 @@ def spectrum_auc(
             if np.sum(idx) == 0:
                 continue
             psd_band = psd[:, idx]
-            values.append(np.trapz(psd_band, axis=1))
+            values.append(trapz_func(psd_band, axis=1))
 
         if len(values) > 0:
             values = np.concatenate(values)

@@ -1,8 +1,11 @@
 import os
-from .tests.test_suite import tests
+from .tests.test_suite import run_tests
 from .utils import test_imports
 from . import models
 from ._version import __version__
+
+# Create alias for backward compatibility
+tests = run_tests
 
 
 from .feature_extraction.calc_features import (

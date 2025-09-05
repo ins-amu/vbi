@@ -5,7 +5,7 @@ import argparse
 import sys
 
 
-def tests(category=None):
+def run_tests(category=None):
     """
     Run tests with optional category filtering.
     
@@ -90,5 +90,5 @@ if __name__ == "__main__":
         sys.exit(exit_code)
     else:
         # Use unittest runner
-        result = tests(category)
+        result = run_tests(category)
         sys.exit(0 if result.wasSuccessful() else 1)
