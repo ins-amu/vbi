@@ -839,6 +839,7 @@ class WW_sde:
         -------
         dict
             Dictionary containing simulation results with keys:
+            
             - 'S' : ndarray, shape (T, nn)
                 Recorded excitatory synaptic gating variables if RECORD_S=True
             - 't' : ndarray, shape (T,)
