@@ -89,6 +89,70 @@ wc_spec = [
 
 @jitclass(wc_spec)
 class ParWC:
+    """
+    Parameter class for the Wilson-Cowan neural mass model.
+    
+    This Numba jitclass holds all parameters required for Wilson-Cowan simulation
+    including synaptic strengths, time constants, sigmoid parameters, noise levels,
+    and simulation settings. Uses Numba for high-performance compilation.
+    
+    Parameters
+    ----------
+    c_ee : array-like, default [16.0]
+        Excitatory to excitatory synaptic strength
+    c_ei : array-like, default [12.0] 
+        Excitatory to inhibitory synaptic strength
+    c_ie : array-like, default [15.0]
+        Inhibitory to excitatory synaptic strength
+    c_ii : array-like, default [3.0]
+        Inhibitory to inhibitory synaptic strength
+    tau_e : array-like, default [8.0]
+        Excitatory population time constant
+    tau_i : array-like, default [8.0]
+        Inhibitory population time constant
+    a_e : float, default 1.3
+        Excitatory sigmoid maximum firing rate parameter
+    a_i : float, default 2.0
+        Inhibitory sigmoid maximum firing rate parameter
+    b_e : float, default 4.0
+        Excitatory sigmoid steepness parameter
+    b_i : float, default 3.7
+        Inhibitory sigmoid steepness parameter
+    c_e : float, default 1.0
+        Excitatory sigmoid center parameter
+    c_i : float, default 1.0
+        Inhibitory sigmoid center parameter  
+    theta_e : float, default 0.0
+        Excitatory threshold parameter
+    theta_i : float, default 0.0
+        Inhibitory threshold parameter
+    r_e : float, default 1.0
+        Excitatory refractory parameter
+    r_i : float, default 1.0
+        Inhibitory refractory parameter
+    k_e : float, default 0.994
+        Excitatory maximum response parameter
+    k_i : float, default 0.999
+        Inhibitory maximum response parameter
+    alpha_e : float, default 1.0
+        Excitatory scaling parameter
+    alpha_i : float, default 1.0
+        Inhibitory scaling parameter
+    P : array-like, default [0.0]
+        External input to excitatory population
+    Q : array-like, default [0.0]
+        External input to inhibitory population
+    g_e : float, default 0.0
+        Excitatory global coupling strength
+    g_i : float, default 0.0
+        Inhibitory global coupling strength
+    dt : float, default 0.01
+        Integration time step (ms)
+    t_end : float, default 300.0
+        Simulation end time (ms)
+    t_cut : float, default 0.0
+        Initial time to discard (ms)
+    """
     def __init__(
         self,
         c_ee=np.array([16.0]),
@@ -165,6 +229,31 @@ class ParWC:
 
 @njit
 def sigmoid_vec(x, a, b, c, shift_sigmoid):
+    """
+    Vectorized sigmoidal transfer function for Wilson-Cowan model.
+    
+    Computes either standard sigmoid or shifted sigmoid that maps synaptic
+    input to firing rate, capturing saturation effects and thresholds.
+    
+    Parameters
+    ----------
+    x : np.ndarray
+        Input values (synaptic drive).
+    a : float
+        Sigmoid slope parameter.
+    b : float
+        Sigmoid threshold parameter.
+    c : float
+        Maximum output of sigmoid.
+    shift_sigmoid : bool
+        If True, uses shifted sigmoid: c * (sigmoid(a(x-b)) - sigmoid(-ab))
+        If False, uses standard sigmoid: c / (1 + exp(-a(x-b)))
+        
+    Returns
+    -------
+    np.ndarray
+        Sigmoid-transformed firing rates.
+    """
     y = np.empty_like(x)
     if shift_sigmoid:
         # c * (sigmoid(a(x-b)) - sigmoid(-ab))
@@ -180,8 +269,36 @@ def sigmoid_vec(x, a, b, c, shift_sigmoid):
 @njit
 def f_wc(x, t, P):
     """
-    Wilson-Cowan ODE right-hand side (per-node, single simulation).
-    x: shape (2*nn,)
+    Compute the right-hand side of the Wilson-Cowan neural mass model.
+    
+    This function implements the deterministic part of the Wilson-Cowan equations
+    for a network of coupled excitatory-inhibitory neural populations. The model
+    describes the temporal evolution of mean firing rates using nonlinear 
+    differential equations with sigmoidal transfer functions.
+    
+    The equations are:
+    
+    .. math::
+    
+        \\tau_e \\frac{dE}{dt} = -E + (k_e - r_e E) \\cdot S_e(\\alpha_e(c_{ee}E - c_{ei}I + P - \\theta_e + g_e\\sum w_{ij}E_j))
+        
+        \\tau_i \\frac{dI}{dt} = -I + (k_i - r_i I) \\cdot S_i(\\alpha_i(c_{ie}E - c_{ii}I + Q - \\theta_i + g_i\\sum w_{ij}I_j))
+    
+    Parameters
+    ----------
+    x : np.ndarray
+        Current state vector of shape (2*nn,) containing stacked arrays:
+        [E₀, E₁, ..., Eₙ, I₀, I₁, ..., Iₙ] where nn is the number of nodes.
+        E represents excitatory population activity, I represents inhibitory.
+    t : float
+        Current time (not used in autonomous system).
+    P : ParWC
+        Parameter object containing all model parameters.
+        
+    Returns
+    -------
+    np.ndarray
+        Derivative vector of shape (2*nn,) containing dx/dt.
     """
     nn = P.nn
     dxdt = np.zeros_like(x)
@@ -239,11 +356,185 @@ def set_initial_state(nn, seed=-1):
 
 class WC_sde_numba:
     """
-    Numba implementation of the Wilson-Cowan SDE, modeled after mpr.py and
-    translated from the CuPy/Numpy reference.
-    """
+    Numba implementation of the Wilson-Cowan neural mass model with stochastic dynamics.
+    
+    The Wilson-Cowan model is a seminal neural mass model that describes the dynamics 
+    of connected excitatory and inhibitory neural populations at the cortical microcolumn 
+    level. It models the temporal evolution of mean firing rates using nonlinear 
+    differential equations with sigmoidal transfer functions that capture saturation 
+    effects and thresholds in neural response.
+    
+    This implementation includes:
+    - Coupled excitatory (E) and inhibitory (I) populations per brain region
+    - Network connectivity through structural connectivity matrix
+    - Additive Gaussian noise for stochastic dynamics
+    - Flexible sigmoid functions (standard or shifted)
+    - Efficient Numba compilation for high-performance simulation
+    
+    The model equations are:
+    
+    .. math::
+    
+        \\tau_e \\frac{dE}{dt} = -E + (k_e - r_e E) \\cdot S_e(\\alpha_e(c_{ee}E - c_{ei}I + P - \\theta_e + g_e\\sum w_{ij}E_j)) + \\text{noise}
+        
+        \\tau_i \\frac{dI}{dt} = -I + (k_i - r_i I) \\cdot S_i(\\alpha_i(c_{ie}E - c_{ii}I + Q - \\theta_i + g_i\\sum w_{ij}I_j)) + \\text{noise}
+    
+    .. list-table:: Parameters
+        :widths: 25 50 25
+        :header-rows: 1
 
+        * - Name
+          - Explanation
+          - Default Value
+        * - `c_ee`
+          - Excitatory to excitatory synaptic strength. If array-like, should be of length `nn`.
+          - 16.0
+        * - `c_ei`
+          - Inhibitory to excitatory synaptic strength. If array-like, should be of length `nn`.
+          - 12.0
+        * - `c_ie`
+          - Excitatory to inhibitory synaptic strength. If array-like, should be of length `nn`.
+          - 15.0
+        * - `c_ii`
+          - Inhibitory to inhibitory synaptic strength. If array-like, should be of length `nn`.
+          - 3.0
+        * - `tau_e`
+          - Time constant of excitatory population. If array-like, should be of length `nn`.
+          - 8.0
+        * - `tau_i`
+          - Time constant of inhibitory population. If array-like, should be of length `nn`.
+          - 8.0
+        * - `a_e`
+          - Sigmoid slope for excitatory population.
+          - 1.3
+        * - `a_i`
+          - Sigmoid slope for inhibitory population.
+          - 2.0
+        * - `b_e`
+          - Sigmoid threshold for excitatory population.
+          - 4.0
+        * - `b_i`
+          - Sigmoid threshold for inhibitory population.
+          - 3.7
+        * - `c_e`
+          - Maximum output of sigmoid for excitatory population.
+          - 1.0
+        * - `c_i`
+          - Maximum output of sigmoid for inhibitory population.
+          - 1.0
+        * - `theta_e`
+          - Firing threshold for excitatory population.
+          - 0.0
+        * - `theta_i`
+          - Firing threshold for inhibitory population.
+          - 0.0
+        * - `r_e`
+          - Refractoriness of excitatory population.
+          - 1.0
+        * - `r_i`
+          - Refractoriness of inhibitory population.
+          - 1.0
+        * - `k_e`
+          - Scaling constant for excitatory output.
+          - 0.994
+        * - `k_i`
+          - Scaling constant for inhibitory output.
+          - 0.999
+        * - `alpha_e`
+          - Gain of excitatory population.
+          - 1.0
+        * - `alpha_i`
+          - Gain of inhibitory population.
+          - 1.0
+        * - `P`
+          - External input to excitatory population. If array-like, should be of length `nn`.
+          - 0.0
+        * - `Q`
+          - External input to inhibitory population. If array-like, should be of length `nn`.
+          - 0.0
+        * - `g_e`
+          - Global coupling strength for excitatory populations.
+          - 0.0
+        * - `g_i`
+          - Global coupling strength for inhibitory populations.
+          - 0.0
+        * - `weights`
+          - Structural connectivity matrix of shape (`nn`, `nn`). Must be provided.
+          - None
+        * - `dt`
+          - Integration time step.
+          - 0.01
+        * - `t_end`
+          - End time of simulation.
+          - 300.0
+        * - `t_cut`
+          - Time from which to start collecting output (burn-in period).
+          - 0.0
+        * - `noise_amp`
+          - Amplitude of additive Gaussian noise.
+          - 0.0
+        * - `decimate`
+          - Decimation factor for output time series (every `decimate`-th point is saved).
+          - 1
+        * - `RECORD_EI`
+          - Which populations to record: "E" (excitatory only), "I" (inhibitory only), "EI" (both).
+          - "E"
+        * - `shift_sigmoid`
+          - Whether to use shifted sigmoid function.
+          - False
+        * - `seed`
+          - Random seed for reproducible simulations. If -1, no seeding is applied.
+          - -1
+        * - `initial_state`
+          - Initial state vector of shape (2*nn,). If None, random initial conditions are generated.
+          - None
+
+    Usage example:
+        >>> import numpy as np
+        >>> from vbi.models.numba.wilson_cowan import WC_sde_numba
+        >>> W = np.eye(2) * 0.1  # 2-node demo connectivity
+        >>> P_ext = np.array([0.5, 0.8])  # External inputs to excitatory populations
+        >>> wc = WC_sde_numba({
+        ...     "weights": W, 
+        ...     "P": P_ext,
+        ...     "g_e": 0.2,
+        ...     "dt": 0.01, 
+        ...     "t_end": 100.0, 
+        ...     "t_cut": 20.0,
+        ...     "noise_amp": 0.01,
+        ...     "RECORD_EI": "EI"
+        ... })
+        >>> result = wc.run()
+        >>> t, E, I = result["t"], result["E"], result["I"]  # Time series data
+
+    Notes
+    -----
+    The Wilson-Cowan model is widely used for understanding:
+    - Oscillations and wave propagation in neural tissue
+    - Pattern formation and spatial dynamics
+    - Responses to external stimuli and perturbations
+    - Brain dysfunction in neurological conditions (e.g., Parkinson's disease)
+    - Local field potentials (LFPs) and EEG signal generation
+    
+    The model's nonlinear dynamics arise from the sigmoidal transfer functions
+    that map synaptic input to firing rate, allowing for rich dynamical behaviors
+    including fixed points, limit cycles, and complex spatiotemporal patterns.
+    
+    References
+    ----------
+    Wilson, H. R., & Cowan, J. D. (1972). Excitatory and inhibitory interactions 
+    in localized populations of model neurons. Biophysical journal, 12(1), 1-24.
+    """
     def __init__(self, par: dict = {}):
+        """
+        Initialize the Wilson-Cowan model.
+
+        Parameters
+        ----------
+        par : dict, optional
+            Dictionary containing model parameters. See class documentation for 
+            available parameters. The 'weights' parameter is required.
+        """
         # Prepare raw dict and build jitclass
         self.P = self._get_par_wc(par)
 
@@ -255,6 +546,14 @@ class WC_sde_numba:
         return self.P
 
     def __str__(self) -> str:
+        """
+        Return a string representation of the model parameters.
+        
+        Returns
+        -------
+        str
+            Formatted string showing key model parameters and their values.
+        """
         params = [
             "nn", "dt", "t_end", "t_cut", "decimate", "noise_amp",
             "g_e", "g_i", "a_e", "a_i", "b_e", "b_i", "k_e", "k_i",
@@ -314,9 +613,23 @@ class WC_sde_numba:
         return P
 
     def set_initial_state(self):
+        """
+        Generate random initial conditions for the model.
+        
+        Sets random initial state for both excitatory and inhibitory populations
+        with values appropriate for Wilson-Cowan dynamics.
+        """
         self.P.initial_state = set_initial_state(self.P.nn, self.P.seed)
 
     def check_input(self):
+        """
+        Check shape and consistency of input parameters.
+        
+        Returns
+        -------
+        bool
+            True if input is provided, False otherwise.
+        """
         P = self.P
         assert P.weights.shape[0] == P.weights.shape[1], "weights must be square"
         assert P.nn == P.weights.shape[0], "nn must match weights shape"
@@ -332,6 +645,27 @@ class WC_sde_numba:
             assert v.size == P.nn, f"{k} must be length nn"
 
     def run(self, par: dict = None, x0=None, verbose: bool = True):
+        """
+        Run the Wilson-Cowan model simulation.
+
+        Executes the numerical integration to simulate
+        the stochastic Wilson-Cowan dynamics.
+        
+        Parameters
+        ----------
+        par : dict, optional
+            Dictionary of parameters to update before simulation
+        x0 : array-like, optional
+            Initial state vector of length 2*nn (E and I for each region)
+        verbose : bool, default True
+            Whether to print simulation progress information
+            
+        Returns
+        -------
+        tuple
+            Dictionary with keys 't', 'E', 'I' containing time vector and 
+            excitatory/inhibitory time series arrays.
+        """
         # update parameters if provided
         if par:
             # (rebuild jitclass when structure-changing params come in)
@@ -393,8 +727,26 @@ class WC_sde_numba:
 
 def integrate(P: ParWC, verbose=True):
     """
-    Pure-Python driver (Numba-accelerated inner steps).
-    Returns dict with t, E, I (float32).
+    Run Wilson-Cowan model integration with Heun's method.
+    
+    Performs stochastic integration of the Wilson-Cowan equations using 
+    Heun's method for improved accuracy. Returns time series data for
+    excitatory and inhibitory populations.
+    
+    Parameters
+    ----------
+    P : ParWC
+        Parameter object containing all model parameters and settings
+    verbose : bool, default True
+        Whether to print integration progress
+        
+    Returns
+    -------
+    dict
+        Dictionary containing:
+        - 't' : ndarray, time points
+        - 'E' : ndarray or None, excitatory population activity
+        - 'I' : ndarray or None, inhibitory population activity
     """
     nn = P.nn
     dt = P.dt

@@ -19,7 +19,9 @@ def set_seed_compat(x):
 
 @register_jitable
 def _as_1d_array_like(x, nn):
-    """Broadcast scalar to 1D array of length nn if needed."""
+    """
+    Broadcast scalar to 1D array of length nn if needed.
+    """
     x_arr = np.array(x) if not isinstance(x, np.ndarray) else x
     if x_arr.ndim == 0:
         return np.ones(nn) * float(x_arr)
@@ -30,7 +32,8 @@ def _as_1d_array_like(x, nn):
 
 @njit
 def set_initial_state_jr(nn, seed=-1):
-    """Initial state for JR: stack 6*n vectors.
+    """
+    Initial state for JR: stack 6*n vectors.
     Mirrors ranges similar to the CuPy reference implementation.
     """
     if seed is not None and seed >= 0:
@@ -87,6 +90,16 @@ jr_spec = [
 
 @jitclass(jr_spec)
 class ParJR:
+    """
+    Numba jitclass container for Jansen-Rit model parameters.
+    
+    This class holds all parameters needed for the Jansen-Rit neural mass model
+    in a format optimized for Numba compilation. It stores both scalar parameters
+    and array parameters like connectivity weights and coupling constants.
+    
+    Note: This is an internal class used by the JR_sde class. Users should
+    not instantiate this class directly.
+    """
     def __init__(
         self,
         weights,
@@ -154,6 +167,27 @@ def S_sigmoid(x, vmax, r, v0):
 
 @njit
 def f_jr(x, t, P):
+    """
+    Compute the right-hand side of the Jansen-Rit differential equations.
+    
+    This function implements the deterministic part of the Jansen-Rit neural
+    mass model equations for a network of coupled brain regions.
+    
+    Parameters
+    ----------
+    x : np.ndarray
+        Current state vector of shape (6*nn,) containing stacked arrays:
+        [x, y, z, x', y', z'] where nn is the number of nodes.
+    t : float
+        Current time (not used in autonomous system).
+    P : ParJR
+        Parameter object containing all model parameters.
+        
+    Returns
+    -------
+    np.ndarray
+        Derivative vector of shape (6*nn,) containing dx/dt.
+    """
     nn = P.nn
 
     # Unpack state
@@ -193,6 +227,26 @@ def f_jr(x, t, P):
 
 @njit
 def heun_sde(x, t, P):
+    """
+    Perform one step of Heun's method for stochastic differential equations.
+    
+    This implements the Heun scheme (also called improved Euler method) for
+    integrating stochastic differential equations with additive noise.
+    
+    Parameters
+    ----------
+    x : np.ndarray
+        Current state vector of shape (6*nn,).
+    t : float
+        Current time.
+    P : ParJR
+        Parameter object containing dt, sigma, and other model parameters.
+        
+    Returns
+    -------
+    np.ndarray
+        Updated state vector after one integration step.
+    """
     nn = P.nn
     dt = P.dt
 
@@ -215,6 +269,27 @@ def heun_sde(x, t, P):
 # ---------------------------------------------------------------
 
 def integrate(P):
+    """
+    Integrate the Jansen-Rit model over time.
+    
+    This function performs the main time integration loop for the Jansen-Rit
+    model, using the Heun stochastic integration scheme. It includes options
+    for burn-in period and decimation of the output.
+    
+    Parameters
+    ----------
+    P : ParJR
+        Parameter object containing all simulation parameters including
+        initial_state, t_end, dt, t_cut, and decimate.
+        
+    Returns
+    -------
+    dict
+        Dictionary with keys:
+        - 't': np.ndarray of time points (decimated)
+        - 'x': np.ndarray of shape (n_steps, nn) containing the output
+          time series (y - z) representing local field potentials
+    """
     nn = P.nn
     dt = P.dt
     dec = P.decimate
@@ -494,9 +569,10 @@ class JR_sde:
         -------
         dict
             Dictionary containing simulation results:
+            
             - 't': np.ndarray of shape (n_steps,) - time points
             - 'x': np.ndarray of shape (n_steps, nn) - simulated time series (y - z)
-                   representing local field potentials
+              representing local field potentials
         """
         # Optionally update parameters on the jitclass (Numba allows setattr)
         if par:

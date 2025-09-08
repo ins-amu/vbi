@@ -11,14 +11,7 @@ from scipy.stats import gaussian_kde
 from typing import Union
 
 # Optional imports
-from .optional_deps import torch, require_optional, optional_import
-
-# Handle Tensor type for type hints
-if torch is not None:
-    from torch import Tensor
-else:
-    # Create a dummy Tensor type for type hints when torch is not available
-    Tensor = type(None)
+from vbi.optional_deps import torch, require_optional, optional_import
 
 import re
 try :
@@ -28,15 +21,25 @@ try :
 except:
     pass
 
+try:
+    from sbi.analysis.plot import _get_default_opts, _update, ensure_numpy
+except ImportError:
+    pass
+
 
 def timer(func):
     """
-    decorator to measure elapsed time
+    Decorator to measure elapsed time.
 
     Parameters
-    -----------
-    func: function
-        function to be decorated
+    ----------
+    func : function
+        Function to be decorated.
+
+    Returns
+    -------
+    function
+        Wrapped function that measures execution time.
     """
 
     def wrapper(*args, **kwargs):
@@ -51,12 +54,14 @@ def timer(func):
 
 def display_time(time, message=""):
     """
-    display elapsed time in hours, minutes, seconds
+    Display elapsed time in hours, minutes, seconds.
 
     Parameters
-    -----------
-    time: float
-        elaspsed time in seconds
+    ----------
+    time : float
+        Elapsed time in seconds.
+    message : str, optional
+        Optional message to display with the time. Default is empty string.
     """
 
     hour = int(time / 3600)
@@ -70,12 +75,45 @@ def display_time(time, message=""):
 
 
 class LoadSample(object):
+    """
+    Utility class for loading sample datasets and connectivity matrices.
+    
+    This class provides convenient methods to load structural connectivity matrices,
+    tract lengths, and BOLD signal data from the VBI dataset directory.
+    
+    Parameters
+    ----------
+    nn : int, optional
+        Number of nodes/regions in the connectivity matrix. Default is 84.
+        Supported values are typically 84 and 88.
+    """
     def __init__(self, nn=84) -> None:
-
+        """
+        Initialize the LoadSample utility.
+        
+        Parameters
+        ----------
+        nn : int, optional
+            Number of nodes/regions in the connectivity matrix. Default is 84.
+        """
         self.root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         self.nn = nn
 
     def get_weights(self, normalize=True):
+        """
+        Load structural connectivity weights matrix.
+        
+        Parameters
+        ----------
+        normalize : bool, optional
+            Whether to normalize the weights by the maximum value. Default is True.
+            
+        Returns
+        -------
+        np.ndarray
+            Structural connectivity matrix of shape (nn, nn) with diagonal set to 0.
+            Values are non-negative after removing negative entries.
+        """
         nn = self.nn
         SC_name = join(
             self.root_dir, "vbi/dataset", f"connectivity_{nn}", "weights.txt"
@@ -88,6 +126,15 @@ class LoadSample(object):
         return SC
 
     def get_lengths(self):
+        """
+        Load tract lengths matrix.
+        
+        Returns
+        -------
+        np.ndarray
+            Tract lengths matrix of shape (nn, nn) containing the physical 
+            distances between brain regions.
+        """
         nn = self.nn
         tract_lenghts_name = join(
             self.root_dir, "vbi/dataset", f"connectivity_{nn}", "tract_lengths.txt"
@@ -96,6 +143,15 @@ class LoadSample(object):
         return tract_lengths
 
     def get_bold(self):
+        """
+        Load BOLD signal data.
+        
+        Returns
+        -------
+        np.ndarray
+            BOLD signal data matrix of shape (nn, n_timepoints) containing
+            the empirical BOLD time series for each brain region.
+        """
         nn = self.nn
         bold_name = join(
             self.root_dir, "vbi", "dataset", f"connectivity_{nn}", "Bold.npz"
@@ -105,6 +161,27 @@ class LoadSample(object):
 
 
 def get_limits(samples, limits=None):
+    """
+    Calculate or validate parameter limits for samples.
+    
+    This function computes the min/max limits for each parameter dimension
+    across one or more sample arrays, or validates provided limits.
+    
+    Parameters
+    ----------
+    samples : np.ndarray or list of np.ndarray
+        Sample array(s) of shape (n_samples, n_params) or list of such arrays.
+        If PyTorch tensors, they will be converted to numpy arrays.
+    limits : list or None, optional
+        Predefined limits as [[min1, max1], [min2, max2], ...] for each parameter.
+        If None or empty list, limits are computed from the data.
+        If single limit pair provided, it will be broadcast to all parameters.
+        
+    Returns
+    -------
+    torch.Tensor
+        Tensor of shape (n_params, 2) containing [min, max] for each parameter.
+    """
 
     if type(samples) != list:
         samples = ensure_numpy(samples)
@@ -138,12 +215,37 @@ def get_limits(samples, limits=None):
 
 
 def posterior_peaks(samples, return_dict=False, **kwargs):
+    """
+    Find the peaks (modes) of a posterior distribution using kernel density estimation.
+    
+    This function estimates the probability density of the posterior samples
+    and identifies the locations of peak density for each parameter dimension.
+    
+    Parameters
+    ----------
+    samples : np.ndarray or torch.Tensor
+        Posterior samples of shape (n_samples, n_params).
+        If torch.Tensor, it will be converted to numpy array.
+    return_dict : bool, optional
+        If True, returns results as a dictionary with parameter labels as keys.
+        If False, returns a simple list of peak values. Default is False.
+    **kwargs
+        Additional keyword arguments passed to the plotting/analysis functions.
+        These may include 'labels' for parameter names.
+        
+    Returns
+    -------
+    list or dict
+        If return_dict=False: List of peak values for each parameter.
+        If return_dict=True: Dictionary with parameter labels as keys and 
+        peak values as values.
+    """
 
     opts = _get_default_opts()
     opts = _update(opts, kwargs)
 
     limits = get_limits(samples)
-    samples = samples.numpy()
+    samples = ensure_numpy(samples)
     n, dim = samples.shape
 
     try:
@@ -204,8 +306,9 @@ def j2p(notebookPath, modulePath=None):
 
 
 def posterior_shrinkage(
-    prior_samples: Union[Tensor, np.ndarray], post_samples: Union[Tensor, np.ndarray]
-) -> Tensor:
+    prior_samples: "Union[torch.Tensor, np.ndarray]", 
+    post_samples: "Union[torch.Tensor, np.ndarray]"
+) -> "torch.Tensor":
     """
     Calculate the posterior shrinkage, quantifying how much
     the posterior distribution contracts from the initial
@@ -224,7 +327,18 @@ def posterior_shrinkage(
     -------
     shrinkage : torch.Tensor [n_params]
         The posterior shrinkage.
+        
+    Raises
+    ------
+    ImportError
+        If PyTorch is not installed.
     """
+    
+    if torch is None:
+        raise ImportError(
+            "PyTorch is required for posterior_shrinkage function. "
+            "Please install PyTorch with: pip install torch"
+        )
 
     if len(prior_samples) == 0 or len(post_samples) == 0:
         raise ValueError("Input samples are empty")
@@ -246,7 +360,8 @@ def posterior_shrinkage(
 
 
 def posterior_zscore(
-    true_theta: Union[Tensor, np.array, float], post_samples: Union[Tensor, np.array]
+    true_theta: "Union[torch.Tensor, np.ndarray, float]", 
+    post_samples: "Union[torch.Tensor, np.ndarray]"
 ):
     """
     Calculate the posterior z-score, quantifying how much the posterior
@@ -263,9 +378,20 @@ def posterior_zscore(
 
     Returns
     -------
-    z : Tensor [n_params]
+    z : torch.Tensor [n_params]
         The z-score of the posterior distributions.
+        
+    Raises
+    ------
+    ImportError
+        If PyTorch is not installed.
     """
+    
+    if torch is None:
+        raise ImportError(
+            "PyTorch is required for posterior_zscore function. "
+            "Please install PyTorch with: pip install torch"
+        )
 
     if len(post_samples) == 0:
         raise ValueError("Input samples are empty")

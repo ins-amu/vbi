@@ -466,6 +466,128 @@ where :math:`x_i` and :math:`z_i` indicate the fast and slow variables correspon
      - 1.0
      - :math:`\mathcal{U}(0,2)`
 
+Wong-Wang full whole-brain model
+----------------------------------
+
+The Wong-Wang full model [Wong2006]_ is a biophysically realistic neural mass model that explicitly captures the dynamics of both excitatory and inhibitory neural populations. This model is based on the original work of Wong and Wang [Wong2006]_ and has been extended for whole-brain network simulations [Deco2013]_, [Deco2014]_. The model provides a detailed representation of recurrent network mechanisms underlying decision-making processes and has been widely used to study brain dynamics in health and disease.
+
+The model describes the temporal evolution of synaptic gating variables for excitatory (:math:`S_{exc}`) and inhibitory (:math:`S_{inh}`) populations at each brain region. The dynamics are governed by the balance between synaptic decay, activity-dependent facilitation, and network coupling. The firing rates of each population are determined by input-output transfer functions that capture the relationship between synaptic currents and population firing rates.
+
+The Wong-Wang full model equations are:
+
+.. math::
+
+   \frac{dS_{exc,i}}{dt} &= -\frac{S_{exc,i}}{\tau_{exc}} + (1 - S_{exc,i}) \gamma_{exc} r_{exc,i}(t) + \sigma \xi_i(t) \\
+   \frac{dS_{inh,i}}{dt} &= -\frac{S_{inh,i}}{\tau_{inh}} + \gamma_{inh} r_{inh,i}(t) + \sigma \xi_i(t)
+
+where the firing rates are computed using:
+
+.. math::
+
+   r_{exc,i}(t) &= \frac{a_{exc} I_{exc,i} - b_{exc}}{1 - \exp(-d_{exc}(a_{exc} I_{exc,i} - b_{exc}))} \\
+   r_{inh,i}(t) &= \frac{a_{inh} I_{inh,i} - b_{inh}}{1 - \exp(-d_{inh}(a_{inh} I_{inh,i} - b_{inh}))}
+
+The total synaptic currents for each population are:
+
+.. math::
+
+   I_{exc,i} &= W_{exc} I_{ext} + w_{plus} J_{NMDA} S_{exc,i} + G_{exc} J_{NMDA} \sum_{j=1}^{N} SC_{ij} S_{exc,j} - J_I S_{inh,i} \\
+   I_{inh,i} &= W_{inh} I_{ext} + J_{NMDA} S_{exc,i} - S_{inh,i} + G_{inh} J_{NMDA} \lambda_{inh,exc} \sum_{j=1}^{N} SC_{ij} S_{inh,j}
+
+where :math:`S_{exc,i}` and :math:`S_{inh,i}` represent the synaptic gating variables for excitatory and inhibitory populations at region :math:`i`, respectively. The parameters :math:`\tau_{exc}` and :math:`\tau_{inh}` are the synaptic time constants, :math:`\gamma_{exc}` and :math:`\gamma_{inh}` are kinetic parameters, and :math:`SC_{ij}` represents the structural connectivity matrix. The global coupling strengths :math:`G_{exc}` and :math:`G_{inh}` modulate the influence of long-range connections on excitatory and inhibitory populations, respectively. The parameter :math:`\lambda_{inh,exc}` controls whether long-range feedforward inhibition is included in the model.
+
+The nominal parameter values and the prior range for the target parameters are summarized in the following table.
+
+.. list-table:: Parameter descriptions for capturing whole-brain dynamics using **Wong-Wang full** model.
+   :widths: auto
+   :header-rows: 1
+   :class: color-caption
+
+   * - **Parameter**
+     - **Description**
+     - **Value**
+     - **Prior**
+   * - :math:`a_{exc}`
+     - Excitatory population gain parameter
+     - 310 n/C
+     - 
+   * - :math:`a_{inh}`
+     - Inhibitory population gain parameter
+     - 0.615 nC\ :sup:`-1`
+     - 
+   * - :math:`b_{exc}`
+     - Excitatory population threshold parameter
+     - 125 Hz
+     - 
+   * - :math:`b_{inh}`
+     - Inhibitory population threshold parameter
+     - 177 Hz
+     - 
+   * - :math:`d_{exc}`
+     - Excitatory population saturation parameter
+     - 0.16 s
+     - 
+   * - :math:`d_{inh}`
+     - Inhibitory population saturation parameter
+     - 0.087 s
+     - 
+   * - :math:`\tau_{exc}`
+     - Excitatory synaptic time constant
+     - 100.0 ms
+     - 
+   * - :math:`\tau_{inh}`
+     - Inhibitory synaptic time constant
+     - 10.0 ms
+     - 
+   * - :math:`\gamma_{exc}`
+     - Excitatory kinetic parameter
+     - 0.641/1000 ms\ :sup:`-1`
+     - 
+   * - :math:`\gamma_{inh}`
+     - Inhibitory kinetic parameter
+     - 1.0/1000 ms\ :sup:`-1`
+     - 
+   * - :math:`W_{exc}`
+     - Excitatory population local weight
+     - 1.0
+     - 
+   * - :math:`W_{inh}`
+     - Inhibitory population local weight
+     - 0.7
+     - 
+   * - :math:`I_{ext}`
+     - External current input
+     - 0.382 nA
+     - :math:`\mathcal{U}(0.0, 1.0)`
+   * - :math:`J_{NMDA}`
+     - NMDA synaptic coupling strength
+     - 0.15 nA
+     - 
+   * - :math:`J_I`
+     - Inhibitory synaptic coupling strength
+     - 1.0 nA
+     - 
+   * - :math:`w_{plus}`
+     - Local excitatory recurrence strength
+     - 1.4
+     - 
+   * - :math:`\lambda_{inh,exc}`
+     - Long-range feedforward inhibition switch
+     - 0.0
+     - 
+   * - :math:`G_{exc}`
+     - Global excitatory coupling strength
+     - 0.0
+     - :math:`\mathcal{U}(0, 2)`
+   * - :math:`G_{inh}`
+     - Global inhibitory coupling strength
+     - 0.0
+     - :math:`\mathcal{U}(0, 2)`
+   * - :math:`\sigma`
+     - Noise amplitude
+     - 0.0
+     - :math:`\mathcal{U}(0, 0.1)`
+
 Wong-Wang, parameterized dynamics mean-field (pDMF) model
 ---------------------------------------------------------
 
@@ -493,7 +615,7 @@ According to recent studies [Kong2021]_, [Zhang2024]_, we can parameterize the s
    \sigma_i &= a_{\sigma} \textbf{Mye}_i + b_{\sigma} \textbf{Grad}_i + c_{\sigma}
 
 
-.. list-table:: Parameter descriptions for capturing whole-brain dynamics using **Wong-Wang** model.
+.. list-table:: Parameter descriptions for capturing whole-brain dynamics using **Wong-Wang pDMF** model.
    :widths: auto
    :header-rows: 1
    :class: color-caption
@@ -627,6 +749,8 @@ where, :math:`\epsilon` represents the efficacy of neuronal activity :math:`x(t)
 References
 ----------
 
+.. [Deco2013] Deco, G., Ponce-Alvarez, A., Mantini, D., Romani, G. L., Hagmann, P., & Corbetta, M. (2013). Resting-state functional connectivity emerges from structurally and dynamically shaped slow linear fluctuations. *Journal of Neuroscience*, 33(27), 11239-11252.
+.. [Deco2014] Deco, G., Ponce-Alvarez, A., Hagmann, P., Romani, G. L., Mantini, D., & Corbetta, M. (2014). How local excitation-inhibition ratio impacts the whole brain dynamics. *Journal of Neuroscience*, 34(23), 7886-7898.
 .. [Wilson72] Wilson, H. R., & Cowan, J. D. (1972). Excitatory and inhibitory interactions in localized populations of model neurons. Biophysical Journal, 12(1), 1-24.
 .. [Duchet2021average] Duchet, B., & Others. (2021). Average neural activity in Parkinson's disease. *Neuroscience Journal*.
 .. [Sermon2023sub] Sermon, J., & Others. (2023). Subcortical effects of Parkinson's. *Brain Research*.

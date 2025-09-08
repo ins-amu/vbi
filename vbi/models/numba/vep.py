@@ -1,46 +1,3 @@
-"""
-Numba reimplementation of the Virtual Epileptic Patient (VEP) model.
-
-Reference dynamics taken from the C++ header (`vep.hpp`):
-  dx_i   = 1 - x_i^3 - 2 x_i^2 - y_i + i_ext_i
-  dy_i   = (4*(x_i - eta_i) - y_i - G * sum_j W_ij (x_j - x_i)) / tau
-where (x_i, y_i) are the two state variables per node i, and the
-network coupling uses a Laplacian form \sum_j W_ij (x_j - x_i).
-
-Noise is additive, identical strength for all state dimensions, applied
-as sqrt(dt) * sigma * N(0,1) per integration substep (Euler once; Heun twice),
-mirroring the C++ implementation.
-
-The Python-facing wrapper class is `VEP_sde`.
-It returns a dict with keys:
-  - 't': 1D array of times (after t_cut, optional decimation via `record_step`)
-  - 'x': 2D array of shape (nn, nt_saved) with only the first variable (x)
-        recorded, as in the C++ code.
-
-Example
--------
->>> import numpy as np
->>> from vep_numba import VEP_sde
->>> nn = 4
->>> W = (np.ones((nn, nn)) - np.eye(nn)) * 0.5
->>> model = VEP_sde({
-...     'weights': W,
-...     'G': 1.0,
-...     'tau': 10.0,
-...     'noise_seed': 123,
-...     'seed': 99,          # initial-state seed
-...     'dt': 0.01,
-...     't_end': 2.0,
-...     't_cut': 0.2,
-...     'method': 'heun',
-... })
->>> out = model.run()
->>> out['t'][:5]
-array([0.2 , 0.21, 0.22, 0.23, 0.24], dtype=float32)
->>> out['x'].shape
-(4, 180)
-"""
-
 import warnings
 import numpy as np
 from numba import njit, jit
@@ -58,6 +15,14 @@ warnings.simplefilter("ignore", category=NumbaPerformanceWarning)
 
 @njit
 def seed_rng(seed: int):
+    """
+    Seed the NumPy random number generator for reproducible results.
+    
+    Parameters
+    ----------
+    seed : int
+        Random seed value. If negative, no seeding is performed.
+    """
     if seed >= 0:
         np.random.seed(seed)
 
@@ -87,6 +52,44 @@ vep_spec = [
 
 @jitclass(vep_spec)
 class ParVEP:
+    """
+    Parameter container class for VEP model (Numba jitclass).
+    
+    This class holds all parameters needed for the VEP simulation and is
+    compiled by Numba for efficient access during integration. It automatically
+    calculates the number of nodes (nn) from the weights matrix shape.
+    
+    Parameters
+    ----------
+    G : float, optional
+        Global coupling strength (default: 1.0)
+    dt : float, optional  
+        Integration time step in seconds (default: 0.01)
+    tau : float, optional
+        Time constant for slow variable dynamics (default: 10.0)
+    eta : array_like, optional
+        Epileptogenicity per region (default: [-1.5])
+    iext : array_like, optional
+        External input per region (default: [0.0])
+    weights : array_like
+        Connectivity matrix (nn x nn)
+    t_cut : float, optional
+        Time to cut initial transient (default: 0.0)
+    t_end : float, optional
+        End time of simulation (default: 100.0)
+    method : str, optional
+        Integration method: "euler" or "heun" (default: "euler")
+    seed : int, optional
+        Random seed for noise generation (default: -1)
+    initial_state : array_like, optional
+        Initial state vector (default: [0.0, 0.0])
+    sigma : float, optional
+        Noise amplitude (default: 0.1)
+    record_step : int, optional
+        Recording decimation factor (default: 1)
+    output : str, optional
+        Output directory (default: "output")
+    """
     def __init__(
         self,
         G=1.0,
@@ -128,10 +131,28 @@ class ParVEP:
 
 @njit
 def f_vep(x, t, P):
-    """Right-hand side of VEP dynamics (see header notes).
-
-    x : shape (2*nn,)
-      [0:nn] -> x-variable, [nn:2*nn] -> y-variable
+    """
+    Right-hand side of VEP dynamics equations.
+    
+    Computes the time derivatives for the VEP model:
+    - dx/dt = 1 - x³ - 2x² - y + I_ext  
+    - dy/dt = (4(x - η) - y - G*coupling) / τ
+    
+    Parameters
+    ----------
+    x : ndarray
+        State vector of shape (2*nn,) where:
+        - x[0:nn] contains x-variables (fast variables)
+        - x[nn:2*nn] contains y-variables (slow variables)
+    t : float
+        Current time (unused but required for integrator interface)
+    P : ParVEP
+        Parameter object containing model parameters
+        
+    Returns
+    -------
+    ndarray
+        Time derivatives of shape (2*nn,)
     """
     nn = P.nn
     dxdt = np.zeros_like(x)
@@ -150,6 +171,23 @@ def f_vep(x, t, P):
 
 @njit
 def euler_step(x, t, P):
+    """
+    Perform one Euler integration step with additive noise.
+    
+    Parameters
+    ----------
+    x : ndarray
+        Current state vector of shape (2*nn,)
+    t : float
+        Current time
+    P : ParVEP
+        Parameter object containing model parameters
+        
+    Returns
+    -------
+    ndarray
+        Updated state vector after one integration step
+    """
     nn = P.nn
     dxdt = f_vep(x, t, P)
     noise = np.sqrt(P.dt) * P.sigma * np.random.randn(2 * nn)
@@ -158,6 +196,26 @@ def euler_step(x, t, P):
 
 @njit
 def heun_step(x, t, P):
+    """
+    Perform one Heun integration step with additive noise.
+    
+    Heun's method is a second-order Runge-Kutta method that provides
+    better accuracy than Euler's method for stochastic differential equations.
+    
+    Parameters
+    ----------
+    x : ndarray
+        Current state vector of shape (2*nn,)
+    t : float
+        Current time  
+    P : ParVEP
+        Parameter object containing model parameters
+        
+    Returns
+    -------
+    ndarray
+        Updated state vector after one integration step
+    """
     nn = P.nn
     k1 = f_vep(x, t, P)
     noise = np.sqrt(P.dt) * P.sigma * np.random.randn(2 * nn)
@@ -168,8 +226,26 @@ def heun_step(x, t, P):
 
 @njit
 def set_initial_state_jit(nn: int, seed: int):
-    """Match the Python/C++ initializer used in vep.py/vep.hpp.
-    x0[:nn] ~ U(-3, -2), x0[nn:] ~ U(0, 3.5)
+    """
+    Generate random initial state for VEP model.
+    
+    Creates initial conditions matching the C++/Python implementation:
+    - Fast variables (x): uniformly distributed in [-3, -2]  
+    - Slow variables (y): uniformly distributed in [0, 3.5]
+    
+    Parameters
+    ----------
+    nn : int
+        Number of brain regions/nodes
+    seed : int
+        Random seed for reproducibility. If negative, no seeding is performed.
+        
+    Returns
+    -------
+    ndarray
+        Initial state vector of shape (2*nn,) with:
+        - x0[:nn] ~ U(-3, -2) (fast variables)
+        - x0[nn:] ~ U(0, 3.5) (slow variables)
     """
     if seed >= 0:
         np.random.seed(seed)
@@ -186,6 +262,24 @@ def set_initial_state_jit(nn: int, seed: int):
 
 @njit
 def _integrate(P):
+    """
+    Main integration driver for VEP model simulation.
+    
+    Performs numerical integration of the VEP equations using either Euler
+    or Heun method with optional decimation for output recording.
+    
+    Parameters
+    ----------
+    P : ParVEP
+        Parameter object containing all simulation parameters
+        
+    Returns
+    -------
+    tuple
+        (times, states) where:
+        - times: 1D array of time points (after t_cut)
+        - states: 2D array of shape (nt_saved, nn) with fast variables only
+    """
     # Seed Numba RNG for the SDE noise draws
     seed_rng(P.seed)
 
@@ -227,6 +321,125 @@ def _integrate(P):
 
 # ------------------------------
 class VEP_sde:
+    """
+    Virtual Epileptic Patient (VEP) model - Numba implementation.
+
+    The VEP model is a 2D reduction of the full Epileptor model, designed for 
+    personalized whole-brain network modeling of epilepsy spread. This model
+    provides a comprehensive description of epileptic seizures and has been
+    extensively used in clinical applications for seizure prediction and
+    understanding epilepsy dynamics.
+
+    The model equations are:
+    
+    .. math::
+    
+        \\frac{dx_i}{dt} &= 1 - x_i^3 - 2x_i^2 - y_i + I_{ext,i} \\\\
+        \\frac{dy_i}{dt} &= \\frac{1}{\\tau}(4(x_i - \\eta_i) - y_i - G \\sum_j W_{ij}(x_j - x_i))
+
+    where :math:`x_i` and :math:`y_i` are the fast and slow variables at region :math:`i`,
+    :math:`\\eta_i` represents the epileptogenicity, and the network coupling uses a
+    Laplacian form with connectivity matrix :math:`W_{ij}`.
+
+    Main references:
+        Jirsa, V.K., et al. (2017). The Virtual Epileptic Patient: Individualized 
+        whole-brain models of epilepsy spread. NeuroImage, 145, 377-388.
+        
+        Jirsa, V.K., et al. (2014). On the nature of seizure dynamics. 
+        Brain, 137(8), 2210-2230.
+
+    .. list-table:: Parameters
+        :widths: 25 50 25
+        :header-rows: 1
+
+        * - Name
+          - Explanation
+          - Default Value
+        * - `G`
+          - Global coupling strength that scales network interactions.
+          - 1.0
+        * - `dt`
+          - Time step for numerical integration (s).
+          - 0.01
+        * - `tau`
+          - Time constant for the slow variable dynamics (s).
+          - 10.0
+        * - `eta`
+          - Epileptogenicity parameter per region. If scalar, broadcasted to all regions.
+          - -1.5
+        * - `iext`
+          - External input current per region (nA). If scalar, broadcasted to all regions.
+          - 0.0
+        * - `weights`
+          - Structural connectivity matrix of shape (`nn`, `nn`). **Required parameter**.
+          - None
+        * - `t_cut`
+          - Time to discard initial transient (s).
+          - 0.0
+        * - `t_end`
+          - Total simulation time (s).
+          - 100.0
+        * - `method`
+          - Integration method: "euler" or "heun".
+          - "euler"
+        * - `seed`
+          - Random seed for initial state generation. Use -1 for random initialization.
+          - -1
+        * - `initial_state`
+          - Initial state vector of shape (2*`nn`,). If None, random state is generated.
+          - None
+        * - `sigma`
+          - Noise amplitude for stochastic integration.
+          - 0.1
+        * - `record_step`
+          - Decimation factor for recording output (saves every nth step).
+          - 1
+        * - `output`
+          - Output directory path (currently unused in this implementation).
+          - "output"
+
+    Notes
+    -----
+    - The initial state is automatically generated as: x[:nn] ~ U(-3, -2), y[nn:] ~ U(0, 3.5)
+    - Network coupling uses Laplacian form: :math:`\\sum_j W_{ij}(x_j - x_i)`
+    - Noise is additive with strength :math:`\\sigma \\sqrt{dt}` applied to all state variables
+    - Only the fast variable (x) is recorded in the output, matching clinical data processing
+
+    Returns
+    -------
+    dict
+        Dictionary with keys:
+        - 't': 1D array of time points (after t_cut, with optional decimation)
+        - 'x': 2D array of shape (`nn`, `nt_saved`) containing only the fast variable
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from vbi.models.numba.vep import VEP_sde
+    >>> nn = 4
+    >>> W = (np.ones((nn, nn)) - np.eye(nn)) * 0.5
+    >>> params = {
+    ...     "G": 1.0,
+    ...     "seed": 42,
+    ...     "weights": W,
+    ...     "tau": 10.0,
+    ...     "eta": -3.5,
+    ...     "sigma": 0.0,
+    ...     "iext": 3.1,
+    ...     "dt": 0.1,
+    ...     "t_end": 14.0,
+    ...     "t_cut": 1.0,
+    ...     "record_step": 1,
+    ...     "method": "heun",
+    ... }
+    >>> model = VEP_sde(params)
+    >>> result = model.run()
+    >>> t = result['t']
+    >>> x = result['x']
+    >>> print(f"Time shape: {t.shape}, Data shape: {x.shape}")
+    Time shape: (130,), Data shape: (4, 130)
+    
+    """
     def __init__(self, par_vep: dict = {}):
         # Accepted parameter names
         self.valid_par = [item[0] for item in vep_spec]

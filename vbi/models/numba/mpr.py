@@ -14,7 +14,32 @@ np.random.seed(42)
 @njit
 def f_mpr(x, t, P):
     """
-    MPR model
+    Compute the right-hand side of the Montbrió neural mass model.
+    
+    This function implements the deterministic part of the Montbrió model equations
+    for a network of coupled neural populations. The model describes the macroscopic
+    dynamics of quadratic integrate-and-fire (QIF) neuron populations in terms of
+    population firing rate (r) and mean membrane potential (v).
+    
+    The equations are:
+    τ dr/dt = Δ/(τπ) + 2rv
+    τ dv/dt = v² + η + I_app + Jr - (πτr)² + G·coupling
+    
+    Parameters
+    ----------
+    x : np.ndarray
+        Current state vector of shape (2*nn,) containing stacked arrays:
+        [r₀, r₁, ..., rₙ, v₀, v₁, ..., vₙ] where nn is the number of nodes.
+        r represents the population firing rate and v represents the mean membrane potential.
+    t : float
+        Current time (not used in autonomous system).
+    P : ParMPR
+        Parameter object containing all model parameters.
+        
+    Returns
+    -------
+    np.ndarray
+        Derivative vector of shape (2*nn,) containing dx/dt.
     """
 
     dxdt = np.zeros_like(x)
@@ -37,6 +62,26 @@ def f_mpr(x, t, P):
 
 @njit
 def heun_sde(x, t, P):
+    """
+    Perform one step of Heun's method for stochastic differential equations.
+    
+    This implements the Heun scheme for integrating the Montbrió model with 
+    additive noise applied to both firing rate and membrane potential variables.
+    
+    Parameters
+    ----------
+    x : np.ndarray
+        Current state vector of shape (2*nn,).
+    t : float
+        Current time.
+    P : ParMPR
+        Parameter object containing dt, sigma_r, sigma_v and other parameters.
+        
+    Returns
+    -------
+    np.ndarray
+        Updated state vector after one integration step.
+    """
     nn = P.nn
     dt = P.dt
     dW_r = P.sigma_r * np.random.randn(nn)
@@ -56,6 +101,24 @@ def heun_sde(x, t, P):
 
 @njit
 def do_bold_step(r_in, s, f, ftilde, vtilde, qtilde, v, q, dtt, P):
+    """
+    Perform one step of BOLD signal computation using the Balloon-Windkessel model.
+    
+    This function implements the hemodynamic response model that converts neural
+    activity (firing rate) into BOLD signal through a cascade of physiological
+    processes including blood flow, volume, and oxygenation changes.
+    
+    Parameters
+    ----------
+    r_in : float
+        Input neural activity (firing rate).
+    s, f, ftilde, vtilde, qtilde, v, q : np.ndarray
+        BOLD state variables (flow, volume, deoxygenation).
+    dtt : float
+        Time step for BOLD integration.
+    P : ParBold
+        BOLD parameter object.
+    """
     kappa = P.kappa
     gamma = P.gamma
     ialpha = 1 / P.alpha
@@ -85,6 +148,29 @@ def do_bold_step(r_in, s, f, ftilde, vtilde, qtilde, v, q, dtt, P):
 
 
 def integrate(P, B):
+    """
+    Integrate the Montbrió model over time with BOLD signal computation.
+    
+    This function performs the main time integration loop for the Montbrió model,
+    using the Heun stochastic integration scheme. It optionally computes both
+    neural activity (r, v) and hemodynamic BOLD signals.
+    
+    Parameters
+    ----------
+    P : ParMPR
+        Parameter object containing all simulation parameters.
+    B : ParBold
+        BOLD parameter object for hemodynamic response computation.
+        
+    Returns
+    -------
+    dict
+        Dictionary with keys:
+        - 'rv_t': np.ndarray of time points for neural activity
+        - 'rv_d': np.ndarray of shape (n_steps, 2*nn) containing [r, v] time series
+        - 'bold_t': np.ndarray of time points for BOLD signal
+        - 'bold_d': np.ndarray of shape (n_steps, nn) containing BOLD time series
+    """
 
     nn = P.nn
     tr = P.tr
@@ -177,7 +263,143 @@ def integrate(P, B):
 
 
 class MPR_sde:
+    """
+    Numba implementation of the Montbrió neural mass model with BOLD signal generation.
+    
+    This model implements the exact macroscopic dynamics derived from infinitely 
+    all-to-all coupled quadratic integrate-and-fire (QIF) neurons in the thermodynamic 
+    limit. The model describes the collective firing activity (r) and mean membrane 
+    potential (v) of neural populations, providing a rigorous mathematical foundation 
+    for whole-brain network modeling.
+    
+    The neural dynamics follow the Montbrió equations:
+    τ dr/dt = 2rv + Δ/(πτ)
+    τ dv/dt = v² - (πτr)² + Jτr + η + G·coupling + I_stim + noise
+    
+    Where:
+    - r is the population firing rate
+    - v is the mean membrane potential  
+    - τ is the characteristic time constant
+    - J is the synaptic weight
+    - Δ is the spread of heterogeneous excitabilities
+    - η is the mean excitability
+    - G is the global coupling strength
+    
+    The model can operate in bistable regime, exhibiting down-state (low firing) 
+    and up-state (high firing) attractors, which is fundamental for realistic 
+    brain dynamics and functional connectivity patterns.
+    
+    .. list-table:: Parameters
+        :widths: 25 50 25
+        :header-rows: 1
+
+        * - Name
+          - Explanation
+          - Default Value
+        * - `G`
+          - Global coupling strength scaling network connections.
+          - 0.5
+        * - `dt`
+          - Integration time step in milliseconds.
+          - 0.01
+        * - `J`
+          - Synaptic weight strength in ms⁻¹.
+          - 14.5
+        * - `eta`
+          - Mean excitability parameter. If array-like, it should be of length `nn`.
+          - np.array([-4.6])
+        * - `tau`
+          - Characteristic time constant in ms.
+          - 1.0
+        * - `delta`
+          - Spread of heterogeneous excitability distribution in ms⁻¹.
+          - 0.7
+        * - `rv_decimate`
+          - Decimation factor for neural activity recording.
+          - 1.0
+        * - `noise_amp`
+          - Amplitude of additive Gaussian noise.
+          - 0.037
+        * - `weights`
+          - Structural connectivity matrix of shape (`nn`, `nn`). Must be provided.
+          - np.array([[], []])
+        * - `t_init`
+          - Initial time of simulation.
+          - 0.0
+        * - `t_cut`
+          - Time from which to start collecting output (burn-in period).
+          - 0.0
+        * - `t_end`
+          - End time of simulation in milliseconds.
+          - 1000.0
+        * - `iapp`
+          - External applied current (stimulation).
+          - 0.0
+        * - `seed`
+          - Random seed for reproducible simulations. If -1, no seeding is applied.
+          - -1
+        * - `output`
+          - Output directory name.
+          - "output"
+        * - `RECORD_RV`
+          - Whether to record neural activity (r, v) time series.
+          - True
+        * - `RECORD_BOLD`
+          - Whether to record BOLD signal time series.
+          - True
+        * - `tr`
+          - BOLD repetition time in milliseconds.
+          - 500.0
+
+    Usage example:
+        >>> import numpy as np
+        >>> from vbi.models.numba.mpr import MPR_sde
+        >>> W = np.eye(2) * 0.1  # 2-node demo connectivity
+        >>> eta = np.array([-4.6, -4.5])  # Excitability parameters
+        >>> mpr = MPR_sde({
+        ...     "weights": W, 
+        ...     "eta": eta,
+        ...     "G": 0.5,
+        ...     "dt": 0.01, 
+        ...     "t_end": 1000.0, 
+        ...     "t_cut": 200.0,
+        ...     "J": 14.5,
+        ...     "tau": 1.0,
+        ...     "delta": 0.7
+        ... })
+        >>> result = mpr.run()
+        >>> rv_t, rv_d = result["rv_t"], result["rv_d"]  # Neural activity
+        >>> bold_t, bold_d = result["bold_t"], result["bold_d"]  # BOLD signals
+
+    Notes
+    -----
+    The Montbrió model provides an exact mathematical description derived from 
+    microscopic spiking neuron networks, making it particularly suitable for:
+    - Whole-brain network modeling with rigorous theoretical foundation
+    - Studying bistable dynamics and metastable states
+    - Investigating the relationship between neural activity and BOLD signals
+    - Parameter estimation and model validation against empirical data
+    
+    The model includes sophisticated BOLD signal generation using the 
+    Balloon-Windkessel hemodynamic response model, enabling direct comparison 
+    with fMRI measurements.
+    
+    References
+    ----------
+    Montbrió, E., et al. (2015). Macroscopic description for networks of spiking 
+    neurons. Physical Review X, 5(2), 021028.
+    """
     def __init__(self, par_mpr: dict = {}) -> None:
+        """
+        Initialize the Montbrió model.
+
+        Parameters
+        ----------
+        par_mpr : dict, optional
+            Dictionary containing model parameters. See class documentation for 
+            available parameters. The 'weights' parameter is required for proper 
+            functionality.
+        """
         self.valid_par = [mpr_spec[i][0] for i in range(len(mpr_spec))]
         self.check_parameters(par_mpr)
         self.P = self.get_par_mpr(par_mpr)
@@ -188,7 +410,16 @@ class MPR_sde:
             np.random.seed(self.seed)
 
     def __str__(self) -> str:
-        print("MPR model")
+        """
+        Return a string representation of the model parameters.
+        
+        Returns
+        -------
+        str
+            Formatted string showing all model parameters and their values.
+        """
+        print("Montbrió Neural Mass Model (Numba)")
+        print("----------------------------------")
         print("Parameters: --------------------------------")
         for key in self.valid_par:
             print(f"{key} = {getattr(self.P, key)}")
@@ -196,13 +427,36 @@ class MPR_sde:
         return ""
 
     def check_parameters(self, par: dict) -> None:
+        """
+        Validate that all provided parameters are recognized.
+        
+        Parameters
+        ----------
+        par : dict
+            Dictionary of parameters to validate.
+            
+        Raises
+        ------
+        ValueError
+            If any parameter name is not recognized.
+        """
         for key in par.keys():
             if key not in self.valid_par:
                 raise ValueError(f"Invalid parameter: {key}")
 
     def get_par_mpr(self, par: dict):
         """
-        return default parameters of MPR model and update with user defined parameters.
+        Create parameter object from dictionary with validation.
+        
+        Parameters
+        ----------
+        par : dict
+            Parameter dictionary.
+            
+        Returns
+        -------
+        ParMPR
+            Numba jitclass parameter object with validated parameters.
         """
         if "initial_state" in par.keys():
             par["initial_state"] = np.array(par["initial_state"])
@@ -214,10 +468,25 @@ class MPR_sde:
         return parP
 
     def set_initial_state(self):
+        """
+        Generate random initial conditions for the model.
+        
+        Sets the initial state for both firing rate (r) and membrane potential (v)
+        variables using random values appropriate for the Montbrió model dynamics.
+        """
         self.initial_state = set_initial_state(self.P.nn, self.seed)
         self.INITIAL_STATE_SET = True
 
     def check_input(self):
+        """
+        Validate model parameters before simulation.
+        
+        Raises
+        ------
+        AssertionError
+            If weights matrix is None, not square, if initial_state length doesn't 
+            match 2*nn, or if t_cut >= t_end.
+        """
         assert self.P.weights is not None
         assert self.P.weights.shape[0] == self.P.weights.shape[1]
         assert self.P.initial_state is not None
@@ -228,6 +497,32 @@ class MPR_sde:
         self.P.t_cut /= 10
 
     def run(self, par={}, x0=None, verbose=True):
+        """
+        Run the Montbrió simulation.
+
+        Parameters
+        ----------
+        par : dict, optional
+            Dictionary of parameters to update for this simulation run.
+            Any parameter from the class documentation can be updated.
+        x0 : np.ndarray, optional
+            Initial state vector of shape (2*nn,) containing [r₀, v₀]. 
+            If None, random initial conditions are generated.
+        verbose : bool, optional
+            Whether to print verbose output (currently unused).
+
+        Returns
+        -------
+        dict
+            Dictionary containing simulation results:
+            
+            - 'rv_t': np.ndarray of time points for neural activity (in ms)
+            - 'rv_d': np.ndarray of shape (n_steps, 2*nn) containing 
+              [r, v] time series (firing rate and membrane potential)
+            - 'bold_t': np.ndarray of time points for BOLD signal (in ms)
+            - 'bold_d': np.ndarray of shape (n_steps, nn) containing 
+              simulated BOLD signals for each brain region
+        """
 
         if x0 is None:
             self.seed = self.P.seed if self.P.seed > 0 else None
@@ -248,6 +543,24 @@ class MPR_sde:
 
 @njit
 def set_initial_state(nn, seed=None):
+    """
+    Generate random initial state for the Montbrió model.
+    
+    Creates initial conditions with firing rates in [0, 1.5] and 
+    membrane potentials in [-2, 2], appropriate for the model dynamics.
+    
+    Parameters
+    ----------
+    nn : int
+        Number of nodes/brain regions.
+    seed : int, optional
+        Random seed for reproducible initial conditions.
+        
+    Returns
+    -------
+    np.ndarray
+        Initial state vector of shape (2*nn,) with [r₀, v₀] values.
+    """
 
     if seed is not None:
         set_seed_compat(seed)
@@ -287,6 +600,16 @@ mpr_spec = [
 
 @jitclass(mpr_spec)
 class ParMPR:
+    """
+    Numba jitclass container for Montbrió model parameters.
+    
+    This class holds all parameters needed for the Montbrió neural mass model
+    in a format optimized for Numba compilation. It stores both scalar parameters
+    and array parameters like connectivity weights and excitability values.
+    
+    Note: This is an internal class used by the MPR_sde class. Users should
+    not instantiate this class directly.
+    """
     def __init__(
         self,
         G=0.5,
@@ -351,6 +674,16 @@ bold_spec = [
 
 @jitclass(bold_spec)
 class ParBold:
+    """
+    Numba jitclass container for BOLD hemodynamic model parameters.
+    
+    This class holds parameters for the Balloon-Windkessel model used to 
+    convert neural activity into simulated BOLD signals. Based on the 
+    Friston 2003 hemodynamic response model.
+    
+    Note: This is an internal class used by the MPR_sde class. Users should
+    not instantiate this class directly.
+    """
     def __init__(
         self,
         kappa=0.65,
@@ -383,9 +716,29 @@ class ParBold:
 
 
 def check_vec_size(x, nn):
+    """
+    Ensure parameter array has correct size for the number of nodes.
+    
+    Parameters
+    ----------
+    x : array-like
+        Parameter array to check/broadcast.
+    nn : int
+        Required number of nodes.
+        
+    Returns
+    -------
+    np.ndarray
+        Array of length nn, either the original array or broadcasted scalar.
+    """
     return np.ones(nn) * x if len(x) != nn else np.array(x)
 
 
 @register_jitable
 def set_seed_compat(x):
+    """Numba-compatible random seed setter."""
     np.random.seed(x)
+
+
+# Alias for consistency with naming convention
+MPR_sde_numba = MPR_sde

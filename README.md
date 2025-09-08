@@ -141,6 +141,14 @@ For local development and customization, you can build the VBI Docker image your
 We welcome contributions to the VBI project! If you have suggestions, bug reports, or feature requests, please open an issue on our [GitHub repository](https://github.com/ins-amu/vbi/issues). To contribute code, fork the repository, create a new branch for your feature or bugfix, and submit a pull request. Make sure to follow our coding standards and include tests for your changes. For detailed guidelines, please refer to our [CONTRIBUTING.md](https://github.com/ins-amu/vbi/blob/main/CONTRIBUTING.md) file. Thank you for helping us improve VBI!
 
 
+## GDPR Compliance
+
+VBI itself does not collect, store, or transmit personal data.  
+Users may provide their own datasets locally; in such cases, the responsibility for GDPR compliance lies with the user and their execution environment.  
+
+For details, see [GDPR_COMPLIANCE.md](GDPR_COMPLIANCE.md).
+
+
 ## Citation
 
 ```bibtex

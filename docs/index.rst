@@ -266,6 +266,7 @@ Examples
    examples/do_cpp
    examples/do_nb
    examples/vep_sde
+   examples/vep_sde_numba
    examples/mpr_sde_cupy
    examples/mpr_sde_numba
    examples/mpr_sde_cpp

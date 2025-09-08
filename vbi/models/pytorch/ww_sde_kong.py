@@ -317,7 +317,7 @@ def to_vector(x, ns, dtype=torch.float64, engine="cpu"):
     Converts the input `x` to a tensor of specified size and type.
 
     Parameters
-    ------------------
+    ----------
     x : array-like or torch.Tensor
         The input data to be converted to a tensor.
     ns : int
@@ -328,14 +328,14 @@ def to_vector(x, ns, dtype=torch.float64, engine="cpu"):
         The computation engine to use, either `"cpu"` or `"gpu"`. Default is `"cpu"`.
 
     Returns
-    ------------------
+    -------
     torch.Tensor
         The converted tensor with the specified size and type.
 
     Raises
-    ------------------
+    ------
     AssertionError
-        If the size of `x` is not 1 and does not match `n`.
+        If the size of `x` is not 1 and does not match `ns`.
     """
 
     if not isinstance(x, torch.Tensor):
@@ -355,7 +355,7 @@ def to_vector_2d(x, nn, ns, dtype=torch.float64, engine="cpu"):
     Convert input `x` to a tensor of specified size and type.
 
     Parameters
-    ------------------
+    ----------
     x : array-like or torch.Tensor
         The input data to be converted to a tensor.
     nn : int
@@ -368,7 +368,7 @@ def to_vector_2d(x, nn, ns, dtype=torch.float64, engine="cpu"):
         The computation engine to use, either `"cpu"` or `"gpu"`. Default is `"cpu"`.
 
     Returns
-    ------------------
+    -------
     torch.Tensor
         The converted tensor with the specified size and type.
     """
@@ -393,11 +393,17 @@ def to_vector_2d(x, nn, ns, dtype=torch.float64, engine="cpu"):
 
 def csv_matrix_read(filename):
     """
-    This function is used to read csv file into a numpy array
-    Args:
-        filename:  input csv file
-    Returns:
-        out_array: output numpy array
+    Read CSV file into a numpy array.
+    
+    Parameters
+    ----------
+    filename : str
+        Path to the input CSV file.
+        
+    Returns
+    -------
+    np.ndarray
+        Output numpy array containing the CSV data.
     """
 
     csv_file = open(filename, "r")

@@ -17,6 +17,10 @@ class WW_sde:
     """
     Wong-Wang neural mass including Excitatory and Inhibitory populations.
 
+    This model explicitly simulates both excitatory and inhibitory neural populations
+    with distinct synaptic gating variables, firing rate dynamics, and network coupling.
+    The model is based on the original Wong-Wang decision-making framework and has been
+    extended for whole-brain network simulations.
 
     Main reference:
         [original] Wong, K. F., & Wang, X. J. (2006). A recurrent network mechanism
@@ -33,12 +37,124 @@ class WW_sde:
         D., & Corbetta, M. (2014). How local excitation-inhibition ratio impacts the
         whole brain dynamics. Journal of Neuroscience, 34(23), 7886-7898.
 
-    Parameters
-    ----------
-    G: float
-        Global coupling strength.
-    dt: float
-        Time step for integration.
+    .. list-table:: Parameters
+        :widths: 25 50 25
+        :header-rows: 1
+
+        * - Name
+          - Explanation
+          - Default Value
+        * - `a_exc`
+          - Excitatory population gain parameter for firing rate transfer function (n/C).
+          - 310
+        * - `a_inh`
+          - Inhibitory population gain parameter for firing rate transfer function (nC^-1).
+          - 0.615
+        * - `b_exc`
+          - Excitatory population threshold parameter for firing rate transfer function (Hz).
+          - 125
+        * - `b_inh`
+          - Inhibitory population threshold parameter for firing rate transfer function (Hz).
+          - 177
+        * - `d_exc`
+          - Excitatory population saturation parameter for firing rate transfer function (s).
+          - 0.16
+        * - `d_inh`
+          - Inhibitory population saturation parameter for firing rate transfer function (s).
+          - 0.087
+        * - `tau_exc`
+          - Excitatory synaptic time constant (ms).
+          - 100.0
+        * - `tau_inh`
+          - Inhibitory synaptic time constant (ms).
+          - 10.0
+        * - `gamma_exc`
+          - Excitatory kinetic parameter (ms^-1).
+          - 0.641/1000.0
+        * - `gamma_inh`
+          - Inhibitory kinetic parameter (ms^-1).
+          - 1.0/1000.0
+        * - `W_exc`
+          - Excitatory population local weight for external input.
+          - 1.0
+        * - `W_inh`
+          - Inhibitory population local weight for external input.
+          - 0.7
+        * - `ext_current`
+          - External current input (nA). If array-like, it should be of shape (`num_nodes`, `num_sim`).
+          - 0.382
+        * - `J_NMDA`
+          - NMDA synaptic coupling strength (nA).
+          - 0.15
+        * - `J_I`
+          - Inhibitory synaptic coupling strength (nA).
+          - 1.0
+        * - `w_plus`
+          - Local excitatory recurrence strength.
+          - 1.4
+        * - `lambda_inh_exc`
+          - Long-range feedforward inhibition switch (0=off, 1=on).
+          - 0.0
+        * - `G_exc`
+          - Global excitatory coupling strength. If array-like, it should be of length `num_sim`.
+          - 0.0
+        * - `G_inh`
+          - Global inhibitory coupling strength. If array-like, it should be of length `num_sim`.
+          - 0.0
+        * - `t_end`
+          - End time of simulation (ms).
+          - 1000.0
+        * - `t_cut`
+          - Time to cut off initial transient (ms).
+          - 0.0
+        * - `dt`
+          - Time step for integration (ms).
+          - 0.1
+        * - `tr`
+          - Repetition time for BOLD signal (ms).
+          - 300.0
+        * - `s_decimate`
+          - Decimation factor for recording gating variables S.
+          - 1
+        * - `sigma`
+          - Noise amplitude for stochastic integration.
+          - 0.0
+        * - `weights`
+          - Structural connectivity matrix of shape (`num_nodes`, `num_nodes`).
+          - None
+        * - `num_sim`
+          - Number of parallel simulations.
+          - 1
+        * - `nn`
+          - Number of brain regions/nodes.
+          - 1
+        * - `engine`
+          - Computation engine: "cpu" or "gpu".
+          - "cpu"
+        * - `dtype`
+          - Data type: "float32" or "float".
+          - "float32"
+        * - `seed`
+          - Random seed for reproducibility.
+          - None
+        * - `output`
+          - Output directory for results.
+          - "output"
+        * - `initial_state`
+          - Initial state of the system of shape (2*`num_nodes`, `num_sim`).
+          - None
+        * - `same_initial_state`
+          - If True, all simulations have the same initial state.
+          - False
+        * - `same_noise_per_sim`
+          - If True, all simulations have the same noise realization.
+          - False
+        * - `RECORD_S`
+          - If True, record synaptic gating variables S.
+          - False
+        * - `RECORD_BOLD`
+          - If True, record BOLD signal using Balloon-Windkessel model.
+          - True
 
     """
 
