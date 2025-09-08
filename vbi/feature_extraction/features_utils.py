@@ -20,12 +20,42 @@ from scipy.signal import butter, detrend, filtfilt, hilbert
 from vbi.feature_extraction.features_settings import load_json
 from vbi.feature_extraction.utility import *
 
+# Optional dependencies with informative error handling
+_HAS_JPYPE = True
+_HAS_SSM = True
+
 try:
     import jpype as jp
+except ImportError:
+    _HAS_JPYPE = False
+    jp = None
+
+try:
     import ssm
-except:
-    # logging.warning("jpype not imported.")
-    pass
+except ImportError:
+    _HAS_SSM = False
+    ssm = None
+
+
+def _check_jpype_available():
+    """Check if JPype is available and raise informative error if not."""
+    if not _HAS_JPYPE:
+        raise ImportError(
+            "JPype is required for information theory features but is not installed.\n"
+            "Please install it with: pip install JPype1\n"
+            "Note: JPype requires Java JDK to be installed on your system.\n"
+            "For more information see: https://jpype.readthedocs.io/en/latest/install.html"
+        )
+
+
+def _check_ssm_available():
+    """Check if SSM is available and raise informative error if not."""
+    if not _HAS_SSM:
+        raise ImportError(
+            "SSM (State Space Models) is required for HMM-based features but is not installed.\n"
+            "Please install it with: pip install ssm\n"
+            "Note: SSM requires additional system dependencies. See: https://github.com/lindermanlab/ssm"
+        )
 
 
 def slice_features(x: Union[np.ndarray, torch.Tensor], feature_names: list, info: dict):
@@ -156,6 +186,32 @@ def band_pass_filter(ts, low_cut=0.02, high_cut=0.1, TR=2.0, order=2):
 
 
 def remove_strong_artefacts(ts, threshold=3.0):
+    """
+    Remove strong artifacts from time series by clipping values beyond threshold.
+
+    This function identifies outlier values in the time series that exceed a certain
+    number of standard deviations and clips them to the threshold value to reduce
+    the impact of artifacts on subsequent analysis.
+
+    Parameters
+    ----------
+    ts : array-like [n_regions, n_timepoints] or list
+        Input time series data
+    threshold : float, optional
+        Number of standard deviations beyond which values are considered artifacts
+        Default is 3.0
+
+    Returns
+    -------
+    ts : np.ndarray [n_regions, n_timepoints]
+        Time series with artifacts removed (clipped to threshold)
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> ts = np.array([[1, 2, 100, 4, 5], [2, 3, 4, -50, 6]])
+    >>> clean_ts = remove_strong_artefacts(ts, threshold=2.0)
+    """
 
     if isinstance(ts, (list, tuple)):
         ts = np.array(ts)
@@ -284,20 +340,37 @@ def get_fcd(
 
 def get_fcd2(ts, wwidth=30, maxNwindows=200, olap=0.94, indices=[], verbose=False):
     """
-    Functional Connectivity Dynamics from the given of time series
+    Calculate Functional Connectivity Dynamics (FCD) from time series using sliding windows.
+
+    This function computes the dynamic functional connectivity by calculating correlation
+    matrices in sliding time windows and then computing the correlation between these
+    windowed connectivity patterns over time.
 
     Parameters
     ----------
-    data: np.ndarray (2d)
-        time series in rows [n_nodes, n_samples]
-    opt: dict
-        parameters
+    ts : np.ndarray [n_nodes, n_samples]
+        Input time series data with nodes as rows and time samples as columns
+    wwidth : int, optional
+        Window width in time samples (default: 30)
+    maxNwindows : int, optional
+        Maximum number of windows to compute (default: 200)
+    olap : float, optional
+        Overlap between consecutive windows as fraction (0-1, default: 0.94)
+    indices : list, optional
+        List of node indices to include in analysis (default: empty list uses all)
+    verbose : bool, optional
+        Whether to print verbose output (default: False)
 
     Returns
     -------
-    FCD: np.ndarray (2d)
-        functional connectivity dynamics matrix
+    FCD : np.ndarray [n_windows, n_windows]
+        Functional connectivity dynamics matrix representing correlations between
+        windowed connectivity patterns
 
+    Notes
+    -----
+    The FCD matrix captures how functional connectivity patterns change over time
+    by correlating the upper triangular elements of windowed FC matrices.
     """
 
     assert olap <= 1 and olap >= 0, "olap must be between 0 and 1"
@@ -345,20 +418,33 @@ def set_attribute(key, value):
 
 
 def compute_time(signal, fs):
-    """Creates the signal correspondent time array.
+    """
+    Create time array corresponding to signal samples.
+
+    This function generates a time vector that corresponds to the temporal
+    sampling of the input signal based on the sampling frequency.
 
     Parameters
     ----------
-    signal: nd-array
-        Input from which the time is computed.
-    fs: int
-        Sampling Frequency
+    signal : array-like
+        Input signal from which the time array is computed.
+        Only the length is used for computation.
+    fs : float
+        Sampling frequency in Hz.
 
     Returns
     -------
-    time : float list
-        Signal time
+    time : np.ndarray
+        Time array in seconds, starting from 0 with intervals of 1/fs.
+        Length matches the input signal.
 
+    Examples
+    --------
+    >>> import numpy as np
+    >>> signal = np.random.randn(1000)  # 1000 samples
+    >>> fs = 250  # 250 Hz sampling rate
+    >>> time = compute_time(signal, fs)
+    >>> print(f"Duration: {time[-1]:.2f} seconds")  # Should show 3.996 seconds
     """
 
     return np.arange(0, len(signal)) / fs
@@ -490,21 +576,39 @@ def filterbank(signal, fs, pre_emphasis=0.97, nfft=512, nfilt=40):
 
 
 def autocorr_norm(signal):
-    """Computes the autocorrelation.
+    """
+    Compute normalized autocorrelation function of a signal.
 
-    Implementation details and description in:
-    https://ccrma.stanford.edu/~orchi/Documents/speaker_recognition_report.pdf
+    This function calculates the autocorrelation of a signal normalized by the
+    variance and length, providing a measure of how similar the signal is to
+    shifted versions of itself.
 
     Parameters
     ----------
-    signal : nd-array
-        Input from linear prediction coefficients are computed
+    signal : np.ndarray
+        Input signal from which autocorrelation is computed.
+        Should be a 1D array.
 
     Returns
     -------
-    nd-array
-        Autocorrelation result
+    acf : np.ndarray
+        Normalized autocorrelation function of the same length as input signal.
+        Values range from 0 to 1, where 1 indicates perfect correlation at lag 0.
 
+    Notes
+    -----
+    Implementation details and description in:
+    https://ccrma.stanford.edu/~orchi/Documents/speaker_recognition_report.pdf
+
+    The autocorrelation is normalized by variance and signal length to provide
+    a standardized measure independent of signal amplitude and duration.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> signal = np.sin(np.linspace(0, 4*np.pi, 100))
+    >>> acf = autocorr_norm(signal)
+    >>> print(acf[0])  # Should be close to 1.0
     """
 
     variance = np.var(signal)
@@ -627,19 +731,36 @@ def create_xx(features):
 
 
 def kde(features):
-    """Computes the probability density function of the input signal
-       using a Gaussian KDE (Kernel Density Estimate)
+    """
+    Compute probability density function using Gaussian Kernel Density Estimation.
+
+    This function estimates the probability density function of the input data
+    using a Gaussian KDE with Silverman's bandwidth selection method.
 
     Parameters
     ----------
-    features : nd-array
-        Input from which probability density function is computed
+    features : np.ndarray
+        Input data from which probability density function is computed.
+        Should be a 1D array of numerical values.
 
     Returns
     -------
-    nd-array
-        probability density values
+    pdf : np.ndarray
+        Normalized probability density values corresponding to the input range.
+        Sum of all values equals 1.
 
+    Notes
+    -----
+    - Uses Silverman's rule-of-thumb for bandwidth selection
+    - Adds small noise if all values are identical to avoid singularity
+    - Evaluates PDF over linearly spaced points covering the data range
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> data = np.random.normal(0, 1, 100)
+    >>> pdf = kde(data)
+    >>> print(np.sum(pdf))  # Should be approximately 1.0
     """
     features_ = np.copy(features)
     xx = create_xx(features_)
@@ -654,17 +775,36 @@ def kde(features):
 
 
 def gaussian(features):
-    """Computes the probability density function of the input signal using a Gaussian function
+    """
+    Compute probability density function using a fitted Gaussian distribution.
+
+    This function fits a Gaussian (normal) distribution to the input data and
+    evaluates the probability density function over the data range.
 
     Parameters
     ----------
-    features : nd-array
-        Input from which probability density function is computed
+    features : np.ndarray
+        Input data from which probability density function is computed.
+        Should be a 1D array of numerical values.
+
     Returns
     -------
-    nd-array
-        probability density values
+    pdf : np.ndarray
+        Normalized probability density values from the fitted Gaussian distribution.
+        Sum of all values approximates 1.
 
+    Notes
+    -----
+    - Fits a normal distribution using sample mean and standard deviation
+    - Evaluates PDF over linearly spaced points covering the data range
+    - More parametric than KDE but assumes Gaussian underlying distribution
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> data = np.random.normal(5, 2, 100)
+    >>> pdf = gaussian(data)
+    >>> print(pdf.shape)  # Same length as input data
     """
 
     features_ = np.copy(features)
@@ -706,28 +846,51 @@ def matrix_stat(
     features: List[str] = ["sum", "max", "min", "mean", "std", "skew", "kurtosis"],
 ):
     """
-    calculate statistics of the given matrix
+    Calculate comprehensive statistics from a matrix (typically connectivity matrices).
+
+    This function extracts various statistical features from a matrix including
+    basic statistics, eigenvalue properties, PCA components, and quantiles.
+    Commonly used for analyzing functional connectivity matrices.
 
     Parameters
     ----------
-    A: np.ndarray (2d)
-        input matrix
-    k: int
-        upper triangular matrix offset
-    pca_num_components: int
-        number of components to keep for PCA, set to 0 if not used
-    features: list
-        list of features to compute
-    quantiles: list
-        list of quantiles to compute, set to [] or None if not used
+    A : np.ndarray [n x n]
+        Input matrix, typically a square connectivity or correlation matrix
+    k : int, optional
+        Upper triangular matrix offset. Only elements above the k-th diagonal
+        are considered (default: 1, excludes main diagonal)
+    eigenvalues : bool, optional
+        Whether to compute eigenvalue-based features (default: True)
+    pca_num_components : int, optional
+        Number of PCA components to extract. Set to 0 to skip PCA (default: 3)
+    quantiles : List[float], optional
+        List of quantiles to compute (default: [0.05, 0.25, 0.5, 0.75, 0.95])
+        Set to [] or None to skip quantile computation
+    features : List[str], optional
+        List of statistical features to compute from matrix values
+        Options: ["sum", "max", "min", "mean", "std", "skew", "kurtosis"]
 
     Returns
     -------
-    values: np.ndarray (1d)
-        feature values
-    labels: list
-        feature labels
+    values : np.ndarray
+        Concatenated array of all computed feature values
+    labels : list of str
+        Corresponding feature labels describing each value
 
+    Examples
+    --------
+    >>> import numpy as np
+    >>> # Create a sample correlation matrix
+    >>> A = np.random.rand(10, 10)
+    >>> A = (A + A.T) / 2  # Make symmetric
+    >>> values, labels = matrix_stat(A, k=1)
+    >>> print(f"Computed {len(values)} features")
+
+    Notes
+    -----
+    This function is particularly useful for connectivity analysis where
+    you need to extract summary statistics from FC/SC matrices while
+    avoiding redundant information from symmetric matrices.
     """
     from numpy import sum, max, min, mean, std
     from scipy.stats import skew, kurtosis
@@ -808,7 +971,16 @@ def get_jar_location():
 
 
 def init_jvm():
-
+    """
+    Initialize Java Virtual Machine for information theory calculations.
+    
+    Raises
+    ------
+    ImportError
+        If JPype is not available
+    """
+    _check_jpype_available()
+    
     jar_location = get_jar_location()
 
     if jp.isJVMStarted():
@@ -1317,6 +1489,8 @@ def state_duration(
 
     """
 
+    _check_ssm_available()
+    
     infered_state = hmm_z.astype(int)
     inferred_state_list, inffered_dur = ssm.util.rle(infered_state)
 
