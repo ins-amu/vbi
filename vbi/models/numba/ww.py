@@ -22,13 +22,40 @@ warnings.simplefilter("ignore", category=NumbaPerformanceWarning)
 
 @jit(nopython=True)
 def initialize_random_state(seed):
-    """Call this once to set the seed in Numba context"""
+    """
+    Initialize the random number generator with a specific seed.
+    
+    This function sets the random seed in the Numba context to ensure
+    reproducible stochastic simulations.
+    
+    Parameters
+    ----------
+    seed : int
+        Random seed value for reproducibility
+    """
     np.random.seed(seed)
 
 
 
 def check_vec_size_1d(x, nn):
-    """Return a 1D vector of size nn, broadcasting scalar if needed (no numba)."""
+    """
+    Return a 1D vector of size nn, broadcasting scalar if needed.
+    
+    This utility function ensures that parameter inputs are properly
+    formatted as arrays of the correct size for multi-region simulations.
+    
+    Parameters
+    ----------
+    x : scalar or array-like
+        Input value(s) to be broadcast or validated
+    nn : int
+        Required array size (number of brain regions)
+        
+    Returns
+    -------
+    np.ndarray
+        Array of shape (nn,) with input values properly broadcast
+    """
     x = np.array(x, dtype=np.float64) if np.ndim(x) > 0 else np.array([x], dtype=np.float64)
     return np.ones(nn, dtype=np.float64) * x if x.size != nn else x.astype(np.float64)
 
@@ -56,6 +83,42 @@ bold_spec = [
 
 @jitclass(bold_spec)
 class ParBold:
+    """
+    Parameter class for BOLD signal generation in the Wong-Wang model.
+    
+    This Numba jitclass holds parameters for the hemodynamic response model
+    that converts neural activity to BOLD signal. Based on the Balloon-Windkessel
+    model for simulating fMRI BOLD responses.
+    
+    Parameters
+    ----------
+    kappa : float, default 0.65
+        Signal decay parameter
+    gamma : float, default 0.41
+        Feedback regulation parameter
+    tau : float, default 0.98
+        Hemodynamic transit time (s)
+    alpha : float, default 0.32
+        Grubb's vessel stiffness exponent
+    epsilon : float, default 0.34
+        Efficacy of oxygen extraction
+    Eo : float, default 0.4
+        Oxygen extraction fraction at rest
+    TE : float, default 0.04
+        Echo time (s)
+    vo : float, default 0.08
+        Resting venous volume fraction
+    r0 : float, default 25.0
+        Slope parameter for intravascular signal
+    theta0 : float, default 40.3
+        Frequency offset at the outer surface of magnetized vessels (Hz)
+    t_min : float, default 0.0
+        Minimum integration time
+    rtol : float, default 1e-5
+        Relative tolerance for integration
+    atol : float, default 1e-8
+        Absolute tolerance for integration
+    """
     def __init__(
         self,
         kappa=0.65,
@@ -90,8 +153,40 @@ class ParBold:
 @jit(nopython=True)
 def do_bold_step(r_in, s, f, ftilde, vtilde, qtilde, v, q, dtt, P):
     """
-    One BOLD step for all nodes (vectorized over nn). Same as mpr.py.
-    r_in should be non-negative neural drive per node (here we use S_exc).
+    Perform one integration step of the BOLD hemodynamic response model.
+    
+    Implements the Balloon-Windkessel model to convert neural activity into
+    BOLD signal by simulating the hemodynamic cascade: neural activity →
+    vasodilatory signal → blood flow → blood volume → deoxyhemoglobin →
+    BOLD signal.
+    
+    Parameters
+    ----------
+    r_in : np.ndarray
+        Neural activity input (excitatory synaptic gating variables)
+    s : np.ndarray, shape (2, nn)
+        Vasodilatory signal state variables
+    f : np.ndarray, shape (2, nn)
+        Blood flow state variables
+    ftilde : np.ndarray, shape (2, nn)
+        Log-transformed blood flow variables
+    vtilde : np.ndarray, shape (2, nn)
+        Log-transformed blood volume variables
+    qtilde : np.ndarray, shape (2, nn)
+        Log-transformed deoxyhemoglobin content variables
+    v : np.ndarray, shape (2, nn)
+        Blood volume state variables
+    q : np.ndarray, shape (2, nn)
+        Deoxyhemoglobin content state variables
+    dtt : float
+        Integration time step (seconds)
+    P : ParBold
+        BOLD parameter object
+        
+    Notes
+    -----
+    This function modifies the state arrays in-place and uses a log-transform
+    approach to ensure numerical stability of the hemodynamic state variables.
     """
     kappa = P.kappa
     gamma = P.gamma
@@ -169,6 +264,51 @@ ww_spec = [
 
 @jitclass(ww_spec)
 class ParWW:
+    """
+    Parameter class for the Wong-Wang full neural mass model.
+    
+    This Numba jitclass holds all parameters required for Wong-Wang simulation
+    including biophysical parameters for excitatory and inhibitory populations,
+    coupling strengths, noise levels, and simulation settings. Uses Numba for 
+    high-performance compilation.
+    
+    Parameters
+    ----------
+    a_exc : float, default 310.0
+        Excitatory population gain parameter (n/C)
+    a_inh : float, default 0.615
+        Inhibitory population gain parameter (nC⁻¹)
+    b_exc : float, default 125.0
+        Excitatory population threshold parameter (Hz)
+    b_inh : float, default 177.0
+        Inhibitory population threshold parameter (Hz)
+    d_exc : float, default 0.16
+        Excitatory population saturation parameter (s)
+    d_inh : float, default 0.087
+        Inhibitory population saturation parameter (s)
+    tau_exc : float, default 100.0
+        Excitatory synaptic time constant (ms)
+    tau_inh : float, default 10.0
+        Inhibitory synaptic time constant (ms)
+    gamma_exc : float, default 0.641/1000
+        Excitatory kinetic parameter (ms⁻¹)
+    gamma_inh : float, default 1.0/1000
+        Inhibitory kinetic parameter (ms⁻¹)
+    W_exc : float, default 1.0
+        Excitatory population local weight
+    W_inh : float, default 0.7
+        Inhibitory population local weight
+    ext_current : array-like, default [0.382]
+        External current input per region (nA)
+    J_NMDA : float, default 0.15
+        NMDA synaptic coupling strength (nA)
+    J_I : float, default 1.0
+        Inhibitory synaptic coupling strength (nA)
+    w_plus : float, default 1.4
+        Local excitatory recurrence strength
+    lambda_inh_exc : float, default 0.0
+        Long-range feedforward inhibition switch
+    """
     def __init__(
         self,
         # exc/inh params (Wong & Wang 2006 / Deco et al.)
@@ -251,8 +391,29 @@ class ParWW:
 @njit
 def firing_rate(current, a, b, d):
     """
-    r(I) = (a I - b) / (1 - exp(-d (a I - b)))
-    Safe for vector inputs.
+    Compute the firing rate using the Wong-Wang transfer function.
+    
+    Implements the input-output relationship for neural populations:
+    r(I) = (a*I - b) / (1 - exp(-d*(a*I - b)))
+    
+    This function captures the nonlinear relationship between synaptic
+    current and population firing rate, including saturation effects.
+    
+    Parameters
+    ----------
+    current : np.ndarray
+        Synaptic current input to the population.
+    a : float
+        Gain parameter controlling the slope of the transfer function.
+    b : float
+        Threshold parameter determining the firing threshold.
+    d : float
+        Saturation parameter controlling the saturation behavior.
+        
+    Returns
+    -------
+    np.ndarray
+        Population firing rate (Hz).
     """
     u = a * current - b
     den = 1.0 - np.exp(-d * u)
@@ -269,9 +430,31 @@ def firing_rate(current, a, b, d):
 @njit
 def f_ww(S, t, P):
     """
-    Right-hand side for Wong–Wang model.
-    S: length 2*nn vector [S_exc, S_inh]
-    returns dS/dt shape (2*nn,)
+    Compute the right-hand side of the Wong-Wang full model equations.
+    
+    This function implements the deterministic part of the Wong-Wang model,
+    computing the time derivatives of synaptic gating variables for both
+    excitatory and inhibitory populations across all brain regions.
+    
+    The implemented equations are:
+    dS_exc/dt = -S_exc/τ_exc + (1-S_exc)*γ_exc*r_exc(I_exc)
+    dS_inh/dt = -S_inh/τ_inh + γ_inh*r_inh(I_inh)
+    
+    Parameters
+    ----------
+    S : np.ndarray
+        Current state vector of shape (2*nn,) containing stacked arrays:
+        [S_exc_0, ..., S_exc_n, S_inh_0, ..., S_inh_n] where nn is the 
+        number of brain regions.
+    t : float
+        Current time (not used in autonomous system).
+    P : ParWW
+        Parameter object containing all model parameters.
+        
+    Returns
+    -------
+    np.ndarray
+        Derivative vector dS/dt of shape (2*nn,).
     """
     nn = P.nn
     S_exc = S[:nn]
@@ -316,7 +499,26 @@ def f_ww(S, t, P):
 @jit(nopython=True)
 def heun_sde(S, t, P):
     """
-    One Heun stochastic step for S (2*nn vector).
+    Perform one heun integration step for the stochastic Wong-Wang model.
+    
+    This function implements the Heun method (predictor-corrector) for 
+    numerical integration of stochastic differential equations, providing 
+    second-order accuracy for the deterministic part while properly handling 
+    additive Gaussian noise.
+    
+    Parameters
+    ----------
+    S : np.ndarray
+        Current state vector of shape (2*nn,) containing synaptic gating variables.
+    t : float
+        Current time (ms).
+    P : ParWW
+        Parameter object containing model parameters including dt and sigma.
+        
+    Returns
+    -------
+    np.ndarray
+        Updated state vector after one integration step.
     """
     dt = P.dt
     nn = P.nn
@@ -336,6 +538,174 @@ def heun_sde(S, t, P):
 # -----------------------------
 
 class WW_sde:
+    """
+    Numba implementation of the Wong-Wang full neural mass model with stochastic dynamics.
+    
+    The Wong-Wang full model is a biophysically realistic neural mass model that explicitly 
+    captures the dynamics of both excitatory and inhibitory neural populations. This model 
+    is based on the original work of Wong and Wang [Wong2006]_ and has been extended for 
+    whole-brain network simulations [Deco2013]_, [Deco2014]_. The model provides a detailed 
+    representation of recurrent network mechanisms underlying decision-making processes and 
+    has been widely used to study brain dynamics in health and disease.
+
+    The model describes the temporal evolution of synaptic gating variables for excitatory 
+    (S_exc) and inhibitory (S_inh) populations at each brain region. The dynamics are 
+    governed by the balance between synaptic decay, activity-dependent facilitation, and 
+    network coupling. The firing rates of each population are determined by input-output 
+    transfer functions that capture the relationship between synaptic currents and 
+    population firing rates.
+
+    The Wong-Wang full model equations are:
+
+    .. math::
+
+        \\frac{dS_{exc,i}}{dt} &= -\\frac{S_{exc,i}}{\\tau_{exc}} + (1 - S_{exc,i}) \\gamma_{exc} r_{exc,i}(t) + \\sigma \\xi_i(t) \\\\
+        \\frac{dS_{inh,i}}{dt} &= -\\frac{S_{inh,i}}{\\tau_{inh}} + \\gamma_{inh} r_{inh,i}(t) + \\sigma \\xi_i(t)
+
+    where the firing rates are computed using:
+
+    .. math::
+
+        r_{exc,i}(t) &= \\frac{a_{exc} I_{exc,i} - b_{exc}}{1 - \\exp(-d_{exc}(a_{exc} I_{exc,i} - b_{exc}))} \\\\
+        r_{inh,i}(t) &= \\frac{a_{inh} I_{inh,i} - b_{inh}}{1 - \\exp(-d_{inh}(a_{inh} I_{inh,i} - b_{inh}))}
+
+    The total synaptic currents for each population are:
+
+    .. math::
+
+        I_{exc,i} &= W_{exc} I_{ext} + w_{plus} J_{NMDA} S_{exc,i} + G_{exc} J_{NMDA} \\sum_{j=1}^{N} SC_{ij} S_{exc,j} - J_I S_{inh,i} \\\\
+        I_{inh,i} &= W_{inh} I_{ext} + J_{NMDA} S_{exc,i} - S_{inh,i} + G_{inh} J_{NMDA} \\lambda_{inh,exc} \\sum_{j=1}^{N} SC_{ij} S_{inh,j}
+
+    
+    .. list-table:: Parameters
+        :widths: 25 50 25
+        :header-rows: 1
+
+        * - Name
+          - Explanation
+          - Default Value
+        * - `a_exc`
+          - Excitatory population gain parameter (n/C)
+          - 310.0
+        * - `a_inh`
+          - Inhibitory population gain parameter (nC⁻¹)
+          - 0.615
+        * - `b_exc`
+          - Excitatory population threshold parameter (Hz)
+          - 125.0
+        * - `b_inh`
+          - Inhibitory population threshold parameter (Hz)
+          - 177.0
+        * - `d_exc`
+          - Excitatory population saturation parameter (s)
+          - 0.16
+        * - `d_inh`
+          - Inhibitory population saturation parameter (s)
+          - 0.087
+        * - `tau_exc`
+          - Excitatory synaptic time constant (ms)
+          - 100.0
+        * - `tau_inh`
+          - Inhibitory synaptic time constant (ms)
+          - 10.0
+        * - `gamma_exc`
+          - Excitatory kinetic parameter (ms⁻¹)
+          - 0.641/1000
+        * - `gamma_inh`
+          - Inhibitory kinetic parameter (ms⁻¹)
+          - 1.0/1000
+        * - `W_exc`
+          - Excitatory population local weight
+          - 1.0
+        * - `W_inh`
+          - Inhibitory population local weight
+          - 0.7
+        * - `ext_current`
+          - External current input (nA)
+          - 0.382
+        * - `J_NMDA`
+          - NMDA synaptic coupling strength (nA)
+          - 0.15
+        * - `J_I`
+          - Inhibitory synaptic coupling strength (nA)
+          - 1.0
+        * - `w_plus`
+          - Local excitatory recurrence strength
+          - 1.4
+        * - `lambda_inh_exc`
+          - Long-range feedforward inhibition switch
+          - 0.0
+        * - `G_exc`
+          - Global excitatory coupling strength
+          - 0.0
+        * - `G_inh`
+          - Global inhibitory coupling strength
+          - 0.0
+        * - `sigma`
+          - Noise amplitude
+          - 0.0
+        * - `weights`
+          - Structural connectivity matrix (nn x nn)
+          - zeros
+        * - `dt`
+          - Integration time step (ms)
+          - 0.1
+        * - `t_end`
+          - Simulation end time (ms)
+          - 1000.0
+        * - `t_cut`
+          - Initial time to discard (ms)
+          - 0.0
+        
+
+    Usage example:
+        >>> import numpy as np
+        >>> from vbi.models.numba.ww import WW_sde
+        >>> W = np.eye(2) * 0.1  # 2-node connectivity
+        >>> I_ext = np.array([0.4, 0.5])  # External currents
+        >>> ww = WW_sde({
+        ...     "weights": W, 
+        ...     "ext_current": I_ext,
+        ...     "G_exc": 0.5,
+        ...     "G_inh": 0.2,
+        ...     "dt": 0.1, 
+        ...     "t_end": 1000.0, 
+        ...     "t_cut": 100.0,
+        ...     "sigma": 0.01
+        ... })
+        >>> data = ww.run()
+        >>> print(data['bold_d'].shape)  # BOLD data shape
+        (2, 2)
+        >>> print(ww.P.tr)  # Repetition time
+        300.0
+        
+
+    Notes
+    -----
+    The Wong-Wang model is particularly useful for studying:
+    - Decision-making processes and attractor dynamics
+    - Excitatory-inhibitory balance in cortical circuits
+    - Biophysically realistic neural mass dynamics
+    - Working memory mechanisms
+    - Brain state transitions and criticality
+    
+    The model's strength lies in its biophysical realism while maintaining
+    computational efficiency through mean-field approximations.
+    
+    References
+    ----------
+    .. [Wong2006] Wong, K. F., & Wang, X. J. (2006). A recurrent network 
+       mechanism of time integration in perceptual decisions. Journal of 
+       Neuroscience, 26(4), 1314-1328.
+    .. [Deco2013] Deco, G., Ponce-Alvarez, A., Mantini, D., Romani, G. L., 
+       Hagmann, P., & Corbetta, M. (2013). Resting-state functional 
+       connectivity emerges from structurally and dynamically shaped slow 
+       linear fluctuations. Journal of Neuroscience, 33(27), 11239-11252.
+    .. [Deco2014] Deco, G., Ponce-Alvarez, A., Hagmann, P., Romani, G. L., 
+       Mantini, D., & Corbetta, M. (2014). How local excitation–inhibition 
+       ratio impacts the whole brain dynamics. Journal of Neuroscience, 
+       34(23), 7886-7898.
+    """
     def __init__(self, par: dict = None, Bpar: dict = None) -> None:
         if par is None:
             par = {}
@@ -448,11 +818,41 @@ class WW_sde:
     # -----------------------------
     def run(self, par: dict = None, x0=None, verbose=True):
         """
-        Run simulation and return dict with:
-        - 'S': recorded S_exc if RECORD_S (shape [T, nn])
-        - 't': times for S (ms)
-        - 'bold_t': times for BOLD (ms)
-        - 'bold_d': BOLD signal [T_bold, nn]
+        Run the Wong-Wang full model simulation.
+        
+        Executes the Euler-Maruyama numerical integration scheme to simulate
+        the stochastic Wong-Wang dynamics. Includes optional BOLD signal
+        generation and data downsampling.
+        
+        Parameters
+        ----------
+        par : dict, optional
+            Dictionary of parameters to update before simulation.
+            Can include any parameter from the ParWW class.
+        x0 : array-like, optional
+            Initial state vector of length 2*nn (S_exc and S_inh for each region).
+            If None, uses the stored initial_state from the parameter object.
+        verbose : bool, default True
+            Whether to print simulation progress and parameter information.
+            
+        Returns
+        -------
+        dict
+            Dictionary containing simulation results with keys:
+            - 'S' : ndarray, shape (T, nn)
+                Recorded excitatory synaptic gating variables if RECORD_S=True
+            - 't' : ndarray, shape (T,)
+                Time points for neural data (ms)
+            - 'bold_t' : ndarray, shape (T_bold,)
+                Time points for BOLD signal (ms)
+            - 'bold_d' : ndarray, shape (T_bold, nn)
+                BOLD signal time series if RECORD_BOLD=True
+        
+        Notes
+        -----
+        The simulation uses the Heun-Euler method for stochastic integration,
+        which provides second-order accuracy for the deterministic part while
+        handling the stochastic noise appropriately.
         """
         # update runtime parameters if provided
         if par:
@@ -557,6 +957,26 @@ class WW_sde:
 # -----------------------------
 
 def set_initial_state(nn, seed=-1):
+    """
+    Generate random initial conditions for the Wong-Wang model.
+    
+    Creates small positive random values for both excitatory and inhibitory
+    synaptic gating variables, ensuring the system starts in a biologically
+    plausible state.
+    
+    Parameters
+    ----------
+    nn : int
+        Number of brain regions/nodes.
+    seed : int, optional
+        Random seed for reproducibility. If -1 or None, no seeding is applied.
+        
+    Returns
+    -------
+    np.ndarray
+        Initial state vector of shape (2*nn,) containing small positive
+        random values for [S_exc_0, ..., S_exc_n, S_inh_0, ..., S_inh_n].
+    """
     if seed is not None and seed >= 0:
         np.random.seed(seed)
         # initialize_random_state(seed)

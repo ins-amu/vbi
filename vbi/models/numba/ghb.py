@@ -10,6 +10,25 @@ warnings.simplefilter("ignore", category=NumbaPerformanceWarning)
 
 @njit(nogil=True)
 def run(P, times):
+    """
+    Run the Generic Hopf Bifurcation model simulation.
+    
+    This function integrates the coupled Generic Hopf oscillators with BOLD signal
+    generation using Euler-Maruyama stochastic integration.
+    
+    Parameters
+    ----------
+    P : ParGHB
+        Parameter object containing all model parameters.
+    times : np.ndarray
+        Time array for the simulation.
+        
+    Returns
+    -------
+    tuple
+        (t_bold, bold) where t_bold is time array and bold is BOLD signal
+        of shape (nn, n_timepoints).
+    """
 
     G = P.G
     dt = P.dt
@@ -107,12 +126,125 @@ def run(P, times):
 
 
 class GHB_sde(object):
+    """
+    Numba implementation of the Generic Hopf Bifurcation model with BOLD signal generation.
+    
+    This model implements a network of coupled Stuart-Landau oscillators (Generic Hopf 
+    Bifurcation) with additive noise and hemodynamic response modeling to generate 
+    BOLD signals. Each brain region is modeled as a 2D oscillator with intrinsic 
+    frequency and bifurcation parameter.
+    
+    The neural dynamics follow:
+    dx/dt = x(η - x² - y²) - ωy + G·coupling_x + noise
+    dy/dt = y(η - x² - y²) + ωx + G·coupling_y + noise
+    
+    Where:
+    - (x, y) are the neural state variables in Cartesian coordinates
+    - η (eta) is the bifurcation parameter controlling oscillation amplitude
+    - ω (omega) is the intrinsic frequency of oscillation
+    - G is the global coupling strength
+    - The (x² + y²) term provides amplitude-dependent damping
+    
+    .. list-table:: Parameters
+        :widths: 25 50 25
+        :header-rows: 1
+
+        * - Name
+          - Explanation
+          - Default Value
+        * - `G`
+          - Global coupling strength scaling network connections.
+          - 1.0
+        * - `dt`
+          - Integration time step in seconds.
+          - 0.001
+        * - `sigma`
+          - Noise amplitude (standard deviation of additive Gaussian noise).
+          - 0.1
+        * - `tend`
+          - End time of simulation in seconds.
+          - 10.0
+        * - `tcut`
+          - Time from which to start collecting output (burn-in period).
+          - 0.0
+        * - `eta`
+          - Bifurcation parameter array of length `nn`. Controls oscillation amplitude. If array-like, it should be of length `nn` (number of nodes).
+          - np.array([])
+        * - `omega`
+          - Intrinsic frequency array of length `nn`. Sets the natural oscillation frequency for each region. If array-like, it should be of length `nn`.
+          - np.array([])
+        * - `weights`
+          - Structural connectivity matrix of shape (`nn`, `nn`). Must be provided.
+          - np.array([[], []])
+        * - `decimate`
+          - Decimation factor for output time series (every `decimate`-th point is saved).
+          - 1
+        * - `init_state`
+          - Initial state vector of shape (2*nn,) containing [x₀, y₀]. If None, random initial conditions are generated.
+          - np.array([])
+        * - `seed`
+          - Random seed for reproducible simulations. If -1, no seeding is applied.
+          - -1
+
+    Usage example:
+        >>> import numpy as np
+        >>> from vbi.models.numba.ghb import GHB_sde
+        >>> W = np.eye(2)  # 2-node demo connectivity
+        >>> eta = np.array([0.1, 0.1])  # Bifurcation parameters
+        >>> omega = np.array([40.0, 40.0])  # Frequencies in Hz
+        >>> ghb = GHB_sde({
+        ...     "weights": W, 
+        ...     "eta": eta, 
+        ...     "omega": omega,
+        ...     "dt": 0.01, 
+        ...     "tend": 10.0, 
+        ...     "tcut": 2.0
+        ... })
+        >>> result = ghb.run()
+        >>> t, bold = result["t"], result["bold"]  # bold has shape (nn, n_timepoints)
+
+    Notes
+    -----
+    The model combines neural oscillator dynamics with a simplified BOLD hemodynamic
+    response based on the Balloon-Windkessel model. The BOLD signal is computed using
+    the Friston 2003 formulation with fixed parameters optimized for realistic
+    hemodynamic responses.
+    
+    The Generic Hopf Bifurcation model is particularly useful for studying:
+    - Oscillatory brain dynamics and synchronization
+    - Transitions between different dynamical regimes
+    - Frequency-specific network interactions
+    - BOLD signal generation from neural oscillations
+    """
     def __init__(self, par: dict = {}) -> None:
+        """
+        Initialize the Generic Hopf Bifurcation model.
+
+        Parameters
+        ----------
+        par : dict, optional
+            Dictionary containing model parameters. See class documentation for 
+            available parameters. The 'weights', 'eta', and 'omega' parameters 
+            are required for proper functionality.
+        """
         self.valid_par = [par_spec[i][0] for i in range(len(par_spec))]
         self.check_parameters(par)
         self.P = self.get_par_obj(par)
 
     def get_par_obj(self, par: dict):
+        """
+        Create parameter object from dictionary.
+        
+        Parameters
+        ----------
+        par : dict
+            Parameter dictionary.
+            
+        Returns
+        -------
+        ParGHB
+            Numba jitclass parameter object.
+        """
         if "init_state" in par.keys():
             par["init_state"] = np.array(par["init_state"])
         if "weights" in par.keys():
@@ -120,23 +252,67 @@ class GHB_sde(object):
         return ParGHB(**par)
 
     def __str__(self) -> str:
-        print("GHB model")
+        """
+        Return a string representation of the model parameters.
+        
+        Returns
+        -------
+        str
+            Formatted string showing all model parameters and their values.
+        """
+        print("Generic Hopf Bifurcation Model (Numba)")
+        print("---------------------------------------")
         for key in self.valid_par:
             print(f"{key}: {getattr(self.P, key)}")
         return ""
 
     def check_parameters(self, par: dict) -> None:
+        """
+        Validate that all provided parameters are recognized.
+        
+        Parameters
+        ----------
+        par : dict
+            Dictionary of parameters to validate.
+            
+        Raises
+        ------
+        ValueError
+            If any parameter name is not recognized.
+        """
         for key in par.keys():
             if key not in self.valid_par:
                 raise ValueError(f"Invalid parameter: {key}")
 
     def set_initial_state(self, seed=None):
+        """
+        Generate random initial conditions for the model.
+        
+        Parameters
+        ----------
+        seed : int, optional
+            Random seed for reproducible initial conditions.
+            
+        Returns
+        -------
+        np.ndarray
+            Initial state vector of shape (2*nn,) with random values in [0, 1].
+        """
         if seed is not None:
             np.random.seed(seed)
         assert self.P.weights is not None
         return np.random.uniform(0, 1, 2 * self.P.weights.shape[0])
 
     def check_input(self):
+        """
+        Validate model parameters before simulation.
+        
+        Raises
+        ------
+        AssertionError
+            If weights matrix is None, not square, or if eta/omega arrays 
+            don't match the number of nodes.
+        """
         assert self.P.weights is not None
         assert self.P.weights.shape[0] == self.P.weights.shape[1]
         assert self.P.eta is not None
@@ -144,6 +320,31 @@ class GHB_sde(object):
         assert self.P.weights.shape[0] == self.P.eta.shape[0]
 
     def run(self, par={}, tspan=None, x0=None, verbose=True):
+        """
+        Run the Generic Hopf Bifurcation simulation.
+
+        Parameters
+        ----------
+        par : dict, optional
+            Dictionary of parameters to update for this simulation run.
+            Any parameter from the class documentation can be updated.
+        tspan : tuple or None, optional
+            Time span as (start_time, end_time). If None, uses (0, tend).
+        x0 : np.ndarray, optional
+            Initial state vector of shape (2*nn,). If None, random initial 
+            conditions are generated using set_initial_state().
+        verbose : bool, optional
+            Whether to print verbose output (currently unused).
+
+        Returns
+        -------
+        dict
+            Dictionary containing simulation results:
+            
+            - 't': np.ndarray of time points (after burn-in and decimation)
+            - 'bold': np.ndarray of shape (nn, n_timepoints) containing 
+              simulated BOLD signals for each brain region
+        """
         if x0 is None:
             self.seed = self.P.seed if self.P.seed > 0 else None
             self.P.init_state = self.set_initial_state(seed=self.seed)
@@ -182,6 +383,16 @@ par_spec = [
 
 @jitclass(par_spec)
 class ParGHB:
+    """
+    Numba jitclass container for Generic Hopf Bifurcation model parameters.
+    
+    This class holds all parameters needed for the Generic Hopf Bifurcation model
+    in a format optimized for Numba compilation. It stores both scalar parameters
+    and array parameters like connectivity weights, bifurcation parameters, and frequencies.
+    
+    Note: This is an internal class used by the GHB_sde class. Users should
+    not instantiate this class directly.
+    """
     def __init__(
         self,
         G=1.0,
@@ -195,6 +406,32 @@ class ParGHB:
         weights=np.array([[], []]),
         decimate=1,
     ):
+        """
+        Initialize the parameter container.
+        
+        Parameters
+        ----------
+        G : float
+            Global coupling strength.
+        dt : float
+            Integration time step.
+        sigma : float
+            Noise amplitude.
+        tend : float
+            End time of simulation.
+        tcut : float
+            Burn-in time.
+        eta : np.ndarray
+            Bifurcation parameters for each node.
+        init_state : np.ndarray
+            Initial state vector.
+        omega : np.ndarray
+            Intrinsic frequencies for each node.
+        weights : np.ndarray
+            Connectivity matrix.
+        decimate : int
+            Decimation factor.
+        """
         self.G = G
         self.dt = dt
         self.seed = -1
@@ -206,3 +443,7 @@ class ParGHB:
         self.weights = weights
         self.decimate = decimate
         self.init_state = init_state
+
+
+# Alias for consistency with naming convention
+GHB_sde_numba = GHB_sde
