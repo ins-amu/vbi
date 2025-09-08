@@ -84,10 +84,11 @@ def requires_optional(*dependencies):
         
     Examples
     --------
-    @requires_optional(('torch', 'torch', 'inference'))
-    def inference_function():
-        import torch
-        # function implementation
+    >>> @requires_optional(('torch', 'torch', 'inference'))
+    ... def inference_function():
+    ...     import torch
+    ...     # function implementation
+    ...     pass
     """
     def decorator(func: Callable) -> Callable:
         @functools.wraps(func)

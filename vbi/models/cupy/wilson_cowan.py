@@ -14,6 +14,13 @@ class WC_sde:
     r"""
     Wilson-Cowan model of neural population dynamics.
 
+    Used Eqns 11 and 12 from [WC_1972]_ in the model dynamics. P and Q represent 
+    external inputs, which when exploring the phase portrait of the local model are 
+    set to constant values. However in the case of a full network, P and Q are the 
+    entry point to our long range and local couplings, that is, the activity
+    from all other nodes is the external input to the local population [WC_1973]_, [D_2011]_.
+
+
     **References**:
 
     .. [WC_1972] Wilson, H.R. and Cowan, J.D. *Excitatory and inhibitory

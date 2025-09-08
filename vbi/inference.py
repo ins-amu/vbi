@@ -26,7 +26,25 @@ from vbi.utils import *
 
 
 class Inference(object):
+    """
+    Main inference class for simulation-based inference (SBI) using the sbi library.
+    
+    This class provides methods for training neural posterior/likelihood estimators
+    and sampling from posterior distributions using various SBI methods including
+    SNPE (Sequential Neural Posterior Estimation), SNLE (Sequential Neural Likelihood
+    Estimation), and SNRE (Sequential Neural Ratio Estimation).
+    
+    The class acts as a wrapper around the sbi library, providing a convenient
+    interface for training and inference tasks in the VBI (Variational Bayesian
+    Inference) framework.
+    """
     def __init__(self) -> None:
+        """
+        Initialize the Inference object.
+        
+        No parameters are required for initialization. The object serves as a
+        container for static and instance methods for training and sampling.
+        """
         pass
 
     @timer
@@ -97,18 +115,23 @@ class Inference(object):
     @staticmethod
     def sample_prior(prior, n, seed=None):
         """
-        sample from prior distribution
+        Sample parameter values from the prior distribution.
 
         Parameters
         ----------
-        prior: ?
-            prior distribution
-        n: int
-            number of samples
+        prior : sbi.utils.BoxUniform or similar
+            Prior distribution object from the sbi library. Must be compatible
+            with sbi's process_prior function.
+        n : int
+            Number of samples to draw from the prior distribution.
+        seed : int, optional
+            Random seed for reproducible sampling. If None, no seed is set.
 
         Returns
         -------
-
+        torch.Tensor
+            Tensor of shape (n, n_params) containing parameter samples drawn
+            from the prior distribution.
         """
         if seed is not None:
             torch.manual_seed(seed)
@@ -120,24 +143,25 @@ class Inference(object):
     @staticmethod
     def sample_posterior(xo, num_samples, posterior):
         """
-        sample from the posterior using the given observation point.
+        Sample parameter values from the trained posterior distribution.
 
         Parameters
         ----------
-        x0: torch.tensor float32 (1, d)
-            observation point
-        num_samples: int
-            number of samples
-        posterior: ?
-            posterior object
+        xo : torch.Tensor
+            Observed data point of shape (1, n_features) or (n_features,).
+            This is the target observation for which we want to infer parameters.
+        num_samples : int
+            Number of posterior samples to draw.
+        posterior : sbi posterior object
+            Trained posterior distribution object returned by the train() method.
+            Must have a sample() method compatible with sbi posteriors.
 
         Returns
         -------
-        samples: torch.tensor float32 (num_samples, d)
-            samples from the posterior
-
+        torch.Tensor
+            Tensor of shape (num_samples, n_params) containing parameter samples
+            drawn from the posterior distribution conditioned on the observation xo.
         """
-
         if not isinstance(xo, torch.Tensor):
             xo = torch.tensor(xo, dtype=torch.float32)
         if len(xo.shape) == 1:
