@@ -67,6 +67,18 @@ pip install -e .[all]
 SKIP_CPP=1 pip install -e . 
 ```
 
+### Windows Installation
+
+For Windows users, we recommend starting with Python-only installation:
+
+```cmd
+# Skip C++ compilation (recommended for most Windows users)
+set SKIP_CPP=1
+pip install -e .
+```
+
+For C++ acceleration on Windows, see our [Windows Installation Guide](WINDOWS_INSTALL.md) for detailed setup instructions including Visual Studio Build Tools.
+
 **Need help with specific platforms?** See our [detailed installation guide](INSTALLATION.md) for Google Colab, EBRAINS, troubleshooting, and advanced configurations.
 
 ## Using Docker

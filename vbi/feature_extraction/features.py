@@ -2215,9 +2215,19 @@ def catch22(
     try:
         import catch22_C
     except ImportError:
-        raise ImportError(
-            "pycatch22 is not installed. Please install it using `pip install pycatch22`"
+        import warnings
+        warnings.warn(
+            "pycatch22 is not installed or failed to compile. "
+            "Install with `pip install pycatch22` or `pip install vbi[features]` "
+            "to enable Catch22 features. Returning NaN values.",
+            UserWarning
         )
+        # Return NaN values for all requested features
+        nf = 22 if not catch24 else 24
+        if indices is None:
+            return [np.nan] * nf, [f"catch22_{i}" for i in range(nf)]
+        else:
+            return [np.nan] * (len(indices) * nf), [f"catch22_{i}_node_{j}" for i in range(nf) for j in indices]
         
     if catch24:
         features = features.copy()
