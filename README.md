@@ -67,6 +67,8 @@ pip install -e .[all]
 SKIP_CPP=1 pip install -e . 
 ```
 
+**Need help with specific platforms?** See our [detailed installation guide](INSTALLATION.md) for Google Colab, EBRAINS, troubleshooting, and advanced configurations.
+
 ## Using Docker
 
 To use the Docker image, you can pull it from the GitHub Container Registry and run it as follows:
