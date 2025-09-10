@@ -185,6 +185,7 @@ long get_mem_usage()
 
 void display_timing(double wtime, double cptime)
 {
+    (void)cptime; // Mark as intentionally unused
     int wh;      //, ch;
     int wmin;    //, cpmin;
     double wsec; //, csec;

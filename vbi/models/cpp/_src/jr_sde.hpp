@@ -176,7 +176,6 @@ public:
     // ------------------------------------------------------------------------
     void eulerIntegrate()
     {
-        size_t n = dimension;
         size_t N2 = 2 * N;
 
         dim1 y = initial_state;
@@ -228,7 +227,6 @@ public:
 
     void heunIntegrate()
     {
-        size_t n = dimension;
         size_t N2 = 2 * N;
 
         dim1 y = initial_state;

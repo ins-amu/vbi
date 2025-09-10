@@ -74,7 +74,7 @@ public:
         unsigned bufsize = num_steps - idx_cut;
 
         states.resize(bufsize);
-        for (int i = 0; i < bufsize; i++)
+        for (unsigned i = 0; i < bufsize; i++)
         {
             states[i].resize(nn);
         }
@@ -83,6 +83,7 @@ public:
 
     void rhs(const vector<double> &x, vector<double> &dxdt, const double t)
     {
+        (void)t; // Mark as intentionally unused
         for (int i = 0; i < nn; i++)
         {
             double gx = 0.0;
@@ -135,9 +136,9 @@ public:
         double t = 0.0;
         int counter = 0;
 
-        for (int it = 0; it < num_steps; it++)
+        for (unsigned it = 0; it < num_steps; it++)
         {
-            if (it >= idxtcut)
+            if (it >= static_cast<unsigned>(idxtcut))
             {
                 for (int i = 0; i < nn; i++)
                 {
