@@ -114,12 +114,14 @@ public:
             size_t RECORD_RV,
             size_t RECORD_BOLD,
             int fix_seed,
-            const BoldParams &bp) : dt(dt), dt_b(dt_b), G(G), delta(delta),
-                                    tau(tau), eta(eta), J(J), t_end(t_end),
-                                    t_cut(t_cut), tr(tr), RECORD_RV(RECORD_RV),
-                                    RECORD_BOLD(RECORD_BOLD), fix_seed(fix_seed),
-                                    weights(weights), initial_state(initial_state),
-                                    rv_decimate(rv_decimate), noise_amp(noise_amp), i_app(i_app)
+            const BoldParams &bp) : delta(delta), tau(tau), eta(eta), J(J), i_app(i_app),
+                                    dt(dt), dt_b(dt_b), G(G),
+                                    noise_amp(noise_amp),
+                                    rv_decimate(rv_decimate),
+                                    RECORD_RV(RECORD_RV), RECORD_BOLD(RECORD_BOLD),
+                                    t_end(t_end), t_cut(t_cut), tr(tr),
+                                    weights(weights),
+                                    fix_seed(fix_seed), initial_state(initial_state), bp(bp)
 
     {
         assert(t_end > t_cut && "t_end must be greater than t_cut");
@@ -139,6 +141,7 @@ public:
         dim1 &dxdt,
         const double t)
     {
+        (void)t; // Mark as intentionally unused
         size_t nn = num_nodes;
         double p2 = M_PI * M_PI;
 
@@ -203,7 +206,7 @@ public:
         // dim1 fv(n, 0.0);
         // dim1 ff(n, 0.0);
 
-        for (int i = 0; i < n; i++)
+        for (unsigned i = 0; i < n; i++)
         {
             s[1][i] = s[0][i] + dtt * (r_in[i] - bp.kappa * s[0][i] - bp.gamma * (f[0][i] - 1));
             f[0][i] = std::max(f[0][i], 1.0);
@@ -270,9 +273,9 @@ public:
 
             if (RECORD_RV)
             {
-                if (((itr % rv_decimate) == 0) && ((int)(itr / rv_decimate) < r_d.size()))
+                if (((itr % rv_decimate) == 0) && ((itr / rv_decimate) < r_d.size()))
                 {
-                    unsigned idx = (int)(itr / rv_decimate);
+                    unsigned idx = itr / rv_decimate;
                     r_d[idx] = rv_current;
                     r_t[idx] = t_current;
                 }
@@ -281,9 +284,9 @@ public:
             {
                 bold_step(rv_current, s, f, ftilde, vtilde, qtilde, v, q, dtt);
 
-                if (((itr % b_decimate) == 0) && ((int)(itr / b_decimate) < bold_d.size()))
+                if (((itr % b_decimate) == 0) && ((itr / b_decimate) < bold_d.size()))
                 {
-                    unsigned idx = (int)(itr / b_decimate);
+                    unsigned idx = itr / b_decimate;
                     vv[idx] = v[1];
                     qq[idx] = q[1];
                     bold_t[idx] = t_current;
@@ -300,7 +303,7 @@ public:
 
         for (unsigned i = 0; i < bold_d.size(); i++)
         {
-            for (int j = 0; j < n; ++j)
+            for (unsigned j = 0; j < n; ++j)
                 bold_d[i][j] = bp.vo * (bp.K1 * (1 - qq[i][j]) + bp.K2 * (1 - qq[i][j] / vv[i][j]) + bp.K3 * (1 - vv[i][j]));
         }
     }

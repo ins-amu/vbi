@@ -17,7 +17,7 @@ RELEASE_FLAGS = -O2 -DNDEBUG
 CXXFLAGS_BASE = -std=c++11 -fopenmp -fPIC -Wall -Wextra
 # Suppress warnings that are common in SWIG-generated code but keep important ones
 # Note: Consider fixing these in source files rather than suppressing
-CXXFLAGS_WARNINGS = -Wno-unused-parameter -Wno-sign-compare
+CXXFLAGS_WARNINGS ?= -Wno-unused-parameter -Wno-sign-compare
 CXXFLAGS_BUILD = $(if $(filter debug,$(BUILD_TYPE)),$(DEBUG_FLAGS),$(RELEASE_FLAGS))
 CXXFLAGS = $(CXXFLAGS_BASE) $(CXXFLAGS_WARNINGS) $(CXXFLAGS_BUILD) -c
 
@@ -59,6 +59,9 @@ help:
 	@echo "Individual model targets:"
 	@$(foreach model,$(MODELS),echo "  $(model)         - Compile $(model) model";)
 	@echo ""
+	@echo "Strict compilation targets (all warnings enabled):"
+	@$(foreach model,$(MODELS),echo "  $(model)_strict  - Compile $(model) with all warnings";)
+	@echo ""
 	@echo "Build configuration:"
 	@echo "  BUILD_TYPE   = $(BUILD_TYPE) (debug/release)"
 	@echo "  CXX          = $(CXX)"
@@ -70,9 +73,15 @@ help:
 	@echo "  make parallel           # Build with parallel jobs"
 	@echo "  make BUILD_TYPE=debug   # Build with debug info"
 	@echo "  make jr_sde             # Build only jr_sde model"
+	@echo "  make jr_sde_strict      # Build jr_sde with all warnings"
+	@echo "  make CXXFLAGS_WARNINGS= jr_sde  # Alternative strict syntax"
 
 # Individual model targets (automatically generated)
 $(MODELS): %: _%.so
+
+# Strict compilation targets for individual models (shows all warnings)
+$(addsuffix _strict,$(MODELS)): %_strict:
+	$(MAKE) CXXFLAGS_WARNINGS="" $(patsubst %_strict,%,$@)
 
 # Debug build target
 debug:
@@ -115,7 +124,7 @@ _%.so: %_wrap.o
 	$(CXX) -shared -fopenmp $< $(PYTHON_LIBS) -o $@
 
 # Phony targets
-.PHONY: help clean distclean all parallel debug strict install check $(MODELS)
+.PHONY: help clean distclean all parallel debug strict install check $(MODELS) $(addsuffix _strict,$(MODELS))
 
 # Enhanced clean targets
 clean:
