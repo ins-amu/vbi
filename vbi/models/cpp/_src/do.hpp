@@ -116,8 +116,6 @@ public:
 
     void rk4Integrate()
     {
-        size_t n = dimension;
-
         states[0] = initial_state;
         times[0] = t_initial;
         dim1 y = initial_state;
