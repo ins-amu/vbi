@@ -63,21 +63,27 @@ pip install .
 # Development installation with all dependencies
 pip install -e .[all]
 
-# To skip C++ compilation, use:
+# To manually skip C++ compilation on Linux/macOS:
 SKIP_CPP=1 pip install -e . 
 ```
 
+**Note:** Windows users don't need the `SKIP_CPP=1` flag - C++ compilation is automatically skipped on Windows.
+
 ### Windows Installation
 
-For Windows users, we recommend starting with Python-only installation:
+**Windows users!** VBI now automatically detects Windows systems and skips C++ compilation, making installation much simpler:
 
 ```cmd
-# Skip C++ compilation (recommended for most Windows users)
-set SKIP_CPP=1
-pip install -e .
+# Standard installation - C++ compilation automatically skipped on Windows
+pip install vbi
+
+# Or from source
+git clone https://github.com/ins-amu/vbi.git
+cd vbi
+pip install .
 ```
 
-For C++ acceleration on Windows, see our [Windows Installation Guide](WINDOWS_INSTALL.md) for detailed setup instructions including Visual Studio Build Tools.
+Note that C++ model implementations are currently not available on Windows due to the complexity of setting up the C++ compilation environment.
 
 **Need help with specific platforms?** See our [detailed installation guide](INSTALLATION.md) for Google Colab, EBRAINS, troubleshooting, and advanced configurations.
 

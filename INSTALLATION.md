@@ -86,15 +86,50 @@ chmod +x setup_vbi_ebrains.sh
 - For EBRAINS, you'll need to rerun the setup script for each new session
 - For Colab, you'll need to reinstall VBI in each new runtime
 
+### Windows
+
+**Windows installation is now automatic!** VBI automatically detects Windows systems and skips C++ compilation, eliminating the previous complexity.
+
+**Standard Installation:**
+
+```cmd
+# Simple installation - C++ automatically skipped on Windows
+pip install vbi
+
+# Or from source
+git clone https://github.com/ins-amu/vbi.git
+cd vbi
+pip install .
+```
+
+**What happens automatically:**
+- VBI detects Windows system during installation
+- C++ compilation is automatically skipped
+- Installation proceeds with Python/NumPy/Numba implementations
+- Full VBI functionality is available without C++ setup
+
+**Manual override (if needed):**
+You can still manually control C++ compilation on any system using environment variables:
+
+```cmd
+# Force skip C++ compilation (now redundant on Windows)
+set SKIP_CPP=1
+pip install .
+
+# On other systems, force enable C++ compilation
+set SKIP_CPP=0
+pip install .
+```
+
 ## Docker Alternatives for Cloud Platforms
 
 Since many cloud platforms don't support Docker directly, here are alternatives:
 
-### MyBinder.org
+<!-- ### MyBinder.org
 Use our repository directly on Binder (free, but limited resources):
 ```
 https://mybinder.org/v2/gh/ins-amu/vbi/main
-```
+``` -->
 
 ### Kaggle Notebooks
 Kaggle supports Docker-based custom environments:
@@ -123,11 +158,13 @@ Use our repository in GitHub Codespaces with Docker support:
 ### Common Issues
 
 #### C++ Compilation Errors
-If you encounter C++ compilation issues:
+For non-Windows systems, if you encounter C++ compilation issues:
 ```bash
 # Skip C++ compilation during installation
 SKIP_CPP=1 pip install -e .
 ```
+
+**Note:** Windows users don't need to worry about this - C++ compilation is automatically skipped on Windows systems.
 
 #### Dependency Conflicts
 If you have conflicting dependencies:
