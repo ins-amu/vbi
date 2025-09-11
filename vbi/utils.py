@@ -22,7 +22,8 @@ except:
     pass
 
 try:
-    from sbi.analysis.plot import _get_default_opts, _update, ensure_numpy
+    from sbi.analysis.plot import _get_default_fig_kwargs, _get_default_diag_kwargs
+    from sbi.analysis.plot import _update, ensure_numpy
 except ImportError:
     pass
 
@@ -241,15 +242,19 @@ def posterior_peaks(samples, return_dict=False, **kwargs):
         peak values as values.
     """
 
-    opts = _get_default_opts()
-    opts = _update(opts, kwargs)
-
+    # Get default kwargs for KDE diagonal plots and figure kwargs
+    fig_kwargs = _get_default_fig_kwargs()
+    kde_kwargs = _get_default_diag_kwargs("kde")
+    
+    # Update with user-provided kwargs
+    fig_kwargs = _update(fig_kwargs, kwargs)
+    
     limits = get_limits(samples)
     samples = ensure_numpy(samples)
     n, dim = samples.shape
 
     try:
-        labels = opts["labels"]
+        labels = fig_kwargs.get("labels")
     except:
         labels = range(dim)
 
@@ -260,8 +265,8 @@ def posterior_peaks(samples, return_dict=False, **kwargs):
         peaks[labels[i]] = 0
 
     for row in range(dim):
-        density = gaussian_kde(samples[:, row], bw_method=opts["kde_diag"]["bw_method"])
-        xs = np.linspace(limits[row, 0], limits[row, 1], opts["kde_diag"]["bins"])
+        density = gaussian_kde(samples[:, row], bw_method=kde_kwargs["bw_method"])
+        xs = np.linspace(limits[row, 0], limits[row, 1], kde_kwargs["bins"])
         ys = density(xs)
 
         # y, x = np.histogram(samples[:, row], bins=bins)
