@@ -36,7 +36,8 @@ dependencies = [
     "scikit-learn",
     "pytest",
     "swig",
-    "rich"
+    "rich",
+    "corner"
 ]
 classifiers = [
     "Programming Language :: Python :: 3",
