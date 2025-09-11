@@ -50,8 +50,20 @@ def main():
                        help="Verbose output")
     parser.add_argument("--quiet", "-q", action="store_true",
                        help="Quiet output")
+    parser.add_argument("--coverage", action="store_true",
+                       help="Run tests with coverage reporting")
+    parser.add_argument("--check-missing", action="store_true",
+                       help="Check which modules are missing tests")
+    parser.add_argument("--html-coverage", action="store_true",
+                       help="Generate HTML coverage report")
     
     args = parser.parse_args()
+    
+    # Handle coverage checking without running tests
+    if args.check_missing:
+        from quick_coverage import show_missing_only
+        show_missing_only()
+        return 0
     
     # Determine the marker
     if args.short:
@@ -81,6 +93,17 @@ def main():
     if args.durations > 0:
         cmd.extend(["--durations", str(args.durations)])
     
+    # Add coverage options
+    if args.coverage or args.html_coverage:
+        # Add coverage for the parent vbi package
+        vbi_package = os.path.dirname(tests_dir)
+        cmd.extend(["--cov=" + vbi_package])
+        cmd.extend(["--cov-report=term-missing"])
+        
+        if args.html_coverage:
+            html_dir = os.path.join(os.path.dirname(tests_dir), "htmlcov")
+            cmd.extend(["--cov-report=html:" + html_dir])
+    
     # Add other useful options
     cmd.extend(["--tb=short"])  # Short traceback format
     
@@ -93,6 +116,13 @@ def main():
     
     # Run the tests
     result = subprocess.run(cmd)
+    
+    # Show HTML coverage report info if generated
+    if args.html_coverage and result.returncode == 0:
+        html_dir = os.path.join(os.path.dirname(tests_dir), "htmlcov")
+        print(f"\nHTML coverage report generated in: {html_dir}")
+        print(f"Open in browser: file://{html_dir}/index.html")
+    
     return result.returncode
 
 
