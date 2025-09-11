@@ -527,6 +527,236 @@ def get_cuda_info():
         return f"Error getting CUDA information: {str(e)}"
 
 
+class BoxUniform:
+    """
+    A multivariate uniform distribution over a hyperrectangle (box).
+    
+    This implementation uses only numpy and scipy, providing a torch-free
+    alternative for uniform distributions over rectangular domains.
+    
+    Parameters
+    ----------
+    low : array_like
+        Lower bounds for each dimension. Shape (n_dims,) or scalar.
+    high : array_like  
+        Upper bounds for each dimension. Shape (n_dims,) or scalar.
+    dtype : np.dtype, optional
+        Data type for internal arrays. Default is np.float64.
+        Supported options are np.float32 and np.float64.
+    seed : int or None, optional
+        Random seed for reproducible sampling. If None, no seed is set.
+    
+    Attributes
+    ----------
+    low : np.ndarray
+        Lower bounds array.
+    high : np.ndarray
+        Upper bounds array.
+    ndims : int
+        Number of dimensions.
+    volume : float
+        Volume of the hyperrectangle.
+    dtype : np.dtype
+        Data type used for arrays.
+    """
+    
+    def __init__(self, low, high, dtype=np.float64, seed=None):
+        """
+        Initialize BoxUniform distribution.
+        
+        Parameters
+        ----------
+        low : array_like
+            Lower bounds for each dimension.
+        high : array_like
+            Upper bounds for each dimension.
+        dtype : np.dtype, optional
+            Data type for internal arrays. Default is np.float64.
+            Supported options are np.float32 and np.float64.
+        seed : int or None, optional
+            Random seed for reproducible sampling. If None, no seed is set.
+        """
+        # Validate dtype
+        if dtype not in [np.float32, np.float64]:
+            raise ValueError("dtype must be np.float32 or np.float64")
+        
+        self.dtype = dtype
+        self.low = np.atleast_1d(np.asarray(low, dtype=dtype))
+        self.high = np.atleast_1d(np.asarray(high, dtype=dtype))
+        
+        if self.low.shape != self.high.shape:
+            raise ValueError("low and high must have the same shape")
+        
+        if np.any(self.low >= self.high):
+            raise ValueError("All elements of low must be < high")
+            
+        self.ndims = len(self.low)
+        self.volume = np.prod(self.high - self.low)
+        self._rng = np.random.RandomState()  # Internal random state
+        
+        # Set seed if provided
+        if seed is not None:
+            self.set_seed(seed)
+    
+    def set_seed(self, seed):
+        """
+        Set the random seed for reproducible sampling.
+        
+        Parameters
+        ----------
+        seed : int or None
+            Random seed. If None, the random state is not seeded.
+        """
+        if seed is not None:
+            self._rng.seed(seed)
+    
+    def sample(self, sample_shape=(1,), seed=None):
+        """
+        Sample from the uniform distribution.
+        
+        Parameters
+        ----------
+        sample_shape : tuple or int, optional
+            Shape of samples to generate. Default is (1,).
+        seed : int or None, optional
+            Random seed for this sampling operation. If provided, it temporarily
+            sets the seed for this operation only. If None, uses the current
+            random state.
+            
+        Returns
+        -------
+        np.ndarray
+            Samples of shape (*sample_shape, n_dims) with specified dtype.
+        """
+        if isinstance(sample_shape, int):
+            sample_shape = (sample_shape,)
+        
+        shape = sample_shape + (self.ndims,)
+        
+        # Handle seeding
+        if seed is not None:
+            # Create a temporary random state for this operation
+            temp_rng = np.random.RandomState(seed)
+            samples = temp_rng.uniform(size=shape).astype(self.dtype)
+        else:
+            # Use the instance's random state
+            samples = self._rng.uniform(size=shape).astype(self.dtype)
+        
+        # Scale to the box bounds
+        return self.low + samples * (self.high - self.low)
+    
+    def log_prob(self, value):
+        """
+        Calculate log probability density.
+        
+        Parameters
+        ----------
+        value : array_like
+            Values to evaluate. Shape (..., n_dims).
+            
+        Returns
+        -------
+        np.ndarray
+            Log probability densities. Shape matches input except last dimension.
+        """
+        value = np.asarray(value, dtype=self.dtype)
+        
+        # Check if all values are within bounds
+        in_support = np.all((value >= self.low) & (value <= self.high), axis=-1)
+        
+        # Log probability is -log(volume) if in support, -inf otherwise
+        log_prob = np.full(in_support.shape, -np.inf, dtype=self.dtype)
+        log_prob[in_support] = -np.log(self.volume)
+        
+        return log_prob
+    
+    def prob(self, value):
+        """
+        Calculate probability density.
+        
+        Parameters
+        ----------
+        value : array_like
+            Values to evaluate. Shape (..., n_dims).
+            
+        Returns
+        -------
+        np.ndarray
+            Probability densities. Shape matches input except last dimension.
+        """
+        return np.exp(self.log_prob(value))
+    
+    def cdf(self, value):
+        """
+        Calculate cumulative distribution function.
+        
+        Parameters
+        ----------
+        value : array_like
+            Values to evaluate. Shape (..., n_dims).
+            
+        Returns
+        -------
+        np.ndarray
+            CDF values. Shape matches input except last dimension.
+        """
+        value = np.asarray(value, dtype=self.dtype)
+        
+        # Clamp values to box bounds
+        clamped = np.clip(value, self.low, self.high)
+        
+        # CDF is the product of marginal CDFs
+        marginal_cdf = (clamped - self.low) / (self.high - self.low)
+        return np.prod(marginal_cdf, axis=-1)
+    
+    def mean(self):
+        """
+        Calculate the mean of the distribution.
+        
+        Returns
+        -------
+        np.ndarray
+            Mean vector of shape (n_dims,).
+        """
+        return (self.low + self.high) / 2
+    
+    def variance(self):
+        """
+        Calculate the variance of the distribution.
+        
+        Returns
+        -------
+        np.ndarray
+            Variance vector of shape (n_dims,).
+        """
+        return (self.high - self.low) ** 2 / 12
+    
+    def std(self):
+        """
+        Calculate the standard deviation of the distribution.
+        
+        Returns
+        -------
+        np.ndarray
+            Standard deviation vector of shape (n_dims,).
+        """
+        return np.sqrt(self.variance())
+    
+    def support(self):
+        """
+        Get the support of the distribution.
+        
+        Returns
+        -------
+        tuple
+            (low, high) bounds of the distribution.
+        """
+        return (self.low.copy(), self.high.copy())
+    
+    def __repr__(self):
+        """String representation of the distribution."""
+        return f"BoxUniform(low={self.low}, high={self.high}, dtype={self.dtype})"
+
 
 # def tests():
 #     from vbi.tests.test_suite import tests

@@ -24,7 +24,7 @@ from .feature_extraction.features_settings import (
 )
 
 from .feature_extraction.features_utils import report_cfg
-from .utils import LoadSample, timer, display_time
+from .utils import LoadSample, timer, display_time, BoxUniform
 
 # Conditionally import torch/sbi dependent functions
 try:
