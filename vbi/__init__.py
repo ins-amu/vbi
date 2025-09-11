@@ -68,7 +68,7 @@ except ImportError:
 
 # Conditionally import inference functionality
 try:
-    from .inference import Inference
+    from .sbi_inference import Inference
     _INFERENCE_AVAILABLE = True
 except ImportError:
     _INFERENCE_AVAILABLE = False
