@@ -25,7 +25,11 @@ try:
     from sbi.analysis.plot import _get_default_fig_kwargs, _get_default_diag_kwargs
     from sbi.analysis.plot import _update, ensure_numpy
 except ImportError:
-    pass
+    raise ImportError(
+        "sbi package is required for utils functions. "
+        "Please install sbi with: pip install sbi"
+        "Upgrade to sbi>=0.25.0 if you have an older version."
+    )
 
 
 def timer(func):
