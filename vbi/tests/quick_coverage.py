@@ -22,7 +22,7 @@ def find_vbi_modules():
     vbi_root = Path(__file__).parent.parent  # Go up from tests/ to vbi/
     modules = []
     
-    skip_dirs = {'tests', '__pycache__', '.pytest_cache', 'build', 'output'}
+    skip_dirs = {'tests', '__pycache__', '.pytest_cache', 'build', 'output', '_src'}
     skip_files = {'setup.py', 'conftest.py'}
     
     for py_file in vbi_root.rglob("*.py"):
