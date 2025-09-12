@@ -13,7 +13,7 @@ class DO:
     Damp Oscillator model class.
     '''
 
-    valid_params = ["a", "b", "dt", "t_start", "t_end", "t_transition",
+    valid_params = ["a", "b", "dt", "t_start", "t_end", "t_cut",
                     "initial_state", "method", "output"]
 
     # ---------------------------------------------------------------
@@ -39,12 +39,30 @@ class DO:
             setattr(self, name, value)
 
     def __str__(self) -> str:
-        print("Damp Oscillator model")
-        print("----------------")
-        for item in self._par.items():
-            name = item[0]
-            value = item[1]
-            print(f"{name} = {value}")
+        """
+        Return a string representation of the model parameters.
+        
+        Returns
+        -------
+        str
+            Formatted string showing all model parameters and their values.
+        """
+        print("Damped Oscillator Model (C++)")
+        print("-----------------------------")
+        
+        # Model parameters
+        print(f"a = {self.a}")
+        print(f"b = {self.b}")
+        
+        # Simulation parameters
+        print(f"dt = {self.dt}")
+        print(f"t_start = {self.t_start}")
+        print(f"t_end = {self.t_end}")
+        print(f"t_cut = {self.t_cut}")
+        print(f"method = {self.method}")
+        print(f"output = {self.output}")
+        print(f"initial_state = {self.initial_state}")
+        
         return ""
 
     def __call__(self, *args: Any, **kwds: Any) -> Any:
@@ -69,14 +87,28 @@ class DO:
             "b": 0.05,
             "dt": 0.01,
             "t_start": 0,
-            "method": "rk4",
+            "method": "euler",
             "t_end": 100.0,
-            "t_transition": 20,
+            "t_cut": 20,
             "output": "output",
             "initial_state": [0.5, 1.0],
         }
 
         return params
+
+    def update_par(self, par={}):
+        """
+        Update model parameters.
+        
+        Parameters
+        ----------
+        par : dict, optional
+            Dictionary of parameters to update. Keys must be valid parameter names.
+        """
+        if par:
+            self.check_parameters(par)
+            for key in par.keys():
+                setattr(self, key, par[key])
 
     def prepare_input(self):
         '''
@@ -99,15 +131,29 @@ class DO:
 
     # ---------------------------------------------------------------
     def run(self, par={}, x0=None, verbose=False):
-        '''
-        Integrate the damp oscillator system of equations
+        """
+        Run the damped oscillator simulation.
 
         Parameters
         ----------
-        par : dictionary
-            parameters to control the model parameters.
+        par : dict, optional
+            Dictionary of parameters to update for this simulation run.
+            Any parameter from the class documentation can be updated.
+        x0 : array-like, optional
+            Initial state vector [x0, y0] of length 2. If None, uses the 
+            initial state set during initialization.
+        verbose : bool, optional
+            If True, print verbose output during simulation. Default is False.
 
-        '''
+        Returns
+        -------
+        dict
+            Dictionary containing simulation results:
+            
+            - 't' : np.ndarray of shape (n_steps,) - time points
+            - 'x' : np.ndarray of shape (n_steps, 2) - simulated trajectories
+              where x[:, 0] is x(t) and x[:, 1] is y(t)
+        """
 
         if x0 is not None:
             assert(len(x0) == 2)

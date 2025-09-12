@@ -26,6 +26,7 @@ import numpy as np
 from numba.experimental import jitclass
 from numba import float64, types
 from numba import njit
+from typing import Any
 
 jit_spec = [('a', float64),
             ('b', float64),
@@ -238,7 +239,7 @@ def _integrate(x, P, intg=euler):
     return t, x_out
 
 
-class DO_nb:
+class DO:
     """
     Numba implementation of the damped oscillator model.
     
@@ -357,6 +358,24 @@ class DO_nb:
         
         return ""
 
+    def __call__(self, *args: Any, **kwds: Any) -> Any:
+        print("Damped Oscillator Model (Numba)")
+        print("-------------------------------")
+        
+        # Model parameters
+        print(f"a = {self.P.a}")
+        print(f"b = {self.P.b}")
+        
+        # Simulation parameters
+        print(f"dt = {self.P.dt}")
+        print(f"t_start = {self.P.t_start}")
+        print(f"t_end = {self.P.t_end}")
+        print(f"t_cut = {self.P.t_cut}")
+        print(f"method = {self.P.method}")
+        print(f"output = {self.P.output}")
+        print(f"initial_state = {self.P.initial_state}")
+        return self.P
+
     def check_parameters(self, par):
         """
         Validate model parameters.
@@ -409,7 +428,7 @@ class DO_nb:
             for key in par.keys():
                 setattr(self.P, key, par[key])
 
-    def run(self, par={}, x0=None):
+    def run(self, par={}, x0=None, verbose=False):
         """
         Run the damped oscillator simulation.
 
@@ -421,14 +440,16 @@ class DO_nb:
         x0 : array-like, optional
             Initial state vector [x0, y0] of length 2. If None, uses the 
             initial state set during initialization.
+        verbose : bool, optional
+            If True, print verbose output during simulation. Default is False.
 
         Returns
         -------
-        tuple
-            Tuple containing simulation results:
+        dict
+            Dictionary containing simulation results:
             
-            - t : np.ndarray of shape (n_steps,) - time points
-            - x : np.ndarray of shape (n_steps, 2) - simulated trajectories
+            - 't' : np.ndarray of shape (n_steps,) - time points
+            - 'x' : np.ndarray of shape (n_steps, 2) - simulated trajectories
               where x[:, 0] is x(t) and x[:, 1] is y(t)
         """
         self.update_par(par)
@@ -444,8 +465,10 @@ class DO_nb:
         elif method == "rk4":
             intg = rk4
         
-        return _integrate(self.P.initial_state, self.P, intg=intg)
+        t, x = _integrate(self.P.initial_state, self.P, intg=intg)
+        return {"t": t, "x": x}
 
 
 # Alias for consistency with naming convention
-DO_nb_numba = DO_nb
+DO_nb_numba = DO
+DO = DO
