@@ -112,6 +112,12 @@ User Guide
 
 .. toctree::
    :maxdepth: 2
+   :caption: Publications & Citations:
+
+   publication
+
+.. toctree::
+   :maxdepth: 2
    :caption: Brain Models:
 
    models
