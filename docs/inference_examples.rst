@@ -46,6 +46,7 @@ CDE-Based Inference (Lightweight)
 
    examples/inference_cde_mdn_basic
    examples/inference_cde_maf_basic
+   examples/damp_oscillator_cde
 
 **When to use CDE:**
 
