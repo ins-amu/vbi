@@ -55,7 +55,7 @@ For detailed installation instructions including:
 - **Platform-specific guides** (Google Colab, EBRAINS)
 - **Troubleshooting**
 
-See our comprehensive [Installation Guide](https://vbi.readthedocs.io/en/latest/#installation) in the documentation.
+See our comprehensive [Installation Guide](https://vbi.readthedocs.io/latest/installation.html) in the documentation.
 
 ### Quick Verification
 
@@ -90,7 +90,7 @@ vbi.test_imports()
 
 - **📚 [Documentation](https://vbi.readthedocs.io/latest/)** - Complete guides and API reference
 - **🎯 [Examples](https://github.com/ins-amu/vbi/tree/main/docs/examples)** - Jupyter notebooks with tutorials
-- **🚀 [Quick Start](https://vbi.readthedocs.io/en/latest/examples_overview.html)** - Choose your computational backend
+- **🚀 [Quick Start](https://vbi.readthedocs.io/latest/examples_overview.html)** - Choose your computational backend
 
 
 ## Feedback and Contributions
