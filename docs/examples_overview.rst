@@ -30,6 +30,7 @@ CPU-based simulations using numba for acceleration:
 .. toctree::
    :maxdepth: 1
 
+   examples/do_nb
    examples/vep_sde_numba
    examples/mpr_sde_numba
    examples/jansen_rit_sde_numba
@@ -59,6 +60,7 @@ High-performance simulations using C++ backend:
    :maxdepth: 1
 
    examples/do_cpp
+   examples/vep_sde
    examples/mpr_sde_cpp
    examples/jansen_rit_sde_cpp
 
@@ -68,8 +70,6 @@ High-performance simulations using C++ backend:
 .. toctree::
    :maxdepth: 1
 
-   examples/do_nb
-   examples/vep_sde
    examples/mpr_tvbk
    examples/ww_sde_torch_kong
 
@@ -114,5 +114,6 @@ Installation Notes
 ------------------
 
 - **Light version** (``pip install vbi``): Includes numba examples
+- **Light + GPU version** (``pip install vbi[light-gpu]``): Includes CuPy support
 - **Full version** (``pip install vbi[inference]``): Includes all backends
 - **GPU version** (``pip install vbi[inference-gpu]``): Includes CuPy support
