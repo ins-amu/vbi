@@ -20,8 +20,9 @@ Install VBI:
 .. code-block:: bash
 
     pip install vbi                    # Light version (CPU only)
+    pip install vbi[light-gpu]         # Light + Cupy
     pip install vbi[inference]         # With (sbi, PyTorch)
-    pip install vbi[all]               # Full (sbi, PyTorch, Cupy for GPU)
+    pip install vbi[all]               # Full (sbi, PyTorch, Cupy)
 
 Installation Options
 --------------------
@@ -35,11 +36,14 @@ Installation Options
      - **Best For**
    * - ``pip install vbi``
      - CPU simulation, feature extraction, CDE-based inference
-     - Learning, basic usage
+     - Avoiding heavy dependencies
+   * - ``pip install vbi[light-gpu]``
+     - Everything + Cupy
+     - GPU simulation
    * - ``pip install vbi[inference]``
      - Everything + PyTorch, SBI
      - Parameter inference (CPU)
-   * - ``pip install vbi[all]``
+   * - ``pip install vbi[inference-gpu]``
      - Everything + GPU acceleration
      - Full functionality with GPU
 
