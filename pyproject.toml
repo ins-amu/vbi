@@ -34,10 +34,10 @@ dependencies = [
     "tqdm",
     "parameterized",
     "scikit-learn",
-    "pycatch22",
     "pytest",
     "swig",
-    "rich"
+    "rich",
+    "corner"
 ]
 classifiers = [
     "Programming Language :: Python :: 3",
@@ -95,11 +95,12 @@ docs = [
     "sphinx_bootstrap_theme",
 ]
 
-# All dependencies (torch, cupy, sbi, dev tools, docs, notebooks)
+# All dependencies (torch, cupy, sbi, features, dev tools, docs, notebooks)
 all = [
     "sbi",
     "torch",
     "cupy",
+    "pycatch22",
     "sphinx",
     "numpydoc",
     "nbformat",

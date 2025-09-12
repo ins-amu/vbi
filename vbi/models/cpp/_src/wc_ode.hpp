@@ -99,6 +99,7 @@ public:
         double g_i = 0.0,
         int fix_seed = 0)
     {
+        (void)fix_seed; // Mark as intentionally unused
         this->N = N;
         this->dt = dt;
         this->c_ee = c_ee;
@@ -153,6 +154,7 @@ public:
              dim1 &dydt,
              const double dt)
     {
+        (void)dt; // Mark as intentionally unused
         dim1 lc_e(N);
         dim1 lc_i(N);
         double thr = 1e-6;
@@ -196,7 +198,7 @@ public:
         {
             euler_step(y, dt);
             times[ind] = i * dt;
-            for (size_t j = 0; j < 2 * N; ++j)
+            for (size_t j = 0; j < 2 * static_cast<size_t>(N); ++j)
                 states[ind][j] = y[j];
             ind++;
         }
@@ -207,10 +209,10 @@ public:
         dim1 dydt(2 * N);
         dim1 tmp(2 * N);
         rhs(y, dydt, dt);
-        for (size_t i = 0; i < 2 * N; ++i)
+        for (size_t i = 0; i < 2 * static_cast<size_t>(N); ++i)
             tmp[i] = y[i] + dt * dydt[i];
         rhs(tmp, dydt, dt);
-        for (size_t i = 0; i < 2 * N; ++i)
+        for (size_t i = 0; i < 2 * static_cast<size_t>(N); ++i)
             y[i] += 0.5 * dt * (dydt[i] + dydt[i]);
     }
 
@@ -229,7 +231,7 @@ public:
         {
             heun_step(y, dt);
             times[ind] = i * dt;
-            for (size_t j = 0; j < 2 * N; ++j)
+            for (size_t j = 0; j < 2 * static_cast<size_t>(N); ++j)
                 states[ind][j] = y[j];
             ind++;
         }
@@ -246,16 +248,16 @@ public:
         double dt_over_6 = dt / 6.0;
 
         rhs(y, k1, dt);
-        for (size_t i = 0; i < 2 * N; ++i)
+        for (size_t i = 0; i < 2 * static_cast<size_t>(N); ++i)
             tmp[i] = y[i] + 0.5 * dt * k1[i];
         rhs(tmp, k2, dt);
-        for (size_t i = 0; i < 2 * N; ++i)
+        for (size_t i = 0; i < 2 * static_cast<size_t>(N); ++i)
             tmp[i] = y[i] + 0.5 * dt * k2[i];
         rhs(tmp, k3, dt);
-        for (size_t i = 0; i < 2 * N; ++i)
+        for (size_t i = 0; i < 2 * static_cast<size_t>(N); ++i)
             tmp[i] = y[i] + dt * k3[i];
         rhs(tmp, k4, dt);
-        for (size_t i = 0; i < 2 * N; ++i)
+        for (size_t i = 0; i < 2 * static_cast<size_t>(N); ++i)
             y[i] += dt_over_6 * (k1[i] + 2.0 * k2[i] + 2.0 * k3[i] + k4[i]);
     }
 
@@ -274,7 +276,7 @@ public:
         {
             rk4_step(y, dt);
             times[ind] = i * dt;
-            for (size_t j = 0; j < 2 * N; ++j)
+            for (size_t j = 0; j < 2 * static_cast<size_t>(N); ++j)
                 states[ind][j] = y[j];
             ind++;
         }

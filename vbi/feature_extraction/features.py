@@ -26,7 +26,9 @@ from vbi.feature_extraction.features_utils import (
     spectral_centroid,
     spectral_variation,
     spectral_kurtosis,
-    median_frequency
+    median_frequency,
+    _check_ssm_available,
+    _check_jpype_available
 )
 
 from typing import List, Tuple, Dict
@@ -39,15 +41,16 @@ except AttributeError:
     # NumPy < 1.22
     trapz_func = np.trapz
 
+# Optional dependencies are handled in features_utils
 try:
     import ssm
-except:
-    pass
+except ImportError:
+    ssm = None
 
 try:
     import jpype as jp
-except:
-    pass
+except ImportError:
+    jp = None
 
 
 def abs_energy(ts: np.ndarray, indices: List[int] = None, verbose=False):
@@ -739,6 +742,27 @@ def kop(ts: np.ndarray, indices: List[int] = None, verbose=False, extract_phase=
     """
     Calculate the Kuramoto order parameter (KOP)
 
+    The Kuramoto order parameter measures the synchronization level in a system
+    of coupled oscillators. Values close to 1 indicate high synchronization,
+    while values close to 0 indicate low synchronization.
+
+    Parameters
+    ----------
+    ts : np.ndarray [n_regions x n_samples]
+        Input time series data
+    indices : List[int], optional
+        Indices of the time series to compute the feature
+    verbose : bool, optional
+        Whether to print error messages
+    extract_phase : bool, optional
+        If True, extract phase information using Hilbert transform before computing KOP
+
+    Returns
+    -------
+    values : list of float
+        Kuramoto order parameter values
+    labels : list of str
+        Labels of the features
     """
 
     info, ts = prepare_input_ts(ts, indices)
@@ -802,7 +826,29 @@ def calc_envelope(
     verbose=False,
 ):
     """
-    calculate some statistics on envelope of the time series using hilbert transform
+    Calculate statistics on the envelope of time series using Hilbert transform.
+
+    This function computes the analytic signal using Hilbert transform and extracts
+    statistics from both the amplitude envelope and instantaneous phase.
+
+    Parameters
+    ----------
+    ts : np.ndarray [n_regions x n_samples]
+        Input time series data
+    indices : List[int], optional
+        Indices of the time series to compute the feature
+    features : List[str], optional
+        List of statistical features to compute on envelope
+        Options: ["mean", "std", "median", "max", "min"]
+    verbose : bool, optional
+        Whether to print error messages
+
+    Returns
+    -------
+    values : array-like
+        Computed envelope statistics
+    labels : array-like
+        Labels of the features
     """
     
     from numpy import mean, std, median, max, min
@@ -1026,22 +1072,30 @@ def fc_homotopic(
 
 def coactivation_degree(ts: np.ndarray, modality="noncor"):
     """
-    calculate coactivation degree (CAD) #!TODO not tested
+    Calculate coactivation degree (CAD). #! TODO need testing
+
+    Coactivation degree measures the temporal co-fluctuation of brain regions
+    by computing the instantaneous product of regional activity with a global signal.
 
     Parameters
     ----------
-    ts: np.ndarray [n_regions, n_samples]
-        input array
-    modality: str
+    ts : np.ndarray [n_regions, n_samples]
+        Input time series array
+    modality : str, optional
+        Modality for global signal computation
+        - "noncor": Exclude current region from global signal (default)
+        - "cor": Include all regions in global signal
 
     Returns
     -------
-    values: array-like
-        coactivation degree
-    labels: array-like
-        labels of the features
+    values : list
+        Coactivation degree values for each region-timepoint pair
+    labels : list
+        Labels of the features (empty list as this returns raw values)
 
-
+    Notes
+    -----
+    This function is currently under development and testing.
     """
     nn, nt = ts.shape
     ts = stats.zscore(ts, axis=1)
@@ -1058,16 +1112,26 @@ def coactivation_degree(ts: np.ndarray, modality="noncor"):
 
 def coactivation_phase(ts):
     """
-    calculate the coactivation phase (CAP) #!TODO not tested
+    Calculate the coactivation phase (CAP). # ! TODO need testing
+
+    Coactivation phase measures the phase relationship between regional signals
+    and the global signal using Hilbert transform to extract instantaneous phases.
 
     Parameters
     ----------
-    ts: np.ndarray [n_regions, n_samples]
-        input array
+    ts : np.ndarray [n_regions, n_samples]
+        Input time series array
 
     Returns
     -------
-    CAP: list
+    CAP : list
+        Mean phase differences between regional and global signals
+
+    Notes
+    -----
+    This function is currently under development and testing.
+    The function computes instantaneous phases using Hilbert transform
+    and calculates the mean phase difference for each region.
     """
 
     if isinstance(ts, (list, tuple)):
@@ -1209,6 +1273,8 @@ def calc_mi(
         labels of the features
     """
 
+    _check_jpype_available()
+    
     num_surrogates = kwargs.get("num_surrogates", 0)
 
     if not isinstance(ts, np.ndarray):
@@ -1291,6 +1357,8 @@ def calc_te(
         transfer entropy
     """
 
+    _check_jpype_available()
+    
     num_surrogates = kwargs.get("num_surrogates", 0)
 
     info, ts = prepare_input_ts(ts)
@@ -1343,7 +1411,27 @@ def calc_te(
 
 def calc_entropy(ts: np.ndarray, average: bool = False, verbose=False):
     """
-    calculate entropy of time series
+    Calculate entropy of time series using Kozachenko-Leonenko estimator.
+
+    This function computes the differential entropy of the time series data
+    using the Kozachenko-Leonenko k-nearest neighbor entropy estimator.
+
+    Parameters
+    ----------
+    ts : np.ndarray [n_regions x n_samples]
+        Input time series data
+    average : bool, optional
+        If True, compute average entropy across all regions
+        If False, compute entropy for each region separately
+    verbose : bool, optional
+        Whether to print error messages
+
+    Returns
+    -------
+    values : list of float or float
+        Entropy values in bits
+    labels : list of str or str
+        Labels of the features
     """
 
     if not isinstance(ts, np.ndarray):
@@ -1359,6 +1447,8 @@ def calc_entropy(ts: np.ndarray, average: bool = False, verbose=False):
         n = ts.shape[0]
         return [np.nan] * n, labels
 
+    _check_jpype_available()
+    
     init_jvm()
 
     calcClass = jp.JPackage(
@@ -1457,7 +1547,7 @@ def spectrum_stats(
         "spectral_distance",
         "fundamental_frequency",
         "max_frequency",
-        "max_psd"
+        "max_psd",
         "median_frequency",
         "spectral_centroid",
         "spectral_kurtosis",
@@ -1465,25 +1555,37 @@ def spectrum_stats(
     ],
 ):
     """
-    compute some statistics of the power spectrum of the time series.
+    Compute various statistics of the power spectrum of time series.
+
+    This function calculates multiple spectral features including spectral distance,
+    fundamental frequency, maximum frequency, maximum PSD, median frequency,
+    spectral centroid, spectral kurtosis, and spectral variation.
 
     Parameters
     ----------
-    ts : nd-array [n_regions x n_samples]
-       Input from which power spectrum statistics are computed
+    ts : np.ndarray [n_regions x n_samples]
+        Input time series from which power spectrum statistics are computed
     fs : float
-        Sampling frequency
-    method : str
-        Method to compute the power spectrum. Can be 'welch' or 'fft'
-    indices: list of int
-        indices of the regions to be used
+        Sampling frequency in Hz
+    method : str, optional
+        Method to compute the power spectrum. Options: 'welch', 'fft' (default: 'fft')
+    nperseg : int, optional
+        Length of each segment for Welch method. If None, uses half the time series length
+    verbose : bool, optional
+        Whether to print error messages
+    indices : List[int], optional
+        Indices of the regions to be used. If None, all regions are used
+    average : bool, optional
+        If True, average PSD across regions before computing features
+    features : List[str], optional
+        List of spectral features to compute
 
     Returns
     -------
-    values: array-like
-        power spectrum statistics of the time series
-    labels: array-like
-        labels of the features
+    values : array-like
+        Computed power spectrum statistics
+    labels : array-like
+        Labels of the features
     """
 
     info, ts = prepare_input_ts(ts, indices)
@@ -1812,8 +1914,8 @@ def wavelet_abs_mean_1d(ts, function=None, widths=np.arange(1, 10), verbose=Fals
 
 
 def wavelet_abs_mean(ts, function=None, widths=np.arange(1, 10), verbose=False):
-    '''
-    """Computes CWT absolute mean value of each wavelet scale.
+    """
+    Computes CWT absolute mean value of each wavelet scale.
 
     Parameters
     ----------
@@ -1831,7 +1933,7 @@ def wavelet_abs_mean(ts, function=None, widths=np.arange(1, 10), verbose=False):
         CWT absolute mean value of the time series
     labels: array-like
         labels of the features
-    '''
+    """
     
     if function is None:
         function = scipy.signal.ricker
@@ -1993,42 +2095,51 @@ def hmm_stat(
     verbose=False,
 ):
     """
-    Calculate the state duration of the HMM.
+    Calculate Hidden Markov Model (HMM) statistics including state durations and transition matrix.
+
+    This function fits an HMM to the time series data and extracts features
+    related to state durations and transition probabilities.
 
     Parameters
     ----------
     ts : nd-array [n_regions x n_samples]
-        Input from which HMM is computed
-    node_indices : list
-        List of node indices to be used for HMM
-    n_states : int
-        Number of states
-    subname : str
-        subname for the labels
-    n_iter : int
-        Number of iterations
-    seed : int
-        Random seed
-    observations : str
-        Observation distribution
-    method : str
-        Method to fit the HMM
-    t_cut : int
-        maximum duration of a state, default is 5
+        Input time series from which HMM features are computed
+    node_indices : list, optional
+        List of node indices to be used for HMM fitting
+        If None, all nodes are used
+    n_states : int, optional
+        Number of hidden states (default: 4)
+    subname : str, optional
+        Substring to add to feature labels
+    n_iter : int, optional
+        Number of EM iterations for fitting (default: 100)
+    seed : int, optional
+        Random seed for reproducibility
+    observations : str, optional
+        Observation distribution type (default: "gaussian")
+    method : str, optional
+        Method to fit the HMM (default: "em")
+    tcut : int, optional
+        Maximum duration of a state for histogram (default: 5)
+    bins : int, optional
+        Number of bins for state duration histogram (default: 10)
+    verbose : bool, optional
+        Whether to print verbose output
 
     Returns
     -------
     stat_vec : array-like
-        HMM features
+        Concatenated HMM features (state durations + transition matrix)
     labels : array-like
-        labels of the features
-
+        Labels of the features
     """
 
+    _check_ssm_available()
+    
     if seed is not None:
         np.random.seed(seed)
 
-    info, ts = prepare_input_ts(ts, indices)
+    info, ts = prepare_input_ts(ts)
     if not info:
         return [np.nan], [f"hmm_dur"]
     else:
@@ -2104,9 +2215,19 @@ def catch22(
     try:
         import catch22_C
     except ImportError:
-        raise ImportError(
-            "pycatch22 is not installed. Please install it using `pip install pycatch22`"
+        import warnings
+        warnings.warn(
+            "pycatch22 is not installed or failed to compile. "
+            "Install with `pip install pycatch22` or `pip install vbi[features]` "
+            "to enable Catch22 features. Returning NaN values.",
+            UserWarning
         )
+        # Return NaN values for all requested features
+        nf = 22 if not catch24 else 24
+        if indices is None:
+            return [np.nan] * nf, [f"catch22_{i}" for i in range(nf)]
+        else:
+            return [np.nan] * (len(indices) * nf), [f"catch22_{i}_node_{j}" for i in range(nf) for j in indices]
         
     if catch24:
         features = features.copy()

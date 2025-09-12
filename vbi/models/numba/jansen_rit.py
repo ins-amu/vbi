@@ -286,6 +286,7 @@ def integrate(P):
     -------
     dict
         Dictionary with keys:
+        
         - 't': np.ndarray of time points (decimated)
         - 'x': np.ndarray of shape (n_steps, nn) containing the output
           time series (y - z) representing local field potentials

@@ -41,10 +41,42 @@ jit_spec = [('a', float64),
 @jitclass(jit_spec)
 class Param:
     """
-    Numba jitclass for storing damped oscillator parameters.
+    Parameter container for the damped oscillator model.
     
-    This class is compiled by Numba for efficient parameter access
-    during numerical integration.
+    A Numba-compiled parameter class that stores all model parameters
+    for efficient access during numerical integration. This class is
+    optimized for high-performance computing with Numba JIT compilation.
+    
+    Parameters
+    ----------
+    a : float, default 0.1
+        Damping parameter for x equation (ax² term).
+    b : float, default 0.05  
+        Damping parameter for y equation (by² term).
+    dt : float, default 0.01
+        Integration time step.
+    t_start : float, default 0
+        Start time for integration.
+    t_end : float, default 100.0
+        End time for integration.
+    t_cut : float, default 20
+        Initial time to discard (burn-in period).
+    output : str, default "output"
+        Output directory name.
+    method : str, default "euler"
+        Integration method ("euler", "heun", or "rk4").
+    initial_state : np.ndarray, default [0.5, 1.0]
+        Initial conditions [x0, y0].
+        
+    Notes
+    -----
+    This class is compiled by Numba for efficient parameter access.
+    The damped oscillator equations are:
+    
+    .. math::
+        \\frac{dx}{dt} = x - xy - ax^2
+        
+        \\frac{dy}{dt} = xy - y - by^2
     """
     def __init__(self,
                  a=0.1,

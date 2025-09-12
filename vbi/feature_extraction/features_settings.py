@@ -33,17 +33,19 @@ def get_features_by_domain(domain=None, json_path=None):
 
     Parameters
     ----------
-    domain : string or list of strings
-        Domain of features to extract, including:
-        'temporal',
-        'statistical',
-        'connectivity',
-        'spectral',
-        'hmm',
-        'catch22',
-        'information'
-    path : string (optional)
-        Path to json file, if None, the default json file is used
+    domain : list of strings or None, optional
+        List of domains of features to extract. If None, all domains are returned.
+        Valid domains are: 'hmm', 'spectral', 'connectivity', 'temporal', 
+        'statistical', 'information', 'catch22'.
+    json_path : string or None, optional
+        Path to json file containing feature definitions. If None, uses the 
+        default features.json file in the package.
+
+    Returns
+    -------
+    dict
+        Dictionary of features filtered by the specified domain(s). Keys are 
+        domain names, values are dictionaries of features in that domain.
     """
     _domains = [
         "hmm",
@@ -81,7 +83,28 @@ def get_features_by_domain(domain=None, json_path=None):
 
 def get_features_by_given_names(cfg, names=None):
     """
-    filter features by given names from cfg (a dictionary of features)
+    Filter features by given names from cfg (a dictionary of features).
+
+    Parameters
+    ----------
+    cfg : dict
+        Dictionary of features organized by domain. Each domain contains 
+        features as key-value pairs.
+    names : list of strings, tuple of strings, string, or None, optional
+        Names of features to extract. Can be a single name (string) or 
+        multiple names (list/tuple). If None, returns the original cfg.
+        Names are case-insensitive.
+
+    Returns
+    -------
+    dict
+        Dictionary of features filtered by the specified names. Structure 
+        matches input cfg but only contains features with matching names.
+        
+    Notes
+    -----
+    If a feature name is not found in the available features, a warning 
+    message is printed but processing continues.
     """
 
     cfg = deepcopy(cfg)
@@ -118,10 +141,24 @@ def get_features_by_tag(tag=None, json_path=None):  #! TODO: not tested
 
     Parameters
     ----------
-    tag : string
-        Tag of features to extract
-    path : string
-        Path to json file
+    tag : string or None, optional
+        Tag of features to extract. Valid tags include "fmri", "audio", 
+        "eeg", "ecg". If None, returns all features.
+    json_path : string or None, optional
+        Path to json file containing feature definitions. If None, uses 
+        the default features.json file in the package.
+
+    Returns
+    -------
+    dict
+        Dictionary of features filtered by the specified tag. Keys are 
+        domain names, values are dictionaries of features in that domain 
+        that match the tag. Empty domains are removed from the result.
+        
+    Raises
+    ------
+    SystemExit
+        If tag is not one of the valid options: "audio", "eeg", "ecg", or None.
     """
 
     available_tags = ["fmri", "audio", "eeg", "ecg", None]
@@ -226,14 +263,29 @@ def add_feature(
 
 def add_features_from_json(json_path, features_path, fea_dict={}):
     """
-    add features from json file to cfg
+    Add features from json file to cfg dictionary.
 
     Parameters
     ----------
-    cfg : dictionary
-        Dictionary of features, if empty, a new dictionary is created
     json_path : string
-        Path to json file
+        Path to json file containing feature definitions to load.
+    features_path : string or module
+        Path to the module containing the feature functions, or the 
+        module object itself.
+    fea_dict : dict, optional
+        Dictionary of features to add to. If empty, a new dictionary 
+        is created. Default is {}.
+
+    Returns
+    -------
+    dict
+        Dictionary containing all features from the json file added to 
+        the input fea_dict.
+        
+    Notes
+    -----
+    TODO: Check if features already exist in fea_dict to avoid conflicts.
+    TODO: Check for conflicts in parameters and function definitions.
     """
 
     #! TODO: if fea_dict is not empty, check if the feature is already in the dict
@@ -277,6 +329,31 @@ def add_features_from_json(json_path, features_path, fea_dict={}):
 
 
 class Data_F(object):
+    """
+    Data container class for feature extraction results.
+    
+    A simple container to store feature values along with their labels 
+    and additional information.
+
+    Parameters
+    ----------
+    values : array-like or None, optional
+        Feature values, typically a numpy array or list. Default is None.
+    labels : array-like or None, optional  
+        Labels corresponding to the feature values. Default is None.
+    info : dict or None, optional
+        Additional information about the features (e.g., parameters used,
+        feature names, etc.). Default is None.
+
+    Attributes
+    ----------
+    values : array-like or None
+        The feature values.
+    labels : array-like or None
+        The feature labels.
+    info : dict or None
+        Additional feature information.
+    """
     def __init__(self, values=None, labels=None, info=None):
         self.values = values
         self.labels = labels
@@ -291,23 +368,29 @@ class Data_F(object):
 
 def update_cfg(cfg: dict, name: str, parameters: dict):
     """
-    Set parameters of a feature
+    Set parameters of a feature in the configuration dictionary.
 
     Parameters
     ----------
-    cfg : dictionary
-        Dictionary of features
-    domain : string
-        Domain of the feature
-    name : string
-        Name of the feature
-    parameters : dictionary
-        Parameters of the feature
+    cfg : dict
+        Dictionary of features organized by domain. Each domain contains 
+        features as key-value pairs.
+    name : str
+        Name of the feature to update.
+    parameters : dict
+        Parameters as key-value pairs to set for the feature.
 
     Returns
     -------
-    cfg : dictionary
-        Updated dictionary of features
+    dict
+        Updated dictionary of features with the specified feature's 
+        parameters modified.
+        
+    Notes
+    -----
+    This function searches through all domains to find the feature by name
+    and updates its parameters. If the feature is not found, the cfg is
+    returned unchanged.
     """
     # find domain of giving feature
     domain = None
@@ -330,6 +413,25 @@ def update_cfg(cfg: dict, name: str, parameters: dict):
 
 # not used in the code
 def select_features_by_domain(module_name, domain):
+    """
+    Select functions from a module that belong to a specific domain.
+    
+    Note: This function is not currently used in the codebase.
+
+    Parameters
+    ----------
+    module_name : str
+        Name of the module to inspect for functions.
+    domain : str
+        Domain name to filter functions by. Functions must have a 
+        'domain' attribute containing this value.
+
+    Returns
+    -------
+    list
+        List of function objects that have the specified domain in 
+        their 'domain' attribute.
+    """
     selected_functions = []
     module = importlib.import_module(module_name)
     functions = inspect.getmembers(module, inspect.isfunction)
@@ -344,6 +446,25 @@ def select_features_by_domain(module_name, domain):
 
 # not used in the code
 def select_functions_by_tag(module_name, tag):
+    """
+    Select functions from a module that have a specific tag.
+    
+    Note: This function is not currently used in the codebase.
+
+    Parameters
+    ----------
+    module_name : str
+        Name of the module to inspect for functions.
+    tag : str
+        Tag name to filter functions by. Functions must have a 
+        'tag' attribute containing this value.
+
+    Returns
+    -------
+    list
+        List of function objects that have the specified tag in 
+        their 'tag' attribute.
+    """
 
     selected_functions = []
     module = importlib.import_module(module_name)
@@ -359,6 +480,29 @@ def select_functions_by_tag(module_name, tag):
 
 # not used in the code
 def select_functions_by_domain_and_tag(module_name, domain=None, tag=None):
+    """
+    Select functions from a module that match both domain and tag criteria.
+    
+    Note: This function is not currently used in the codebase.
+
+    Parameters
+    ----------
+    module_name : str
+        Name of the module to inspect for functions.
+    domain : str or None, optional
+        Domain name to filter functions by. Functions must have a 
+        'domain' attribute containing this value.
+    tag : str or None, optional
+        Tag name to filter functions by. Functions must have a 
+        'tag' attribute containing this value.
+
+    Returns
+    -------
+    list
+        List of function objects that have both the specified domain 
+        in their 'domain' attribute and the specified tag in their 
+        'tag' attribute.
+    """
     selected_functions = []
 
     module = importlib.import_module(module_name)

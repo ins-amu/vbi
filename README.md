@@ -18,122 +18,79 @@
 ## Installation
 
 ### Quick Start
+
 ```bash
-conda env create --name vbi python=3.10
+# Create conda environment (recommended)
+conda create --name vbi python=3.10
 conda activate vbi
+
+# Install VBI
+pip install vbi                    # Light version (CPU only)
+pip install vbi[inference]         # With parameter inference
+pip install vbi[inference-gpu]     # Full functionality with GPU support
 ```
 
 ### Installation Options
 
-VBI offers flexible installation options for different use cases:
+- **`pip install vbi`** - Light version with CPU simulation only  
+- **`pip install vbi[inference]`** - Adds parameter inference capabilities  
+- **`pip install vbi[inference-gpu]`** - Full functionality with GPU acceleration  
+
+### Using Docker
 
 ```bash
-# Light version - CPU simulation only (numba + C++), without PyTorch and CuPy
-# Includes: Brain simulation models, feature extraction, visualization
-# Best for: Users who only need simulation capabilities, minimal dependencies
-pip install vbi
+# Quick start with pre-built image
+docker run --rm -it -p 8888:8888 ghcr.io/ins-amu/vbi:main
 
-# Light version with GPU acceleration (adds CuPy)
-# Includes: Everything in light + CuPy for GPU-accelerated simulations
-# Best for: GPU users who want fast simulations but don't need inference
-pip install vbi[light-gpu]
-
-# Parameter inference (CPU) - adds PyTorch and SBI
-# Includes: Everything in light + PyTorch (CPU) + SBI for Bayesian inference
-# Best for: Users who need parameter estimation but don't have GPU
-pip install vbi[inference]
-
-# Parameter inference with GPU - adds PyTorch, SBI, and CuPy
-# Includes: Full functionality with GPU acceleration for both simulation and inference
-# Best for: GPU users who need both fast simulation and parameter inference
-pip install vbi[inference-gpu]
-
-# All features - complete installation
-# Includes: All above + documentation tools, development dependencies
-# Best for: Developers, researchers who want all functionality
-pip install vbi[all]
+# With GPU support
+docker run --gpus all --rm -it -p 8888:8888 ghcr.io/ins-amu/vbi:main
 ```
 
-### From Source
-```bash
-git clone https://github.com/ins-amu/vbi.git
-cd vbi
-pip install .
+### Other Installation Methods
 
-# Development installation with all dependencies
-pip install -e .[all]
+For detailed installation instructions including:
+- **Installing from source**
+- **Windows-specific installation**  
+- **Building Docker locally**
+- **Platform-specific guides** (Google Colab, EBRAINS)
+- **Troubleshooting**
 
-# To skip C++ compilation, use:
-SKIP_CPP=1 pip install -e . 
-```
+See our comprehensive [Installation Guide](https://vbi.readthedocs.io/en/latest/#installation) in the documentation.
 
-## Using Docker
-
-To use the Docker image, you can pull it from the GitHub Container Registry and run it as follows:
-
-```bash
-    # Get it without building anything locally
-    # without GPU
-    docker run --rm -it -p 8888:8888 ghcr.io/ins-amu/vbi:main
-
-    # with GPU
-    docker run --gpus all --rm -it -p 8888:8888 ghcr.io/ins-amu/vbi:main
-```
-
-## Building and Using Docker Locally
-
-For local development and customization, you can build the VBI Docker image yourself:
-
-**Quick Start:**
-
-```bash
-    # Build the optimized image
-    docker build -t vbi:latest .
-    
-    # Start with convenience script
-    ./run-vbi.sh start
-    
-    # Or start manually
-    docker run --gpus all -p 8888:8888 vbi:latest
-```
-
-**Complete Guides:**
-
-- [Docker Build Guide](docs/docker_build.rst) - Comprehensive building guide with optimizations and troubleshooting
-- [Docker Quickstart](docs/docker_quickstart.rst) - Quick reference for daily usage and container management    
-
-- Quick check :
+### Quick Verification
 
 ```python
-
-    import vbi
-    vbi.tests()
-    vbi.test_imports()
-
-    
-  #              Dependency Check              
-  #                                         
-  #  Package      Version       Status        
-  #━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 
-  #  vbi          v0.1.3        ✅ Available  
-  #  numpy        1.24.4        ✅ Available  
-  #  scipy        1.10.1        ✅ Available  
-  #  matplotlib   3.7.5         ✅ Available  
-  #  sbi          0.22.0        ✅ Available  
-  #  torch        2.4.1+cu121   ✅ Available  
-  #  cupy         12.3.0        ✅ Available  
-  #                                          
-  #  Torch GPU available: True
-  #  Torch device count: 1
-  #  Torch CUDA version: 12.1
-  #  CuPy GPU available: True
-  #  CuPy device count: 1
-  #  CUDA Version: 11.8
-  #  Device Name: NVIDIA RTX A5000
-  #  Total Memory: 23.68 GB
-  #  Compute Capability: 8.6
-
+import vbi
+vbi.tests()
+vbi.test_imports()
 ```
+
+**Example output:**
+```
+              Dependency Check              
+                                         
+  Package      Version       Status        
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 
+  vbi          v0.2.1        ✅ Available  
+  numpy        1.24.4        ✅ Available  
+  scipy        1.10.1        ✅ Available  
+  matplotlib   3.7.5         ✅ Available  
+  sbi          0.22.0        ✅ Available  
+  torch        2.4.1+cu121   ✅ Available  
+  cupy         12.3.0        ✅ Available  
+                                          
+  Torch GPU available: True
+  Torch device count: 1
+  Torch CUDA version: 12.1
+  CuPy GPU available: True
+  CuPy device count: 1
+```
+
+## Getting Started
+
+- **📚 [Documentation](https://vbi.readthedocs.io/latest/)** - Complete guides and API reference
+- **🎯 [Examples](https://github.com/ins-amu/vbi/tree/main/docs/examples)** - Jupyter notebooks with tutorials
+- **🚀 [Quick Start](https://vbi.readthedocs.io/en/latest/examples_overview.html)** - Choose your computational backend
 
 
 ## Feedback and Contributions

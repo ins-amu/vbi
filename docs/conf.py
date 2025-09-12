@@ -43,6 +43,37 @@ autodoc_member_order = "bysource"
 graphviz_output_format = "svg"
 toc_object_entries_show_parents = "hide"
 
+# Autodoc configuration for better handling of Numba classes
+autodoc_default_options = {
+    'members': True,
+    'member-order': 'bysource',
+    'special-members': '__init__',
+    'undoc-members': True,
+    'exclude-members': '__weakref__'
+}
+
+# Custom autodoc processing for Numba jitclass
+def autodoc_skip_member(app, what, name, obj, skip, options):
+    """Skip certain members in autodoc to clean up Numba class documentation."""
+    # Skip the class_type attribute that Numba adds
+    if name == 'class_type':
+        return True
+    # Skip internal Numba attributes
+    if name.startswith('_numba_'):
+        return True
+    # Skip other unwanted Numba internal attributes
+    if name in ['__dict__', '__weakref__', '_type', '_literal_value']:
+        return True
+    return skip
+
+def process_docstring(app, what, name, obj, options, lines):
+    """Process docstrings to clean up Numba class documentation."""
+    if what == "class" and hasattr(obj, 'class_type'):
+        # This is a Numba jitclass, clean up the docstring
+        if lines and 'jitclass' in str(lines[0]):
+            # Replace jitclass type info with cleaner description
+            lines[0] = "Numba-compiled parameter class for efficient computation."
+
 
 def on_missing_reference(app, env, node, contnode):
     if node["reftype"] == "any":
@@ -53,6 +84,8 @@ def on_missing_reference(app, env, node, contnode):
 
 def setup(app):
     app.connect("missing-reference", on_missing_reference)
+    app.connect("autodoc-skip-member", autodoc_skip_member)
+    app.connect("autodoc-process-docstring", process_docstring)
 
     # cpp_src = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "vbi", "models", "cpp", "_src"))
     # try:

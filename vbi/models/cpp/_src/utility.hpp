@@ -7,10 +7,26 @@
 #include <assert.h>
 #include <iostream>
 #include <algorithm>
-#include <sys/stat.h>
-#include <unistd.h>
-#include <sys/time.h>
-#include <sys/resource.h>
+
+// Platform-specific includes
+#ifdef _WIN32
+    #include <windows.h>
+    #include <psapi.h>
+    #include <io.h>
+    #include <direct.h>
+    #include <sys/stat.h>
+    #pragma comment(lib, "psapi.lib")
+    // Windows doesn't define S_IFDIR in the same way
+    #ifndef S_IFDIR
+        #define S_IFDIR _S_IFDIR
+    #endif
+#else
+    #include <sys/stat.h>
+    #include <unistd.h>
+    #include <sys/time.h>
+    #include <sys/resource.h>
+#endif
+
 // #include <Eigen/Dense>
 
 using std::string;
@@ -36,7 +52,7 @@ bool folderExists(const std::string &path)
     struct stat st;
     if (stat(path.c_str(), &st) == 0)
     {
-        if (st.st_mode & S_IFDIR != 0)
+        if ((st.st_mode & S_IFDIR) != 0)
             return true;
         else
             return false;
@@ -52,12 +68,12 @@ std::vector<std::vector<unsigned>> adjmat_to_adjlist(const dim2 &A)
     std::vector<std::vector<unsigned>> adjlist;
     adjlist.resize(n);
 
-    for (int i = 0; i < n; ++i)
+    for (size_t i = 0; i < n; ++i)
     {
-        for (int j = 0; j < n; ++j)
+        for (size_t j = 0; j < n; ++j)
         {
             if (std::abs(A[i][j]) > 1e-8)
-                adjlist[i].push_back(j);
+                adjlist[i].push_back(static_cast<unsigned>(j));
         }
     }
 
@@ -87,13 +103,13 @@ dim1 moving_average(const dim1 &vec, const size_t window)
 {
     size_t size = vec.size();
     size_t ind = 0;
-    size_t buffer_size = int(size / window);
+    size_t buffer_size = size / window;
     dim1 vec_out(buffer_size);
 
     for (size_t itr = 0; itr < (size - window); ++itr)
     {
         double sum = 0.0;
-        for (int j = itr; j < itr + window; ++j)
+        for (size_t j = itr; j < itr + window; ++j)
             sum += vec[j];
         vec_out[ind] = sum / double(window);
         ind++;
@@ -153,15 +169,23 @@ dim1 average(dim2 &V)
 long get_mem_usage()
 {
     // measure memory usage
-
+#ifdef _WIN32
+    PROCESS_MEMORY_COUNTERS_EX pmc;
+    if (GetProcessMemoryInfo(GetCurrentProcess(), (PROCESS_MEMORY_COUNTERS*)&pmc, sizeof(pmc)))
+    {
+        return pmc.WorkingSetSize / 1024; // Convert to KB to match Linux ru_maxrss
+    }
+    return 0;
+#else
     struct rusage myusage;
-
     getrusage(RUSAGE_SELF, &myusage);
     return myusage.ru_maxrss;
+#endif
 }
 
 void display_timing(double wtime, double cptime)
 {
+    (void)cptime; // Mark as intentionally unused
     int wh;      //, ch;
     int wmin;    //, cpmin;
     double wsec; //, csec;
@@ -225,7 +249,15 @@ double get_wall_time()
     measure real passed time
     \return wall time in second
     */
-
+#ifdef _WIN32
+    LARGE_INTEGER frequency;
+    LARGE_INTEGER counter;
+    if (QueryPerformanceFrequency(&frequency) && QueryPerformanceCounter(&counter))
+    {
+        return (double)counter.QuadPart / (double)frequency.QuadPart;
+    }
+    return 0.0;
+#else
     struct timeval time;
     if (gettimeofday(&time, NULL))
     {
@@ -233,6 +265,7 @@ double get_wall_time()
         return 0;
     }
     return (double)time.tv_sec + (double)time.tv_usec * .000001;
+#endif
 }
 
 std::mt19937 &rng(const bool fix_seed)

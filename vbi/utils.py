@@ -14,7 +14,8 @@ from typing import Union
 from vbi.optional_deps import torch, require_optional, optional_import
 
 import re
-try :
+
+try:
     import nbformat
     import nbformat
     from nbconvert import PythonExporter
@@ -22,9 +23,14 @@ except:
     pass
 
 try:
-    from sbi.analysis.plot import _get_default_opts, _update, ensure_numpy
+    from sbi.analysis.plot import _get_default_fig_kwargs, _get_default_diag_kwargs
+    from sbi.analysis.plot import _update, ensure_numpy
 except ImportError:
-    pass
+    print(
+        """sbi package is required for posterior_peaks function. Please install sbi with: pip install sbi 
+             posteriors_peaks_numpy function does not require sbi and can be used independently of torch/sbi
+          """
+    )
 
 
 def timer(func):
@@ -77,20 +83,21 @@ def display_time(time, message=""):
 class LoadSample(object):
     """
     Utility class for loading sample datasets and connectivity matrices.
-    
+
     This class provides convenient methods to load structural connectivity matrices,
     tract lengths, and BOLD signal data from the VBI dataset directory.
-    
+
     Parameters
     ----------
     nn : int, optional
         Number of nodes/regions in the connectivity matrix. Default is 84.
         Supported values are typically 84 and 88.
     """
+
     def __init__(self, nn=84) -> None:
         """
         Initialize the LoadSample utility.
-        
+
         Parameters
         ----------
         nn : int, optional
@@ -102,12 +109,12 @@ class LoadSample(object):
     def get_weights(self, normalize=True):
         """
         Load structural connectivity weights matrix.
-        
+
         Parameters
         ----------
         normalize : bool, optional
             Whether to normalize the weights by the maximum value. Default is True.
-            
+
         Returns
         -------
         np.ndarray
@@ -128,11 +135,11 @@ class LoadSample(object):
     def get_lengths(self):
         """
         Load tract lengths matrix.
-        
+
         Returns
         -------
         np.ndarray
-            Tract lengths matrix of shape (nn, nn) containing the physical 
+            Tract lengths matrix of shape (nn, nn) containing the physical
             distances between brain regions.
         """
         nn = self.nn
@@ -145,7 +152,7 @@ class LoadSample(object):
     def get_bold(self):
         """
         Load BOLD signal data.
-        
+
         Returns
         -------
         np.ndarray
@@ -163,10 +170,10 @@ class LoadSample(object):
 def get_limits(samples, limits=None):
     """
     Calculate or validate parameter limits for samples.
-    
+
     This function computes the min/max limits for each parameter dimension
     across one or more sample arrays, or validates provided limits.
-    
+
     Parameters
     ----------
     samples : np.ndarray or list of np.ndarray
@@ -176,7 +183,7 @@ def get_limits(samples, limits=None):
         Predefined limits as [[min1, max1], [min2, max2], ...] for each parameter.
         If None or empty list, limits are computed from the data.
         If single limit pair provided, it will be broadcast to all parameters.
-        
+
     Returns
     -------
     torch.Tensor
@@ -214,13 +221,66 @@ def get_limits(samples, limits=None):
     return limits
 
 
+def get_limits_numpy(samples, limits=None):
+    """
+    Calculate or validate parameter limits for samples (numpy-only version).
+    
+    This function computes the min/max limits for each parameter dimension
+    across one or more sample arrays, or validates provided limits.
+    
+    Parameters
+    ----------
+    samples : np.ndarray or list of np.ndarray
+        Sample array(s) of shape (n_samples, n_params) or list of such arrays.
+    limits : list or None, optional
+        Predefined limits as [[min1, max1], [min2, max2], ...] for each parameter.
+        If None or empty list, limits are computed from the data.
+        If single limit pair provided, it will be broadcast to all parameters.
+        
+    Returns
+    -------
+    np.ndarray
+        Array of shape (n_params, 2) containing [min, max] for each parameter.
+    """
+
+    if not isinstance(samples, list):
+        samples = [np.asarray(samples)]
+    else:
+        samples = [np.asarray(sample) for sample in samples]
+
+    # Handle 1D arrays by ensuring they have shape (n_samples, 1)
+    for i, sample in enumerate(samples):
+        if sample.ndim == 1:
+            samples[i] = sample[:, np.newaxis]
+
+    # Dimensionality of the problem.
+    dim = samples[0].shape[1]
+
+    if limits == [] or limits is None:
+        limits = []
+        for d in range(dim):
+            min_val = +np.inf
+            max_val = -np.inf
+            for sample in samples:
+                min_ = sample[:, d].min()
+                min_val = min_ if min_ < min_val else min_val
+                max_ = sample[:, d].max()
+                max_val = max_ if max_ > max_val else max_val
+            limits.append([min_val, max_val])
+    else:
+        if len(limits) == 1:
+            limits = [limits[0] for _ in range(dim)]
+        else:
+            limits = limits
+    
+    return np.array(limits)
 def posterior_peaks(samples, return_dict=False, **kwargs):
     """
     Find the peaks (modes) of a posterior distribution using kernel density estimation.
-    
+
     This function estimates the probability density of the posterior samples
     and identifies the locations of peak density for each parameter dimension.
-    
+
     Parameters
     ----------
     samples : np.ndarray or torch.Tensor
@@ -232,24 +292,28 @@ def posterior_peaks(samples, return_dict=False, **kwargs):
     **kwargs
         Additional keyword arguments passed to the plotting/analysis functions.
         These may include 'labels' for parameter names.
-        
+
     Returns
     -------
     list or dict
         If return_dict=False: List of peak values for each parameter.
-        If return_dict=True: Dictionary with parameter labels as keys and 
+        If return_dict=True: Dictionary with parameter labels as keys and
         peak values as values.
     """
 
-    opts = _get_default_opts()
-    opts = _update(opts, kwargs)
+    # Get default kwargs for KDE diagonal plots and figure kwargs
+    fig_kwargs = _get_default_fig_kwargs()
+    kde_kwargs = _get_default_diag_kwargs("kde")
+
+    # Update with user-provided kwargs
+    fig_kwargs = _update(fig_kwargs, kwargs)
 
     limits = get_limits(samples)
     samples = ensure_numpy(samples)
     n, dim = samples.shape
 
     try:
-        labels = opts["labels"]
+        labels = fig_kwargs.get("labels")
     except:
         labels = range(dim)
 
@@ -260,12 +324,96 @@ def posterior_peaks(samples, return_dict=False, **kwargs):
         peaks[labels[i]] = 0
 
     for row in range(dim):
-        density = gaussian_kde(samples[:, row], bw_method=opts["kde_diag"]["bw_method"])
-        xs = np.linspace(limits[row, 0], limits[row, 1], opts["kde_diag"]["bins"])
+        density = gaussian_kde(samples[:, row], bw_method=kde_kwargs["bw_method"])
+        xs = np.linspace(limits[row, 0], limits[row, 1], kde_kwargs["bins"])
         ys = density(xs)
 
         # y, x = np.histogram(samples[:, row], bins=bins)
         peaks[labels[row]] = xs[ys.argmax()]
+
+    if return_dict:
+        return peaks
+    else:
+        return list(peaks.values())
+
+
+def posterior_peaks_numpy(
+    samples, return_dict=False, labels=None, bins=100, bw_method=None
+):
+    """
+    Find the peaks (modes) of a posterior distribution using kernel density estimation (numpy-only version).
+
+    This function estimates the probability density of the posterior samples
+    and identifies the locations of peak density for each parameter dimension.
+    Does not require torch or sbi dependencies.
+
+    Parameters
+    ----------
+    samples : np.ndarray
+        Posterior samples of shape (n_samples, n_params).
+    return_dict : bool, optional
+        If True, returns results as a dictionary with parameter labels as keys.
+        If False, returns a simple list of peak values. Default is False.
+    labels : list or None, optional
+        Parameter names for dictionary keys. If None, uses integer indices.
+    bins : int, optional
+        Number of bins for density estimation grid. Default is 100.
+    bw_method : str, float or None, optional
+        Bandwidth method for KDE. Can be 'scott', 'silverman', or a scalar.
+        If None, uses 'scott'. Default is None.
+
+    Returns
+    -------
+    list or dict
+        If return_dict=False: List of peak values for each parameter.
+        If return_dict=True: Dictionary with parameter labels as keys and
+        peak values as values.
+        
+    Raises
+    ------
+    ValueError
+        If samples contain insufficient data for KDE (need at least 2 samples).
+    """
+
+    # Convert to numpy array if needed
+    samples = np.asarray(samples)
+    if samples.ndim == 1:
+        samples = samples[:, np.newaxis]
+
+    n, dim = samples.shape
+    
+    # Check for sufficient data
+    if n < 2:
+        raise ValueError("KDE requires at least 2 samples. Got {} samples.".format(n))
+
+    # Get limits for each dimension
+    limits = get_limits_numpy(samples)
+
+    # Set up labels
+    if labels is None:
+        labels = list(range(dim))
+    elif len(labels) != dim:
+        raise ValueError(
+            f"Number of labels ({len(labels)}) must match number of dimensions ({dim})"
+        )
+
+    # Set default bandwidth method
+    if bw_method is None:
+        bw_method = "scott"
+
+    peaks = {}
+
+    for row in range(dim):
+        # Compute KDE for this dimension
+        density = gaussian_kde(samples[:, row], bw_method=bw_method)
+
+        # Create evaluation grid
+        xs = np.linspace(limits[row, 0], limits[row, 1], bins)
+        ys = density(xs)
+
+        # Find the peak (maximum density location)
+        peak_idx = ys.argmax()
+        peaks[labels[row]] = xs[peak_idx]
 
     if return_dict:
         return peaks
@@ -306,8 +454,8 @@ def j2p(notebookPath, modulePath=None):
 
 
 def posterior_shrinkage(
-    prior_samples: "Union[torch.Tensor, np.ndarray]", 
-    post_samples: "Union[torch.Tensor, np.ndarray]"
+    prior_samples: "Union[torch.Tensor, np.ndarray]",
+    post_samples: "Union[torch.Tensor, np.ndarray]",
 ) -> "torch.Tensor":
     """
     Calculate the posterior shrinkage, quantifying how much
@@ -327,13 +475,13 @@ def posterior_shrinkage(
     -------
     shrinkage : torch.Tensor [n_params]
         The posterior shrinkage.
-        
+
     Raises
     ------
     ImportError
         If PyTorch is not installed.
     """
-    
+
     if torch is None:
         raise ImportError(
             "PyTorch is required for posterior_shrinkage function. "
@@ -360,8 +508,8 @@ def posterior_shrinkage(
 
 
 def posterior_zscore(
-    true_theta: "Union[torch.Tensor, np.ndarray, float]", 
-    post_samples: "Union[torch.Tensor, np.ndarray]"
+    true_theta: "Union[torch.Tensor, np.ndarray, float]",
+    post_samples: "Union[torch.Tensor, np.ndarray]",
 ):
     """
     Calculate the posterior z-score, quantifying how much the posterior
@@ -380,13 +528,13 @@ def posterior_zscore(
     -------
     z : torch.Tensor [n_params]
         The z-score of the posterior distributions.
-        
+
     Raises
     ------
     ImportError
         If PyTorch is not installed.
     """
-    
+
     if torch is None:
         raise ImportError(
             "PyTorch is required for posterior_zscore function. "
@@ -414,7 +562,7 @@ def posterior_zscore(
 def set_diag(A: np.ndarray, k: int = 0, value: float = 0.0):
     """
     set k diagonals of the given matrix to given value.
-    
+
     Parameters
     ----------
     A: np.ndarray
@@ -423,12 +571,12 @@ def set_diag(A: np.ndarray, k: int = 0, value: float = 0.0):
         number of diagonals
     value: float
         value to be set
-    
+
     Returns
     -------
     A: np.ndarray
         matrix with k diagonals set to value
-    
+
     """
 
     assert len(A.shape) == 2
@@ -448,7 +596,7 @@ def test_imports():
     table.add_column("Package", style="bold cyan")
     table.add_column("Version", style="bold green")
     table.add_column("Status", style="bold yellow")
-    
+
     dependencies = [
         ("vbi", "vbi"),
         ("numpy", "numpy"),
@@ -456,9 +604,9 @@ def test_imports():
         ("matplotlib", "matplotlib"),
         ("sbi", "sbi"),
         ("torch", "torch"),
-        ("cupy", "cupy")
+        ("cupy", "cupy"),
     ]
-    
+
     for name, module in dependencies:
         try:
             pkg = __import__(module)
@@ -467,24 +615,36 @@ def test_imports():
         except ImportError:
             version = "-"
             status = "❌ Not Found"
-        
+
         table.add_row(name, version, status)
-    
+
     console.print(table)
-    
+
     # Additional GPU checks
     try:
         import torch
-        console.print(f"[bold blue]Torch GPU available:[/bold blue] {torch.cuda.is_available()}")
-        console.print(f"[bold blue]Torch device count:[/bold blue] {torch.cuda.device_count()}")
-        console.print(f"[bold blue]Torch CUDA version:[/bold blue] {torch.version.cuda}")  # Display CUDA version used by PyTorch
+
+        console.print(
+            f"[bold blue]Torch GPU available:[/bold blue] {torch.cuda.is_available()}"
+        )
+        console.print(
+            f"[bold blue]Torch device count:[/bold blue] {torch.cuda.device_count()}"
+        )
+        console.print(
+            f"[bold blue]Torch CUDA version:[/bold blue] {torch.version.cuda}"
+        )  # Display CUDA version used by PyTorch
     except ImportError:
         pass
 
     try:
         import cupy
-        console.print(f"[bold blue]CuPy GPU available:[/bold blue] {cupy.cuda.is_available()}")
-        console.print(f"[bold blue]CuPy device count:[/bold blue] {cupy.cuda.runtime.getDeviceCount()}")
+
+        console.print(
+            f"[bold blue]CuPy GPU available:[/bold blue] {cupy.cuda.is_available()}"
+        )
+        console.print(
+            f"[bold blue]CuPy device count:[/bold blue] {cupy.cuda.runtime.getDeviceCount()}"
+        )
         info = get_cuda_info()
         if isinstance(info, dict):
             print(f"CUDA Version: {info['cuda_version']}")
@@ -495,31 +655,30 @@ def test_imports():
     except ImportError:
         pass
 
-    
-    
+
 def get_cuda_info():
     """
     Get CUDA version and device information using CuPy.
-    
+
     Returns:
         dict: Dictionary containing CUDA version and device information
     """
     import cupy as cp
-    
+
     try:
         # Get CUDA version
         cuda_version = cp.cuda.runtime.runtimeGetVersion()
         major = cuda_version // 1000
         minor = (cuda_version % 1000) // 10
-        
+
         # Get device info
         device = cp.cuda.runtime.getDeviceProperties(0)
-        
+
         return {
-            'cuda_version': f"{major}.{minor}",
-            'device_name': device['name'].decode(),
-            'total_memory': device['totalGlobalMem'] / (1024**3),  # Convert to GB
-            'compute_capability': f"{device['major']}.{device['minor']}"
+            "cuda_version": f"{major}.{minor}",
+            "device_name": device["name"].decode(),
+            "total_memory": device["totalGlobalMem"] / (1024**3),  # Convert to GB
+            "compute_capability": f"{device['major']}.{device['minor']}",
         }
     except ImportError:
         return "CuPy is not installed"
@@ -527,8 +686,232 @@ def get_cuda_info():
         return f"Error getting CUDA information: {str(e)}"
 
 
+class BoxUniform:
+    """
+    A multivariate uniform distribution over a hyperrectangle (box).
 
-# def tests():
-#     from vbi.tests.test_suite import tests
-#     tests()
-    
+    This implementation uses only numpy and scipy, providing a torch-free
+    alternative for uniform distributions over rectangular domains.
+
+    Parameters
+    ----------
+    low : array_like
+        Lower bounds for each dimension. Shape (n_dims,) or scalar.
+    high : array_like
+        Upper bounds for each dimension. Shape (n_dims,) or scalar.
+    dtype : np.dtype, optional
+        Data type for internal arrays. Default is np.float64.
+        Supported options are np.float32 and np.float64.
+    seed : int or None, optional
+        Random seed for reproducible sampling. If None, no seed is set.
+
+    Attributes
+    ----------
+    low : np.ndarray
+        Lower bounds array.
+    high : np.ndarray
+        Upper bounds array.
+    ndims : int
+        Number of dimensions.
+    volume : float
+        Volume of the hyperrectangle.
+    dtype : np.dtype
+        Data type used for arrays.
+    """
+
+    def __init__(self, low, high, dtype=np.float64, seed=None):
+        """
+        Initialize BoxUniform distribution.
+
+        Parameters
+        ----------
+        low : array_like
+            Lower bounds for each dimension.
+        high : array_like
+            Upper bounds for each dimension.
+        dtype : np.dtype, optional
+            Data type for internal arrays. Default is np.float64.
+            Supported options are np.float32 and np.float64.
+        seed : int or None, optional
+            Random seed for reproducible sampling. If None, no seed is set.
+        """
+        # Validate dtype
+        if dtype not in [np.float32, np.float64]:
+            raise ValueError("dtype must be np.float32 or np.float64")
+
+        self.dtype = dtype
+        self.low = np.atleast_1d(np.asarray(low, dtype=dtype))
+        self.high = np.atleast_1d(np.asarray(high, dtype=dtype))
+
+        if self.low.shape != self.high.shape:
+            raise ValueError("low and high must have the same shape")
+
+        if np.any(self.low >= self.high):
+            raise ValueError("All elements of low must be < high")
+
+        self.ndims = len(self.low)
+        self.volume = np.prod(self.high - self.low)
+        self._rng = np.random.RandomState()  # Internal random state
+
+        # Set seed if provided
+        if seed is not None:
+            self.set_seed(seed)
+
+    def set_seed(self, seed):
+        """
+        Set the random seed for reproducible sampling.
+
+        Parameters
+        ----------
+        seed : int or None
+            Random seed. If None, the random state is not seeded.
+        """
+        if seed is not None:
+            self._rng.seed(seed)
+
+    def sample(self, sample_shape=(1,), seed=None):
+        """
+        Sample from the uniform distribution.
+
+        Parameters
+        ----------
+        sample_shape : tuple or int, optional
+            Shape of samples to generate. Default is (1,).
+        seed : int or None, optional
+            Random seed for this sampling operation. If provided, it temporarily
+            sets the seed for this operation only. If None, uses the current
+            random state.
+
+        Returns
+        -------
+        np.ndarray
+            Samples of shape (*sample_shape, n_dims) with specified dtype.
+        """
+        if isinstance(sample_shape, int):
+            sample_shape = (sample_shape,)
+
+        shape = sample_shape + (self.ndims,)
+
+        # Handle seeding
+        if seed is not None:
+            # Create a temporary random state for this operation
+            temp_rng = np.random.RandomState(seed)
+            samples = temp_rng.uniform(size=shape).astype(self.dtype)
+        else:
+            # Use the instance's random state
+            samples = self._rng.uniform(size=shape).astype(self.dtype)
+
+        # Scale to the box bounds
+        return self.low + samples * (self.high - self.low)
+
+    def log_prob(self, value):
+        """
+        Calculate log probability density.
+
+        Parameters
+        ----------
+        value : array_like
+            Values to evaluate. Shape (..., n_dims).
+
+        Returns
+        -------
+        np.ndarray
+            Log probability densities. Shape matches input except last dimension.
+        """
+        value = np.asarray(value, dtype=self.dtype)
+
+        # Check if all values are within bounds
+        in_support = np.all((value >= self.low) & (value <= self.high), axis=-1)
+
+        # Log probability is -log(volume) if in support, -inf otherwise
+        log_prob = np.full(in_support.shape, -np.inf, dtype=self.dtype)
+        log_prob[in_support] = -np.log(self.volume)
+
+        return log_prob
+
+    def prob(self, value):
+        """
+        Calculate probability density.
+
+        Parameters
+        ----------
+        value : array_like
+            Values to evaluate. Shape (..., n_dims).
+
+        Returns
+        -------
+        np.ndarray
+            Probability densities. Shape matches input except last dimension.
+        """
+        return np.exp(self.log_prob(value))
+
+    def cdf(self, value):
+        """
+        Calculate cumulative distribution function.
+
+        Parameters
+        ----------
+        value : array_like
+            Values to evaluate. Shape (..., n_dims).
+
+        Returns
+        -------
+        np.ndarray
+            CDF values. Shape matches input except last dimension.
+        """
+        value = np.asarray(value, dtype=self.dtype)
+
+        # Clamp values to box bounds
+        clamped = np.clip(value, self.low, self.high)
+
+        # CDF is the product of marginal CDFs
+        marginal_cdf = (clamped - self.low) / (self.high - self.low)
+        return np.prod(marginal_cdf, axis=-1)
+
+    def mean(self):
+        """
+        Calculate the mean of the distribution.
+
+        Returns
+        -------
+        np.ndarray
+            Mean vector of shape (n_dims,).
+        """
+        return (self.low + self.high) / 2
+
+    def variance(self):
+        """
+        Calculate the variance of the distribution.
+
+        Returns
+        -------
+        np.ndarray
+            Variance vector of shape (n_dims,).
+        """
+        return (self.high - self.low) ** 2 / 12
+
+    def std(self):
+        """
+        Calculate the standard deviation of the distribution.
+
+        Returns
+        -------
+        np.ndarray
+            Standard deviation vector of shape (n_dims,).
+        """
+        return np.sqrt(self.variance())
+
+    def support(self):
+        """
+        Get the support of the distribution.
+
+        Returns
+        -------
+        tuple
+            (low, high) bounds of the distribution.
+        """
+        return (self.low.copy(), self.high.copy())
+
+    def __repr__(self):
+        """String representation of the distribution."""
+        return f"BoxUniform(low={self.low}, high={self.high}, dtype={self.dtype})"

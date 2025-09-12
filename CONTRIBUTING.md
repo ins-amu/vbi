@@ -20,7 +20,7 @@ If you encounter any bugs or have feature requests, please open an issue on our 
     ```sh
     pip install .
     # For development, install additional dependencies:
-    pip install -e .[all,dev,docs]
+    pip install -e .[all]
     ```
 
 ### Making Changes
