@@ -507,6 +507,61 @@ def posterior_shrinkage(
     return 1 - (post_std / prior_std) ** 2
 
 
+def posterior_shrinkage_numpy(
+    prior_samples: np.ndarray,
+    post_samples: np.ndarray,
+) -> np.ndarray:
+    """
+    Calculate the posterior shrinkage using numpy, quantifying how much
+    the posterior distribution contracts from the initial
+    prior distribution.
+    References:
+    https://arxiv.org/abs/1803.08393
+
+    Parameters
+    ----------
+    prior_samples : np.ndarray [n_samples, n_params]
+        Samples from the prior distribution.
+    post_samples : np.ndarray [n_samples, n_params]
+        Samples from the posterior distribution.
+
+    Returns
+    -------
+    shrinkage : np.ndarray [n_params]
+        The posterior shrinkage.
+
+    Raises
+    ------
+    ValueError
+        If input samples are empty or have incompatible shapes.
+    """
+
+    if len(prior_samples) == 0 or len(post_samples) == 0:
+        raise ValueError("Input samples are empty")
+
+    # Convert to numpy arrays if needed
+    prior_samples = np.asarray(prior_samples, dtype=np.float32)
+    post_samples = np.asarray(post_samples, dtype=np.float32)
+
+    # Handle 1D case by adding a dimension
+    if prior_samples.ndim == 1:
+        prior_samples = prior_samples[:, None]
+    if post_samples.ndim == 1:
+        post_samples = post_samples[:, None]
+
+    # Calculate standard deviations along the sample dimension (axis=0)
+    prior_std = np.std(prior_samples, axis=0)
+    post_std = np.std(post_samples, axis=0)
+
+    # Avoid division by zero
+    with np.errstate(divide='ignore', invalid='ignore'):
+        shrinkage = 1 - (post_std / prior_std) ** 2
+        # Handle cases where prior_std is zero
+        shrinkage = np.where(prior_std == 0, 0, shrinkage)
+
+    return shrinkage
+
+
 def posterior_zscore(
     true_theta: "Union[torch.Tensor, np.ndarray, float]",
     post_samples: "Union[torch.Tensor, np.ndarray]",
@@ -557,6 +612,57 @@ def posterior_zscore(
     post_std = torch.std(post_samples, dim=0)
 
     return torch.abs((post_mean - true_theta) / post_std)
+
+
+def posterior_zscore_numpy(
+    true_theta: Union[np.ndarray, float],
+    post_samples: np.ndarray,
+) -> np.ndarray:
+    """
+    Calculate the posterior z-score using numpy, quantifying how much the posterior
+    distribution of a parameter encompasses its true value.
+    References:
+    https://arxiv.org/abs/1803.08393
+
+    Parameters
+    ----------
+    true_theta : float or np.ndarray [n_params]
+        The true value of the parameters.
+    post_samples : np.ndarray [n_samples, n_params]
+        Samples from the posterior distributions.
+
+    Returns
+    -------
+    z : np.ndarray [n_params]
+        The z-score of the posterior distributions.
+
+    Raises
+    ------
+    ValueError
+        If input samples are empty.
+    """
+
+    if len(post_samples) == 0:
+        raise ValueError("Input samples are empty")
+
+    # Convert to numpy arrays
+    true_theta = np.asarray(true_theta, dtype=np.float32)
+    post_samples = np.asarray(post_samples, dtype=np.float32)
+
+    true_theta = np.atleast_1d(true_theta)
+    if post_samples.ndim == 1:
+        post_samples = post_samples[:, None]
+
+    post_mean = np.mean(post_samples, axis=0)
+    post_std = np.std(post_samples, axis=0)
+
+    # Avoid division by zero
+    with np.errstate(divide='ignore', invalid='ignore'):
+        z_score = np.abs((post_mean - true_theta) / post_std)
+        # Handle cases where post_std is zero
+        z_score = np.where(post_std == 0, np.inf, z_score)
+
+    return z_score
 
 
 def set_diag(A: np.ndarray, k: int = 0, value: float = 0.0):
