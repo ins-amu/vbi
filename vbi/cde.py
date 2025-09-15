@@ -498,6 +498,11 @@ class MDNEstimator(ConditionalDensityEstimator):
 # =============================================================================
 
 
+from dataclasses import dataclass
+import autograd.numpy as anp
+from typing import Optional
+
+
 @dataclass
 class MAFEstimator(ConditionalDensityEstimator):
     """
@@ -509,34 +514,149 @@ class MAFEstimator(ConditionalDensityEstimator):
         Dimensionality of the target variable. If None, inferred from training data.
     feature_dim : int, optional
         Dimensionality of the conditional variable. If None, inferred from training data.
-    n_flows : int, optional
-        The number of flow layers (MADE blocks).
-    hidden_units : int, optional
-        The number of hidden units in each MADE block.
+    n_flows : int
+        Number of autoregressive transforms (a.k.a. num_transforms).
+    hidden_units : int
+        Hidden features per MADE block (a.k.a. hidden_features).
+    activation : str
+        'tanh' (default), 'relu', or 'elu'.
+    z_score_theta : bool
+        Standardize parameters (θ) internally.
+    z_score_x : bool
+        Standardize features (x) internally.
+    use_actnorm : bool
+        Insert ActNorm between flows with data-dependent init.
+    embedding_dim : Optional[int]
+        If set (E), PCA-reduce features x -> R^E before conditioning.
     """
 
     param_dim: int = None
     feature_dim: int = None
     n_flows: int = 4
     hidden_units: int = 64
+    activation: str = "tanh"
+    z_score_theta: bool = True
+    z_score_x: bool = True
+    use_actnorm: bool = True
+    embedding_dim: Optional[int] = None  # PCA embedding for features
+    actnorm_eps: float = 1e-6
 
+    # internal state (filled after prepare_* calls / training init)
     def __post_init__(self):
         super().__init__(self.param_dim, self.feature_dim)
-        self.model_constants = None  # For non-trainable parts like masks
+        self._dims_inferred = False  # Ensure attribute always exists
+        self.model_constants = None  # masks, perms, inv_perms
+        self._actnorm_initialized = [False] * self.n_flows
 
+        # Standardization stats
+        self.theta_mean = None
+        self.theta_std = None
+        self.x_mean = None
+        self.x_std = None
+
+        # PCA embedding (optional)
+        self._use_pca = False
+        self._pca_components = None  # (C, E)
+
+    def _warmup_actnorm(self, features: anp.ndarray, params: anp.ndarray):
+        """
+        Run one forward pass to initialize ActNorm with data-dependent stats,
+        outside the autograd graph (avoids mutating weights during grad).
+        """
+        if not self.use_actnorm:
+            return
+        # Use a small subset to estimate mean/std (like Glow’s data-dependent init)
+        n = features.shape[0]
+        k = min(512, n)  # warmup batch size
+        _ = self._get_log_prob(self.weights, features[:k], params[:k])
+        # After this call, self._actnorm_initialized[*] are True and actnorm params set.
+
+    # ---------- public helpers: call these once before training ----------
+    def prepare_normalizers(self, features: anp.ndarray, params: anp.ndarray, rng=None):
+        """Compute z-score stats (like sbi) and optional PCA projection for features."""
+        assert params.ndim == 2 and params.shape[1] == self.param_dim
+        if self.feature_dim > 0:
+            assert features.ndim == 2 and features.shape[1] == self.feature_dim
+
+        if self.z_score_theta:
+            self.theta_mean = anp.mean(params, axis=0)
+            self.theta_std = anp.std(params, axis=0) + 1e-8
+        else:
+            self.theta_mean = anp.zeros(self.param_dim)
+            self.theta_std = anp.ones(self.param_dim)
+
+        if self.feature_dim > 0:
+            if self.z_score_x:
+                self.x_mean = anp.mean(features, axis=0)
+                self.x_std = anp.std(features, axis=0) + 1e-8
+            else:
+                self.x_mean = anp.zeros(self.feature_dim)
+                self.x_std = anp.ones(self.feature_dim)
+
+            if self.embedding_dim is not None and self.embedding_dim < self.feature_dim:
+                # PCA via SVD on standardized features
+                X = (features - self.x_mean) / self.x_std
+                U, S, Vt = anp.linalg.svd(X, full_matrices=False)
+                E = self.embedding_dim
+                self._pca_components = Vt[:E, :].T  # (C, E)
+                self._use_pca = True
+            else:
+                self._use_pca = False
+                self._pca_components = None
+        else:
+            self.x_mean = anp.zeros(0)
+            self.x_std = anp.ones(0)
+            self._use_pca = False
+            self._pca_components = None
+
+    # ---------- internal transforms ----------
+    def _act(self, x):
+        if self.activation == "relu":
+            return anp.maximum(0.0, x)
+        elif self.activation == "elu":
+            return anp.where(x > 0.0, x, anp.exp(x) - 1.0)
+        else:
+            return anp.tanh(x)
+
+    def _z_theta(self, params):
+        return (params - self.theta_mean) / self.theta_std
+
+    def _inv_z_theta(self, z):
+        return z * self.theta_std + self.theta_mean
+
+    def _z_x(self, features):
+        if self.feature_dim == 0:
+            return features
+        X = (features - self.x_mean) / self.x_std
+        if self._use_pca:
+            X = anp.dot(X, self._pca_components)  # (N, E)
+        return X
+
+    def _ctx_dim(self):
+        if self.feature_dim == 0:
+            return 0
+        return (
+            self.embedding_dim
+            if (self._use_pca and self.embedding_dim is not None)
+            else self.feature_dim
+        )
+
+    # ---------- parameters & constants ----------
     def _initialize_weights(self, rng: anp.random.RandomState) -> dict:
-        """Initializes weights and model constants (masks, permutations)."""
+        """Initializes weights, masks, permutations, and ActNorm (if enabled)."""
         weights = {}
         layers = []
-        D, C, H = self.param_dim, self.feature_dim, self.hidden_units
+        D, C_in, H = self.param_dim, self._ctx_dim(), self.hidden_units
 
         for k in range(self.n_flows):
-            # MADE masks and permutation
+            # Degrees / masks (classic MADE)
             m_in = anp.arange(1, D + 1)
             m_hidden = rng.randint(1, D, size=H)
             M1 = (m_in[None, :] <= m_hidden[:, None]).astype("f")
             m_out = m_in.copy()
             M2 = (m_hidden[None, :] < m_out[:, None]).astype("f")
+
+            # Permutation
             perm = rng.permutation(D)
             inv_perm = anp.empty(D, dtype=int)
             inv_perm[perm] = anp.arange(D)
@@ -547,64 +667,109 @@ class MAFEstimator(ConditionalDensityEstimator):
             w_std = 0.01
             weights[f"W1y_{k}"] = (rng.randn(H, D) * w_std).astype("f")
             weights[f"W1c_{k}"] = (
-                (rng.randn(H, C) * w_std).astype("f")
-                if C > 0
-                else anp.zeros((H, C), dtype="f")
+                (rng.randn(H, C_in) * w_std).astype("f")
+                if C_in > 0
+                else anp.zeros((H, C_in), dtype="f")
             )
             weights[f"b1_{k}"] = anp.zeros(H, dtype="f")
+
+            # Output heads (mu, log_scale)
+            # Keep W2/W2c small; set log-scale bias negative (stable)
             weights[f"W2_{k}"] = anp.zeros((2 * D, H), dtype="f")
-            weights[f"W2c_{k}"] = (
-                anp.zeros((2 * D, C), dtype="f")
-                if C > 0
-                else anp.zeros((2 * D, C), dtype="f")
-            )
-            weights[f"b2_{k}"] = anp.zeros(2 * D, dtype="f")
+            weights[f"W2c_{k}"] = anp.zeros((2 * D, C_in), dtype="f")
+            b2 = anp.zeros(2 * D, dtype="f")
+            b2[D:] = -2.0  # log_sigma bias ~ exp(-2) start
+            weights[f"b2_{k}"] = b2.astype("f")
+
+            # ActNorm (per-dim scale & bias)
+            if self.use_actnorm:
+                weights[f"act_s_{k}"] = anp.ones(D, dtype="f")  # scale
+                weights[f"act_b_{k}"] = anp.zeros(D, dtype="f")  # bias (pre-scale)
+            else:
+                weights[f"act_s_{k}"] = None
+                weights[f"act_b_{k}"] = None
 
         self.model_constants = {"layers": layers}
         return weights
 
+    # ---------- building blocks ----------
     def _made_forward(self, y, ctx, layer_const, k, weights):
-        """Single forward pass through a MADE block."""
+        """Single forward pass through a MADE block; returns mu, log_sigma."""
         M1, M2 = layer_const["M1"], layer_const["M2"]
         W1y, W1c, b1 = weights[f"W1y_{k}"], weights[f"W1c_{k}"], weights[f"b1_{k}"]
         W2, W2c, b2 = weights[f"W2_{k}"], weights[f"W2c_{k}"], weights[f"b2_{k}"]
 
         y_h = anp.dot(y, (W1y * M1).T)
-        c_h = anp.dot(ctx, W1c.T) if self.feature_dim > 0 else 0.0
-        h = anp.tanh(y_h + c_h + b1)
+        c_h = anp.dot(ctx, W1c.T) if self._ctx_dim() > 0 else 0.0
+        h = self._act(y_h + c_h + b1)
 
         M2_tiled = anp.concatenate([M2, M2], axis=0)
         out = anp.dot(h, (W2 * M2_tiled).T)
-        if self.feature_dim > 0:
+        if self._ctx_dim() > 0:
             out = out + anp.dot(ctx, W2c.T)
         out = out + b2
 
-        mu, alpha = out[:, : self.param_dim], anp.clip(
-            out[:, self.param_dim :], -7.0, 7.0
-        )
-        return mu, alpha
+        mu = out[:, : self.param_dim]
+        log_sigma = anp.clip(out[:, self.param_dim :], -7.0, 7.0)
+        return mu, log_sigma
 
+    def _apply_actnorm(self, u, k, weights, maybe_data_init=None):
+        """ActNorm: y = (u + b) * s ; log_det += sum(log|s|)."""
+        if not self.use_actnorm:
+            return u, 0.0
+
+        s = weights[f"act_s_{k}"]
+        b = weights[f"act_b_{k}"]
+
+        # Data-dependent init (first batch)
+        if not self._actnorm_initialized[k] and maybe_data_init is not None:
+            m = anp.mean(maybe_data_init, axis=0)
+            v = anp.std(maybe_data_init, axis=0) + self.actnorm_eps
+            b = -m
+            s = 1.0 / v
+            weights[f"act_s_{k}"] = s.astype("f")
+            weights[f"act_b_{k}"] = b.astype("f")
+            self._actnorm_initialized[k] = True
+
+        y = (u + b) * s
+        log_abs_s = anp.log(anp.abs(s) + 1e-12)
+        log_det = anp.sum(log_abs_s)  # per-sample constant; broadcast by caller
+        return y, log_det
+
+    # ---------- core log_prob ----------
     def _get_log_prob(self, weights: dict, features: anp.ndarray, params: anp.ndarray):
-        """Computes log probability for the MAF."""
-        u = params
-        log_det = anp.zeros(params.shape[0])
+        """Computes log probability under the flow (with preprocessing)."""
+        # Preprocess to sbi-like standardized spaces
+        x = (
+            self._z_x(features).astype("f")
+            if self._ctx_dim() > 0
+            else features.astype("f")
+        )
+        u = self._z_theta(params).astype("f")
+
+        batch = u.shape[0]
+        log_det = anp.zeros(batch, dtype="f")
 
         for k, layer_const in enumerate(self.model_constants["layers"]):
+            # Permute
             u = u[:, layer_const["perm"]]
-            mu, alpha = self._made_forward(u, features, layer_const, k, weights)
-            u = (u - mu) * anp.exp(-alpha)
-            log_det -= anp.sum(alpha, axis=1)
+
+            # ActNorm (data-dependent init on first batch seen)
+            v, ln_det = self._apply_actnorm(u, k, weights, maybe_data_init=u)
+            if self.use_actnorm:
+                log_det = log_det + ln_det  # add same constant per sample
+
+            # MADE transform
+            mu, log_sigma = self._made_forward(v, x, layer_const, k, weights)
+            u = (v - mu) * anp.exp(-log_sigma)
+            log_det = log_det - anp.sum(log_sigma, axis=1)
 
         base_logp = -0.5 * anp.sum(u**2, axis=1) - 0.5 * self.param_dim * anp.log(
             2.0 * anp.pi
         )
         return base_logp + log_det
 
-    def _loss_function(
-        self, weights: dict, features: anp.ndarray, params: anp.ndarray
-    ) -> float:
-        return -anp.mean(self._get_log_prob(weights, features, params))
-
+    # ---------- public API ----------
     def log_prob(self, features: anp.ndarray, params: anp.ndarray) -> anp.ndarray:
         super().log_prob(features, params)
         return self._get_log_prob(self.weights, features, params)
@@ -612,29 +777,234 @@ class MAFEstimator(ConditionalDensityEstimator):
     def sample(
         self, features: anp.ndarray, n_samples: int, rng: anp.random.RandomState
     ) -> anp.ndarray:
+        """
+        Samples from p(theta | features). Returns shape (n_cond, n_samples, D) in original θ space.
+        """
         super().sample(features, n_samples, rng)
-        features = features.astype("f")
-        if features.ndim == 1:
+        if features.ndim == 1 and self.feature_dim > 0:
             features = features.reshape(1, -1)
+        n_cond = 1 if self.feature_dim == 0 else features.shape[0]
 
-        n_cond = features.shape[0]
-        # Broadcast features to match number of samples
-        if n_cond != n_samples:
-            features = anp.repeat(features, n_samples, axis=0)
+        # Preprocess features
+        x = (
+            self._z_x(features).astype("f")
+            if self._ctx_dim() > 0
+            else (
+                features.astype("f")
+                if self.feature_dim > 0
+                else anp.zeros((n_cond, 0), dtype="f")
+            )
+        )
 
-        z = rng.randn(n_samples, self.param_dim).astype("f")
-        x = z
+        out = anp.zeros((n_cond, n_samples, self.param_dim), dtype="f")
+        for c in range(n_cond):
+            z = rng.randn(n_samples, self.param_dim).astype("f")
+            y = z
 
-        # Invert the flow stack
-        for k, layer_const in reversed(list(enumerate(self.model_constants["layers"]))):
-            y_perm = x
-            u = anp.zeros_like(y_perm)
-            for i in range(self.param_dim):
-                mu, alpha = self._made_forward(
-                    u, features, layer_const, k, self.weights
-                )
-                u[:, i] = y_perm[:, i] * anp.exp(alpha[:, i]) + mu[:, i]
-            x = u[:, layer_const["inv_perm"]]
+            # Invert the flow stack (reverse order)
+            for k, layer_const in reversed(
+                list(enumerate(self.model_constants["layers"]))
+            ):
+                u_perm = y  # current state in permuted coordinates we will fill autoregressively
+                v = anp.zeros_like(u_perm)
+                # Invert autoregressive transform sequentially
+                for i in range(self.param_dim):
+                    mu, log_sigma = self._made_forward(
+                        v,
+                        x[c : c + 1].repeat(n_samples, axis=0),
+                        layer_const,
+                        k,
+                        self.weights,
+                    )
+                    v[:, i] = u_perm[:, i] * anp.exp(log_sigma[:, i]) + mu[:, i]
 
-        # Reshape to (n_conditions, n_samples, param_dim)
-        return x.reshape(features.shape[0] // n_samples, n_samples, self.param_dim)
+                # Invert ActNorm: u = v / s - b
+                if self.use_actnorm:
+                    s = self.weights[f"act_s_{k}"]
+                    b = self.weights[f"act_b_{k}"]
+                    v = v / (s + 1e-12) - b
+
+                # Invert permutation
+                y = v[:, layer_const["inv_perm"]]
+
+            # Map back from z-space to original θ space
+            out[c] = self._inv_z_theta(y)
+
+        return out
+
+    # ---------- convenience to (re)build ----------
+    def reinitialize(self, rng: Optional[anp.random.RandomState] = None):
+        """(Re)build masks/weights; call after prepare_normalizers()."""
+        if rng is None:
+            rng = anp.random.RandomState(0)
+        self.weights = self._initialize_weights(rng)
+        self._actnorm_initialized = [False] * self.n_flows
+
+    def _loss_function(
+        self, weights: dict, features: anp.ndarray, params: anp.ndarray
+    ) -> float:
+        return -anp.mean(self._get_log_prob(weights, features, params))
+
+    def train(
+        self,
+        params: anp.ndarray,
+        features: anp.ndarray,
+        n_iter: int = 2000,
+        learning_rate: float = 1e-3,
+        seed: int = 0,
+        use_tqdm: bool = True,
+        # --- new knobs ---
+        validation_fraction: float = 0.1,
+        stop_after_epochs: int = 20,  # patience (like sbi)
+        early_stopping_delta: float = 0.0,  # required improvement
+        clip_max_norm: float = 5.0,  # set None to disable
+    ):
+        import autograd.numpy as anp
+        from autograd import grad
+
+        try:
+            from tqdm import trange
+        except Exception:
+
+            def trange(N, **kw):
+                return range(N)
+
+        # --- 1) arrays + infer dims (same checks as before) ---
+        params = anp.asarray(params)
+        features = anp.asarray(features)
+        if not self._dims_inferred:
+            self._infer_dimensions(params, features)
+
+        if params.shape[0] != features.shape[0]:
+            raise ValueError(
+                "Params and features must have the same number of samples."
+            )
+        if params.shape[1] != self.param_dim or features.shape[1] != self.feature_dim:
+            raise ValueError(
+                "Data dimensions do not match inferred/expected model dimensions."
+            )
+
+        finite_idx = anp.all(anp.isfinite(params), axis=1) & anp.all(
+            anp.isfinite(features), axis=1
+        )
+        params = params[finite_idx].astype("f")
+        features = features[finite_idx].astype("f")
+        if params.shape[0] == 0:
+            raise ValueError("All data points contained non-finite values.")
+
+        N = params.shape[0]
+        rng_np = anp.random.RandomState(seed)
+        # --- 2) train/val split ---
+        if not (0.0 <= validation_fraction < 1.0):
+            raise ValueError("validation_fraction must be in [0,1).")
+        n_val = int(N * validation_fraction)
+        perm = rng_np.permutation(N)
+        val_idx = perm[:n_val] if n_val > 0 else anp.array([], dtype=int)
+        train_idx = perm[n_val:]
+
+        params_tr, feats_tr = params[train_idx], features[train_idx]
+        params_val, feats_val = (
+            (params[val_idx], features[val_idx]) if n_val > 0 else (None, None)
+        )
+
+        # --- 3) compute normalizers on TRAIN ONLY (sbi-style) ---
+        self.prepare_normalizers(feats_tr, params_tr)
+
+        # --- 4) init weights/masks/perms; reset actnorm flags ---
+        rng = anp.random.RandomState(seed)
+        self.weights = self._initialize_weights(rng)
+        self.loss_history = []
+        self.val_loss_history = []  # <-- new
+        self._actnorm_initialized = [False] * self.n_flows
+
+        # --- 4.5) one-time ActNorm warmup on TRAIN subset ---
+        self._warmup_actnorm(feats_tr, params_tr)
+
+        # --- 5) Adam state ---
+        m = {k: anp.zeros_like(v) for k, v in self.weights.items()}
+        v = {k: anp.zeros_like(v) for k, v in self.weights.items()}
+        beta1, beta2, epsilon = 0.9, 0.999, 1e-8
+
+        gradient_func = grad(self._loss_function)
+        iterator = trange(n_iter, desc="Training", disable=not use_tqdm)
+
+        # early stopping bookkeeping
+        best_weights = {k: w.copy() for k, w in self.weights.items()}
+        best_val = anp.inf if n_val > 0 else None
+        epochs_no_improve = 0
+        self.best_epoch = -1
+        self.best_val_loss = None
+
+        for epoch in iterator:
+            # ---- forward/backward on TRAIN ----
+            g = gradient_func(self.weights, feats_tr, params_tr)
+            train_loss = self._loss_function(self.weights, feats_tr, params_tr)
+            self.loss_history.append(float(train_loss))
+
+            # (optional) grad clipping by global norm
+            if clip_max_norm is not None:
+                # compute global L2 norm over all tensors
+                total_sq = 0.0
+                for key in g:
+                    total_sq += anp.sum(g[key] ** 2)
+                global_norm = anp.sqrt(total_sq + 1e-12)
+                if global_norm > clip_max_norm:
+                    scale = clip_max_norm / (global_norm + 1e-12)
+                    for key in g:
+                        g[key] = g[key] * scale
+
+            # Adam update
+            for key in self.weights:
+                if not anp.all(anp.isfinite(g[key])):
+                    print(
+                        f"Warning: Non-finite gradient for '{key}' at epoch {epoch}. Stopping."
+                    )
+                    self.weights = best_weights  # rollback to best known
+                    return
+                m[key] = beta1 * m[key] + (1 - beta1) * g[key]
+                v[key] = beta2 * v[key] + (1 - beta2) * (g[key] ** 2)
+                m_hat = m[key] / (1 - beta1 ** (epoch + 1))
+                v_hat = v[key] / (1 - beta2 ** (epoch + 1))
+                self.weights[key] -= learning_rate * m_hat / (anp.sqrt(v_hat) + epsilon)
+
+            # ---- validation & early stopping ----
+            if n_val > 0:
+                val_loss = self._loss_function(self.weights, feats_val, params_val)
+                self.val_loss_history.append(float(val_loss))
+
+                improved = (best_val - val_loss) > early_stopping_delta
+                if improved:
+                    best_val = float(val_loss)
+                    best_weights = {k: w.copy() for k, w in self.weights.items()}
+                    epochs_no_improve = 0
+                    self.best_epoch = int(epoch)
+                    self.best_val_loss = float(val_loss)
+                else:
+                    epochs_no_improve += 1
+
+                if use_tqdm:
+                    try:
+                        iterator.set_postfix(
+                            train=f"{train_loss:.4f}",
+                            val=f"{val_loss:.4f}",
+                            patience=f"{epochs_no_improve}/{stop_after_epochs}",
+                        )
+                    except Exception:
+                        pass
+
+                if epochs_no_improve >= stop_after_epochs:
+                    # restore best weights and stop
+                    self.weights = best_weights
+                    break
+            else:
+                if use_tqdm:
+                    try:
+                        iterator.set_postfix(train=f"{train_loss:.4f}")
+                    except Exception:
+                        pass
+
+        # If we never saw validation or never improved, best_weights is initial;
+        # in val-enabled runs we already restored on break; ensure final restore here too.
+        if n_val > 0:
+            self.weights = best_weights
+
