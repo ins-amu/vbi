@@ -250,5 +250,245 @@ class TestGetLimitsNumpy(unittest.TestCase):
         self.assertGreaterEqual(limits[0, 1], self.samples_1d.max())
 
 
+@pytest.mark.short
+@pytest.mark.fast
+class TestPosteriorShrinkageNumpy(unittest.TestCase):
+    """Test suite for posterior_shrinkage_numpy function."""
+
+    def setUp(self):
+        """Set up test fixtures."""
+        self.seed = 42
+        np.random.seed(self.seed)
+        
+        # Generate test data
+        self.n_samples = 1000
+        self.n_params = 3
+        
+        # Prior samples: wide distribution
+        self.prior_samples = np.random.normal(0, 2.0, (self.n_samples, self.n_params))
+        
+        # Posterior samples: narrow distribution (should show shrinkage)
+        self.posterior_samples = np.random.normal(0, 0.5, (self.n_samples, self.n_params))
+        
+        # No shrinkage case: same distribution
+        self.no_shrinkage_samples = np.random.normal(0, 2.0, (self.n_samples, self.n_params))
+
+    def test_basic_functionality(self):
+        """Test basic shrinkage calculation."""
+        from vbi.utils import posterior_shrinkage_numpy
+        
+        shrinkage = posterior_shrinkage_numpy(self.prior_samples, self.posterior_samples)
+        
+        # Check output shape
+        self.assertEqual(shrinkage.shape, (self.n_params,))
+        
+        # Shrinkage should be positive (posterior is narrower than prior)
+        self.assertTrue(np.all(shrinkage > 0))
+        
+        # Shrinkage should be less than 1
+        self.assertTrue(np.all(shrinkage < 1))
+        
+        # Should be close to expected theoretical value
+        # shrinkage = 1 - (0.5/2.0)^2 = 1 - 0.0625 = 0.9375
+        expected_shrinkage = 1 - (0.5/2.0)**2
+        np.testing.assert_allclose(shrinkage, expected_shrinkage, rtol=0.1)
+
+    def test_no_shrinkage_case(self):
+        """Test case where prior and posterior have same variance."""
+        from vbi.utils import posterior_shrinkage_numpy
+        
+        # Use the same samples for both prior and posterior to ensure same variance
+        shrinkage = posterior_shrinkage_numpy(self.prior_samples, self.prior_samples)
+        
+        # Shrinkage should be exactly 0 when distributions are identical
+        np.testing.assert_allclose(shrinkage, 0, atol=1e-6)
+
+    def test_1d_input(self):
+        """Test with 1D input arrays."""
+        from vbi.utils import posterior_shrinkage_numpy
+        
+        prior_1d = self.prior_samples[:, 0]
+        posterior_1d = self.posterior_samples[:, 0]
+        
+        shrinkage = posterior_shrinkage_numpy(prior_1d, posterior_1d)
+        
+        # Should return array with shape (1,)
+        self.assertEqual(shrinkage.shape, (1,))
+        self.assertTrue(shrinkage[0] > 0)
+        self.assertTrue(shrinkage[0] < 1)
+
+    def test_zero_prior_variance(self):
+        """Test handling of zero prior variance."""
+        from vbi.utils import posterior_shrinkage_numpy
+        
+        # Constant prior (zero variance)
+        prior_const = np.ones((100, 2))
+        posterior = np.random.normal(0, 1, (100, 2))
+        
+        shrinkage = posterior_shrinkage_numpy(prior_const, posterior)
+        
+        # Should return zeros when prior variance is zero
+        np.testing.assert_array_equal(shrinkage, 0)
+
+    def test_empty_arrays(self):
+        """Test error handling for empty arrays."""
+        from vbi.utils import posterior_shrinkage_numpy
+        
+        with self.assertRaises(ValueError):
+            posterior_shrinkage_numpy(np.array([]), self.posterior_samples)
+        
+        with self.assertRaises(ValueError):
+            posterior_shrinkage_numpy(self.prior_samples, np.array([]))
+
+    def test_list_input(self):
+        """Test that function works with list inputs."""
+        from vbi.utils import posterior_shrinkage_numpy
+        
+        prior_list = self.prior_samples.tolist()
+        posterior_list = self.posterior_samples.tolist()
+        
+        shrinkage = posterior_shrinkage_numpy(prior_list, posterior_list)
+        
+        # Should work and return reasonable results
+        self.assertEqual(shrinkage.shape, (self.n_params,))
+        self.assertTrue(np.all(shrinkage > 0))
+
+
+@pytest.mark.short
+@pytest.mark.fast
+class TestPosteriorZscoreNumpy(unittest.TestCase):
+    """Test suite for posterior_zscore_numpy function."""
+
+    def setUp(self):
+        """Set up test fixtures."""
+        self.seed = 123
+        np.random.seed(self.seed)
+        
+        # Test parameters
+        self.n_samples = 1000
+        self.true_theta = np.array([1.5, -0.8, 2.0])
+        
+        # Posterior samples centered on true values (good estimation)
+        self.good_posterior = np.random.normal(
+            self.true_theta, 0.1, (self.n_samples, len(self.true_theta))
+        )
+        
+        # Posterior samples far from true values (poor estimation)
+        self.poor_posterior = np.random.normal(
+            [0.0, 1.0, 0.0], 0.1, (self.n_samples, len(self.true_theta))
+        )
+
+    def test_basic_functionality(self):
+        """Test basic z-score calculation."""
+        from vbi.utils import posterior_zscore_numpy
+        
+        z_scores = posterior_zscore_numpy(self.true_theta, self.good_posterior)
+        
+        # Check output shape
+        self.assertEqual(z_scores.shape, (len(self.true_theta),))
+        
+        # Z-scores should be small for good estimation
+        self.assertTrue(np.all(z_scores < 2.0))
+        
+        # All z-scores should be non-negative
+        self.assertTrue(np.all(z_scores >= 0))
+
+    def test_poor_estimation(self):
+        """Test z-scores for poor parameter estimation."""
+        from vbi.utils import posterior_zscore_numpy
+        
+        z_scores = posterior_zscore_numpy(self.true_theta, self.poor_posterior)
+        
+        # Z-scores should be large for poor estimation
+        self.assertTrue(np.all(z_scores > 5.0))
+
+    def test_single_parameter(self):
+        """Test with single parameter (scalar input)."""
+        from vbi.utils import posterior_zscore_numpy
+        
+        true_value = 1.5
+        posterior_1d = self.good_posterior[:, 0]
+        
+        z_score = posterior_zscore_numpy(true_value, posterior_1d)
+        
+        # Should return array with shape (1,)
+        self.assertEqual(z_score.shape, (1,))
+        self.assertTrue(z_score[0] >= 0)
+        self.assertTrue(z_score[0] < 2.0)  # Should be small for good estimation
+
+    def test_1d_posterior_samples(self):
+        """Test with 1D posterior samples array."""
+        from vbi.utils import posterior_zscore_numpy
+        
+        posterior_1d = np.random.normal(1.5, 0.1, 1000)
+        z_score = posterior_zscore_numpy(1.5, posterior_1d)
+        
+        self.assertEqual(z_score.shape, (1,))
+        self.assertTrue(z_score[0] < 1.0)  # Should be small since centered on true value
+
+    def test_zero_posterior_variance(self):
+        """Test handling of zero posterior variance."""
+        from vbi.utils import posterior_zscore_numpy
+        
+        # Constant posterior (zero variance)
+        posterior_const = np.ones((100, 2)) * 5.0
+        true_vals = np.array([3.0, 7.0])
+        
+        z_scores = posterior_zscore_numpy(true_vals, posterior_const)
+        
+        # Should return infinite z-scores when posterior variance is zero
+        # but posterior mean differs from true value
+        self.assertTrue(np.all(np.isinf(z_scores)))
+
+    def test_perfect_estimation(self):
+        """Test case where posterior mean equals true value."""
+        from vbi.utils import posterior_zscore_numpy
+        
+        # Generate samples exactly centered on true values
+        np.random.seed(456)
+        perfect_posterior = np.random.normal(
+            self.true_theta, 0.01, (self.n_samples, len(self.true_theta))
+        )
+        
+        z_scores = posterior_zscore_numpy(self.true_theta, perfect_posterior)
+        
+        # Z-scores should be very small
+        self.assertTrue(np.all(z_scores < 0.5))
+
+    def test_empty_arrays(self):
+        """Test error handling for empty arrays."""
+        from vbi.utils import posterior_zscore_numpy
+        
+        with self.assertRaises(ValueError):
+            posterior_zscore_numpy(self.true_theta, np.array([]))
+
+    def test_list_input(self):
+        """Test that function works with list inputs."""
+        from vbi.utils import posterior_zscore_numpy
+        
+        true_list = self.true_theta.tolist()
+        posterior_list = self.good_posterior.tolist()
+        
+        z_scores = posterior_zscore_numpy(true_list, posterior_list)
+        
+        # Should work and return reasonable results
+        self.assertEqual(z_scores.shape, (len(self.true_theta),))
+        self.assertTrue(np.all(z_scores >= 0))
+
+    def test_different_dtypes(self):
+        """Test function works with different numpy dtypes."""
+        from vbi.utils import posterior_zscore_numpy
+        
+        # Test with different dtypes
+        true_float64 = self.true_theta.astype(np.float64)
+        posterior_float64 = self.good_posterior.astype(np.float64)
+        
+        z_scores = posterior_zscore_numpy(true_float64, posterior_float64)
+        
+        # Should work regardless of input dtype
+        self.assertEqual(z_scores.shape, (len(self.true_theta),))
+        self.assertTrue(np.all(z_scores >= 0))
+
+
 if __name__ == '__main__':
     unittest.main()
