@@ -26,6 +26,9 @@ from .feature_extraction.features_settings import (
 from .feature_extraction.features_utils import report_cfg
 from .utils import LoadSample, timer, display_time, BoxUniform
 
+# Always available numpy-based functions
+from .utils import posterior_shrinkage_numpy, posterior_zscore_numpy
+
 # Conditionally import torch/sbi dependent functions
 try:
     from .utils import posterior_peaks as _posterior_peaks, j2p, p2j
