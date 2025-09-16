@@ -29,36 +29,41 @@ from .utils import LoadSample, timer, display_time, BoxUniform
 # Always available numpy-based functions
 from .utils import posterior_shrinkage_numpy, posterior_zscore_numpy
 
-# Conditionally import torch/sbi dependent functions
 try:
-    from .utils import posterior_peaks as _posterior_peaks, j2p, p2j
-    # Test if the functions can actually run without torch/sbi
-    try:
-        import numpy as np
-        test_samples = np.random.randn(10, 2)
-        _posterior_peaks(test_samples)
-        posterior_peaks = _posterior_peaks
-    except (ImportError, NameError):
-        def posterior_peaks(*args, **kwargs):
-            raise ImportError(
-                "posterior_peaks requires SBI and PyTorch. Install with: pip install vbi[inference]"
-            )
-except ImportError:
-    # Create placeholder functions that give helpful error messages
-    def posterior_peaks(*args, **kwargs):
-        raise ImportError(
-            "posterior_peaks requires SBI and PyTorch. Install with: pip install vbi[inference]"
-        )
+    from .utils import j2p, p2j
+except:
+    pass
+
+# Conditionally import torch/sbi dependent functions
+# try:
+#     from .utils import posterior_peaks as _posterior_peaks, j2p, p2j
+#     # Test if the functions can actually run without torch/sbi
+#     try:
+#         import numpy as np
+#         test_samples = np.random.randn(10, 2)
+#         _posterior_peaks(test_samples)
+#         posterior_peaks = _posterior_peaks
+#     except (ImportError, NameError):
+#         def posterior_peaks(*args, **kwargs):
+#             raise ImportError(
+#                 "posterior_peaks requires SBI and PyTorch. Install with: pip install vbi[inference]"
+#             )
+# except ImportError:
+#     # Create placeholder functions that give helpful error messages
+#     def posterior_peaks(*args, **kwargs):
+#         raise ImportError(
+#             "posterior_peaks requires SBI and PyTorch. Install with: pip install vbi[inference]"
+#         )
     
-    def j2p(*args, **kwargs):
-        raise ImportError(
-            "j2p requires additional dependencies. Install with: pip install vbi[inference]"
-        )
+#     def j2p(*args, **kwargs):
+#         raise ImportError(
+#             "j2p requires additional dependencies. Install with: pip install vbi[inference]"
+#         )
     
-    def p2j(*args, **kwargs):
-        raise ImportError(
-            "p2j requires additional dependencies. Install with: pip install vbi[inference]"
-        )
+#     def p2j(*args, **kwargs):
+#         raise ImportError(
+#             "p2j requires additional dependencies. Install with: pip install vbi[inference]"
+#         )
 
 # Conditionally import torch-dependent utility functions
 try:

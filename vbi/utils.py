@@ -14,6 +14,7 @@ from typing import Union
 from vbi.optional_deps import torch, require_optional, optional_import
 
 import re
+import warnings
 
 try:
     import nbformat
@@ -26,11 +27,13 @@ try:
     from sbi.analysis.plot import _get_default_fig_kwargs, _get_default_diag_kwargs
     from sbi.analysis.plot import _update, ensure_numpy
 except ImportError:
-    print(
-        """sbi package is required for posterior_peaks function. Please install sbi with: pip install sbi 
-             posteriors_peaks_numpy function does not require sbi and can be used independently of torch/sbi
-          """
-    )
+    # warnings.warn(
+    #     "sbi package is not installed: functions that require sbi (e.g. posterior_peaks) will raise if used. "
+    #     "Install with: pip install sbi",
+    #     UserWarning,
+    #     stacklevel=2,
+    # )
+    pass
 
 
 def timer(func):
