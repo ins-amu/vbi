@@ -651,7 +651,10 @@ class MAFEstimator(ConditionalDensityEstimator):
         for k in range(self.n_flows):
             # Degrees / masks (classic MADE)
             m_in = anp.arange(1, D + 1)
-            m_hidden = rng.randint(1, D, size=H)
+            # draw hidden degrees in [1, D] inclusive; use D+1 as high because
+            # numpy randint is exclusive at the upper bound. This avoids
+            # ValueError when D == 1 (low >= high).
+            m_hidden = rng.randint(1, D + 1, size=H)
             M1 = (m_in[None, :] <= m_hidden[:, None]).astype("f")
             m_out = m_in.copy()
             M2 = (m_hidden[None, :] < m_out[:, None]).astype("f")
@@ -1008,3 +1011,125 @@ class MAFEstimator(ConditionalDensityEstimator):
         if n_val > 0:
             self.weights = best_weights
 
+
+
+@dataclass
+class MAFEstimator0(ConditionalDensityEstimator):
+    """
+    Masked Autoregressive Flow for conditional density estimation.
+
+    Parameters
+    ----------
+    param_dim : int
+        Dimensionality of the target variable.
+    feature_dim : int
+        Dimensionality of the conditional variable.
+    n_flows : int, optional
+        The number of flow layers (MADE blocks).
+    hidden_units : int, optional
+        The number of hidden units in each MADE block.
+    """
+    param_dim: int
+    feature_dim: int
+    n_flows: int = 4
+    hidden_units: int = 64
+
+    def __post_init__(self):
+        super().__init__(self.param_dim, self.feature_dim)
+        self.model_constants = None # For non-trainable parts like masks
+
+    def _initialize_weights(self, rng: anp.random.RandomState) -> dict:
+        """Initializes weights and model constants (masks, permutations)."""
+        weights = {}
+        layers = []
+        D, C, H = self.param_dim, self.feature_dim, self.hidden_units
+
+        for k in range(self.n_flows):
+            # MADE masks and permutation
+            m_in = anp.arange(1, D + 1)
+            m_hidden = rng.randint(1, D+1, size=H)
+            M1 = (m_in[None, :] <= m_hidden[:, None]).astype('f')
+            m_out = m_in.copy()
+            M2 = (m_hidden[None, :] < m_out[:, None]).astype('f')
+            perm = rng.permutation(D)
+            inv_perm = anp.empty(D, dtype=int); inv_perm[perm] = anp.arange(D)
+
+            layers.append({'M1': M1, 'M2': M2, 'perm': perm, 'inv_perm': inv_perm})
+
+            # Trainable parameters
+            w_std = 0.01
+            weights[f'W1y_{k}'] = (rng.randn(H, D) * w_std).astype('f')
+            weights[f'W1c_{k}'] = (rng.randn(H, C) * w_std).astype('f') if C > 0 else anp.zeros((H, C), dtype='f')
+            weights[f'b1_{k}'] = anp.zeros(H, dtype='f')
+            weights[f'W2_{k}'] = anp.zeros((2 * D, H), dtype='f')
+            weights[f'W2c_{k}'] = anp.zeros((2 * D, C), dtype='f') if C > 0 else anp.zeros((2*D, C), dtype='f')
+            weights[f'b2_{k}'] = anp.zeros(2 * D, dtype='f')
+
+        self.model_constants = {'layers': layers}
+        return weights
+
+    def _made_forward(self, y, ctx, layer_const, k, weights):
+        """Single forward pass through a MADE block."""
+        M1, M2 = layer_const['M1'], layer_const['M2']
+        W1y, W1c, b1 = weights[f'W1y_{k}'], weights[f'W1c_{k}'], weights[f'b1_{k}']
+        W2, W2c, b2 = weights[f'W2_{k}'], weights[f'W2c_{k}'], weights[f'b2_{k}']
+
+        y_h = anp.dot(y, (W1y * M1).T)
+        c_h = anp.dot(ctx, W1c.T) if self.feature_dim > 0 else 0.0
+        h = anp.tanh(y_h + c_h + b1)
+
+        M2_tiled = anp.concatenate([M2, M2], axis=0)
+        out = anp.dot(h, (W2 * M2_tiled).T)
+        if self.feature_dim > 0:
+            out = out + anp.dot(ctx, W2c.T)
+        out = out + b2
+
+        mu, alpha = out[:, :self.param_dim], anp.clip(out[:, self.param_dim:], -7.0, 7.0)
+        return mu, alpha
+
+    def _get_log_prob(self, weights: dict, features: anp.ndarray, params: anp.ndarray):
+        """Computes log probability for the MAF."""
+        u = params
+        log_det = anp.zeros(params.shape[0])
+
+        for k, layer_const in enumerate(self.model_constants['layers']):
+            u = u[:, layer_const['perm']]
+            mu, alpha = self._made_forward(u, features, layer_const, k, weights)
+            u = (u - mu) * anp.exp(-alpha)
+            log_det -= anp.sum(alpha, axis=1)
+
+        base_logp = -0.5 * anp.sum(u**2, axis=1) - 0.5 * self.param_dim * anp.log(2.0 * anp.pi)
+        return base_logp + log_det
+
+    def _loss_function(self, weights: dict, features: anp.ndarray, params: anp.ndarray) -> float:
+        return -anp.mean(self._get_log_prob(weights, features, params))
+
+    def log_prob(self, features: anp.ndarray, params: anp.ndarray) -> anp.ndarray:
+        super().log_prob(features, params)
+        return self._get_log_prob(self.weights, features, params)
+
+    def sample(self, features: anp.ndarray, n_samples: int, rng: anp.random.RandomState) -> anp.ndarray:
+        super().sample(features, n_samples, rng)
+        features = features.astype('f')
+        if features.ndim == 1:
+            features = features.reshape(1, -1)
+
+        n_cond = features.shape[0]
+        # Broadcast features to match number of samples
+        if n_cond != n_samples:
+            features = anp.repeat(features, n_samples, axis=0)
+
+        z = rng.randn(n_samples, self.param_dim).astype('f')
+        x = z
+
+        # Invert the flow stack
+        for k, layer_const in reversed(list(enumerate(self.model_constants['layers']))):
+            y_perm = x
+            u = anp.zeros_like(y_perm)
+            for i in range(self.param_dim):
+                mu, alpha = self._made_forward(u, features, layer_const, k, self.weights)
+                u[:, i] = y_perm[:, i] * anp.exp(alpha[:, i]) + mu[:, i]
+            x = u[:, layer_const['inv_perm']]
+
+        # Reshape to (n_conditions, n_samples, param_dim)
+        return x.reshape(features.shape[0] // n_samples, n_samples, self.param_dim)

@@ -32,6 +32,7 @@ dependencies = [
     "matplotlib",
     "setuptools-scm",
     "tqdm",
+    "autograd",
     "parameterized",
     "scikit-learn",
     "pytest",
