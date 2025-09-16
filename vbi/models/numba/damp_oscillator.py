@@ -27,6 +27,7 @@ from numba.experimental import jitclass
 from numba import float64, types
 from numba import njit
 from typing import Any
+from vbi.utils import print_valid_parameters
 
 jit_spec = [('a', float64),
             ('b', float64),
@@ -375,7 +376,7 @@ class DO:
         print(f"output = {self.P.output}")
         print(f"initial_state = {self.P.initial_state}")
         return self.P
-
+    
     def check_parameters(self, par):
         """
         Validate model parameters.
@@ -392,6 +393,8 @@ class DO:
         """
         for key in par.keys():
             if key not in self.valid_params:
+                print(f"Invalid parameter: {key}")
+                print_valid_parameters(jit_spec)
                 raise ValueError("Invalid parameter: " + key)
 
     def get_parobj(self, par={}):

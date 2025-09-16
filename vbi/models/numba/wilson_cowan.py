@@ -6,6 +6,7 @@ from numba.experimental import jitclass
 from numba.extending import register_jitable
 from numba import float64, boolean, int64, types
 from numba.core.errors import NumbaPerformanceWarning
+from vbi.utils import print_valid_parameters
 
 warnings.simplefilter("ignore", category=NumbaPerformanceWarning)
 
@@ -620,6 +621,27 @@ class WC_sde_numba:
         with values appropriate for Wilson-Cowan dynamics.
         """
         self.P.initial_state = set_initial_state(self.P.nn, self.P.seed)
+        
+    
+    def check_parameters(self, par: dict) -> None:
+        """
+        Validate that all provided parameters are recognized.
+        
+        Parameters
+        ----------
+        par : dict
+            Dictionary of parameters to validate.
+            
+        Raises
+        ------
+        ValueError
+            If any parameter name is not recognized.
+        """
+        for key in par.keys():
+            if key not in self.valid_par:
+                print(f"Invalid parameter: {key}")
+                print_valid_parameters(wc_spec)
+                raise ValueError(f"Invalid parameter: {key}")
 
     def check_input(self):
         """

@@ -6,6 +6,7 @@ from numba.experimental import jitclass
 from numba.extending import register_jitable
 from numba import float64, boolean, int64, types
 from numba.core.errors import NumbaPerformanceWarning
+from vbi.utils import print_valid_parameters
 
 warnings.simplefilter("ignore", category=NumbaPerformanceWarning)
 np.random.seed(42)
@@ -442,6 +443,8 @@ class MPR_sde:
         """
         for key in par.keys():
             if key not in self.valid_par:
+                print(f"Invalid parameter: {key}")
+                print_valid_parameters(mpr_spec)
                 raise ValueError(f"Invalid parameter: {key}")
 
     def get_par_mpr(self, par: dict):

@@ -224,10 +224,10 @@ def get_limits(samples, limits=None):
 def get_limits_numpy(samples, limits=None):
     """
     Calculate or validate parameter limits for samples (numpy-only version).
-    
+
     This function computes the min/max limits for each parameter dimension
     across one or more sample arrays, or validates provided limits.
-    
+
     Parameters
     ----------
     samples : np.ndarray or list of np.ndarray
@@ -236,7 +236,7 @@ def get_limits_numpy(samples, limits=None):
         Predefined limits as [[min1, max1], [min2, max2], ...] for each parameter.
         If None or empty list, limits are computed from the data.
         If single limit pair provided, it will be broadcast to all parameters.
-        
+
     Returns
     -------
     np.ndarray
@@ -272,8 +272,10 @@ def get_limits_numpy(samples, limits=None):
             limits = [limits[0] for _ in range(dim)]
         else:
             limits = limits
-    
+
     return np.array(limits)
+
+
 def posterior_peaks(samples, return_dict=False, **kwargs):
     """
     Find the peaks (modes) of a posterior distribution using kernel density estimation.
@@ -368,7 +370,7 @@ def posterior_peaks_numpy(
         If return_dict=False: List of peak values for each parameter.
         If return_dict=True: Dictionary with parameter labels as keys and
         peak values as values.
-        
+
     Raises
     ------
     ValueError
@@ -381,7 +383,7 @@ def posterior_peaks_numpy(
         samples = samples[:, np.newaxis]
 
     n, dim = samples.shape
-    
+
     # Check for sufficient data
     if n < 2:
         raise ValueError("KDE requires at least 2 samples. Got {} samples.".format(n))
@@ -554,7 +556,7 @@ def posterior_shrinkage_numpy(
     post_std = np.std(post_samples, axis=0)
 
     # Avoid division by zero
-    with np.errstate(divide='ignore', invalid='ignore'):
+    with np.errstate(divide="ignore", invalid="ignore"):
         shrinkage = 1 - (post_std / prior_std) ** 2
         # Handle cases where prior_std is zero
         shrinkage = np.where(prior_std == 0, 0, shrinkage)
@@ -657,7 +659,7 @@ def posterior_zscore_numpy(
     post_std = np.std(post_samples, axis=0)
 
     # Avoid division by zero
-    with np.errstate(divide='ignore', invalid='ignore'):
+    with np.errstate(divide="ignore", invalid="ignore"):
         z_score = np.abs((post_mean - true_theta) / post_std)
         # Handle cases where post_std is zero
         z_score = np.where(post_std == 0, np.inf, z_score)
@@ -1021,3 +1023,38 @@ class BoxUniform:
     def __repr__(self):
         """String representation of the distribution."""
         return f"BoxUniform(low={self.low}, high={self.high}, dtype={self.dtype})"
+
+
+def pretty_dtype(dtype):
+    """Map numba types to human-readable strings."""
+
+    from numba import float64, types
+
+    if dtype == types.string:
+        return "string"
+    if dtype == float64:
+        return "float64"
+    if dtype == types.int64:
+        return "int64"
+    if dtype == types.int32:
+        return "int32"
+    if dtype == types.float32:
+        return "float32"
+    if dtype == types.boolean:
+        return "bool"
+    if dtype == types.complex128:
+        return "complex128"
+    if dtype == types.complex64:
+        return "complex64"
+    if isinstance(dtype, types.Array):
+        return f"{dtype.dtype}[{dtype.ndim}d]"
+    return str(dtype)
+
+def print_valid_parameters(par_spec):
+    print("Valid parameters:")
+    print("────────────────────────────────────────────")
+    print(f"{'Name':<15} {'Datatype':<20}")
+    print("────────────────────────────────────────────")
+    for name, dtype in par_spec:
+        print(f"{name:<15} {pretty_dtype(dtype)}")
+    print("────────────────────────────────────────────")

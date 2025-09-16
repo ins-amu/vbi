@@ -6,6 +6,7 @@ from copy import copy
 from numba import njit, jit
 from numba.experimental import jitclass
 from numba.extending import register_jitable
+from vbi.utils import print_valid_parameters
 from numba import float64, boolean, int64, types
 from numba.core.errors import NumbaPerformanceWarning
 
@@ -812,7 +813,26 @@ class WW_sde:
             lines.append(f"{name} = {getattr(self.P, name)}")
         lines.append("--------------------------------------------")
         return "\n".join(lines)
-
+    
+    def check_parameters(self, par: dict) -> None:
+        """
+        Validate that all provided parameters are recognized.
+        
+        Parameters
+        ----------
+        par : dict
+            Dictionary of parameters to validate.
+            
+        Raises
+        ------
+        ValueError
+            If any parameter name is not recognized.
+        """
+        for key in par.keys():
+            if key not in self.valid_par:
+                print(f"Invalid parameter: {key}")
+                print_valid_parameters(ww_spec)
+                raise ValueError(f"Invalid parameter: {key}")
     # -----------------------------
     # Simulation
     # -----------------------------
@@ -855,6 +875,10 @@ class WW_sde:
         which provides second-order accuracy for the deterministic part while
         handling the stochastic noise appropriately.
         """
+        
+        self.valid_par = [ww_spec[i][0] for i in range(len(ww_spec))]
+        self.check_parameters(par)
+        
         # update runtime parameters if provided
         if par:
             for key, val in par.items():
