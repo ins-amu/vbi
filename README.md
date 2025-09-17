@@ -24,7 +24,9 @@
 conda create --name vbi python=3.10
 conda activate vbi
 
+
 # Install VBI
+export SKIP_CPP=1                  # To skip C++ compilation
 pip install vbi                    # Light version (CPU only)
 pip install vbi[inference]         # With parameter inference
 pip install vbi[inference-gpu]     # Full functionality with GPU support
