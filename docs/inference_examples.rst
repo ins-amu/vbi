@@ -44,8 +44,9 @@ CDE-Based Inference (Lightweight)
 .. toctree::
    :maxdepth: 1
 
-   examples/inference_cde_mdn_basic
-   examples/inference_cde_maf_basic
+   inference_cde_mdn_basic
+   inference_cde_maf_basic
+   examples/damp_oscillator_cde
 
 **When to use CDE:**
 
@@ -103,8 +104,8 @@ Getting Started
 
 **For CDE Inference:**
 
-1. Start with :doc:`examples/inference_cde_mdn_basic` - Learn MDN basics
-2. Try :doc:`examples/inference_cde_maf_basic` - More advanced MAF method
+1. Start with :doc:`inference_cde_mdn_basic` - Learn MDN basics
+2. Try :doc:`inference_cde_maf_basic` - More advanced MAF method
 3. Apply to your brain model of choice
 
 **For SBI Inference:**

@@ -1,6 +1,7 @@
 import warnings
 import numpy as np
 from numba import njit
+from vbi.utils import pretty_dtype
 from numba.experimental import jitclass
 from numba import float64, boolean, int64
 from numba.extending import register_jitable
@@ -431,6 +432,9 @@ class JR_sde:
             Dictionary containing model parameters. See class documentation for available parameters.
             The 'weights' parameter is required and must be a square connectivity matrix.
         """
+        self.valid_params = [jr_spec[i][0] for i in range(len(jr_spec))]
+        self.check_parameters(par_jr)
+        
         # Validate weights early and create parameter jitclass
         if "weights" not in par_jr or par_jr["weights"] is None:
             raise ValueError("'weights' must be provided (square connectivity matrix)")
@@ -521,6 +525,35 @@ class JR_sde:
         print(f"weights shape = {self.P.weights.shape}")
         
         return ""
+    
+    def check_parameters(self, par: dict):
+        """
+        Validate provided parameter names.
+
+        Parameters
+        ----------
+        par : dict
+            Dictionary of parameters to validate.
+
+        Raises
+        ------
+        ValueError
+            If any parameter names are invalid.
+        """
+        for k in par.keys():
+            if k not in self.valid_params:
+                print(f"Invalide parameter: {k}")
+                self.print_valid_parameters()
+                raise ValueError(f"Invalid parameter: {k}.")
+            
+    def print_valid_parameters(self):
+        print("Valid parameters:")
+        print("────────────────────────────────────────────")
+        print(f"{'Name':<15} {'Datatype':<20}")
+        print("────────────────────────────────────────────")
+        for name, dtype in jr_spec:
+            print(f"{name:<15} {pretty_dtype(dtype)}")
+        print("────────────────────────────────────────────")
 
     def check_input(self):
         """

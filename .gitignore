@@ -41,5 +41,6 @@ _e/
 tt.ipynb
 *.egg
 examples_dev/
+executed_notebooks/
 
 vbi/models/cupy/_mpr.py

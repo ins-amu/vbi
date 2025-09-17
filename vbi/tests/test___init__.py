@@ -144,7 +144,7 @@ class TestVBIInit:
         
         # Function should either work or give a helpful ImportError
         try:
-            result = vbi.posterior_peaks(test_data)
+            result = vbi.utils.posterior_peaks(test_data)
             # If it works, result should be reasonable
             assert result is not None
         except ImportError as e:

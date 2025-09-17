@@ -4,6 +4,7 @@ from numba import njit, jit
 from numba.experimental import jitclass
 from numba.extending import register_jitable
 from numba import float64, int64, types
+from vbi.utils import print_valid_parameters
 from numba.core.errors import NumbaPerformanceWarning
 
 warnings.simplefilter("ignore", category=NumbaPerformanceWarning)
@@ -454,10 +455,14 @@ class VEP_sde:
         lines.append("---------------------------------")
         return "\n".join(lines)
 
+    
+
+        
     # --- helpers
     def _check_keys(self, par: dict):
         for key in par.keys():
             if key not in self.valid_par:
+                print_valid_parameters(vep_spec)
                 raise ValueError(f"Invalid parameter: {key}")
 
     def _make_par(self, par: dict):
