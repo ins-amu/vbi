@@ -5,7 +5,67 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.3] - 2025-09-17
+
+### Added
+- Conditional Density Estimator (CDE) module with MDN and MAF implementations
+- MAFEstimator0 class for enhanced conditional density estimation with autograd dependency
+- NumPy-based implementations for posterior shrinkage, z-score calculations, and pairplot
+- New example notebooks for CDE with MAF and MDN, including VEP, damp oscillator, and toy examples
+- Tutorials for CDE inference
+- Test suite for posterior shrinkage and z-score functions
+- 'corner' library to project dependencies for visualization
+- GDPR compliance statement and reference in README
+- Executed_notebooks to .gitignore
+- Parameter validation and utility functions for model consistency
+- Windows installation instructions and improved Catch22 feature handling
+- Detailed installation guide for Google Colab and EBRAINS
+
+### Changed
+- Enhanced posterior_peaks function to prefer sbi-based plotting with fallback to numpy
+- Refactored conditional imports and error handling for optional dependencies
+- Updated import paths for inference modules across notebooks
+- Improved makefile warning suppression and added strict compilation targets
+- Simplified Windows installation by automating C++ compilation detection
+- Updated API documentation and added new models for Numba and PyTorch
+- Enhanced documentation for various models and functions
+- Updated Docker build configuration and added 'all-docker' dependencies
+
+### Fixed
+- Added export command to skip C++ compilation in installation instructions
+- Updated C++ compilation instructions and enhanced dependency checks
+- Clarified C++ compilation settings in troubleshooting section
+- Enhanced C++ build process with improved opt-in handling and error messaging
+- Updated import path for posterior_peaks in tests
+- Fixed file paths to use variable for output directory
+- Raised ImportError with instructions if sbi package is not installed
+- Cleaned up messy output cells in notebooks
+
+### Removed
+- Removed outdated installation guide from repository
+
+## [0.2.2] - 2025-09-05
+
+### Added
+- Implemented Numba-based Virtual Epileptic Patient (VEP) model
+- Added comprehensive Docker support with Dockerfile, .dockerignore, and startup script
+- Added Docker build and quick start documentation
+- Added example notebooks for Jansen-Rit and Wilson-Cowan models with Numba support
+- Enhanced test suite with pytest markers for short/fast and long/slow tests
+- Implemented test categorization and enhanced test runner
+- Added informative error handling for missing PyTorch and SBI dependencies
+
+### Changed
+- Updated installation instructions in documentation for clarity and flexibility
+- Enhanced optional dependency handling and installation instructions
+- Updated VBI Docker script with confirmation prompts and auto-build functionality
+- Updated Docker workflow for proper branch handling and authentication
+- Bumped version to 0.2.2
+
+### Fixed
+- Removed unused imports and cleaned up code structure in VEP model
+- Updated required Sphinx version to 0.2 in configuration
+- Fixed heading formatting in quick start guide
 
 ## [0.2] - 2025-08-28
 
