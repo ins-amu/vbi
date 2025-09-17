@@ -27,7 +27,7 @@ from .feature_extraction.features_utils import report_cfg
 from .utils import LoadSample, timer, display_time, BoxUniform
 
 # Always available numpy-based functions
-from .utils import posterior_shrinkage_numpy, posterior_zscore_numpy
+from .utils import posterior_shrinkage_numpy, posterior_zscore_numpy, posterior_peaks
 
 try:
     from .utils import j2p, p2j
