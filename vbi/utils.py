@@ -710,13 +710,14 @@ def set_diag(A: np.ndarray, k: int = 0, value: float = 0.0):
 
 
 def test_imports():
-    """Check required dependencies, print versions, and warn if unavailable."""
+    """Check required dependencies, including C++ modules, print versions, and warn if unavailable."""
     console = Console()
     table = Table(title="Dependency Check", box=box.SIMPLE_HEAVY)
     table.add_column("Package", style="bold cyan")
     table.add_column("Version", style="bold green")
     table.add_column("Status", style="bold yellow")
 
+    # Python package dependencies
     dependencies = [
         ("vbi", "vbi"),
         ("numpy", "numpy"),
@@ -727,6 +728,21 @@ def test_imports():
         ("cupy", "cupy"),
     ]
 
+    # C++ module dependencies
+    cpp_modules = [
+        ("vbi.models.cpp.mpr.MPR_sde", "vbi.models.cpp.mpr", "MPR_sde"),
+        ("vbi.models.cpp.damp_oscillator.DO", "vbi.models.cpp.damp_oscillator", "DO"),
+        ("vbi.models.cpp._src.do.DO", "vbi.models.cpp._src.do", "DO"),
+        ("vbi.models.cpp._src.jr_sde.JR_sde", "vbi.models.cpp._src.jr_sde", "JR_sde"),
+        ("vbi.models.cpp._src.jr_sdde.JR_sdde", "vbi.models.cpp._src.jr_sdde", "JR_sdde"),
+        ("vbi.models.cpp._src.km_sde.KM_sde", "vbi.models.cpp._src.km_sde", "KM_sde"),
+        ("vbi.models.cpp._src.mpr_sde.MPR_sde", "vbi.models.cpp._src.mpr_sde", "MPR_sde"),
+        ("vbi.models.cpp._src.mpr_sde.BoldParams", "vbi.models.cpp._src.mpr_sde", "BoldParams"),
+        ("vbi.models.cpp._src.vep.VEP", "vbi.models.cpp._src.vep", "VEP"),
+        ("vbi.models.cpp._src.wc_ode.WC_ode", "vbi.models.cpp._src.wc_ode", "WC_ode"),
+    ]
+
+    # Check Python packages
     for name, module in dependencies:
         try:
             pkg = __import__(module)
@@ -735,12 +751,22 @@ def test_imports():
         except ImportError:
             version = "-"
             status = "❌ Not Found"
-
         table.add_row(name, version, status)
+
+    # Check C++ modules collectively
+    cpp_status = "✅ Available"
+    for name, module_path, module_name in cpp_modules:
+        try:
+            module = __import__(module_path, fromlist=[module_name])
+            getattr(module, module_name)
+        except (ImportError, AttributeError):
+            cpp_status = "❌ Failed"
+            break
+    table.add_row("All C++ Modules", "-", cpp_status)
 
     console.print(table)
 
-    # Additional GPU checks
+    # Additional GPU checks for torch
     try:
         import torch
 
@@ -752,10 +778,11 @@ def test_imports():
         )
         console.print(
             f"[bold blue]Torch CUDA version:[/bold blue] {torch.version.cuda}"
-        )  # Display CUDA version used by PyTorch
+        )
     except ImportError:
         pass
 
+    # Additional GPU checks for cupy
     try:
         import cupy
 
@@ -767,13 +794,79 @@ def test_imports():
         )
         info = get_cuda_info()
         if isinstance(info, dict):
-            print(f"CUDA Version: {info['cuda_version']}")
-            print(f"Device Name: {info['device_name']}")
-            print(f"Total Memory: {info['total_memory']:.2f} GB")
-            print(f"Compute Capability: {info['compute_capability']}")
-
+            console.print(f"[bold blue]CUDA Version:[/bold blue] {info['cuda_version']}")
+            console.print(f"[bold blue]Device Name:[/bold blue] {info['device_name']}")
+            console.print(f"[bold blue]Total Memory:[/bold blue] {info['total_memory']:.2f} GB")
+            console.print(f"[bold blue]Compute Capability:[/bold blue] {info['compute_capability']}")
     except ImportError:
         pass
+# def test_imports():
+#     """Check required dependencies, print versions, and warn if unavailable."""
+#     console = Console()
+#     table = Table(title="Dependency Check", box=box.SIMPLE_HEAVY)
+#     table.add_column("Package", style="bold cyan")
+#     table.add_column("Version", style="bold green")
+#     table.add_column("Status", style="bold yellow")
+
+#     dependencies = [
+#         ("vbi", "vbi"),
+#         ("numpy", "numpy"),
+#         ("scipy", "scipy"),
+#         ("matplotlib", "matplotlib"),
+#         ("sbi", "sbi"),
+#         ("torch", "torch"),
+#         ("cupy", "cupy"),
+#     ]
+
+#     for name, module in dependencies:
+#         try:
+#             pkg = __import__(module)
+#             version = pkg.__version__
+#             status = "✅ Available"
+#         except ImportError:
+#             version = "-"
+#             status = "❌ Not Found"
+
+#         table.add_row(name, version, status)
+
+#     console.print(table)
+
+#     # Additional GPU checks
+#     try:
+#         import torch
+
+#         console.print(
+#             f"[bold blue]Torch GPU available:[/bold blue] {torch.cuda.is_available()}"
+#         )
+#         console.print(
+#             f"[bold blue]Torch device count:[/bold blue] {torch.cuda.device_count()}"
+#         )
+#         console.print(
+#             f"[bold blue]Torch CUDA version:[/bold blue] {torch.version.cuda}"
+#         )  # Display CUDA version used by PyTorch
+#     except ImportError:
+#         pass
+
+#     try:
+#         import cupy
+
+#         console.print(
+#             f"[bold blue]CuPy GPU available:[/bold blue] {cupy.cuda.is_available()}"
+#         )
+#         console.print(
+#             f"[bold blue]CuPy device count:[/bold blue] {cupy.cuda.runtime.getDeviceCount()}"
+#         )
+#         info = get_cuda_info()
+#         if isinstance(info, dict):
+#             print(f"CUDA Version: {info['cuda_version']}")
+#             print(f"Device Name: {info['device_name']}")
+#             print(f"Total Memory: {info['total_memory']:.2f} GB")
+#             print(f"Compute Capability: {info['compute_capability']}")
+
+#     except ImportError:
+#         pass
+
+
 
 
 def get_cuda_info():
