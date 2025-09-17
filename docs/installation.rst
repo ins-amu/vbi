@@ -177,11 +177,12 @@ Troubleshooting
 
 **C++ Compilation Issues**
 
-Skip C++ components if needed:
+Note: the package is configured with SKIP_CPP=1 by default (C++ extensions are disabled).
+If you want to compile and install the C++ components, set SKIP_CPP=0 when installing from source or via pip, for example:
 
 .. code-block:: bash
 
-    SKIP_CPP=1 pip install vbi
+    SKIP_CPP=0 pip install vbi
 
 **Common Issues**
 
