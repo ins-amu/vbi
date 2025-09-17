@@ -306,40 +306,49 @@ def posterior_peaks(samples, return_dict=False, **kwargs):
         peak values as values.
     """
 
-    # Get default kwargs for KDE diagonal plots and figure kwargs
-    fig_kwargs = _get_default_fig_kwargs()
-    kde_kwargs = _get_default_diag_kwargs("kde")
-
-    # Update with user-provided kwargs
-    fig_kwargs = _update(fig_kwargs, kwargs)
-
-    limits = get_limits(samples)
-    samples = ensure_numpy(samples)
-    n, dim = samples.shape
-
+    # Prefer sbi-based plotting/analysis helpers when available; if they are
+    # not present (sbi not installed), fall back to the numpy-only
+    # implementation `posterior_peaks_numpy` which doesn't require sbi/torch.
     try:
-        labels = fig_kwargs.get("labels")
-    except:
-        labels = range(dim)
+        # Get default kwargs for KDE diagonal plots and figure kwargs
+        fig_kwargs = _get_default_fig_kwargs()
+        kde_kwargs = _get_default_diag_kwargs("kde")
 
-    peaks = {}
-    if labels is None:
-        labels = range(dim)
-    for i in range(dim):
-        peaks[labels[i]] = 0
+        # Update with user-provided kwargs
+        fig_kwargs = _update(fig_kwargs, kwargs)
 
-    for row in range(dim):
-        density = gaussian_kde(samples[:, row], bw_method=kde_kwargs["bw_method"])
-        xs = np.linspace(limits[row, 0], limits[row, 1], kde_kwargs["bins"])
-        ys = density(xs)
+        limits = get_limits(samples)
+        samples = ensure_numpy(samples)
+        n, dim = samples.shape
 
-        # y, x = np.histogram(samples[:, row], bins=bins)
-        peaks[labels[row]] = xs[ys.argmax()]
+        try:
+            labels = fig_kwargs.get("labels")
+        except:
+            labels = range(dim)
 
-    if return_dict:
-        return peaks
-    else:
-        return list(peaks.values())
+        peaks = {}
+        if labels is None:
+            labels = range(dim)
+        for i in range(dim):
+            peaks[labels[i]] = 0
+
+        for row in range(dim):
+            density = gaussian_kde(samples[:, row], bw_method=kde_kwargs["bw_method"])
+            xs = np.linspace(limits[row, 0], limits[row, 1], kde_kwargs["bins"])
+            ys = density(xs)
+
+            peaks[labels[row]] = xs[ys.argmax()]
+
+        if return_dict:
+            return peaks
+        else:
+            return list(peaks.values())
+    except NameError:
+        # sbi helpers not available; fallback to numpy-only implementation.
+        labels = kwargs.get("labels", None)
+        bins = kwargs.get("bins", 100)
+        bw_method = kwargs.get("bw_method", None)
+        return posterior_peaks_numpy(samples, return_dict=return_dict, labels=labels, bins=bins, bw_method=bw_method)
 
 
 def posterior_peaks_numpy(
