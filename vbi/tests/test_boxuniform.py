@@ -460,9 +460,14 @@ class TestBoxUniform(unittest.TestCase):
 class TestBoxUniformLong(unittest.TestCase):
     """Long-running tests for BoxUniform."""
 
+    def setUp(self):
+        """Set up test fixtures."""
+        self.seed = 42
+        np.random.seed(self.seed)
+
     def test_statistical_convergence(self):
         """Test that large samples converge to expected statistics."""
-        dist = BoxUniform(low=[0.0, -2.0], high=[4.0, 2.0])
+        dist = BoxUniform(low=[0.0, -2.0], high=[4.0, 2.0], seed=self.seed)
         large_samples = dist.sample(100000)
         
         # Test mean convergence
