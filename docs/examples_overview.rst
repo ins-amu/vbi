@@ -30,7 +30,7 @@ CPU-based simulations using numba for acceleration:
 .. toctree::
    :maxdepth: 1
 
-   examples/do_nb
+   examples/damp_oscillator
    examples/vep_sde_numba
    examples/mpr_sde_numba
    examples/jansen_rit_sde_numba
@@ -59,7 +59,7 @@ High-performance simulations using C++ backend:
 .. toctree::
    :maxdepth: 1
 
-   examples/do_cpp
+   examples/damp_oscillator_cde
    examples/vep_sde
    examples/mpr_sde_cpp
    examples/jansen_rit_sde_cpp

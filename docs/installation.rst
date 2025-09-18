@@ -5,8 +5,8 @@
 Installation Guide
 ==================
 
-Quick Start
------------
+From Quick Start to Advanced Options
+------------------------------------
 
 Create conda environment (recommended):
 
