@@ -15,7 +15,7 @@ Complete Example List
 ---------------------
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
 
    examples/intro
    examples/intro_feature
