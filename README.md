@@ -98,6 +98,8 @@ vbi.test_imports()
 
 Try these examples directly in your browser using Google Colab:
 
+[Load simulated data](https://amubox.univ-amu.fr/s/oEdiaJSbjJcWfCP)
+
 | Model | Colab Link |
 |-------|------------|
 | Jansen-Rit SDE | <a href="https://colab.research.google.com/github/Ziaeemehr/vbi_paper/blob/main/docs/examples/jansen_rit_sde_numba_cde.ipynb" target="_parent"><img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/></a> |
