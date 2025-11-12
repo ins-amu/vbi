@@ -998,7 +998,7 @@ class BoxUniform:
         Returns
         -------
         np.ndarray
-            Samples of shape (*sample_shape, n_dims) with specified dtype.
+            Samples of shape (\\*sample_shape, n_dims) with specified dtype.
         """
         if isinstance(sample_shape, int):
             sample_shape = (sample_shape,)

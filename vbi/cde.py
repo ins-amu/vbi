@@ -24,6 +24,8 @@ from autograd.scipy.special import logsumexp
 from sklearn.datasets import make_moons
 from scipy.stats import t
 from tqdm.auto import trange
+from typing import Optional
+
 
 # =============================================================================
 # == Base Class for Conditional Density Estimators
@@ -198,6 +200,7 @@ class ConditionalDensityEstimator(abc.ABC):
         if not self._dims_inferred:
             raise RuntimeError("Model dimensions not inferred yet. Call train() first.")
 
+    ############################################################################
     def train(
         self,
         params: anp.ndarray,
@@ -206,9 +209,11 @@ class ConditionalDensityEstimator(abc.ABC):
         learning_rate: float = 1e-3,
         seed: int = 0,
         use_tqdm: bool = True,
+        patience: int = None,
+        min_delta: float = 0.0,
     ):
         """
-        Trains the model using the Adam optimizer.
+        Trains the model using the Adam optimizer with optional early stopping for plateaus.
 
         Parameters
         ----------
@@ -224,6 +229,11 @@ class ConditionalDensityEstimator(abc.ABC):
             Seed for reproducible weight initialization and training.
         use_tqdm : bool, optional
             If True, displays a progress bar during training.
+        patience : int, optional
+            Number of iterations with no improvement after which training will be stopped.
+            If None, early stopping is disabled.
+        min_delta : float, optional
+            Minimum change in the loss to qualify as an improvement.
         """
         # --- 1. Data Validation and Dimension Inference ---
 
@@ -265,6 +275,12 @@ class ConditionalDensityEstimator(abc.ABC):
         v = {key: anp.zeros_like(val) for key, val in self.weights.items()}
         beta1, beta2, epsilon = 0.9, 0.999, 1e-8
 
+        # Early stopping initialization
+        best_loss = anp.inf
+        counter = 0
+        if patience is not None and patience <= 0:
+            raise ValueError("patience must be a positive integer.")
+
         # --- 3. Optimization Loop ---
         gradient_func = grad(self._loss_function)
 
@@ -282,6 +298,16 @@ class ConditionalDensityEstimator(abc.ABC):
 
             if use_tqdm:
                 iterator.set_postfix(loss=f"{loss:.4f}")
+
+            # Early stopping check
+            if loss < best_loss - min_delta:
+                best_loss = loss
+                counter = 0
+            else:
+                counter += 1
+                if patience is not None and counter >= patience:
+                    print(f"Early stopping at iteration {i} due to plateau.")
+                    break
 
             # Adam update step
             for key in self.weights:
@@ -459,18 +485,51 @@ class MDNEstimator(ConditionalDensityEstimator):
         return total_log_prob
 
     def sample(
-        self, features: anp.ndarray, n_samples: int, rng: anp.random.RandomState
+        self,
+        features: anp.ndarray,
+        n_samples: int,
+        rng: anp.random.RandomState,
+        log_prob_threshold: float = None,
+        oversample_factor: int = 5,
     ) -> anp.ndarray:
-        super().sample(features, n_samples, rng)
+        """
+        Generate samples from the learned conditional distribution p(params|features),
+        with optional rejection sampling to filter low-probability outliers.
+
+        Parameters
+        ----------
+        features : anp.ndarray
+            A (n_conditions, feature_dim) array of features to condition on.
+        n_samples : int
+            The number of samples to generate for each condition.
+        rng : anp.random.RandomState
+            A random number generator for sampling.
+        log_prob_threshold : float, optional
+            If provided, reject samples with log p(sample | features) < threshold.
+            Tune based on training data (e.g., min log-prob - 2).
+        oversample_factor : int, optional
+            Multiplier for initial sample generation to account for rejections.
+
+        Returns
+        -------
+        anp.ndarray
+            An array of generated samples of shape (n_conditions, n_samples, param_dim).
+            If filtering is active and fewer than n_samples are retained, it will be padded
+            with the last valid sample and a warning printed.
+        """
+        super().sample(features, n_samples, rng)  # Existing check
         features = features.astype("f")
         if features.ndim == 1:
             features = features.reshape(1, -1)
+        n_cond, _, D_out = features.shape[0], features.shape[1], self.param_dim
 
+        # Generate oversampled candidates
+        n_candidates = n_samples * oversample_factor
         alpha, mu, L_prec, _ = self._forward_pass(self.weights, features)
-        n_cond, K, D_out = mu.shape
+        K = self.n_components
 
         log_alpha = anp.log(alpha + 1e-9)
-        gumbel_noise = -anp.log(-anp.log(rng.uniform(size=(n_cond, n_samples, K))))
+        gumbel_noise = -anp.log(-anp.log(rng.uniform(size=(n_cond, n_candidates, K))))
         component_indices = anp.argmax(
             log_alpha[:, anp.newaxis, :] + gumbel_noise, axis=2
         )
@@ -487,21 +546,44 @@ class MDNEstimator(ConditionalDensityEstimator):
             )
             return anp.full((n_cond, n_samples, D_out), anp.nan)
 
-        z = rng.randn(n_cond, n_samples, D_out)
-        samples = chosen_mu + anp.einsum("nsij,nsj->nsi", L_cov_factor, z)
+        z = rng.randn(n_cond, n_candidates, D_out)
+        candidate_samples = chosen_mu + anp.einsum("ncsi,ncs->nci", L_cov_factor, z)
 
-        return samples
+        if log_prob_threshold is not None:
+            # Compute log_probs for all candidates
+            flat_features = anp.tile(features[:, anp.newaxis, :], (1, n_candidates, 1)).reshape(-1, self.feature_dim)
+            flat_candidates = candidate_samples.reshape(-1, D_out)
+            log_probs = self.log_prob(flat_features, flat_candidates)
 
+            # Filter per condition
+            valid_samples = []
+            for i in range(n_cond):
+                cond_mask = anp.arange(n_candidates) + i * n_candidates
+                cond_log_probs = log_probs[cond_mask]
+                cond_candidates = flat_candidates[cond_mask]
+                valid_mask = cond_log_probs > log_prob_threshold
+                valid_cond = cond_candidates[valid_mask]
+                if len(valid_cond) == 0:
+                    print(f"Warning: No valid samples for condition {i}. Using mean.")
+                    valid_cond = anp.tile(mu[i, 0], (n_samples, 1))  # Fallback to first component mean
+                elif len(valid_cond) < n_samples:
+                    # Pad with last valid or repeat
+                    pad_len = n_samples - len(valid_cond)
+                    valid_cond = anp.concatenate([valid_cond, anp.tile(valid_cond[-1:], (pad_len, 1))])
+                    print(f"Warning: Only {len(valid_cond) - pad_len} valid samples for condition {i}; padded.")
+                else:
+                    valid_cond = valid_cond[:n_samples]
+                valid_samples.append(valid_cond)
+            filtered_samples = anp.stack(valid_samples)
+        else:
+            filtered_samples = candidate_samples[:, :n_samples, :]
+
+        return filtered_samples
+    
 
 # =============================================================================
 # == MAF Implementation
 # =============================================================================
-
-
-from dataclasses import dataclass
-import autograd.numpy as anp
-from typing import Optional
-
 
 @dataclass
 class MAFEstimator(ConditionalDensityEstimator):

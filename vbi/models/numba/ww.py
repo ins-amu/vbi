@@ -1,5 +1,3 @@
-# gpt5
-
 import warnings
 import numpy as np
 from copy import copy
@@ -9,6 +7,7 @@ from numba.extending import register_jitable
 from vbi.utils import print_valid_parameters
 from numba import float64, boolean, int64, types
 from numba.core.errors import NumbaPerformanceWarning
+from vbi.models.numba.utils import check_vec_size_1d
 
 warnings.simplefilter("ignore", category=NumbaPerformanceWarning)
 
@@ -16,10 +15,6 @@ warnings.simplefilter("ignore", category=NumbaPerformanceWarning)
 # -----------------------------
 # Helper utilities
 # -----------------------------
-
-# @register_jitable
-# def set_seed_compat(x):
-#     np.random.seed(x)
 
 @jit(nopython=True)
 def initialize_random_state(seed):
@@ -38,32 +33,32 @@ def initialize_random_state(seed):
 
 
 
-def check_vec_size_1d(x, nn):
-    """
-    Return a 1D vector of size nn, broadcasting scalar if needed.
+# def check_vec_size_1d(x, nn):
+#     """
+#     Return a 1D vector of size nn, broadcasting scalar if needed.
     
-    This utility function ensures that parameter inputs are properly
-    formatted as arrays of the correct size for multi-region simulations.
+#     This utility function ensures that parameter inputs are properly
+#     formatted as arrays of the correct size for multi-region simulations.
     
-    Parameters
-    ----------
-    x : scalar or array-like
-        Input value(s) to be broadcast or validated
-    nn : int
-        Required array size (number of brain regions)
+#     Parameters
+#     ----------
+#     x : scalar or array-like
+#         Input value(s) to be broadcast or validated
+#     nn : int
+#         Required array size (number of brain regions)
         
-    Returns
-    -------
-    np.ndarray
-        Array of shape (nn,) with input values properly broadcast
-    """
-    x = np.array(x, dtype=np.float64) if np.ndim(x) > 0 else np.array([x], dtype=np.float64)
-    return np.ones(nn, dtype=np.float64) * x if x.size != nn else x.astype(np.float64)
+#     Returns
+#     -------
+#     np.ndarray
+#         Array of shape (nn,) with input values properly broadcast
+#     """
+#     x = np.array(x, dtype=np.float64) if np.ndim(x) > 0 else np.array([x], dtype=np.float64)
+#     return np.ones(nn, dtype=np.float64) * x if x.size != nn else x.astype(np.float64)
 
 
-# -----------------------------
-# BOLD model parameters (same structure as in mpr.py)
-# -----------------------------
+# ---------------------
+# BOLD model parameters
+# ---------------------
 
 bold_spec = [
     ("kappa", float64),
@@ -252,7 +247,7 @@ ww_spec = [
     ("weights", float64[:, :]),
     ("tr", float64),
     ("s_decimate", int64),
-    ("sigma", float64),
+    ("sigma", float64[:]),
     ("nn", int64),
     ("seed", int64),
     ("output", types.string),
@@ -339,7 +334,7 @@ class ParWW:
         weights=np.array([[], []]),
         tr=300.0,         # ms
         s_decimate=1,
-        sigma=0.0,
+        sigma=np.array([0.0]),
         nn=1,
         seed=-1,
         output="output",
@@ -524,7 +519,15 @@ def heun_sde(S, t, P):
     dt = P.dt
     nn = P.nn
 
-    dW = P.sigma * np.sqrt(dt) * np.random.randn(2 * nn)
+    # Handle sigma as either scalar or array
+    if P.sigma.size == 1:
+        # Scalar case: apply same noise to all variables
+        dW = P.sigma[0] * np.sqrt(dt) * np.random.randn(2 * nn)
+    else:
+        # Array case: apply different noise to exc and inh populations
+        dW = np.zeros(2 * nn)
+        dW[:nn] = P.sigma * np.sqrt(dt) * np.random.randn(nn)
+        dW[nn:] = P.sigma * np.sqrt(dt) * np.random.randn(nn)
 
     k1 = f_ww(S, t, P)
     y_ = S + dt * k1 + dW
@@ -728,7 +731,16 @@ class WW_sde:
         par.setdefault("ext_current", 0.382)
         par["ext_current"] = check_vec_size_1d(par["ext_current"], nn)
 
-        # dt-based noise scalars are computed inside heun_sde (uses sigma directly)
+        # handle sigma parameter - can be scalar or array
+        par.setdefault("sigma", 0.0)
+        sigma_val = par["sigma"]
+        if np.isscalar(sigma_val):
+            par["sigma"] = np.array([sigma_val], dtype=np.float64)
+        else:
+            sigma_val = np.array(sigma_val, dtype=np.float64)
+            if sigma_val.size != 1 and sigma_val.size != nn:
+                raise ValueError(f"sigma must be scalar or array of size {nn}, got size {sigma_val.size}")
+            par["sigma"] = sigma_val
 
         # initial state
         if "initial_state" in par:
@@ -766,7 +778,7 @@ class WW_sde:
             weights=weights,
             tr=par.get("tr", 300.0),
             s_decimate=int(par.get("s_decimate", 1)),
-            sigma=par.get("sigma", 0.0),
+            sigma=par["sigma"].astype(np.float64),
             nn=nn,
             seed=int(par.get("seed", -1)),
             output=par.get("output", "output"),

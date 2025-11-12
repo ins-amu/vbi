@@ -100,37 +100,93 @@ For detailed instructions including Docker, platform-specific guides (Windows, G
    Note: Missing packages are expected for light installation.
    Install vbi[inference] or vbi[inference-gpu] for additional functionality.
 
+Interactive Examples
+====================
+
+Try these examples directly in your browser using Google Colab:
+
+.. list-table:: Colab Examples
+   :header-rows: 1
+   :class: color-caption
+
+   * - **Model**
+     - **Colab Link**
+   * - Jansen-Rit SDE
+     - |colab1|
+   * - Wilson-Cowan SDE
+     - |colab2|
+   * - Wong-Wang SDE
+     - |colab3|
+   * - VEP SDE (84 Regions)
+     - |colab4|
+   * - VEP SDE (few parameters)
+     - |colab5|
+   * - MPR SDE
+     - |colab6|
+   * - Damped Oscillator
+     - |colab7|
+
+.. |colab1| image:: https://colab.research.google.com/assets/colab-badge.svg
+   :target: https://colab.research.google.com/github/Ziaeemehr/vbi_paper/blob/main/docs/examples/jansen_rit_sde_numba_cde.ipynb
+   :alt: Open In Colab
+
+.. |colab2| image:: https://colab.research.google.com/assets/colab-badge.svg
+   :target: https://colab.research.google.com/github/Ziaeemehr/vbi_paper/blob/main/docs/examples/wilson_cowan_sde_numba_cde.ipynb
+   :alt: Open In Colab
+
+.. |colab3| image:: https://colab.research.google.com/assets/colab-badge.svg
+   :target: https://colab.research.google.com/github/Ziaeemehr/vbi_paper/blob/main/docs/examples/ww_full_sde_numba_cde.ipynb
+   :alt: Open In Colab
+
+.. |colab4| image:: https://colab.research.google.com/assets/colab-badge.svg
+   :target: https://colab.research.google.com/github/Ziaeemehr/vbi_paper/blob/main/docs/examples/vep_sde_numba_cde_84.ipynb
+   :alt: Open In Colab
+
+.. |colab5| image:: https://colab.research.google.com/assets/colab-badge.svg
+   :target: https://colab.research.google.com/github/Ziaeemehr/vbi_paper/blob/main/docs/examples/vep_sde_numba_cde.ipynb
+   :alt: Open In Colab
+
+.. |colab6| image:: https://colab.research.google.com/assets/colab-badge.svg
+   :target: https://colab.research.google.com/github/Ziaeemehr/vbi_paper/blob/main/docs/examples/mpr_sde_numba_cde.ipynb
+   :alt: Open In Colab
+
+.. |colab7| image:: https://colab.research.google.com/assets/colab-badge.svg
+   :target: https://colab.research.google.com/github/Ziaeemehr/vbi_paper/blob/main/docs/examples/damp_oscillator_cde.ipynb
+   :alt: Open In Colab
 
 User Guide
 ==========
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
    :caption: Getting Started:
 
    installation
+   docker_build
+   docker_quickstart
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
    :caption: Publications & Citations:
 
    publication
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
    :caption: Brain Models:
 
    models
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
    :caption: Examples & Tutorials:
 
    examples_overview
+   Examples
    inference_examples
 
 .. toctree::
-    :maxdepth: 2
+    :maxdepth: 1
     :caption: API Reference:
 
     API

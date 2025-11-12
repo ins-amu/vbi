@@ -53,6 +53,7 @@ CDE-Based Inference (Lightweight)
 - Limited computational resources
 - Want to avoid heavy PyTorch dependency
 - Need transparent, interpretable inference
+
 .. - Working with moderate-dimensional problems (< 20 parameters)
 
 SBI-Based Inference (Advanced)
@@ -64,6 +65,7 @@ SBI-Based Inference (Advanced)
 
 - 🚀 **State-of-the-art**: Latest neural density estimation techniques
 - 🧠 **Scalable**: Handles high-dimensional problems efficiently
+
 .. - 🔬 **Research-grade**: Used in cutting-edge neuroscience research
 - 🔧 **Comprehensive**: Multiple inference algorithms (SNPE, SNLE, SNRE)
 

@@ -15,25 +15,31 @@ Complete Example List
 ---------------------
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
 
    examples/intro
    examples/intro_feature
    examples/distributions
-   examples/do_cpp
-   examples/do_nb
+   examples/damp_oscillator
+   examples/damp_oscillator_cde
    examples/vep_sde
    examples/vep_sde_numba
+   examples/vep_sde_numba_cde
+   examples/vep_sde_numba_cde_84
    examples/mpr_sde_cupy
    examples/mpr_sde_numba
+   examples/mpr_sde_numba_cde
    examples/mpr_sde_cpp
    examples/mpr_tvbk
    examples/jansen_rit_sde_cpp
    examples/jansen_rit_sde_cupy
    examples/jansen_rit_sde_numba
+   examples/jansen_rit_sde_numba_cde
    examples/ww_sde_torch_kong
    examples/ghb_sde_cupy
    examples/wilson_cowan_cupy
    examples/wilson_cowan_sde_numba
+   examples/wilson_cowan_sde_numba_cde
    examples/ww_full_sde_cupy
    examples/ww_full_sde_numba
+   examples/ww_full_sde_numba_cde
