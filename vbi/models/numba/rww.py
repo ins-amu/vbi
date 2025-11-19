@@ -3,6 +3,8 @@ from copy import copy
 from numba import njit, jit
 from numba.experimental import jitclass
 from numba import float64, int64, boolean, types
+from numba.extending import register_jitable
+# from vbi.models.numba.utils import set_seed_compat
 from vbi.models.numba.bold import ParBold, bold_spec, do_bold_step
 from vbi.models.numba.utils import check_vec_size_1d, check_parameters
 
@@ -39,18 +41,18 @@ rww_spec = [
 class ParRWW:
     def __init__(
         self,
-        a=270.0,
-        b=108.0,
-        d=0.154,
+        a=270.0/1000.0,
+        b=108.0/1000.0,
+        d=0.154 * 1000.0,
         tau_s=100.0,  # ms
-        gamma=0.641 / 1000.0,
+        gamma=0.641,
         w=1.0,
-        J=0.15,
+        J=0.2609,
         G=0.0,
         I_ext=np.array([0.382]),
         weights=np.array([[0.0]]),
-        sigma=0.0,
-        dt=0.1,
+        sigma=0.05,
+        dt=1.0,
         t_end=1000.0,
         t_cut=0.0,
         tr=300.0,
@@ -144,67 +146,50 @@ class RWW_sde:
         if nn is None:
             nn = weights.shape[0]
         par.setdefault("nn", nn)
+        
+        seed = par.get("seed", -1)
+        if seed > 0:
+            set_seed_compat(seed)
 
         # initial state
         if "initial_state" in par:
             par["initial_state"] = np.array(par["initial_state"], dtype=np.float64)
         else:
-            par["initial_state"] = set_initial_state(nn, seed=par.get("seed", -1))
+            par["initial_state"] = set_initial_state(nn, seed=seed)
 
-        self.P = ParRWW(
-            a=par.get("a", 270.0),
-            b=par.get("b", 108.0),
-            d=par.get("d", 0.154),
-            tau_s=par.get("tau_s", 100.0),
-            gamma=par.get("gamma", 0.641 / 1000.0),
-            w=par.get("w", 1.0),
-            J=par.get("J", 0.2609),
-            G=par.get("G", 0.0),
-            I_ext=check_vec_size_1d(par.get("I_ext", 0.382), nn),
-            weights=weights,
-            sigma=par.get("sigma", 0.0),
-            dt=par.get("dt", 1.0),
-            t_end=par.get("t_end", 1000.0),
-            t_cut=par.get("t_cut", 0.0),
-            nn=nn,
-            seed=int(par.get("seed", -1)),
-            tr=par.get("tr", 300.0),
-            initial_state=par["initial_state"],
-            RECORD_S=bool(par.get("RECORD_S", True)),
-            RECORD_BOLD=bool(par.get("RECORD_BOLD", True)),
-            s_decimate=int(par.get("s_decimate", 1)),
-        )
+        # --- RWW parameters ---
+        self.P = ParRWW()
+        for k, v in par.items():
+            if k == "I_ext":
+                v = check_vec_size_1d(v, nn)
+            setattr(self.P, k, v)
         
         # --- Bold parameters ---
-        self.B = ParBold(
-            kappa=Bpar.get("kappa", 0.65),
-            gamma=Bpar.get("gamma", 0.41),
-            tau=Bpar.get("tau", 0.98),
-            alpha=Bpar.get("alpha", 0.32),
-            epsilon=Bpar.get("epsilon", 0.34),
-            Eo=Bpar.get("Eo", 0.4),
-            TE=Bpar.get("TE", 0.04),
-            vo=Bpar.get("vo", 0.08),
-            r0=Bpar.get("r0", 25.0),
-            theta0=Bpar.get("theta0", 40.3),
-            t_min=Bpar.get("t_min", 0.0),
-            rtol=Bpar.get("rtol", 1e-5),
-            atol=Bpar.get("atol", 1e-8),
-        )
+        self.B = ParBold()
+        for k, v in Bpar.items():
+            setattr(self.B, k, v)
+            
     def run(self, par: dict = {}, x0=None):
+        
+        
+
         if x0 is None:
             S = copy(self.P.initial_state)
         else:
             S = np.array(x0, dtype=np.float64)
             
+        if self.P.seed > 0:
+            set_seed_compat(self.P.seed)
+            reset_numba_rng(self.P.seed) # fixed the bug for passing x0 with seed
+            
         check_parameters(par, self.valid_par, rww_spec)
-
+        
         if par:
             for k, v in par.items():
                 if k == "I_ext":
                     v = check_vec_size_1d(v, self.P.nn)
                 setattr(self.P, k, v)
-
+                
         # --- sanity checks ---
         assert self.P.weights is not None
         assert self.P.weights.shape[0] == self.P.weights.shape[1]
@@ -298,7 +283,7 @@ class RWW_sde:
 # API helpers
 # -----------------------------
 
-
+@njit
 def set_initial_state(nn, seed=-1):
     """
     Generate random initial conditions for the Reduced Wong-Wang model.
@@ -321,7 +306,15 @@ def set_initial_state(nn, seed=-1):
         random values for [S_exc_0, ..., S_exc_n].
     """
     if seed is not None and seed >= 0:
-        np.random.seed(seed)
-        # initialize_random_state(seed)
+        set_seed_compat(seed)
     y0 = np.random.rand(nn) * 0.1  # small positive
     return y0.astype(np.float64)
+
+@register_jitable
+def set_seed_compat(x):
+    """Numba-compatible random seed setter."""
+    np.random.seed(x)
+
+@njit
+def reset_numba_rng(seed):
+    np.random.seed(seed)
