@@ -4,11 +4,18 @@ Test script for fcd_ks_cost function
 """
 
 import numpy as np
-import torch
 import pytest
-from vbi.models.pytorch.utils import fcd_ks_cost
+
+# Try to import torch - skip tests if not available
+try:
+    import torch
+    from vbi.models.pytorch.utils import fcd_ks_cost
+    TORCH_AVAILABLE = True
+except ImportError:
+    TORCH_AVAILABLE = False
 
 
+@pytest.mark.skipif(not TORCH_AVAILABLE, reason="torch not available")
 def test_fcd_ks_cost_basic():
     """Test the fcd_ks_cost function with normal case without NaN."""
     n_nodes = 10
@@ -29,6 +36,7 @@ def test_fcd_ks_cost_basic():
     assert np.all(cost >= 0), "Cost should be non-negative"
 
 
+@pytest.mark.skipif(not TORCH_AVAILABLE, reason="torch not available")
 def test_fcd_ks_cost_with_nan():
     """Test case with some NaN values in simulated data."""
     n_nodes = 10
@@ -53,6 +61,7 @@ def test_fcd_ks_cost_with_nan():
     assert np.sum(cost_nan < 10) > 0, "Should have some valid costs"
 
 
+@pytest.mark.skipif(not TORCH_AVAILABLE, reason="torch not available")
 def test_fcd_ks_cost_all_nan():
     """Test case with all NaN for one parameter set."""
     n_nodes = 10
@@ -79,7 +88,8 @@ def test_fcd_ks_cost_all_nan():
     assert cost_all_nan[1] == 10, f"Expected cost of 10 for all-NaN set, got {cost_all_nan[1]}"
 
 
-@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA not available")
+@pytest.mark.skipif(not TORCH_AVAILABLE, reason="torch not available")
+@pytest.mark.skipif(not (TORCH_AVAILABLE and torch.cuda.is_available()), reason="CUDA not available")
 def test_fcd_ks_cost_cuda():
     """Test with CUDA if available."""
     n_nodes = 10
@@ -103,6 +113,7 @@ def test_fcd_ks_cost_cuda():
     assert diff < 0.01, f"CPU and CUDA results differ significantly: {diff}"
 
 
+@pytest.mark.skipif(not TORCH_AVAILABLE, reason="torch not available")
 def test_fcd_ks_cost_shape_validation():
     """Test shape validation."""
     n_nodes = 10
@@ -135,6 +146,7 @@ def test_fcd_ks_cost_shape_validation():
                    device='cpu', verbose=False)
 
 
+@pytest.mark.skipif(not TORCH_AVAILABLE, reason="torch not available")
 def test_fcd_ks_cost_identical_bold():
     """Test that identical BOLD signals result in very low cost."""
     n_nodes = 10
@@ -158,6 +170,7 @@ def test_fcd_ks_cost_identical_bold():
         f"Expected very low cost for identical BOLD, got max cost = {cost.max():.4f}"
 
 
+@pytest.mark.skipif(not TORCH_AVAILABLE, reason="torch not available")
 def test_fcd_ks_cost_different_window_sizes():
     """Test with different window sizes."""
     n_nodes = 10

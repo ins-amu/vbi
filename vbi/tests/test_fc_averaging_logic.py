@@ -4,11 +4,18 @@ Detailed test to verify the averaging logic for NaN handling in fc_correlation_c
 """
 
 import numpy as np
-import torch
 import pytest
-from vbi.models.pytorch.utils import fc_correlation_cost
+
+# Try to import torch - skip tests if not available
+try:
+    import torch
+    from vbi.models.pytorch.utils import fc_correlation_cost
+    TORCH_AVAILABLE = True
+except ImportError:
+    TORCH_AVAILABLE = False
 
 
+@pytest.mark.skipif(not TORCH_AVAILABLE, reason="torch not available")
 def test_fc_averaging_no_nan():
     """Test that all duplicates are averaged when there are no NaN values."""
     n_nodes = 5
@@ -27,6 +34,7 @@ def test_fc_averaging_no_nan():
     assert np.all(np.isfinite(cost)), "All costs should be finite when no NaN present"
 
 
+@pytest.mark.skipif(not TORCH_AVAILABLE, reason="torch not available")
 def test_fc_averaging_one_nan_duplication():
     """Test that NaN in one duplication is skipped and average computed from remaining."""
     n_nodes = 5
@@ -50,6 +58,7 @@ def test_fc_averaging_one_nan_duplication():
     assert np.all(np.isfinite(cost)), "All costs should be finite (Set 0 averaged over 3 valid duplications)"
 
 
+@pytest.mark.skipif(not TORCH_AVAILABLE, reason="torch not available")
 def test_fc_averaging_multiple_nan_duplications():
     """Test that multiple NaN duplications are skipped and average computed from remaining."""
     n_nodes = 5
@@ -76,6 +85,7 @@ def test_fc_averaging_multiple_nan_duplications():
     assert np.all(np.isfinite(cost)), "All costs should be finite (Set 1 averaged over 2 valid duplications)"
 
 
+@pytest.mark.skipif(not TORCH_AVAILABLE, reason="torch not available")
 def test_fc_averaging_all_nan_duplications():
     """Test that when ALL duplications have NaN, default cost of 10 is returned."""
     n_nodes = 5
@@ -104,6 +114,7 @@ def test_fc_averaging_all_nan_duplications():
     assert np.isfinite(cost[0]) and np.isfinite(cost[1]), "Other sets should have finite costs"
 
 
+@pytest.mark.skipif(not TORCH_AVAILABLE, reason="torch not available")
 def test_fc_averaging_mixed_scenario():
     """Test mixed scenario with different NaN patterns across sets."""
     n_nodes = 5
@@ -143,6 +154,7 @@ def test_fc_averaging_mixed_scenario():
     assert cost[2] == 10, f"Set 2 should have default cost of 10, got {cost[2]}"
 
 
+@pytest.mark.skipif(not TORCH_AVAILABLE, reason="torch not available")
 def test_fc_averaging_index_mapping():
     """Test that the index mapping between duplications and sets is correct."""
     n_nodes = 5

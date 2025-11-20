@@ -4,11 +4,18 @@ Test to verify that identical empirical and simulated BOLD signals give cost ≈
 """
 
 import numpy as np
-import torch
 import pytest
-from vbi.models.pytorch.utils import fc_correlation_cost
+
+# Try to import torch - skip tests if not available
+try:
+    import torch
+    from vbi.models.pytorch.utils import fc_correlation_cost
+    TORCH_AVAILABLE = True
+except ImportError:
+    TORCH_AVAILABLE = False
 
 
+@pytest.mark.skipif(not TORCH_AVAILABLE, reason="torch not available")
 def test_perfect_match_basic():
     """Test that identical BOLD signals result in cost ≈ 0."""
     n_nodes = 68
@@ -36,6 +43,7 @@ def test_perfect_match_basic():
         f"Expected cost ≈ 0 for identical BOLD, got max |cost| = {np.abs(cost).max():.10f}"
 
 
+@pytest.mark.skipif(not TORCH_AVAILABLE, reason="torch not available")
 def test_perfect_match_different_ndup():
     """Test perfect match with different n_dup values."""
     n_nodes = 20
@@ -57,7 +65,8 @@ def test_perfect_match_different_ndup():
             f"n_dup={n_dup}: Expected cost ≈ 0, got max |cost| = {np.abs(cost).max():.10f}"
 
 
-@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA not available")
+@pytest.mark.skipif(not TORCH_AVAILABLE, reason="torch not available")
+@pytest.mark.skipif(not (TORCH_AVAILABLE and torch.cuda.is_available()), reason="CUDA not available")
 def test_perfect_match_cuda():
     """Test perfect match on CUDA."""
     n_nodes = 68
@@ -82,6 +91,7 @@ def test_perfect_match_cuda():
     assert diff < 1e-4, f"CPU and CUDA results differ by {diff}"
 
 
+@pytest.mark.skipif(not TORCH_AVAILABLE, reason="torch not available")
 def test_perfect_match_explanation():
     """
     Test and explain why identical BOLD signals give cost ≈ 0.
@@ -114,6 +124,7 @@ def test_perfect_match_explanation():
         f"Perfect match should give cost ≈ 0, got {cost}"
 
 
+@pytest.mark.skipif(not TORCH_AVAILABLE, reason="torch not available")
 def test_nearly_perfect_match():
     """Test with very small differences to ensure cost increases appropriately."""
     n_nodes = 50
