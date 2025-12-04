@@ -11,7 +11,7 @@
 [Documentation](https://vbi.readthedocs.io/latest/) | 
 
 <p align="center">
-<img src="https://github.com/Ziaeemehr/vbi_paper/blob/main/vbi_log.png"  width="250">
+  <img src="https://raw.githubusercontent.com/ins-amu/vbi/main/vbi_log.png" width="400">
 </p>
 
 
