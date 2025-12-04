@@ -1,3 +1,11 @@
+'''
+Implementation of the stochastic Reduced Wong-Wang model variant described by
+Kong et al. (2021), "Sensory-motor cortices shape functional connectivity
+dynamics in the human brain", Nature Communications, 12(6373). The class
+below follows the parameterization in that work, exposing the knobs that
+were tuned to reproduce the paper's sensory-motor driven dynamics.
+'''
+
 from os.path import join
 from copy import copy
 from tqdm import tqdm

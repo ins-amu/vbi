@@ -48,8 +48,8 @@ classifiers = [
 ]
 
 [project.urls]
-homepage = "https://ziaeemehr.github.io/vbi_paper/"
-repository = "https://github.com/Ziaeemehr/vbi_paper"
+homepage = "https://github.com/ins-amu/vbi"
+repository = "https://github.com/ins-amu/vbi"
 
 [tool.hatch.version]
 path = "vbi/_version.py"

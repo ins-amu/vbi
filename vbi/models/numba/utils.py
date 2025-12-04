@@ -1,4 +1,5 @@
 import numpy as np
+from numba.extending import register_jitable
 from vbi.utils import print_valid_parameters
 
 
@@ -48,3 +49,9 @@ def check_parameters(par: dict, valid_params: list, model_spec: list) -> None:
             print(f"Invalid parameter: {key}")
             print_valid_parameters(model_spec)
             raise ValueError(f"Invalid parameter: {key}")
+
+
+@register_jitable
+def set_seed_compat(x):
+    """Numba-compatible random seed setter."""
+    np.random.seed(x)
