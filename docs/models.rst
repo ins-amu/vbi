@@ -364,6 +364,54 @@ This biologically motivated model comprises of three main populations of neurons
 EP: excitatory populations, IP: inhibitory populations, PSP: post synaptic potential, PSPA: post synaptic potential amplitude.
 
 
+Stuart-Landau whole-brain model
+-------------------------------
+
+The Stuart-Landau oscillator [Selivanov2012]_ is a generic mathematical model used to describe oscillatory phenomena, particularly those near a Hopf bifurcation, which is often employed to study the nonlinear dynamics of neural activity [Deco2017metastability]_, [Petkoski2019transmission]_, [Cabral2022metastable]_, [Sorrentino2023model]_. One approach uses this model to capture slow hemodynamic changes in BOLD signal [Deco2017metastability]_, while others apply it to model fast neuronal dynamics, which can be linked directly to EEG/MEG data [Petkoski2019transmission]_, [Cabral2022metastable]_, [Sorrentino2023model]_. Note that this is a phenomenological framework, and both applications operate on completely different time scales.
+
+In the network, each brain region, characterized by an autonomous Stuart-Landau oscillator, can exhibit either damped or limit-cycle oscillations depending on the bifurcation parameter :math:`a`. If :math:`a < 0`, the system shows damped oscillations, similar to a pendulum under friction. In this regime, the system, when subjected to perturbation, relaxes back to its stable fixed point through damped oscillations with an angular frequency :math:`\omega_0`. The rate of amplitude damping is determined by :math:`|a|`. Conversely, if :math:`a > 0`, the system supports limit cycle solutions, allowing for self-sustained oscillations even in the absence of external noise. At a critical value of :math:`a = 0`, the system undergoes a Hopf bifurcation, i.e., small changes in parameters can lead to large variations in the system's behavior.
+
+Using whole-brain network modeling of EEG/MEG data [Sorrentino2023model]_, the oscillators are interconnected via white-matter pathways, with coupling strengths specified by subject-specific DTI fiber counts, i.e., elements of SC matrix. This adjacency matrix is then scaled by a global coupling parameter :math:`G`. Note that coupling between regions accounts for finite conduction times, which are often estimated by dividing the Euclidean distances between nodes by an average conduction velocity :math:`T_{jk} = d_{jk}/v`. Knowing the personalized time-delays [Lemarechal2022]_ , we can use the distance as a proxy, assuming a constant propagation velocity. The distance itself can be defined as either the length of the tracts or the Euclidean distance. Taking this into account, the activity of each regions is given by a set of complex differential equations:
+
+.. math::
+
+   \dot{Z}_j = (a + i \omega_0) Z_j + G \sum_{k \neq j} \text{SC}_{jk} (Z_k(t - T_{jk}) - Z_j(t)) + \sigma (\xi_j^R + i \xi_j^I)
+
+where :math:`Z` is a complex variable, and :math:`\Re[Z(t)]` is the corresponding time series. In this particular realization, each region has a natural frequency of 40 Hz (:math:`\omega_j = \omega_0 = 2\pi \times 40` rad/s), motivated by empirical studies demonstrating the emergence of gamma oscillations from the balance of excitation and inhibition, playing a role in local circuit computations [Buzsaki2012mechanisms]_.
+
+In this study, for the sake of simplicity, a common cortico-cortical conduction velocity is estimated, i.e., the distance-dependent average velocities :math:`v_{jk} = v`. We also consider :math:`a = -5`, capturing the highly variable amplitude envelope of gamma oscillations as reported in experimental recordings [Cabral2022metastable]_, [Sorrentino2023model]_. This choice also best reflects the slowest decay time constants of GABA\ :sub:`B` inhibitory receptors-approximately 1 second [Funk2004natural]_. Independent Gaussian white noise processes :math:`\xi_j^R` and :math:`\xi_j^I` with intensity :math:`\sigma` are added to the real and imaginary parts of each oscillator, respectively, to mimic stochastic fluctuations. The nominal parameter values and the prior range for the target parameters are summarized in the following table.
+
+.. list-table:: Parameter descriptions for capturing whole-brain dynamics using Stuart-Landau oscillator.
+   :name: table:SL
+   :header-rows: 1
+   :class: color-caption
+
+   * - **Parameter**
+     - **Description**
+     - **Value**
+     - **Prior**
+   * - :math:`a`
+     - Bifurcation parameter (dimensionless)
+     - -5.0
+     - 
+   * - :math:`\omega_0`
+     - Angular frequency (rad/ms)
+     - :math:`2\pi \times 40/1000`
+     - 
+   * - :math:`G`
+     - Global coupling strength
+     - 0.0
+     - :math:`\mathcal{U}(0, 400)`
+   * - :math:`v`
+     - Conduction velocity (mm/ms)
+     - 5.0
+     - :math:`\mathcal{U}(0, 30)`
+   * - :math:`\sigma`
+     - Noise intensity
+     - :math:`10^{-2}`
+     - 
+
+
 Montbri\'o whole-brain model
 ----------------------------
 
@@ -797,3 +845,19 @@ References
 .. [wilson1972excitatory] Wilson, H.R. and Cowan, J.D., 1972. Excitatory and inhibitory interactions in localized populations of model neurons. Biophysical journal, 12(1), pp.1-24.
 .. [wilson1973mathematical] Wilson, H.R. and Cowan, J.D., 1973. A mathematical theory of the functional dynamics of cortical and thalamic nervous tissue. Kybernetik, 13(2), pp.55-80.
 .. [daffertshofer2011influence] Daffertshofer, A. and van Wijk, B.C., 2011. On the influence of amplitude on the connectivity between phases. Frontiers in neuroinformatics, 5, p.6.
+
+.. [Selivanov2012] Selivanov, A.A. and Lehnert, J. and Dahms, T. and Hövel, P. and Fradkov, A.L. and Schöll, E. (2012). Adaptive synchronization in delay-coupled networks of Stuart-Landau oscillators. Physical Review E, 85(1), 016201.
+
+.. [Deco2017metastability] Deco, G. and Kringelbach, M.L. and Jirsa, V.K. and Ritter, P. (2017). The dynamics of resting fluctuations in the brain: metastability and its dynamical cortical core. Scientific Reports, 7(1), 3095.
+
+.. [Petkoski2019transmission] Petkoski, S. and Jirsa, V.K. (2019). Transmission time delays organize the brain network synchronization. Philosophical Transactions of the Royal Society A, 377(2143), 20180132.
+
+.. [Cabral2022metastable] Cabral, J. and Castaldo, F. and Vohryzek, J. and Litvak, V. and Bick, C. and Lambiotte, R. and Friston, K. and Kringelbach, M.L. and Deco, G. (2022). Metastable oscillatory modes emerge from synchronization in the brain spacetime connectome. Communications Physics, 5(1), 1-13.
+
+.. [Sorrentino2023model] Sorrentino, P. and Pathak, A. and Ziaeemehr, A. and Troisi Lopez, E. and Cipriano, L. and Romano, A. and Sparaco, M. and Quarantelli, M. and Banerjee, A. and Sorrentino, G. and et al. (2023). Model-based whole-brain perturbational landscape of neurodegenerative diseases. eLife, 12, e83970.
+
+.. [Lemarechal2022] Lemaréchal, J.D. and Jedynak, M. and Trebaul, L. and Boyer, A. and Tadel, F. and Bhattacharjee, M. and Deman, P. and Tuyisenge, V. and Ayoubian, L. and Hugues, E. and et al. (2022). A brain atlas of axonal and synaptic delays based on modelling of tractography-magnetoencephalography study. Journal of Neuroscience, 42(23), 8807-8816.
+
+.. [Buzsaki2012mechanisms] Buzsáki, G. and Wang, X.J. (2012). Mechanisms of gamma oscillations. Annual Review of Neuroscience, 35, 203-225.
+
+.. [Funk2004natural] Funk, A.P. and Epstein, C.M. (2004). Natural rhythm: evidence for occult 40 hz gamma oscillation in resting motor cortex. Neuroscience Letters, 371(2-3), 181-184.

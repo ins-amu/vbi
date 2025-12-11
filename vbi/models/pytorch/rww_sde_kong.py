@@ -65,6 +65,9 @@ class WW_SDE_KONG:
         self.check_parameters(par)
         self._par.update(par)
 
+        if self._par.get('device') == 'gpu':
+            self._par['device'] = 'cuda'
+
         for item in self._par.keys():
             setattr(self, item, self._par[item])
 
@@ -77,8 +80,7 @@ class WW_SDE_KONG:
 
     def get_default_params(self):
 
-        engine = "cpu"
-        self.device = "cuda" if engine == "gpu" else "cpu"
+        self.device = "cpu"
 
         data = np.load(join(self.input_path, "default_parameters.npz"))
         self.weights = self.get_sc(device=self.device)
@@ -107,7 +109,6 @@ class WW_SDE_KONG:
             "dt": 0.01,
             "n_sim": 1,
             "weights": self.weights,
-            "engine": engine,
             "device": self.device,
             "dtype": torch.float64,
         }
@@ -152,7 +153,7 @@ class WW_SDE_KONG:
         n_set = y_t.shape[1]
 
         # Calculate derivatives
-        if self.engine == "gpu":
+        if self.device == "cuda":
             dF = torch.zeros((n_nodes, n_set, 4), dtype=self.dtype).cuda()
         else:
             dF = torch.zeros((n_nodes, n_set, 4), dtype=self.dtype)
@@ -183,7 +184,6 @@ class WW_SDE_KONG:
         dt = self.dt
         n_dup = 1
         dtype = self.dtype
-        engine = self.engine
         dt_tensor = torch.tensor(self.dt, dtype=dtype)
 
         self.prepare_input()
@@ -194,13 +194,13 @@ class WW_SDE_KONG:
         k_2 = self.bp["k_2"]
         k_3 = self.bp["k_3"]
 
-        if self.engine == "gpu":
+        if self.device == "cuda":
             k_p = torch.arange(0.0, self.t_end + dt, dt).cuda()
         else:
             k_p = torch.arange(0.0, self.t_end + dt, dt)
 
         nt_samples = k_p.shape[0]
-        device = "cuda" if engine == "gpu" else "cpu"
+        device = self.device
         y_t = torch.zeros((nn, ns), dtype=dtype, device=device)
         d_y = torch.zeros((nn, ns), dtype=dtype, device=device)
         f_mat = torch.ones((nn, ns, 4), dtype=dtype, device=device)
@@ -260,7 +260,7 @@ class WW_SDE_KONG:
         if t.is_cuda:
             t = t.cpu().numpy()
 
-        if engine == "gpu":
+        if self.device == "cuda":
             y_bold_cpu = y_bold.cpu()
             y_bold_cpu = y_bold_cpu[:, :, cut_index + 1 : y_bold.shape[2]]
             del y_bold
@@ -303,24 +303,24 @@ class WW_SDE_KONG:
         if self.weights.dtype != self.dtype:
             self.weights = self.weights.type(self.dtype)
 
-        if (self.engine == "gpu") and (not is_cuda(self.weights)):
+        if (self.device == "cuda") and (not is_cuda(self.weights)):
             self.weights = self.weights.cuda()
 
         self.w = to_vector_2d(
-            self.w, self.nn, self.n_sim, dtype=self.dtype, engine=self.engine
+            self.w, self.nn, self.n_sim, dtype=self.dtype, device=self.device
         )
 
         self.I0 = to_vector_2d(
-            self.I0, self.nn, self.n_sim, dtype=self.dtype, engine=self.engine
+            self.I0, self.nn, self.n_sim, dtype=self.dtype, device=self.device
         )
         self.s = to_vector_2d(
-            self.s, self.nn, self.n_sim, dtype=self.dtype, engine=self.engine
+            self.s, self.nn, self.n_sim, dtype=self.dtype, device=self.device
         )
-        self.G = to_vector(self.G, self.n_sim, dtype=self.dtype, engine=self.engine)
-        self.J = to_vector(self.J, self.n_sim, dtype=self.dtype, engine=self.engine)
+        self.G = to_vector(self.G, self.n_sim, dtype=self.dtype, device=self.device)
+        self.J = to_vector(self.J, self.n_sim, dtype=self.dtype, device=self.device)
 
 
-def to_vector(x, ns, dtype=torch.float64, engine="cpu"):
+def to_vector(x, ns, dtype=torch.float64, device="cpu"):
     """
     Converts the input `x` to a tensor of specified size and type.
 
@@ -332,8 +332,8 @@ def to_vector(x, ns, dtype=torch.float64, engine="cpu"):
         The size to which the tensor should be repeated if `x` is a single element.
     dtype : torch.dtype, optional
         The desired data type of the tensor. Default is `torch.float64`.
-    engine : str, optional
-        The computation engine to use, either `"cpu"` or `"gpu"`. Default is `"cpu"`.
+    device : str, optional
+        The computation device to use, either `"cpu"` or `"cuda"`. Default is `"cpu"`.
 
     Returns
     -------
@@ -353,12 +353,12 @@ def to_vector(x, ns, dtype=torch.float64, engine="cpu"):
     elif x.ndim == 1:
         assert x.size(0) == ns, f"input size must be 1 or {ns}"
         x = x.view(1, ns)
-    if engine == "gpu":
+    if device == "cuda":
         x = x.cuda()
     return x
 
 
-def to_vector_2d(x, nn, ns, dtype=torch.float64, engine="cpu"):
+def to_vector_2d(x, nn, ns, dtype=torch.float64, device="cpu"):
     """
     Convert input `x` to a tensor of specified size and type.
 
@@ -372,8 +372,8 @@ def to_vector_2d(x, nn, ns, dtype=torch.float64, engine="cpu"):
         The number of simulations.
     dtype : torch.dtype, optional
         The desired data type of the tensor. Default is `torch.float64`.
-    engine : str, optional
-        The computation engine to use, either `"cpu"` or `"gpu"`. Default is `"cpu"`.
+    device : str, optional
+        The computation device to use, either `"cpu"` or `"cuda"`. Default is `"cpu"`.
 
     Returns
     -------
@@ -389,7 +389,7 @@ def to_vector_2d(x, nn, ns, dtype=torch.float64, engine="cpu"):
         assert x.size(0) == nn, f"input size must be 1 or {nn}"
         x = x.view(nn, 1).repeat(1, ns)
 
-    if engine == "gpu":
+    if device == "cuda":
         x = x.cuda()
     return x
 
