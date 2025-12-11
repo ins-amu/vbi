@@ -25,17 +25,34 @@ Learn how to simulate brain models using different computational backends:
 **NumPy/Numba Backend (CPU)**
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-CPU-based simulations using numba for acceleration:
+CPU-based simulations using numba for acceleration with SBI inference:
 
 .. toctree::
    :maxdepth: 1
 
    examples/damp_oscillator
+   examples/jansen_rit_sde_numba
+   examples/sl_sdde_numba
    examples/vep_sde_numba
    examples/mpr_sde_numba
-   examples/jansen_rit_sde_numba
+   examples/rww_sde_numba
    examples/wilson_cowan_sde_numba
    examples/ww_full_sde_numba
+
+**NumPy/Numba Backend with CDE (CPU)**
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+CPU-based simulations using numba for acceleration with Conditional Density Estimation:
+
+.. toctree::
+   :maxdepth: 1
+
+   examples/jansen_rit_sde_numba_cde
+   examples/vep_sde_numba_cde
+   examples/vep_sde_numba_cde_84
+   examples/mpr_sde_numba_cde
+   examples/wilson_cowan_sde_numba_cde
+   examples/ww_full_sde_numba_cde
 
 **CuPy Backend (GPU)**
 ^^^^^^^^^^^^^^^^^^^^^^
@@ -51,10 +68,20 @@ GPU-accelerated simulations using CuPy:
    examples/wilson_cowan_cupy
    examples/ww_full_sde_cupy
 
+**PyTorch Backend (GPU/CPU)**
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+PyTorch-based simulations with automatic differentiation:
+
+.. toctree::
+   :maxdepth: 1
+
+   examples/rww_sde_pytorch
+
 **C++ Backend (High Performance)**
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-High-performance simulations using C++ backend:
+High-performance simulations using C++ backend with SBI and CDE inference:
 
 .. toctree::
    :maxdepth: 1
@@ -71,7 +98,7 @@ High-performance simulations using C++ backend:
    :maxdepth: 1
 
    examples/mpr_tvbk
-   examples/ww_sde_torch_kong
+   examples/rww_sde_torch_kong
 
 Quick Start Guide
 -----------------
