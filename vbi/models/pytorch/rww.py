@@ -43,7 +43,7 @@ class BOLD_par:
 class Simulation_par:
     """Parameters for simulation settings"""
     t_cut: float = 120.0      # dropped time in seconds (60*2)
-    t_end: float = 14.4 * 60  # Simulation time in seconds
+    t_end: float = 14.4 * 60  # Total simulation time in seconds (including t_cut)
     dt: float = 0.01          # Time step for integration
     tr: float = 0.72          # BOLD sampling time (TR)
     warmup_steps: int = 1000  # Number of warm-up steps
@@ -51,7 +51,7 @@ class Simulation_par:
     @property
     def t_total(self) -> float:
         """Total simulation time"""
-        return self.t_cut + self.t_end
+        return self.t_end  # t_end now represents total time, not additional time
     
     @property
     def n_samples(self) -> int:
@@ -81,7 +81,7 @@ class RWW_sde:
         Structural connectivity matrix [n_nodes x n_nodes]
     w : float, array, or tensor, optional
         Recurrent strength (default: 0.9)
-    I0 : float, array, or tensor, optional
+    I_ext : float, array, or tensor, optional
         External input (default: 0.382)
     G : float, array, or tensor, optional
         Global coupling (default: 0.0)
@@ -105,29 +105,31 @@ class RWW_sde:
         Hemodynamic parameters
     simulation_params : Simulation_par, optional
         Simulation settings
-    engine : str, optional
-        Computation engine: 'cpu', 'gpu', or 'cuda' (default: 'cpu')
+    device : str, optional
+        Computation device: 'cpu', 'gpu', or 'cuda' (default: 'cpu')
         Note: 'gpu' and 'cuda' are equivalent and both use CUDA
     RECORD_BOLD : bool, optional
         Whether to record BOLD signals (default: True)
     integration_method : str, optional
         Integration method for neural ODE ('euler' or 'heun', default: 'euler')
+    seed : int, optional
+        Random seed for reproducibility (default: None, no fixed seed)
         
     """
     
     # Valid parameter names
     VALID_PARAMS = [
-        'w', 'I0', 'G', 'sigma', 'J', 'a', 'b', 'd', 'tau_s', 'gamma',
-        'n_sim', 'hemodynamic_params', 'simulation_params', 'engine',
+        'w', 'I_ext', 'G', 'sigma', 'J', 'a', 'b', 'd', 'tau_s', 'gamma',
+        'n_sim', 'hemodynamic_params', 'simulation_params', 'device',
         'RECORD_BOLD', 'weights', 't_cut', 't_end', 'dt', 'tr', 'warmup_steps',
-        'integration_method'
+        'integration_method', 'seed'
     ]
     
     # Default parameter values
     DEFAULTS = {
         # Neural model parameters
         'w': 0.9,                       # Recurrent strength (Numba default)
-        'I0': 0.382,                    # External input (matches Numba's I_ext)
+        'I_ext': 0.382,                    # External input (matches Numba's I_ext)
         'G': 0.0,                       # Global coupling
         'sigma': 0.02,                  # Noise amplitude
         'J': 0.2609,                    # Synaptic coupling
@@ -137,10 +139,11 @@ class RWW_sde:
         'tau_s': 0.1,                   # Synaptic time constant
         'gamma': 0.641,                 # Synaptic gating
         'n_sim': 1,                     # Number of parameter sets
-        'engine': 'cuda',               # Computation engine
+        'device': 'cuda',               # Computation device
         "weights": None,                # Must be provided
         'RECORD_BOLD': True,            # Whether to record BOLD signals
         'integration_method': 'euler',  # Integration method: 'euler' or 'heun'
+        'seed': None,                   # Random seed for reproducibility (None = no fixed seed)
         # Simulation parameters
         't_cut': 120.0,      # Warm-up time in seconds
         't_end': 14.4 * 60,  # Simulation time in seconds
@@ -182,17 +185,17 @@ class RWW_sde:
         _par.update(par)
         
         # Set basic attributes
-        # Handle engine parameter: accept 'cpu', 'gpu', or 'cuda'
-        self.engine = _par.get('engine', self.DEFAULTS['engine']).lower()
+        # Handle device parameter: accept 'cpu', 'gpu', or 'cuda'
+        self.device = _par.get('device', self.DEFAULTS['device']).lower()
         
-        if self.engine in ['gpu', 'cuda']:
+        if self.device in ['gpu', 'cuda']:
             self.device = 'cuda'
-            self.engine = 'gpu'  # Normalize to 'gpu'
-        elif self.engine == 'cpu':
+            self.device = 'cuda'  # Normalize to 'cuda'
+        elif self.device == 'cpu':
             self.device = 'cpu'
         else:
             raise ValueError(
-                f"Invalid engine '{self.engine}'. "
+                f"Invalid device '{self.device}'. "
                 f"Must be 'cpu', 'gpu', or 'cuda'."
             )
 
@@ -206,6 +209,7 @@ class RWW_sde:
             weights = torch.from_numpy(weights).float()
         if weights.dim() != 2 or weights.shape[0] != weights.shape[1]:
             raise ValueError(f"Invalid weights shape: {weights.shape}. Must be [n_nodes, n_nodes].")
+        
         self.weights = weights.to(self.device)
         self.n_nodes = self.weights.shape[0]
         
@@ -231,6 +235,9 @@ class RWW_sde:
         self.integration_method = _par.get('integration_method', self.DEFAULTS['integration_method']).lower()
         if self.integration_method not in ['euler', 'heun']:
             raise ValueError(f"Invalid integration_method: {self.integration_method}. Must be 'euler' or 'heun'.")
+        
+        # Set random seed
+        self.seed = _par.get('seed', self.DEFAULTS['seed'])
 
     def _check_parameters(self, params: dict):
         """Validate that all provided parameters are recognized"""
@@ -243,7 +250,7 @@ class RWW_sde:
         
     def _process_parameters(self, params: dict):
         """Process and validate all neural model parameters"""
-        param_names = ['w', 'I0', 'G', 'sigma', 'J', 'a', 'b', 'd', 'tau_s', 'gamma']
+        param_names = ['w', 'I_ext', 'G', 'sigma', 'J', 'a', 'b', 'd', 'tau_s', 'gamma']
         
         for name in param_names:
             value = params[name]  # Already merged with defaults
@@ -257,7 +264,7 @@ class RWW_sde:
         Update model parameters
         
         Args:
-            **kwargs: Parameters to update (w, I0, G, sigma, J, a, b, d, tau_s, gamma, 
+            **kwargs: Parameters to update (w, I_ext, G, sigma, J, a, b, d, tau_s, gamma, 
                      simulation params like t_cut, t_end, dt, tr, warmup_steps)
             
         Examples
@@ -273,7 +280,7 @@ class RWW_sde:
             self.n_sim = kwargs['n_sim']
         
         # Update neural model parameters
-        param_names = ['w', 'I0', 'G', 'sigma', 'J', 'a', 'b', 'd', 'tau_s', 'gamma']
+        param_names = ['w', 'I_ext', 'G', 'sigma', 'J', 'a', 'b', 'd', 'tau_s', 'gamma']
         for name in param_names:
             if name in kwargs:
                 processed = check_and_expand_param(
@@ -313,6 +320,10 @@ class RWW_sde:
             self.integration_method = kwargs['integration_method'].lower()
             if self.integration_method not in ['euler', 'heun']:
                 raise ValueError(f"Invalid integration_method: {self.integration_method}. Must be 'euler' or 'heun'.")
+        
+        # Update random seed
+        if 'seed' in kwargs:
+            self.seed = kwargs['seed']
     
     def __str__(self) -> str:
         """Return string representation of model with parameter table"""
@@ -320,7 +331,7 @@ class RWW_sde:
         # Parameter definitions
         param_definitions = {
             'w': 'Recurrent strength',
-            'I0': 'External input',
+            'I_ext': 'External input',
             'G': 'Global coupling',
             'sigma': 'Noise amplitude',
             'J': 'Synaptic coupling',
@@ -346,7 +357,7 @@ class RWW_sde:
         ]
         
         # Display neural model parameters
-        for name in ['w', 'I0', 'G', 'sigma', 'J', 'a', 'b', 'd', 'tau_s', 'gamma']:
+        for name in ['w', 'I_ext', 'G', 'sigma', 'J', 'a', 'b', 'd', 'tau_s', 'gamma']:
             param = getattr(self, name)
             definition = param_definitions[name]
             
@@ -374,8 +385,9 @@ class RWW_sde:
             "-" * 90,
             f"{'Parameter':<12} | {'Definition':<30} | {'Value':<40}",
             "-" * 90,
-            f"{'t_cut':<12} | {'Warm-up time':<30} | {self.sim_params.t_cut} s",
-            f"{'t_end':<12} | {'Simulation time':<30} | {self.sim_params.t_end} s",
+            f"{'t_cut':<12} | {'Warm-up time (dropped)':<30} | {self.sim_params.t_cut} s",
+            f"{'t_end':<12} | {'Total simulation time':<30} | {self.sim_params.t_end} s",
+            f"{'t_record':<12} | {'Recording time (after drop)':<30} | {self.sim_params.t_end - self.sim_params.t_cut} s",
             f"{'dt':<12} | {'Integration time step':<30} | {self.sim_params.dt} s",
             f"{'tr':<12} | {'BOLD sampling time (TR)':<30} | {self.sim_params.tr} s",
             f"{'warmup_steps':<12} | {'Number of warm-up steps':<30} | {self.sim_params.warmup_steps}",
@@ -426,7 +438,7 @@ class RWW_sde:
         x = (self.J * self.w * y_t + 
              self.J * self.G.repeat(self.n_nodes, 1) * 
              torch.mm(self.weights, y_t) + 
-             self.I0)
+             self.I_ext)
         
         # Population firing rate (sigmoid transfer function)
         H = (self.a * x - self.b) / (
@@ -507,6 +519,14 @@ class RWW_sde:
         >>> result = model.run(n_dup=5, record_neural=True, neural_subsample=100)
         >>> neural = result['S']  # Much less frequent sampling
         """
+        # Set random seed if provided
+        if self.seed is not None:
+            torch.manual_seed(self.seed)
+            if torch.cuda.is_available():
+                torch.cuda.manual_seed(self.seed)
+                torch.cuda.manual_seed_all(self.seed)
+            np.random.seed(self.seed)
+        
         sp = self.sim_params
         hp = self.hemo_params
         
@@ -543,7 +563,7 @@ class RWW_sde:
 
         # Repeat all parameters for duplicates
         w_exp = repeat_param(self.w)
-        I0_exp = repeat_param(self.I0)
+        I_ext_exp = repeat_param(self.I_ext)
         G_exp = repeat_param(self.G)
         sigma_exp = repeat_param(self.sigma)
         J_exp = repeat_param(self.J)
@@ -555,13 +575,13 @@ class RWW_sde:
         
         # Store expanded parameters temporarily
         orig_params = {
-            'w': self.w, 'I0': self.I0, 'G': self.G, 'sigma': self.sigma,
+            'w': self.w, 'I_ext': self.I_ext, 'G': self.G, 'sigma': self.sigma,
             'J': self.J, 'a': self.a, 'b': self.b, 'd': self.d,
             'tau_s': self.tau_s, 'gamma': self.gamma
         }
         
         self.w = w_exp
-        self.I0 = I0_exp
+        self.I_ext = I_ext_exp
         self.G = G_exp
         self.sigma = sigma_exp
         self.J = J_exp

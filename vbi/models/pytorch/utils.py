@@ -179,8 +179,9 @@ def fc_correlation_cost(
     This function computes functional connectivity (FC) matrices from empirical and
     simulated BOLD signals, then calculates the correlation between them. For simulated
     data, multiple duplicates of each parameter set are averaged. NaN values are handled
-    by excluding affected sets from the calculation.
-    
+    by excluding affected sets from the calculation. This function averages the FC matrices
+    over duplicates before computing the correlation with the empirical FC.
+
     Args:
         bold_empirical: Empirical BOLD signal of shape [n_nodes, n_timesamples]
         bold_simulated: Simulated BOLD signal of shape [n_nodes, n_sets, n_timesamples]
@@ -231,8 +232,22 @@ def fc_correlation_cost(
     
     if bold_simulated.shape[0] != n_nodes:
         raise ValueError(f"Node dimension mismatch: empirical has {n_nodes}, simulated has {bold_simulated.shape[0]}")
-    if bold_simulated.shape[2] != n_timesamples:
-        raise ValueError(f"Time dimension mismatch: empirical has {n_timesamples}, simulated has {bold_simulated.shape[2]}")
+    
+    # Handle time dimension mismatch by selecting minimum length
+    sim_timesamples = bold_simulated.shape[2]
+    if sim_timesamples != n_timesamples:
+        min_timesamples = min(n_timesamples, sim_timesamples)
+        if verbose:
+            print(f"Warning: Time dimension mismatch - empirical has {n_timesamples}, simulated has {sim_timesamples}. Using minimum length {min_timesamples}.")
+            if min_timesamples < 50:
+                print(f"Warning: Time series length ({min_timesamples}) is less than 50, which may affect correlation quality.")
+        
+        # Chop from the beginning to match lengths
+        bold_empirical = bold_empirical[:, :min_timesamples]
+        bold_simulated = bold_simulated[:, :, :min_timesamples]
+        n_timesamples = min_timesamples
+    elif verbose and n_timesamples < 50:
+        print(f"Warning: Time series length ({n_timesamples}) is less than 50, which may affect correlation quality.")
     
     n_sets = bold_simulated.shape[1]
     n_num = n_sets // n_dup  # Number of unique parameter sets
@@ -374,8 +389,22 @@ def fcd_ks_cost(
     
     if bold_simulated.shape[0] != n_nodes:
         raise ValueError(f"Node dimension mismatch: empirical has {n_nodes}, simulated has {bold_simulated.shape[0]}")
-    if bold_simulated.shape[2] != n_timesamples:
-        raise ValueError(f"Time dimension mismatch: empirical has {n_timesamples}, simulated has {bold_simulated.shape[2]}")
+    
+    # Handle time dimension mismatch by selecting minimum length
+    sim_timesamples = bold_simulated.shape[2]
+    if sim_timesamples != n_timesamples:
+        min_timesamples = min(n_timesamples, sim_timesamples)
+        if verbose:
+            print(f"Warning: Time dimension mismatch - empirical has {n_timesamples}, simulated has {sim_timesamples}. Using minimum length {min_timesamples}.")
+            if min_timesamples < 2 * window_size:
+                print(f"Warning: Time series length ({min_timesamples}) is less than twice the window size ({2 * window_size}), which may affect FCD quality.")
+        
+        # Chop from the beginning to match lengths
+        bold_empirical = bold_empirical[:, :min_timesamples]
+        bold_simulated = bold_simulated[:, :, :min_timesamples]
+        n_timesamples = min_timesamples
+    elif verbose and n_timesamples < 2 * window_size:
+        print(f"Warning: Time series length ({n_timesamples}) is less than twice the window size ({2 * window_size}), which may affect FCD quality.")
     
     n_sets = bold_simulated.shape[1]
     n_num = n_sets // n_dup  # Number of unique parameter sets
