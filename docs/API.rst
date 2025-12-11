@@ -151,6 +151,12 @@ vbi.models.numba.wilson_cowan
         :members:
         :undoc-members:
 
+vbi.models.numba.sl
+~~~~~~~~~~~~~~~~~~~
+    .. automodule:: vbi.models.numba.sl
+        :members:
+        :undoc-members:
+
 vbi.models.numba.ww
 ~~~~~~~~~~~~~~~~~~~
     .. automodule:: vbi.models.numba.ww
@@ -161,9 +167,9 @@ vbi.models.numba.ww
 PyTorch models 
 --------------
 
-vbi.models.pytorch.ww_sde_kong
+vbi.models.pytorch.rww_sde_kong
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    .. automodule:: vbi.models.pytorch.ww_sde_kong
+    .. automodule:: vbi.models.pytorch.rww_sde_kong
         :members:
         :undoc-members:
 
