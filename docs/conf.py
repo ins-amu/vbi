@@ -2,10 +2,9 @@ import sys
 import os
 import subprocess
 import sphinx_bootstrap_theme
-from setuptools_scm import get_version
-
-# sys.path.insert(0, os.path.abspath("../vbi"))
+# Import version directly from _version.py instead of using setuptools_scm
 sys.path.insert(0, os.path.abspath(".."))
+from vbi._version import __version__
 
 needs_sphinx = "0.2"
 
@@ -23,7 +22,7 @@ source_suffix = ".rst"
 master_doc = "index"
 project = "vbi"
 copyright = "2023, Abolfazl Ziaeemehr"
-release = version = get_version(root="..", relative_to=__file__)
+release = version = __version__
 nbsphinx_execute = 'never'
 
 default_role = "any"
