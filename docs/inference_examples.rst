@@ -39,14 +39,32 @@ CDE-Based Inference (Lightweight)
 - ✅ **Transparent**: Clear mathematical foundation
 - ✅ **Flexible**: Easy to customize and extend
 
-**Available Methods:**
+Documentation & Tutorials
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Quick Start:**
+
+- :doc:`inference_cde_mdn_basic` - **Quick Start Guide** for MDN (5-minute read)
+
+**Complete Reference:**
+
+- :doc:`inference_cde_guide` - **Comprehensive API Documentation** for MDN and MAF (includes theory, usage, and best practices)
+
+Example Notebooks
+~~~~~~~~~~~~~~~~~
+
+Complete examples demonstrating CDE inference on various brain models:
 
 .. toctree::
    :maxdepth: 1
 
-   inference_cde_mdn_basic
-   inference_cde_maf_basic
    examples/damp_oscillator_cde
+   examples/jansen_rit_sde_numba_cde
+   examples/vep_sde_numba_cde
+   examples/vep_sde_numba_cde_84
+   examples/mpr_sde_numba_cde
+   examples/wilson_cowan_sde_numba_cde
+   examples/ww_full_sde_numba_cde
 
 **When to use CDE:**
 
@@ -106,9 +124,15 @@ Getting Started
 
 **For CDE Inference:**
 
-1. Start with :doc:`inference_cde_mdn_basic` - Learn MDN basics
-2. Try :doc:`inference_cde_maf_basic` - More advanced MAF method
-3. Apply to your brain model of choice
+1. Start with :doc:`inference_cde_mdn_basic` - Quick start with MDN
+2. Read :doc:`inference_cde_guide` - Comprehensive API guide for MDN and MAF
+3. Try example notebooks:
+   
+   - :doc:`examples/damp_oscillator_cde` - Simple damped oscillator
+   - :doc:`examples/jansen_rit_sde_numba_cde` - Jansen-Rit neural mass model
+   - :doc:`examples/wilson_cowan_sde_numba_cde` - Wilson-Cowan model
+
+4. Apply to your brain model of choice
 
 **For SBI Inference:**
 
