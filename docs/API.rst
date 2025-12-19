@@ -193,6 +193,12 @@ vbi.models.tvbk.utils
 Core VBI modules
 ----------------
 
+vbi.cde
+~~~~~~~
+    .. automodule:: vbi.cde
+        :members:
+        :undoc-members:
+
 vbi.inference
 ~~~~~~~~~~~~~
     .. automodule:: vbi.inference

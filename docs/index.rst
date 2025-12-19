@@ -154,40 +154,59 @@ Try these examples directly in your browser using Google Colab:
    :target: https://colab.research.google.com/github/Ziaeemehr/vbi_paper/blob/main/docs/examples/damp_oscillator_cde.ipynb
    :alt: Open In Colab
 
-User Guide
-==========
+Documentation
+=============
+
+Getting Started
+---------------
 
 .. toctree::
    :maxdepth: 1
-   :caption: Getting Started:
 
    installation
    docker_build
    docker_quickstart
 
+Publications & Citations
+------------------------
+
 .. toctree::
    :maxdepth: 1
-   :caption: Publications & Citations:
 
    publication
 
+Brain Models
+------------
+
 .. toctree::
    :maxdepth: 1
-   :caption: Brain Models:
 
    models
 
+Inference Methods
+-----------------
+
 .. toctree::
    :maxdepth: 1
-   :caption: Examples & Tutorials:
+
+   inference_examples
+   inference_cde_guide
+   inference_cde_mdn_basic
+
+Examples & Tutorials
+--------------------
+
+.. toctree::
+   :maxdepth: 1
 
    examples_overview
    Examples
-   inference_examples
+
+API Reference
+-------------
 
 .. toctree::
     :maxdepth: 1
-    :caption: API Reference:
 
     API
 

@@ -1,10 +1,121 @@
-Conditional Density Estimation (CDE) with MAF and MDN
-======================================================
+CDE API Guide: Conditional Density Estimation
+=============================================
 
-This documentation covers the Conditional Density Estimation (CDE) module in VBI, which provides implementations of Masked Autoregressive Flows (MAF) and Mixture Density Networks (MDN) for parameter inference in brain models.
+This is the comprehensive API documentation for the Conditional Density Estimation (CDE) module in VBI, which provides implementations of Mixture Density Networks (MDN) and Masked Autoregressive Flows (MAF) for parameter inference in brain models.
 
-Overview
---------
+.. note::
+   **Looking for a quick start?** See :doc:`inference_cde_mdn_basic` for a minimal working example with MDN.
+
+Introduction to Conditional Density Estimation
+-----------------------------------------------
+
+**What is Conditional Density Estimation?**
+
+Conditional Density Estimation (CDE) addresses the problem of learning the full
+conditional probability density
+
+.. math::
+
+   p(y \mid x),
+
+where :math:`x \in \mathcal{X}` denotes observed input variables and
+:math:`y \in \mathcal{Y}` denotes a target variable. In contrast to standard
+regression methods, which estimate a single point prediction (e.g. the
+conditional mean :math:`\mathbb{E}[Y \mid X=x]`), CDE aims to recover the entire
+conditional distribution of :math:`Y` given :math:`X=x`. This enables explicit
+modeling of uncertainty, heteroskedasticity, skewness, and multimodality in the
+output space.
+
+**Problem Setting**
+
+Let
+
+.. math::
+
+   \mathcal{D} = \{(x_i, y_i)\}_{i=1}^N
+
+be a dataset of input–output pairs drawn from an unknown joint distribution
+:math:`p(x, y)`. The goal of CDE is to learn a parametric model
+:math:`\hat{p}_\phi(y \mid x)` that approximates the true conditional density
+:math:`p(y \mid x)` and generalizes to unseen inputs :math:`x^*`.
+
+**Model Formulation**
+
+In CDE, the conditional density is parameterized by a function approximator,
+typically a neural network, which maps each input :math:`x` to the parameters
+of a conditional distribution over :math:`y`:
+
+.. math::
+
+   x \;\mapsto\; \hat{p}_\phi(y \mid x).
+
+Depending on the chosen model class, this mapping may yield:
+
+- Parameters of a parametric distribution (e.g. mean and variance of a Gaussian)
+- Parameters of a mixture model (e.g. mixture weights, component means,
+  and covariances)
+- Parameters of an invertible transformation defining a normalized density
+  (e.g. conditional normalizing flows)
+
+**Training Objective**
+
+CDE models are commonly trained using maximum conditional likelihood estimation.
+The parameters :math:`\phi` are optimized by minimizing the negative
+log-likelihood (NLL):
+
+.. math::
+
+   \mathcal{L}(\phi)
+   = -\frac{1}{N} \sum_{i=1}^N \log \hat{p}_\phi(y_i \mid x_i).
+
+Minimizing this objective encourages the model to assign high probability mass
+to observed targets :math:`y_i` conditioned on their corresponding inputs
+:math:`x_i`.
+
+**Expressive CDE Models**
+
+Several model families are commonly used for conditional density estimation:
+
+- **Mixture Density Networks (MDNs):**
+  Represent :math:`p(y \mid x)` as a mixture of parametric distributions whose
+  parameters depend on :math:`x`.
+- **Normalizing Flows:**
+  Construct highly expressive conditional densities via invertible
+  transformations of a simple base distribution.
+- **Conditional Kernel Density Estimators:**
+  Estimate densities using kernel smoothing conditioned on the input variables.
+- **Implicit or likelihood-free models:**
+  Approximate conditional densities using simulation-based or amortized
+  inference techniques.
+
+**Inference and Usage**
+
+After training, a CDE model can be used to:
+
+- Evaluate conditional likelihoods :math:`\hat{p}(y \mid x)`
+- Compute summary statistics such as conditional means, variances, or quantiles
+- Draw samples from the conditional distribution :math:`p(y \mid x)`
+- Quantify predictive uncertainty for downstream decision-making
+
+**Relation to Bayesian Inference**
+
+Conditional Density Estimation naturally encompasses Bayesian posterior
+inference. In simulation-based inference, the posterior
+:math:`p(\theta \mid x)` is itself a conditional density, where model parameters
+:math:`\theta` are conditioned on observed data :math:`x`. Consequently, many
+simulation-based inference methods can be interpreted as specialized instances
+of CDE.
+
+**Summary**
+
+Conditional Density Estimation provides a principled framework for learning
+full predictive distributions conditioned on observed inputs. By modeling
+:math:`p(y \mid x)` directly, CDE enables uncertainty-aware predictions and
+forms a core component of modern probabilistic machine learning and inference
+pipelines.
+
+VBI Implementation Overview
+----------------------------
 
 The CDE module provides two main approaches for conditional density estimation:
 
@@ -13,12 +124,14 @@ The CDE module provides two main approaches for conditional density estimation:
    - Fast training and inference
    - Good for simpler parameter relationships
    - Interpretable mixture components
+   - Best for: Low-to-moderate dimensional problems (< 10 parameters)
 
 **Masked Autoregressive Flows (MAF):**
    - Uses normalizing flows for flexible density modeling
    - More expressive for complex distributions
    - Naturally captures parameter dependencies
    - Better for multimodal posteriors
+   - Best for: Complex, high-dimensional problems (> 10 parameters)
 
 Both approaches inherit from a common base class that provides standardized training, sampling, and evaluation methods.
 
