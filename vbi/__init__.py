@@ -89,6 +89,23 @@ except ImportError:
                 "Install with: pip install vbi[inference]"
             )
 
+# Conditionally import JAX-dependent neural mass models
+try:
+    from .models import jax
+    _JAX_AVAILABLE = True
+except ImportError:
+    _JAX_AVAILABLE = False
+    
+    class jax:
+        """Placeholder for JAX models when JAX is not available."""
+        class neural_mass:
+            """Placeholder for JAX neural_mass when JAX is not available."""
+            def __init__(self, *args, **kwargs):
+                raise ImportError(
+                    "JAX neural mass models require JAX. "
+                    "Install with: pip install vbi[jax]"
+                )
+
 
 
 def get_version():
