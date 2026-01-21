@@ -60,6 +60,23 @@ Traditional methods such as Markov Chain Monte Carlo (MCMC) and Approximate Baye
 
 Designed for researchers and clinical applications, VBI enables personalized simulations of normal and pathological brain activity, aiding in distinguishing healthy from diseased states, and potentially informing clinical decision making. By addressing the efficient and scalable probabilistic inverse problem, VBI leverages high-performance computing for parallel processing of large-scale datasets [@Ziaeemehr2025].
 
+# Software Design
+
+**Design goals and trade-offs.** VBI was designed to solve the inverse problem for whole-brain models under realistic computational constraints. The primary goals were scalability to large simulation budgets, support for amortized probabilistic inference, and modularity across models, features, and inference algorithms. A key trade-off concerned flexibility versus performance: while pure Python implementations simplify extensibility, they are insufficient for large-scale simulation-based inference. VBI therefore adopts a hybrid design, exposing a Python API while relying on just-in-time compilation and GPU acceleration for performance-critical components. This choice enables rapid prototyping while achieving up to 100× speedups compared to CPU-based single core implementations.
+
+**Architecture.** The toolkit is organized around three decoupled layers: (1) simulators for whole-brain neural mass models, (2) feature-extraction operators for neuroimaging-derived statistics, and (3) inference backends based on simulation-based inference. Clear interfaces between these layers allow users to independently exchange models, features, or density estimators. Deployment on EBRAINS further motivated containerized, dependency-light components and a JupyterLab-based execution model, which was later extended with a graphical workflow editor for non-programmatic interaction.
+
+**Build vs. contribute.** Existing platforms such as The Virtual Brain provide mature forward simulators but do not support scalable simulation-based inference with deep neural density estimators or amortized posteriors. Conversely, generic SBI libraries lack domain-specific simulators, neuroimaging features, and data-handling workflows. VBI was therefore developed as a new toolkit to bridge these gaps while remaining interoperable with existing TVB components, rather than duplicating or fragmenting current efforts.
+
+# Research Impact Statement
+
+VBI enables a class of large-scale, amortized inference workflows for whole-brain models that were previously impractical using MCMC or ABC approaches. The methodology and core software have already supported peer-reviewed research demonstrating reliable parameter recovery and mechanistic insights in whole-brain dynamics, including a full validation study published in eLife. This constitutes realized impact beyond a purely methodological contribution.
+
+Near-term impact is reinforced by the EBRAINS integration, which provides ready-to-run environments, curated demonstrations, and reproducible workflows accessible to external users. Additional community-readiness signals include open-source licensing, documentation and example notebooks, GPU-accelerated benchmarks for commonly used models, and a defined extension interface. The addition of a graphical user interface further broadens accessibility to experimental and clinical researchers, positioning VBI as an enabling infrastructure for reproducible and scalable whole-brain inference.
+
+# AI Usage Disclosure
+
+Generative AI tools were used to assist with code refactoring, documentation drafting, and language polishing of this manuscript. All scientific content, software design decisions, and validation results were conceived, implemented, and verified by the authors.
 
 # Methods
 
