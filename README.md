@@ -11,7 +11,7 @@
 [Documentation](https://vbi.readthedocs.io/latest/) | 
 
 <p align="center">
-<img src="https://github.com/Ziaeemehr/vbi_paper/blob/main/vbi_log.png"  width="250">
+  <img src="https://raw.githubusercontent.com/ins-amu/vbi/main/vbi_log.png" width="400">
 </p>
 
 
@@ -98,6 +98,8 @@ vbi.test_imports()
 
 Try these examples directly in your browser using Google Colab:
 
+[Load simulated data](https://amubox.univ-amu.fr/s/oEdiaJSbjJcWfCP)
+
 | Model | Colab Link |
 |-------|------------|
 | Jansen-Rit SDE | <a href="https://colab.research.google.com/github/Ziaeemehr/vbi_paper/blob/main/docs/examples/jansen_rit_sde_numba_cde.ipynb" target="_parent"><img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/></a> |
@@ -128,8 +130,8 @@ For details, see [GDPR_COMPLIANCE.md](GDPR_COMPLIANCE.md).
 @article{VBI, 
 title={Virtual Brain Inference (VBI): A flexible and integrative toolkit for efficient probabilistic inference on virtual brain models},
 author={Ziaeemehr, Abolfazl and Woodman, Marmaduke and Domide, Lia and Petkoski, Spase and Jirsa, Viktor and Hashemi, Meysam},
-DOI={10.7554/elife.106194.1}, 
-url={http://dx.doi.org/10.7554/eLife.106194.1}, 
+DOI={10.7554/elife.106194.2}, 
+url={http://dx.doi.org/10.7554/eLife.106194.2}, 
 publisher={eLife Sciences Publications, Ltd}, 
 year={2025}, 
 abstract = {Network neuroscience has proven essential for understanding the principles and mechanisms
@@ -149,6 +151,10 @@ evaluation in network neuroscience through uncertainty quantification, and contr
 medicine by enhancing the predictive power of virtual brain models.}
 }
 ```
+
+
+See the VBI paper  [here](https://elifesciences.org/reviewed-preprints/106194#tab-content).
+
 
 This research has received funding from:
 

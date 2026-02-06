@@ -38,6 +38,7 @@ _e/
 *.mat
 *.csv
 *.json
+!codemeta.json
 tt.ipynb
 *.egg
 examples_dev/
