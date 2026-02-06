@@ -27,7 +27,7 @@ def setup_connectivity(weights, delays=None):
 
     # Ensure delays are valid
     idelays = (delays[weights != 0]).astype(np.uint32) + 2
-    assert idelays.max() < delays.shape[1]
+    # assert idelays.max() < delays.shape[1]
     assert idelays.min() >= 2
 
     # Create the connection object

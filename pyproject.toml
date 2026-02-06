@@ -70,6 +70,15 @@ light = []
 # Light with GPU - adds CuPy for GPU acceleration 
 light-gpu = ["cupy"]
 
+# JAX version - lightweight alternative to torch/cupy
+# Default JAX install (CPU-only, works on all machines)
+# For GPU: manually install with `pip install jax[cuda12_pip]` after this
+# Excludes sbi, torch, and cupy dependencies
+jax = [
+    "jax",
+    "jaxlib",
+]
+
 # Inference CPU - adds PyTorch and SBI for parameter inference (CPU only)
 inference = [
     "sbi",
