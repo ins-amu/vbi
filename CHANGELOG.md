@@ -5,6 +5,45 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.1] - 2026-02-06
+
+### Added
+- **New Models:**
+  - JAX support for parallel simulations with `vmap` and `pmap` for multi-core CPU execution
+  - MPR model wrapper for TVBK simulation framework
+  - BOLD model parameters and integration step function enhancements
+  - Numba implementation of Stuart-Landau oscillator model with comprehensive tests
+  - Reduced Wong-Wang (RWW) model implementation with BOLD recording capabilities
+  - Reduced Wong-Wang Mean Field Model with hemodynamic response in PyTorch
+  - Stuart-Landau whole-brain model description and documentation
+
+- **Feature Enhancements:**
+  - Enhanced parallel simulation capabilities for parameter sweeps
+  - Comprehensive tests for fc_correlation_cost and fcd_ks_cost functions with PyTorch implementation
+  - LOAD_DATA variable in notebooks to avoid recomputation when simulation data is available
+  - Enhanced API documentation and quick start guides for CDE and MDN
+  - Improved error handling for torch imports with skip functionality in tests
+
+### Changed
+- Updated version to 0.4.1
+- Improved simulation performance with JAX parallelization options
+- Updated project homepage and repository URLs in pyproject.toml
+- Enhanced documentation for Reduced Wong-Wang model implementation
+- Updated download URL and release notes for version 0.4.1 in codemeta.json
+- Updated pip install command to include inference extras
+
+### Fixed
+- Updated version retrieval in Sphinx configuration to use _version.py
+- Corrected example paths for RWW models in documentation
+- Removed unused imports of torch and math in utils.py
+- Updated file paths in ww_full_sde_cupy notebook for consistency
+- Fixed notebook importing issues (ww_sde_kong -> rww_sde_kong)
+- Resolved loading simulation data issues in notebooks
+- Updated vbi_log.png to reflect recent changes
+
+### Removed
+- Removed unused imports and cleaned up code structure
+
 ## [0.3] - 2025-09-17
 
 ### Added
