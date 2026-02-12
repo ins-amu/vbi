@@ -37,18 +37,12 @@ class JR_sde:
         - **dim** [int] dimention of the system
 
     '''
-    valid_params = [
-        "noise_seed", "seed", "G", "weights", "A", "B", "a", "b",
-        "noise_mu", "noise_std", "vmax", "v0", "r",
-        "C0", "C1", "C2", "C3", "dt", "method", "t_transition",
-        "t_end", "control", "output", "RECORD_AVG",
-        "initial_state"
-    ]
 
     def __init__(self, par={}):
 
-        self.check_parameters(par)
         self._par = self.get_default_parameters()
+        self.valid_params = list(self._par.keys())
+        self.check_parameters(par)
         self._par.update(par)
 
         for item in self._par.items():
@@ -279,17 +273,13 @@ class JR_sde:
 class JR_sdde:
     pass
 
-    valid_params = ["weights", "delays", "dt", "t_end", "G", "A", "a", "B", "b", "mu",
-                    "nstart", "t_end", "t_transition", "sigma", "C", "record_step",
-                    "C0", "C1", "C2", "C3", "vmax", "r", "v0", "output",
-                    'sti_ti', 'sti_duration', 'sti_amplitude', 'sti_gain',
-                    "noise_seed", "seed", "method"]
     # -------------------------------------------------------------------------
 
     def __init__(self, par={}) -> None:
 
-        self.check_parameters(par)
         _par = self.get_default_parameters()
+        self.valid_params = list(_par.keys())
+        self.check_parameters(par)
         _par.update(par)
 
         for item in _par.items():
@@ -328,6 +318,8 @@ class JR_sdde:
         '''
 
         param = {
+            "weights": None,
+            "delays": None,
             "dt": 0.01,
             "G": 0.01,
             "mu": 0.22,
@@ -340,10 +332,13 @@ class JR_sdde:
             "v0": 6.0,
             "vmax": 0.005,
             "r": 0.56,
+            "C": None,  # kept for backward compatibility
             "C0": 135.0 * 1.0,
             "C1": 135.0 * 0.8,
             "C2": 135.0 * 0.25,
             "C3": 135.0 * 0.25,
+            "nstart": None,
+            "record_step": 1,
             'sti_ti': 0.0,
             'sti_duration': 0.0,
             'sti_amplitude': 0.0,  # scalar or sequence of length N
