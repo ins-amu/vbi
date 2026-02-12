@@ -13,10 +13,13 @@ jobs:
         python-version: "3.10"
     - name: Install dependencies
       run: |
+        # Install system dependencies for C++ compilation
+        sudo apt-get update
+        sudo apt-get install -y build-essential swig
+        
+        # Install Python package with C++ extensions (setup.py handles compilation)
         python -m pip install .[inference]
-        # Note: This automatically compiles C++ extensions via setup.py
-        # If compilation fails, VBI will still work with Python/NumPy/Numba models
-    
+
     - name: Run tests
       run: |
         python -m pytest
