@@ -42,33 +42,6 @@ class VEP_sde(BaseModel):
         self.initial_state = set_initial_state(self.nn, self.seed)
         self.INITIAL_STATE_SET = True
 
-    def get_parameter_descriptions(self):
-        """
-        Get descriptions for VEP model parameters.
-        
-        Returns
-        -------
-        dict
-            Dictionary mapping parameter names to descriptions.
-        """
-        return {
-            "G": "Global coupling strength",
-            "seed": "Random seed for reproducibility",
-            "initial_state": "Initial state of the system",
-            "weights": "Structural connectivity matrix",
-            "tau": "Time constant",
-            "eta": "Neural dynamics parameter",
-            "noise_sigma": "Noise amplitude",
-            "iext": "External input current",
-            "dt": "Integration time step",
-            "tend": "End time of simulation",
-            "tcut": "Time to cut from beginning",
-            "noise_seed": "Seed for noise generation",
-            "record_step": "Recording step interval",
-            "method": "Integration method",
-            "output": "Output directory",
-        }
-
     def prepare_input(self):
         self.nn = self.weights.shape[0]
         self.iext = check_sequence(self.iext, self.nn)
