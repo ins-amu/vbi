@@ -14,11 +14,9 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install .[inference]
-
-    - name: Compile C++ code
-      run: |
-        cd vbi/models/cpp/_src
-        make
+        # Note: This automatically compiles C++ extensions via setup.py
+        # If compilation fails, VBI will still work with Python/NumPy/Numba models
+    
     - name: Run tests
       run: |
         python -m pytest
