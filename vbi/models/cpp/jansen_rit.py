@@ -50,7 +50,7 @@ class JR_sde(BaseModel):
         - **vmax** parameter of nonlinear sigmoid function
         - **C_i** [list or np.array] average number of synaptic contacts in th inhibitory and excitatory feedback loops - can be heterogeneous
         - **noise_amp**
-        - **noise_std**
+        - **noise_mu**
 
         - **dt** [second] integration time step
         - **t_initial** [s] initial time
@@ -62,8 +62,22 @@ class JR_sde(BaseModel):
     """
 
     def __init__(self, par: dict = {}):
+        import warnings
 
         super().__init__()
+        
+        # Backward compatibility mapping
+        param_mapping = {
+            'noise_std': 'noise_amp'
+        }
+        
+        # Apply backward compatibility
+        for old_name, new_name in param_mapping.items():
+            if old_name in par:
+                warnings.warn(f"Parameter '{old_name}' is deprecated. Use '{new_name}' instead.", 
+                            DeprecationWarning, stacklevel=2)
+                par[new_name] = par.pop(old_name)
+        
         self._par = self.get_default_parameters()
         self.valid_params = list(self._par.keys())
         self.check_parameters(par)
@@ -101,7 +115,7 @@ class JR_sde(BaseModel):
             "a": ("Inverse of excitatory time constant (Hz)", "scalar"),
             "b": ("Inverse of inhibitory time constant (Hz)", "scalar"),
             "noise_mu": ("Mean of noise input", "scalar"),
-            "noise_std": ("Standard deviation of noise", "scalar"),
+            "noise_amp": ("Noise amplitude", "scalar"),
             "vmax": ("Maximum firing rate parameter", "scalar"),
             "v0": ("Firing threshold", "scalar"),
             "r": ("Steepness of sigmoid", "scalar"),
@@ -140,7 +154,7 @@ class JR_sde(BaseModel):
             "a": 0.1,  # 1/ms
             "b": 0.05,  # 1/ms
             "noise_mu": 0.24,
-            "noise_std": 0.3,
+            "noise_amp": 0.3,
             "vmax": 0.005,
             "v0": 6,  # mV
             "r": 0.56,  # mV
@@ -196,7 +210,7 @@ class JR_sde(BaseModel):
         self.C2 = check_sequence(self.C2, self.N)
         self.C3 = check_sequence(self.C3, self.N)
         self.noise_mu = float(self.noise_mu)
-        self.noise_std = float(self.noise_std)
+        self.noise_amp = float(self.noise_amp)
         self.noise_seed = int(self.noise_seed)
         self.initial_state = np.asarray(self.initial_state)
 
@@ -265,7 +279,7 @@ class JR_sde(BaseModel):
             self.C2,
             self.C3,
             self.noise_mu,
-            self.noise_std,
+            self.noise_amp,
             self.noise_seed,
         )
 

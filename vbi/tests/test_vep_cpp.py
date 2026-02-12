@@ -66,7 +66,7 @@ class TestVEPSDE(unittest.TestCase):
         self.assertEqual(model.G, 1.0)
         self.assertEqual(model.tau, 10.0)
         self.assertEqual(model.eta, -1.5)
-        self.assertEqual(model.noise_sigma, 0.1)
+        self.assertEqual(model.noise_amp, 0.1)
         self.assertIsNone(model.seed)
         
     @skip_if_cpp_unavailable
@@ -78,7 +78,7 @@ class TestVEPSDE(unittest.TestCase):
         # Check that all expected parameters are present
         expected_keys = [
             'G', 'seed', 'initial_state', 'weights', 'tau', 'eta',
-            'noise_sigma', 'iext', 'dt', 'tend', 'tcut', 'noise_seed',
+            'noise_amp', 'iext', 'dt', 't_end', 't_cut', 'noise_seed',
             'record_step', 'method', 'output'
         ]
         

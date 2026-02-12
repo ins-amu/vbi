@@ -23,9 +23,25 @@ class VEP_sde(BaseModel):
     """
 
     def __init__(self, par: dict = {}):
+        import warnings
 
         super().__init__()
         par = deepcopy(par)
+        
+        # Backward compatibility mapping
+        param_mapping = {
+            'tend': 't_end',
+            'tcut': 't_cut', 
+            'noise_sigma': 'noise_amp'
+        }
+        
+        # Apply backward compatibility
+        for old_name, new_name in param_mapping.items():
+            if old_name in par:
+                warnings.warn(f"Parameter '{old_name}' is deprecated. Use '{new_name}' instead.", 
+                            DeprecationWarning, stacklevel=2)
+                par[new_name] = par.pop(old_name)
+        
         self._par = self.get_default_parameters()
         self.valid_params = list(self._par.keys())
         self.check_parameters(par)
@@ -52,10 +68,10 @@ class VEP_sde(BaseModel):
         self.iext = check_sequence(self.iext, self.nn)
         self.tau = float(self.tau)
         self.eta = check_sequence(self.eta, self.nn)
-        self.sigma = float(self.noise_sigma)
+        self.sigma = float(self.noise_amp)
         self.dt = float(self.dt)
-        self.tend = float(self.tend)
-        self.tcut = float(self.tcut)
+        self.tend = float(self.t_end)
+        self.tcut = float(self.t_cut)
         self.noise_seed = int(self.noise_seed)
         self.record_step = int(self.record_step)
         self.method = str(self.method)
@@ -68,11 +84,11 @@ class VEP_sde(BaseModel):
             "weights": None,
             "tau": 10.0,
             "eta": -1.5,
-            "noise_sigma": 0.1,
+            "noise_amp": 0.1,
             "iext": 0.0,
             "dt": 0.01,
-            "tend": 100.0,
-            "tcut": 0.0,
+            "t_end": 100.0,
+            "t_cut": 0.0,
             "noise_seed": 0,
             "record_step": 1,
             "method": "euler",
@@ -96,11 +112,11 @@ class VEP_sde(BaseModel):
             "weights": ("Structural connectivity matrix", "matrix"),
             "tau": ("Time constant", "scalar"),
             "eta": ("Spatial map of epileptogenicity", "scalar|vector"),
-            "noise_sigma": ("Noise amplitude", "scalar"),
+            "noise_amp": ("Noise amplitude", "scalar"),
             "iext": ("External input current", "scalar|vector"),
             "dt": ("Integration time step", "scalar"),
-            "tend": ("End time of simulation", "scalar"),
-            "tcut": ("Time to cut from beginning", "scalar"),
+            "t_end": ("End time of simulation", "scalar"),
+            "t_cut": ("Time to cut from beginning", "scalar"),
             "noise_seed": ("Seed for noise generation", "scalar"),
             "record_step": ("Recording step interval", "scalar"),
             "method": ("Integration method", "string"),
@@ -126,10 +142,10 @@ class VEP_sde(BaseModel):
             self.iext,
             self.eta,
             self.dt,
-            self.tcut,
-            self.tend,
+            self.t_cut,
+            self.t_end,
             self.tau,
-            self.noise_sigma,
+            self.noise_amp,
             self.initial_state,
             self.weights,
             self.noise_seed,

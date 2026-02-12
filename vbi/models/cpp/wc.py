@@ -45,8 +45,23 @@ class WC_ode(BaseModel):
     """
 
     def __init__(self, par={}) -> None:
+        import warnings
 
         super().__init__()
+        
+        # Backward compatibility mapping
+        param_mapping = {
+            'g_e': 'G_exc',
+            'g_i': 'G_inh'
+        }
+        
+        # Apply backward compatibility
+        for old_name, new_name in param_mapping.items():
+            if old_name in par:
+                warnings.warn(f"Parameter '{old_name}' is deprecated. Use '{new_name}' instead.", 
+                            DeprecationWarning, stacklevel=2)
+                par[new_name] = par.pop(old_name)
+        
         self.valid_params = list(self.get_default_parameters().keys())
         self.check_parameters(par)
         self._par = self.get_default_parameters()
@@ -94,8 +109,8 @@ class WC_ode(BaseModel):
             "alpha_i": ("Inhibitory scaling parameter", "scalar"),
             "P": ("External input to excitatory population", "scalar|vector"),
             "Q": ("External input to inhibitory population", "scalar|vector"),
-            "g_e": ("Excitatory global coupling", "scalar"),
-            "g_i": ("Inhibitory global coupling", "scalar"),
+            "G_exc": ("Excitatory global coupling", "scalar"),
+            "G_inh": ("Inhibitory global coupling", "scalar"),
             "method": ("Integration method", "string"),
             "weights": ("Structural connectivity matrix", "matrix"),
             "seed": ("Random seed for reproducibility", "-"),
@@ -133,8 +148,8 @@ class WC_ode(BaseModel):
             "alpha_i": 1.0,
             "P": 1.25,
             "Q": 0.0,
-            "g_e": 0.0,
-            "g_i": 0.0,
+            "G_exc": 0.0,
+            "G_inh": 0.0,
             "method": "heun",
             "weights": None,
             "seed": None,
@@ -179,8 +194,8 @@ class WC_ode(BaseModel):
         self.k_i = float(self.k_i)
         self.alpha_e = float(self.alpha_e)
         self.alpha_i = float(self.alpha_i)
-        self.g_e = float(self.g_e)
-        self.g_i = float(self.g_i)
+        self.G_exc = float(self.G_exc)
+        self.G_inh = float(self.G_inh)
         self.method = str(self.method)
         self.weights = np.asarray(self.weights)
 
@@ -242,8 +257,8 @@ class WC_ode(BaseModel):
             self.k_i,
             self.alpha_e,
             self.alpha_i,
-            self.g_e,
-            self.g_i,
+            self.G_exc,
+            self.G_inh,
             self.noise_seed,
         )
 
