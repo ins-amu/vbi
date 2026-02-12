@@ -30,3 +30,34 @@
     color: #327219;  /* Green color for class and function names */
 }
 
+/* Fix sidebar width for nature theme to prevent text overflow */
+div.sphinxsidebar {
+    width: 280px !important;
+}
+
+div.sphinxsidebarwrapper {
+    width: 280px !important;
+}
+
+/* Adjust main content area to accommodate wider sidebar */
+div.bodywrapper {
+    margin: 0 0 0 280px !important;
+}
+
+/* Ensure long text in sidebar wraps properly */
+div.sphinxsidebar a {
+    white-space: normal !important;
+    word-wrap: break-word !important;
+    line-height: 1.2 !important;
+    padding: 4px 12px !important;
+}
+
+/* Make sidebar items more readable */
+div.sphinxsidebar ul {
+    margin: 10px 15px !important;
+}
+
+div.sphinxsidebar li {
+    margin: 2px 0 !important;
+}
+
