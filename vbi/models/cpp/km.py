@@ -47,14 +47,35 @@ class KM_sde(BaseModel):
         self.INITIAL_STATE_SET = True
         self.initial_state = set_initial_state(self.num_nodes, self.seed)
 
+    def get_parameter_descriptions(self):
+        """
+        Get descriptions and types for Kuramoto model parameters.
+        
+        Returns
+        -------
+        dict
+            Dictionary mapping parameter names to (description, type) tuples.
+        """
+        return {
+            "G": ("Global coupling strength", "scalar"),
+            "dt": ("Integration time step", "scalar"),
+            "noise_amp": ("Noise amplitude", "scalar"),
+            "weights": ("Structural connectivity matrix", "matrix"),
+            "alpha": ("Frustration matrix", "matrix"),
+            "omega": ("Natural angular frequencies per node", "vector"),
+            "noise_seed": ("Seed for noise generation in C++", "scalar"),
+            "seed": ("Random seed for initial state", "-"),
+            "t_initial": ("Initial time", "scalar"),
+            "t_transition": ("Transition time", "scalar"),
+            "t_end": ("End time of simulation", "scalar"),
+            "num_threads": ("Number of OpenMP threads", "scalar"),
+            "output": ("Output directory", "string"),
+            "initial_state": ("Initial state of the system", "vector"),
+            "type": ("Data type for computations", "-"),
+        }
+
     def __str__(self) -> str:
-        print("Kuramoto model with noise (sde), C++ implementation.")
-        print("----------------")
-        for item in self._par.items():
-            name = item[0]
-            value = item[1]
-            print(f"{name} = {value}")
-        return ""
+        return self._format_parameters_table()
 
     def get_default_parameters(self):
         return {

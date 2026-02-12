@@ -46,14 +46,43 @@ class MPR_sde(BaseModel):
 
     # -------------------------------------------------------------------------
 
+    def get_parameter_descriptions(self):
+        """
+        Get descriptions and types for MPR model parameters.
+        
+        Returns
+        -------
+        dict
+            Dictionary mapping parameter names to (description, type) tuples.
+            Types: scalar, vector, matrix, string, bool, or -
+        """
+        return {
+            "G": ("Global coupling strength", "scalar"),
+            "dt": ("Integration time step for MPR (ms)", "scalar"),
+            "dt_bold": ("Integration time step for BOLD (s)", "scalar"),
+            "J": ("Synaptic coupling parameter", "scalar|vector"),
+            "eta": ("Excitability parameter per node", "scalar|vector"),
+            "tau": ("Time constant", "scalar|vector"),
+            "delta": ("Model parameter", "scalar|vector"),
+            "tr": ("Sampling interval from time series", "scalar"),
+            "rv_decimate": ("Decimation factor for activity", "scalar"),
+            "noise_amp": ("Amplitude of noise", "scalar"),
+            "noise_seed": ("Seed for noise generation", "scalar"),
+            "iapp": ("Applied constant current", "scalar|vector"),
+            "seed": ("Random seed for reproducibility", "-"),
+            "initial_state": ("Initial state of the system", "vector"),
+            "t_cut": ("Transition time (ms)", "scalar"),
+            "t_end": ("End time of simulation (ms)", "scalar"),
+            "weights": ("Structural connectivity matrix", "matrix"),
+            "output": ("Output directory", "string"),
+            "RECORD_RV": ("Record activity time series", "bool"),
+            "RECORD_BOLD": ("Record BOLD signals", "bool"),
+        }
+
+    # -------------------------------------------------------------------------
+
     def __str__(self) -> str:
-        print("MPR sde model.")
-        print("----------------")
-        for item in self._par.items():
-            name = item[0]
-            value = item[1]
-            print(f"{name} = {value}")
-        return ""
+        return self._format_parameters_table()
 
     # -------------------------------------------------------------------------
 

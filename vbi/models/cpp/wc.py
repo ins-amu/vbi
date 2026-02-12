@@ -55,12 +55,52 @@ class WC_ode(BaseModel):
 
         self.N = self.num_nodes = np.asarray(self.weights).shape[0]
 
+    def get_parameter_descriptions(self):
+        """
+        Get descriptions and types for Wilson-Cowan model parameters.
+        
+        Returns
+        -------
+        dict
+            Dictionary mapping parameter names to (description, type) tuples.
+        """
+        return {
+            "c_ee": ("Excitatory to excitatory coupling", "scalar"),
+            "c_ei": ("Excitatory to inhibitory coupling", "scalar"),
+            "c_ie": ("Inhibitory to excitatory coupling", "scalar"),
+            "c_ii": ("Inhibitory to inhibitory coupling", "scalar"),
+            "tau_e": ("Excitatory time constant", "scalar"),
+            "tau_i": ("Inhibitory time constant", "scalar"),
+            "a_e": ("Excitatory gain parameter", "scalar"),
+            "a_i": ("Inhibitory gain parameter", "scalar"),
+            "b_e": ("Excitatory threshold parameter", "scalar"),
+            "b_i": ("Inhibitory threshold parameter", "scalar"),
+            "c_e": ("Excitatory sigmoid slope", "scalar"),
+            "c_i": ("Inhibitory sigmoid slope", "scalar"),
+            "theta_e": ("Excitatory threshold offset", "scalar"),
+            "theta_i": ("Inhibitory threshold offset", "scalar"),
+            "r_e": ("Excitatory refractory parameter", "scalar"),
+            "r_i": ("Inhibitory refractory parameter", "scalar"),
+            "k_e": ("Excitatory recovery parameter", "scalar"),
+            "k_i": ("Inhibitory recovery parameter", "scalar"),
+            "alpha_e": ("Excitatory scaling parameter", "scalar"),
+            "alpha_i": ("Inhibitory scaling parameter", "scalar"),
+            "P": ("External input to excitatory population", "scalar"),
+            "Q": ("External input to inhibitory population", "scalar"),
+            "g_e": ("Excitatory global coupling", "scalar"),
+            "g_i": ("Inhibitory global coupling", "scalar"),
+            "method": ("Integration method", "string"),
+            "weights": ("Structural connectivity matrix", "matrix"),
+            "seed": ("Random seed for reproducibility", "-"),
+            "t_end": ("End time of simulation", "scalar"),
+            "t_cut": ("Transition time to cut", "scalar"),
+            "dt": ("Integration time step", "scalar"),
+            "noise_seed": ("Seed for noise generation", "bool"),
+            "output": ("Output directory", "string"),
+        }
+
     def __str__(self) -> str:
-        print("Wilson-Cowan model.")
-        print("--------------------")
-        for item in self._par.items():
-            print(f"{item[0]}, : , {item[1]}")
-        return ""
+        return self._format_parameters_table()
 
     def get_default_parameters(self):
         par = {

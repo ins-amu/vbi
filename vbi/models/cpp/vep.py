@@ -42,12 +42,32 @@ class VEP_sde(BaseModel):
         self.initial_state = set_initial_state(self.nn, self.seed)
         self.INITIAL_STATE_SET = True
 
-    def __str__(self) -> str:
-        print("VEP model")
-        print("---------")
-        for item in self._par.items():
-            print(f"{item[0]} = {item[1]}")
-        return ""
+    def get_parameter_descriptions(self):
+        """
+        Get descriptions for VEP model parameters.
+        
+        Returns
+        -------
+        dict
+            Dictionary mapping parameter names to descriptions.
+        """
+        return {
+            "G": "Global coupling strength",
+            "seed": "Random seed for reproducibility",
+            "initial_state": "Initial state of the system",
+            "weights": "Structural connectivity matrix",
+            "tau": "Time constant",
+            "eta": "Neural dynamics parameter",
+            "noise_sigma": "Noise amplitude",
+            "iext": "External input current",
+            "dt": "Integration time step",
+            "tend": "End time of simulation",
+            "tcut": "Time to cut from beginning",
+            "noise_seed": "Seed for noise generation",
+            "record_step": "Recording step interval",
+            "method": "Integration method",
+            "output": "Output directory",
+        }
 
     def prepare_input(self):
         self.nn = self.weights.shape[0]
@@ -81,6 +101,33 @@ class VEP_sde(BaseModel):
             "output": "output",
         }
         return params
+
+    def get_parameter_descriptions(self):
+        """
+        Get descriptions and types for VEP model parameters.
+        
+        Returns
+        -------
+        dict
+            Dictionary mapping parameter names to (description, type) tuples.
+        """
+        return {
+            "G": ("Global coupling strength", "scalar"),
+            "seed": ("Random seed for reproducibility", "-"),
+            "initial_state": ("Initial state of the system", "vector"),
+            "weights": ("Structural connectivity matrix", "matrix"),
+            "tau": ("Time constant", "scalar"),
+            "eta": ("Spatial map of epileptogenicity", "scalar|vector"),
+            "noise_sigma": ("Noise amplitude", "scalar"),
+            "iext": ("External input current", "scalar|vector"),
+            "dt": ("Integration time step", "scalar"),
+            "tend": ("End time of simulation", "scalar"),
+            "tcut": ("Time to cut from beginning", "scalar"),
+            "noise_seed": ("Seed for noise generation", "scalar"),
+            "record_step": ("Recording step interval", "scalar"),
+            "method": ("Integration method", "string"),
+            "output": ("Output directory", "string"),
+        }
 
     def run(self, par: dict = {}, x0: np.ndarray = None, verbose: bool = False):
 

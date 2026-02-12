@@ -37,6 +37,18 @@ class BaseModel(ABC):
         """
         pass
     
+    @abstractmethod
+    def get_parameter_descriptions(self) -> Dict[str, str]:
+        """
+        Get descriptions for all model parameters.
+        
+        Returns
+        -------
+        dict
+            Dictionary mapping parameter names to their descriptions.
+        """
+        pass
+    
     def check_parameters(self, par: Dict[str, Any]) -> None:
         """
         Validate that all provided parameters are valid for this model.
@@ -178,3 +190,88 @@ class BaseModel(ABC):
             Dictionary of all model parameters.
         """
         return self._par
+    
+    def _format_value(self, value):
+        """Format a parameter value for display"""
+        if hasattr(value, 'shape') and value is not None:
+            # Array-like object
+            try:
+                shape_tuple = tuple(value.shape)
+                if len(shape_tuple) == 0:
+                    # 0-d array (scalar stored as array)
+                    return f"{value}"
+                else:
+                    return f"shape {shape_tuple}"
+            except:
+                return str(type(value).__name__)
+        elif isinstance(value, (list, tuple)) and len(value) > 0:
+            # List/tuple
+            if len(value) <= 3:
+                return f"{value}"
+            else:
+                return f"[{len(value)} items]"
+        elif isinstance(value, dict):
+            return f"dict({len(value)})"
+        else:
+            # Scalar or other type
+            return f"{value}"
+    
+    def _format_parameters_table(self) -> str:
+        """
+        Format model parameters as a table with names, descriptions, values, and types.
+        
+        Returns
+        -------
+        str
+            Formatted table string with 4 columns:
+            - Parameter: parameter name
+            - Description: what the parameter does  
+            - Value: current value or shape
+            - Type: scalar | vector | matrix | string | bool | -
+        """
+        param_info = self.get_parameter_descriptions()
+        
+        lines = [
+            "=" * 110,
+            f"{self.__class__.__name__}",
+            "=" * 110,
+            "",
+            "Model Parameters:",
+            "-" * 110,
+            f"{'Parameter':<15} | {'Description':<40} | {'Value/Shape':<30} | {'Type':<15}",
+            "-" * 110,
+        ]
+        
+        for name in sorted(self.valid_params):
+            if name in self._par:
+                # Get current value (may have been converted)
+                try:
+                    current_value = getattr(self, name)
+                except AttributeError:
+                    current_value = self._par[name]
+                
+                # Get description and type from param_info
+                if isinstance(param_info.get(name), tuple):
+                    description, param_type = param_info[name]
+                else:
+                    description = param_info.get(name, "No description")
+                    param_type = "-"
+                
+                # Format current value for display
+                current_str = self._format_value(current_value)
+                
+                lines.append(f"{name:<15} | {description:<40} | {current_str:<30} | {param_type:<15}")
+        
+        lines.append("=" * 110)
+        return "\n".join(lines)
+    
+    def __str__(self) -> str:
+        """
+        Return string representation of the model with parameter table.
+        
+        Returns
+        -------
+        str
+            Formatted string with model information and parameters table.
+        """
+        return self._format_parameters_table()

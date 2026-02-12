@@ -80,17 +80,47 @@ class JR_sde(BaseModel):
         self.noise_seed = 1 if self.noise_seed else 0
         os.makedirs(join(self.output), exist_ok=True)
 
+    def get_parameter_descriptions(self):
+        """
+        Get descriptions and types for Jansen-Rit SDE model parameters.
+        
+        Returns
+        -------
+        dict
+            Dictionary mapping parameter names to (description, type) tuples.
+        """
+        return {
+            "G": ("Global coupling strength", "scalar"),
+            "A": ("Maximum amplitude of EPSP (mV)", "scalar|vector"),
+            "B": ("Maximum amplitude of IPSP (mV)", "scalar"),
+            "a": ("Inverse of excitatory time constant (Hz)", "scalar"),
+            "b": ("Inverse of inhibitory time constant (Hz)", "scalar"),
+            "noise_mu": ("Mean of noise input", "scalar"),
+            "noise_std": ("Standard deviation of noise", "scalar"),
+            "vmax": ("Maximum firing rate parameter", "scalar"),
+            "v0": ("Firing threshold", "scalar"),
+            "r": ("Steepness of sigmoid", "scalar"),
+            "initial_state": ("Initial state of the system", "vector"),
+            "weights": ("Structural connectivity matrix", "matrix"),
+            "C0": ("Synaptic contacts (pyr→exc)", "scalar|vector"),
+            "C1": ("Synaptic contacts (exc→pyr)", "scalar|vector"),
+            "C2": ("Synaptic contacts (pyr→inh)", "scalar|vector"),
+            "C3": ("Synaptic contacts (inh→pyr)", "scalar|vector"),
+            "noise_seed": ("Seed for noise generation", "scalar"),
+            "seed": ("Random seed for reproducibility", "-"),
+            "dt": ("Integration time step", "scalar"),
+            "dim": ("Dimension of the system", "scalar"),
+            "method": ("Integration method", "string"),
+            "t_transition": ("Transition time", "scalar"),
+            "t_end": ("End time of simulation", "scalar"),
+            "output": ("Output directory", "string"),
+            "RECORD_AVG": ("Record average time series", "bool"),
+        }
+
     def __str__(self) -> str:
-        print("Jansen-Rit sde model")
-        print("----------------")
-        for item in self._par.items():
-            name = item[0]
-            value = item[1]
-            print(f"{name} = {value}")
-        return ""
+        return self._format_parameters_table()
 
     def __call__(self):
-        print("Jansen-Rit sde model")
         return self._par
 
     def get_default_parameters(self):
@@ -330,6 +360,52 @@ class JR_sdde(BaseModel):
         }
 
         return param
+
+    # -------------------------------------------------------------------------
+
+    def get_parameter_descriptions(self):
+        """
+        Get descriptions and types for Jansen-Rit SDDE model parameters.
+        
+        Returns
+        -------
+        dict
+            Dictionary mapping parameter names to (description, type) tuples.
+        """
+        return {
+            "weights": ("Structural connectivity matrix", "matrix"),
+            "delays": ("Delay matrix", "matrix"),
+            "dt": ("Integration time step", "scalar"),
+            "G": ("Global coupling strength", "scalar"),
+            "mu": ("Mean of noise input", "scalar"),
+            "sigma": ("Standard deviation of noise", "scalar"),
+            "dim": ("Dimension of the system", "scalar"),
+            "A": ("Maximum amplitude of EPSP", "scalar"),
+            "a": ("Inverse of excitatory time constant", "scalar"),
+            "B": ("Maximum amplitude of IPSP", "scalar"),
+            "b": ("Inverse of inhibitory time constant", "scalar"),
+            "v0": ("Firing threshold", "scalar"),
+            "vmax": ("Maximum firing rate parameter", "scalar"),
+            "r": ("Steepness of sigmoid", "scalar"),
+            "C": ("Legacy synaptic contacts parameter", "-"),
+            "C0": ("Synaptic contacts (pyr→exc)", "scalar|vector"),
+            "C1": ("Synaptic contacts (exc→pyr)", "scalar|vector"),
+            "C2": ("Synaptic contacts (pyr→inh)", "scalar|vector"),
+            "C3": ("Synaptic contacts (inh→pyr)", "scalar|vector"),
+            "nstart": ("Start index for recording", "-"),
+            "record_step": ("Recording step interval", "scalar"),
+            "sti_ti": ("Stimulation start time", "scalar"),
+            "sti_duration": ("Stimulation duration", "scalar"),
+            "sti_amplitude": ("Stimulation amplitude per node", "scalar|vector"),
+            "sti_gain": ("Stimulation gain factor", "scalar"),
+            "noise_seed": ("Seed for noise generation", "scalar"),
+            "seed": ("Random seed for reproducibility", "-"),
+            "initial_state": ("Initial state of the system", "vector"),
+            "method": ("Integration method", "string"),
+            "output": ("Output directory", "string"),
+            "t_end": ("End time of simulation", "scalar"),
+            "t_transition": ("Transition time", "scalar"),
+        }
 
     # -------------------------------------------------------------------------
 

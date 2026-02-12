@@ -41,6 +41,27 @@ class DO(BaseModel):
             value = item[1]
             setattr(self, name, value)
 
+    def get_parameter_descriptions(self):
+        """
+        Get descriptions and types for Damped Oscillator model parameters.
+        
+        Returns
+        -------
+        dict
+            Dictionary mapping parameter names to (description, type) tuples.
+        """
+        return {
+            "a": ("Damping coefficient", "scalar"),
+            "b": ("Spring constant", "scalar"),
+            "dt": ("Integration time step", "scalar"),
+            "t_start": ("Initial time for simulation", "scalar"),
+            "method": ("Integration method", "string"),
+            "t_end": ("End time of simulation", "scalar"),
+            "t_cut": ("Time to cut from beginning", "scalar"),
+            "output": ("Output directory", "string"),
+            "initial_state": ("Initial state [position, velocity]", "vector"),
+        }
+
     def __str__(self) -> str:
         """
         Return a string representation of the model parameters.
@@ -50,23 +71,7 @@ class DO(BaseModel):
         str
             Formatted string showing all model parameters and their values.
         """
-        print("Damped Oscillator Model (C++)")
-        print("-----------------------------")
-
-        # Model parameters
-        print(f"a = {self.a}")
-        print(f"b = {self.b}")
-
-        # Simulation parameters
-        print(f"dt = {self.dt}")
-        print(f"t_start = {self.t_start}")
-        print(f"t_end = {self.t_end}")
-        print(f"t_cut = {self.t_cut}")
-        print(f"method = {self.method}")
-        print(f"output = {self.output}")
-        print(f"initial_state = {self.initial_state}")
-
-        return ""
+        return self._format_parameters_table()
 
     def __call__(self, *args: Any, **kwds: Any) -> Any:
         print("Damp Oscillator model")
