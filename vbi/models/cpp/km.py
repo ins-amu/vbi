@@ -11,6 +11,11 @@ except ImportError as e:
 class KM_sde(BaseModel):
     '''
     Kuramoto model with noise (sde), C++ implementation.
+    
+    This model supports heterogeneous parameters across brain regions.
+    Parameters marked as "scalar|vector" in the parameter descriptions can be 
+    specified as either single values (applied to all regions) or arrays 
+    (one value per region).
 
     Parameters
     ----------

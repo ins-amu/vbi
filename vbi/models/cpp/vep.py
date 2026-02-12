@@ -14,7 +14,12 @@ except ImportError as e:
 
 class VEP_sde(BaseModel):
     """
-    Virtual Epileptic Patient (VEP) model
+    Virtual Epileptic Patient (VEP) model.
+    
+    This model supports heterogeneous parameters across brain regions.
+    Parameters marked as "scalar|vector" in the parameter descriptions can be 
+    specified as either single values (applied to all regions) or arrays 
+    (one value per region).
     """
 
     def __init__(self, par: dict = {}):

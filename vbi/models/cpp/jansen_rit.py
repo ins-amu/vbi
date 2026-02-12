@@ -31,19 +31,24 @@ class JR_sde(BaseModel):
     r"""
     Jansen-Rit model C++ implementation.
 
+    This model supports heterogeneous parameters across brain regions.
+    Parameters marked as "scalar|vector" in the parameter descriptions can be 
+    specified as either single values (applied to all regions) or arrays 
+    (one value per region).
+
     Parameters
     ----------
 
     par: dict
         Including the following:
-        - **A** : [mV] determine the maximum amplitude of the excitatory PSP (EPSP)
+        - **A** : [mV] determine the maximum amplitude of the excitatory PSP (EPSP) - can be heterogeneous
         - **B** : [mV] determine the maximum amplitude of the inhibitory PSP (IPSP)
         - **a** : [Hz]  1/tau_e,  :math:`\\sum` of the reciprocal of the time constant of passive membrane and all other spatially distributed  delays in the dendritic network
         - **b** : [Hz] 1/tau_i
         - **r**  [mV] the steepness of the sigmoidal transformation.
         - **v0** parameter of nonlinear sigmoid function
         - **vmax** parameter of nonlinear sigmoid function
-        - **C_i** [list or np.array] average number of synaptic contacts in th inhibitory and excitatory feedback loops
+        - **C_i** [list or np.array] average number of synaptic contacts in th inhibitory and excitatory feedback loops - can be heterogeneous
         - **noise_amp**
         - **noise_std**
 

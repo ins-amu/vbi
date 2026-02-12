@@ -16,6 +16,13 @@ except ImportError as e:
 
 class WC_ode(BaseModel):
     r"""
+    Wilson-Cowan neural mass model.
+    
+    This model supports heterogeneous parameters across brain regions.
+    Parameters marked as "scalar|vector" in the parameter descriptions can be 
+    specified as either single values (applied to all regions) or arrays 
+    (one value per region).
+
     **References**:
 
     .. [WC_1972] Wilson, H.R. and Cowan, J.D. *Excitatory and inhibitory
@@ -85,8 +92,8 @@ class WC_ode(BaseModel):
             "k_i": ("Inhibitory recovery parameter", "scalar"),
             "alpha_e": ("Excitatory scaling parameter", "scalar"),
             "alpha_i": ("Inhibitory scaling parameter", "scalar"),
-            "P": ("External input to excitatory population", "scalar"),
-            "Q": ("External input to inhibitory population", "scalar"),
+            "P": ("External input to excitatory population", "scalar|vector"),
+            "Q": ("External input to inhibitory population", "scalar|vector"),
             "g_e": ("Excitatory global coupling", "scalar"),
             "g_i": ("Inhibitory global coupling", "scalar"),
             "method": ("Integration method", "string"),

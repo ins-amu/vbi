@@ -15,6 +15,11 @@ except ImportError as e:
 class DO(BaseModel):
     """
     Damp Oscillator model class.
+    
+    This model supports heterogeneous parameters across brain regions.
+    Parameters marked as "scalar|vector" in the parameter descriptions can be 
+    specified as either single values (applied to all regions) or arrays 
+    (one value per region).
     """
 
     # ---------------------------------------------------------------
