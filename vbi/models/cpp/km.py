@@ -1,12 +1,14 @@
 import numpy as np
 
+from vbi.models.cpp.base import BaseModel
+
 try:
     from vbi.models.cpp._src.km_sde import KM_sde as _KM_sde
 except ImportError as e:
     print(f"Could not import modules: {e}, probably C++ code is not compiled or properly linked.")
 
 
-class KM_sde:
+class KM_sde(BaseModel):
     '''
     Kuramoto model with noise (sde), C++ implementation.
 
@@ -17,26 +19,11 @@ class KM_sde:
 
     '''
 
-    valid_parameters = [
-        "G",              # global coupling strength
-        "dt",             # time step
-        "noise_amp",      # noise amplitude
-        "omega",          # natural angular frequency
-        "weights",        # weighted connection matrix
-        "noise_seed",     # fix random seed for noise in Cpp code
-        "seed",
-        "alpha",          # frustration matrix
-        "t_initial",      # initial time
-        "t_transition",   # transition time
-        "t_end",          # end time
-        "output",         # output directory
-        "num_threads",    # number of threads using openmp
-        "initial_state",
-        "type"            # output times series data type
-    ]
+    def __init__(self, par:dict={}) -> None:
 
-    def __init__(self, par) -> None:
-
+        super().__init__()
+        self.valid_parameters = list(self.get_default_parameters().keys())
+        self.valid_params = self.valid_parameters  # Alias for consistency
         self.check_parameters(par)
         self._par = self.get_default_parameters()
         self._par.update(par)
@@ -69,9 +56,6 @@ class KM_sde:
             print(f"{name} = {value}")
         return ""
 
-    def __call__(self):
-        return self._par
-
     def get_default_parameters(self):
         return {
             "G": 1.0,                        # global coupling strength
@@ -90,11 +74,6 @@ class KM_sde:
             "initial_state": None,           # initial state
             "type": np.float32
         }
-
-    def check_parameters(self, par):
-        for key in par.keys():
-            if key not in self.valid_parameters:
-                raise ValueError(f"Invalid parameter: {key}")
 
     def prepare_input(self):
 

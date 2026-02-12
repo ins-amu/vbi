@@ -2,15 +2,19 @@ import os
 import numpy as np
 from os.path import join
 
+from vbi.models.cpp.base import BaseModel
+
 try:
     from vbi.models.cpp._src.jr_sde import JR_sde as _JR_sde
     from vbi.models.cpp._src.jr_sdde import JR_sdde as _JR_sdde
 except ImportError as e:
-    print(f"Could not import modules: {e}, probably C++ code is not compiled or properly linked.")
+    print(
+        f"Could not import modules: {e}, probably C++ code is not compiled or properly linked."
+    )
 
 
-class JR_sde:
-    '''
+class JR_sde(BaseModel):
+    """
     Jansen-Rit model C++ implementation.
 
     Parameters
@@ -36,10 +40,11 @@ class JR_sde:
         - **t_transition** [s] time to reach steady state
         - **dim** [int] dimention of the system
 
-    '''
+    """
 
-    def __init__(self, par={}):
+    def __init__(self, par: dict = {}):
 
+        super().__init__()
         self._par = self.get_default_parameters()
         self.valid_params = list(self._par.keys())
         self.check_parameters(par)
@@ -58,10 +63,6 @@ class JR_sde:
         if self.initial_state is None:
             self.INITIAL_STATE_SET = False
 
-        # self.C0 = self.C0 * np.ones(self.N)
-        # self.C1 = self.C1 * np.ones(self.N)
-        # self.C2 = self.C2 * np.ones(self.N)
-        # self.C3 = self.C3 * np.ones(self.N)
         self.noise_seed = 1 if self.noise_seed else 0
         os.makedirs(join(self.output), exist_ok=True)
 
@@ -78,96 +79,55 @@ class JR_sde:
         print("Jansen-Rit sde model")
         return self._par
 
-    def check_parameters(self, par):
-        '''
-        Check if the parameters are valid.
-        '''
-        for key in par.keys():
-            if key not in self.valid_params:
-                raise ValueError("Invalid parameter: " + key)
-
     def get_default_parameters(self):
-        '''
+        """
         return default parameters for the Jansen-Rit sde model.
-        '''
+        """
 
         par = {
-            'G': 0.5,                   # global coupling strength
-            "A": 3.25,                  # mV
-            "B": 22.0,                  # mV
-            "a": 0.1,                   # 1/ms
-            "b": 0.05,                  # 1/ms
+            "G": 0.5,  # global coupling strength
+            "A": 3.25,  # mV
+            "B": 22.0,  # mV
+            "a": 0.1,  # 1/ms
+            "b": 0.05,  # 1/ms
             "noise_mu": 0.24,
             "noise_std": 0.3,
             "vmax": 0.005,
-            "v0": 6,                    # mV
-            "r": 0.56,                  # mV
+            "v0": 6,  # mV
+            "r": 0.56,  # mV
             "initial_state": None,
-
-            'weights': None,
+            "weights": None,
             "C0": 135.0 * 1.0,
             "C1": 135.0 * 0.8,
             "C2": 135.0 * 0.25,
             "C3": 135.0 * 0.25,
-
             "noise_seed": 0,
             "seed": None,
-
-            "dt": 0.05,                 # ms
+            "dt": 0.05,  # ms
             "dim": 6,
             "method": "heun",
-            "t_transition": 500.0,      # ms
-            "t_end": 2501.0,            # ms
-            "output": "output",         # output directory
-            "RECORD_AVG": False         # true to store large time series in file
+            "t_transition": 500.0,  # ms
+            "t_end": 2501.0,  # ms
+            "output": "output",  # output directory
+            "RECORD_AVG": False,  # true to store large time series in file
         }
         return par
 
     # ---------------------------------------------------------------
     def set_initial_state(self):
-        '''
+        """
         Set initial state for the system of JR equations with N nodes.
-        '''
+        """
 
         self.initial_state = set_initial_state(self.num_nodes, self.seed)
         self.INITIAL_STATE_SET = True
 
     # -------------------------------------------------------------------------
 
-    # def set_C(self, label, val_dict):
-    #     '''
-    #     set the value of C0, C1, C2, C3.
-
-    #     Parameters
-    #     ----------
-    #     label: str
-    #         C0, C1, C2, C3
-    #     val_dict: dict
-    #         {'indices': [list or multiple list seperated with comma],
-    #          'value': [list or multiple list seperated with comma]}
-
-    #     '''
-    #     indices = val_dict['indices']
-
-    #     if indices is None:
-    #         indices = [list(range(self.N))]
-
-    #     values = val_dict['value']
-    #     if isinstance(values, np.ndarray):
-    #         values = values.tolist()
-    #     if not isinstance(values, list):
-    #         values = [values]
-
-    #     assert (len(indices) == len(values))
-    #     C = getattr(self, label)
-
-    #     for i in range(len(values)):
-    #         C[indices[i]] = values[i]
-
     def prepare_input(self):
-        '''
+        """
         prepare input parameters for passing to C++ engine.
-        '''
+        """
 
         self.N = int(self.N)
         self.weights = np.asarray(self.weights)
@@ -192,8 +152,8 @@ class JR_sde:
         self.initial_state = np.asarray(self.initial_state)
 
     # -------------------------------------------------------------------------
-    def run(self, par={}, x0=None, verbose=False):
-        '''
+    def run(self, par: dict = {}, x0: np.ndarray = None, verbose: bool = False):
+        """
         Integrate the system of equations for Jansen-Rit sde model.
 
         Parameters
@@ -212,7 +172,7 @@ class JR_sde:
             - **t** : time series
             - **x** : state variables
 
-        '''
+        """
 
         if x0 is None:
             if not self.INITIAL_STATE_SET:
@@ -230,31 +190,33 @@ class JR_sde:
 
         self.prepare_input()
 
-        obj = _JR_sde(self.N,
-                      self.dt,
-                      self.t_transition,
-                      self.t_end,
-                      self.G,
-                      self.weights,
-                      self.initial_state,
-                      self.A,
-                      self.B,
-                      self.a,
-                      self.b,
-                      self.r,
-                      self.v0,
-                      self.vmax,
-                      self.C0,
-                      self.C1,
-                      self.C2,
-                      self.C3,
-                      self.noise_mu,
-                      self.noise_std,
-                      self.noise_seed)
+        obj = _JR_sde(
+            self.N,
+            self.dt,
+            self.t_transition,
+            self.t_end,
+            self.G,
+            self.weights,
+            self.initial_state,
+            self.A,
+            self.B,
+            self.a,
+            self.b,
+            self.r,
+            self.v0,
+            self.vmax,
+            self.C0,
+            self.C1,
+            self.C2,
+            self.C3,
+            self.noise_mu,
+            self.noise_std,
+            self.noise_seed,
+        )
 
-        if self.method == 'euler':
+        if self.method == "euler":
             obj.eulerIntegrate()
-        elif self.method == 'heun':
+        elif self.method == "heun":
             obj.heunIntegrate()
         else:
             print("unkown integratiom method")
@@ -270,7 +232,8 @@ class JR_sde:
 
 ############################ Jansen-Rit sdde ##################################
 
-class JR_sdde:
+
+class JR_sdde(BaseModel):
     pass
 
     # -------------------------------------------------------------------------
@@ -289,8 +252,8 @@ class JR_sdde:
             np.random.seed(self.seed)
 
         self.noise_seed = 1 if self.noise_seed else 0
-        assert (self.weights is not None), "weights must be provided"
-        assert (self.delays is not None), "delays must be provided"
+        assert self.weights is not None, "weights must be provided"
+        assert self.delays is not None, "delays must be provided"
         self.N = self.num_nodes = len(self.weights)
 
         self.C0 = check_sequence(self.C0, self.N)
@@ -303,19 +266,12 @@ class JR_sdde:
             self.INITIAL_STATE_SET = False
         os.makedirs(join(self.output), exist_ok=True)
 
-    def check_parameters(self, par):
-        '''
-        check if the parameters are valid
-        '''
-        for key in par.keys():
-            if key not in self.valid_params:
-                raise ValueError("Invalid parameter: " + key)
     # -------------------------------------------------------------------------
 
     def get_default_parameters(self):
-        '''
+        """
         get default parameters for the system of JR equations.
-        '''
+        """
 
         param = {
             "weights": None,
@@ -339,37 +295,41 @@ class JR_sdde:
             "C3": 135.0 * 0.25,
             "nstart": None,
             "record_step": 1,
-            'sti_ti': 0.0,
-            'sti_duration': 0.0,
-            'sti_amplitude': 0.0,  # scalar or sequence of length N
-            'sti_gain': 0.0,
+            "sti_ti": 0.0,
+            "sti_duration": 0.0,
+            "sti_amplitude": 0.0,  # scalar or sequence of length N
+            "sti_gain": 0.0,
             "noise_seed": False,
             "seed": None,
             "initial_state": None,
             "method": "heun",
             "output": "output",
             "t_end": 2000.0,
-            "t_transition": 1000.0
+            "t_transition": 1000.0,
         }
 
         return param
+
     # -------------------------------------------------------------------------
 
     def prepare_stimulus(self, sti_gain, sti_ti):
-        '''
+        """
         prepare stimulation parameteres
-        '''
+        """
         if np.abs(sti_gain) > 0.0:
             assert (
-                sti_ti >= self.t_transition), "stimulation must start after transition"
+                sti_ti >= self.t_transition
+            ), "stimulation must start after transition"
+
     # -------------------------------------------------------------------------
 
     def set_initial_state(self):
-        '''
+        """
         set initial state for the system of JR equations with N nodes.
-        '''
+        """
         self.initial_state = set_initial_state(self.num_nodes, self.seed)
         self.INITIAL_STATE_SET = True
+
     # -------------------------------------------------------------------------
 
     # def set_C(self, label, val_dict):
@@ -392,9 +352,9 @@ class JR_sdde:
     # -------------------------------------------------------------------------
 
     def prepare_input(self):
-        '''
+        """
         prepare input parameters for C++ code.
-        '''
+        """
 
         self.dt = float(self.dt)
         self.t_transition = float(self.t_transition)
@@ -421,12 +381,13 @@ class JR_sdde:
         self.initial_state = np.asarray(self.initial_state)
         self.weights = np.asarray(self.weights)
         self.delays = np.asarray(self.delays)
+
     # -------------------------------------------------------------------------
 
-    def run(self, par={}, x0=None, verbose=False):
-        '''
+    def run(self, par: dict = {}, x0: np.ndarray = None, verbose: bool = False):
+        """
         Integrate the system of equations for Jansen-Rit model.
-        '''
+        """
 
         if x0 is None:
             if not self.INITIAL_STATE_SET:
@@ -434,45 +395,44 @@ class JR_sdde:
                 if verbose:
                     print("initial state set by default")
         else:
-            assert (len(x0) == self.num_nodes * self.dim)
+            assert len(x0) == self.num_nodes * self.dim
             self.initial_state = x0
             self.INITIAL_STATE_SET = True
 
         for key in par.keys():
             if key not in self.valid_params:
                 raise ValueError("Invalid parameter: " + key)
-            # if key in ["C0", "C1", "C2", "C3"]:
-            #     self.set_C(key, par[key])
-            # else:
             setattr(self, key, par[key])
 
         self.prepare_input()
-        obj = _JR_sdde(self.dt,
-                       self.initial_state,
-                       self.weights,
-                       self.delays,
-                       self.G,
-                       self.dim,
-                       self.A,
-                       self.B,
-                       self.a,
-                       self.b,
-                       self.r,
-                       self.v0,
-                       self.vmax,
-                       self.C0,
-                       self.C1,
-                       self.C2,
-                       self.C3,
-                       self.sti_amplitude,
-                       self.sti_gain,
-                       self.sti_ti,
-                       self.sti_duration,
-                       self.mu,
-                       self.sigma,
-                       self.t_transition,
-                       self.t_end,
-                       self.noise_seed)
+        obj = _JR_sdde(
+            self.dt,
+            self.initial_state,
+            self.weights,
+            self.delays,
+            self.G,
+            self.dim,
+            self.A,
+            self.B,
+            self.a,
+            self.b,
+            self.r,
+            self.v0,
+            self.vmax,
+            self.C0,
+            self.C1,
+            self.C2,
+            self.C3,
+            self.sti_amplitude,
+            self.sti_gain,
+            self.sti_ti,
+            self.sti_duration,
+            self.mu,
+            self.sigma,
+            self.t_transition,
+            self.t_end,
+            self.noise_seed,
+        )
         obj.integrate(self.method)
         nstart = int((np.max(self.delays)) / self.dt) + 1
         t = np.asarray(obj.get_t())[:-nstart]
@@ -481,11 +441,12 @@ class JR_sdde:
 
         return {"t": t, "x": y, "sti": sti_vector}
 
+
 ############################# helper functions ################################
 
 
 def check_sequence(x, n):
-    '''
+    """
     check if x is a scalar or a sequence of length n
 
     parameters
@@ -496,16 +457,16 @@ def check_sequence(x, n):
     returns
     -------
     x: sequence of length n
-    '''
+    """
     if isinstance(x, (np.ndarray, list, tuple)):
-        assert (len(x) == n), f" variable must be a sequence of length {n}"
+        assert len(x) == n, f" variable must be a sequence of length {n}"
         return x
     else:
         return x * np.ones(n)
 
 
 def set_initial_state(nn, seed=None):
-    '''
+    """
     set initial state for the system of JR equations with N nodes.
 
     parameters
@@ -517,7 +478,7 @@ def set_initial_state(nn, seed=None):
     -------
     y: initial state of length 6N
 
-    '''
+    """
     if seed is not None:
         np.random.seed(seed)
 

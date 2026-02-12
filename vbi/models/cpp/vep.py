@@ -4,19 +4,22 @@ from copy import deepcopy
 from os.path import join
 from typing import Union
 
+from vbi.models.cpp.base import BaseModel
+
 try:
     from vbi.models.cpp._src.vep import VEP as _VEP
 except ImportError as e:
     print(f"Could not import modules: {e}, probably C++ code is not compiled or properly linked.")
 
 
-class VEP_sde:
+class VEP_sde(BaseModel):
     """
     Virtual Epileptic Patient (VEP) model
     """
 
     def __init__(self, par: dict = {}):
 
+        super().__init__()
         par = deepcopy(par)
         self._par = self.get_default_parameters()
         self.valid_params = list(self._par.keys())
@@ -45,14 +48,6 @@ class VEP_sde:
         for item in self._par.items():
             print(f"{item[0]} = {item[1]}")
         return ""
-
-    def __call__(self):
-        return self._par
-
-    def check_parameters(self, par: dict):
-        for key in par.keys():
-            if key not in self.valid_params:
-                raise ValueError(f"Invalid parameter: {key}")
 
     def prepare_input(self):
         self.nn = self.weights.shape[0]

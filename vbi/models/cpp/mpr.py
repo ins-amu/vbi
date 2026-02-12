@@ -2,6 +2,8 @@ import numpy as np
 from typing import Union
 from copy import deepcopy
 
+from vbi.models.cpp.base import BaseModel
+
 try:
     from vbi.models.cpp._src.mpr_sde import MPR_sde as _MPR_sde
     from vbi.models.cpp._src.mpr_sde import BoldParams as _BoldParams
@@ -9,16 +11,18 @@ except ImportError as e:
     print(f"Could not import modules: {e}, probably C++ code is not compiled or properly linked.")
 
 
-class MPR_sde:
+class MPR_sde(BaseModel):
     """
     MPR model
     """
 
     def __init__(self, par: dict = {}, parbold={}) -> None:
 
+        super().__init__()
         par = deepcopy(par)
         self._par = self.get_default_parameters()
         self.valid_parameters = list(self._par.keys())
+        self.valid_params = self.valid_parameters  # Alias for consistency
         self.check_parameters(par)
         self._par.update(par)
 
@@ -52,16 +56,6 @@ class MPR_sde:
         return ""
 
     # -------------------------------------------------------------------------
-
-    def __call__(self):
-        return self._par
-
-    # -------------------------------------------------------------------------
-
-    def check_parameters(self, par: dict):
-        for key in par.keys():
-            if key not in self.valid_parameters:
-                raise ValueError(f"Invalid parameter {key:s} provided.")
 
     def get_default_parameters(self):
 
@@ -221,9 +215,22 @@ class BoldParams:
             setattr(self, name, value)
 
     def check_parameters(self, par):
+        """
+        Validate that all provided parameters are valid for this model.
+        
+        Parameters
+        ----------
+        par : dict
+            Dictionary of parameters to validate.
+            
+        Raises
+        ------
+        ValueError
+            If any parameter name is not in the valid_params list.
+        """
         for key in par.keys():
             if key not in self.valid_parameters:
-                raise ValueError(f"Invalid parameter {key:s} provided.")
+                raise ValueError(f"Invalid parameter: {key}")
 
     def get_default_parameters(self):
         return {
