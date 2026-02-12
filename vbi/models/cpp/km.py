@@ -1,14 +1,21 @@
 import numpy as np
 
+from vbi.models.cpp.base import BaseModel
+
 try:
     from vbi.models.cpp._src.km_sde import KM_sde as _KM_sde
 except ImportError as e:
     print(f"Could not import modules: {e}, probably C++ code is not compiled or properly linked.")
 
 
-class KM_sde:
+class KM_sde(BaseModel):
     '''
     Kuramoto model with noise (sde), C++ implementation.
+    
+    This model supports heterogeneous parameters across brain regions.
+    Parameters marked as "scalar|vector" in the parameter descriptions can be 
+    specified as either single values (applied to all regions) or arrays 
+    (one value per region).
 
     Parameters
     ----------
@@ -17,26 +24,11 @@ class KM_sde:
 
     '''
 
-    valid_parameters = [
-        "G",              # global coupling strength
-        "dt",             # time step
-        "noise_amp",      # noise amplitude
-        "omega",          # natural angular frequency
-        "weights",        # weighted connection matrix
-        "noise_seed",     # fix random seed for noise in Cpp code
-        "seed",
-        "alpha",          # frustration matrix
-        "t_initial",      # initial time
-        "t_transition",   # transition time
-        "t_end",          # end time
-        "output",         # output directory
-        "num_threads",    # number of threads using openmp
-        "initial_state",
-        "type"            # output times series data type
-    ]
+    def __init__(self, par:dict={}) -> None:
 
-    def __init__(self, par) -> None:
-
+        super().__init__()
+        self.valid_parameters = list(self.get_default_parameters().keys())
+        self.valid_params = self.valid_parameters  # Alias for consistency
         self.check_parameters(par)
         self._par = self.get_default_parameters()
         self._par.update(par)
@@ -60,17 +52,35 @@ class KM_sde:
         self.INITIAL_STATE_SET = True
         self.initial_state = set_initial_state(self.num_nodes, self.seed)
 
-    def __str__(self) -> str:
-        print("Kuramoto model with noise (sde), C++ implementation.")
-        print("----------------")
-        for item in self._par.items():
-            name = item[0]
-            value = item[1]
-            print(f"{name} = {value}")
-        return ""
+    def get_parameter_descriptions(self):
+        """
+        Get descriptions and types for Kuramoto model parameters.
+        
+        Returns
+        -------
+        dict
+            Dictionary mapping parameter names to (description, type) tuples.
+        """
+        return {
+            "G": ("Global coupling strength", "scalar"),
+            "dt": ("Integration time step", "scalar"),
+            "noise_amp": ("Noise amplitude", "scalar"),
+            "weights": ("Structural connectivity matrix", "matrix"),
+            "alpha": ("Frustration matrix", "matrix"),
+            "omega": ("Natural angular frequencies per node", "vector"),
+            "noise_seed": ("Seed for noise generation in C++", "scalar"),
+            "seed": ("Random seed for initial state", "-"),
+            "t_initial": ("Initial time", "scalar"),
+            "t_transition": ("Transition time", "scalar"),
+            "t_end": ("End time of simulation", "scalar"),
+            "num_threads": ("Number of OpenMP threads", "scalar"),
+            "output": ("Output directory", "string"),
+            "initial_state": ("Initial state of the system", "vector"),
+            "type": ("Data type for computations", "-"),
+        }
 
-    def __call__(self):
-        return self._par
+    def __str__(self) -> str:
+        return self._format_parameters_table()
 
     def get_default_parameters(self):
         return {
@@ -90,11 +100,6 @@ class KM_sde:
             "initial_state": None,           # initial state
             "type": np.float32
         }
-
-    def check_parameters(self, par):
-        for key in par.keys():
-            if key not in self.valid_parameters:
-                raise ValueError(f"Invalid parameter: {key}")
 
     def prepare_input(self):
 

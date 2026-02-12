@@ -10,6 +10,13 @@ API and documentation
 C++ models
 -------------------------
 
+**Parameter Flexibility:** Many parameters in C++ models can be specified as either scalar values (applied uniformly across all brain regions) or vectors/arrays (allowing region-specific values). When a parameter description indicates "scalar|vector" type, it means the parameter can be heterogeneous across regions. For example, excitability parameters can vary between brain regions to model regional differences in neural properties.
+
+vbi.models.cpp.base
+~~~~~~~~~~~~~~~~~~~~~~~~~ 
+    .. automodule:: vbi.models.cpp.base 
+        :members: :undoc-members:
+        :undoc-members:
 
 vbi.models.cpp.jansen_rit
 ~~~~~~~~~~~~~~~~~~~~~~~~~

@@ -475,8 +475,356 @@ def _arrange_grid_no_torch(
 
     return fig, axes
 
-# ---- public API: pairplot_numpy (no torch)
 
+def plot_1d_distribution(
+    ax: Axes,
+    samples: Union[np.ndarray, List[float]],
+    plot_type: str = "hist",
+    limits: Optional[List[float]] = None,
+    plot_kwargs: Optional[Dict] = None,
+    label: Optional[str] = None,
+    points: Optional[Union[np.ndarray, List[float], float]] = None,
+    points_kwargs: Optional[Dict] = None,
+    points_label: Optional[str] = None,
+) -> Axes:
+    """
+    Plot a 1D distribution of samples on a given axis.
+    
+    This function allows you to visualize the distribution of a single variable
+    using histogram, KDE, or scatter plot on any matplotlib axis.
+    
+    Parameters
+    ----------
+    ax : Axes
+        Matplotlib axes to plot on.
+    samples : np.ndarray or List[float]
+        1D array of samples for a single variable. Shape: (n_samples,)
+    plot_type : str, optional
+        Type of plot. Options: "hist", "kde", "scatter". Default: "hist"
+    limits : List[float], optional
+        [min, max] limits for the x-axis. If None, inferred from data.
+    plot_kwargs : Dict, optional
+        Additional kwargs passed to the plotting function. 
+        Can include "mpl_kwargs" for matplotlib parameters.
+    label : str, optional
+        Label for the x-axis.
+    points : np.ndarray, List[float], or float, optional
+        True/reference values to overlay as vertical lines. Can be a single value
+        or array of values.
+    points_kwargs : Dict, optional
+        Styling kwargs for the reference points (e.g., color, linewidth, linestyle).
+    points_label : str, optional
+        Label for the reference points in the legend.
+        
+    Returns
+    -------
+    ax : Axes
+        The matplotlib axes object (same as input)
+        
+    Examples
+    --------
+    >>> import matplotlib.pyplot as plt
+    >>> samples = np.random.randn(1000)
+    >>> fig, ax = plt.subplots()
+    >>> plot_1d_distribution(ax, samples, plot_type="hist")
+    >>> plt.show()
+    
+    >>> # With true value
+    >>> fig, ax = plt.subplots()
+    >>> plot_1d_distribution(
+    ...     ax, samples, plot_type="kde", 
+    ...     points=0.0, 
+    ...     points_kwargs={"color": "red", "linewidth": 2, "linestyle": "--"},
+    ...     points_label="True value"
+    ... )
+    >>> ax.legend()
+    
+    >>> # Multiple distributions in one figure
+    >>> fig, axes = plt.subplots(1, 3, figsize=(12, 4))
+    >>> plot_1d_distribution(axes[0], samples1, plot_type="hist", label="Param 1")
+    >>> plot_1d_distribution(axes[1], samples2, plot_type="kde", label="Param 2")
+    >>> plot_1d_distribution(axes[2], samples3, plot_type="kde", label="Param 3")
+    
+    >>> # With custom styling
+    >>> fig, ax = plt.subplots()
+    >>> plot_1d_distribution(
+    ...     ax, samples, 
+    ...     plot_type="kde",
+    ...     plot_kwargs={"mpl_kwargs": {"color": "blue", "linewidth": 2}},
+    ...     label="Parameter θ"
+    ... )
+    """
+    # Convert to numpy array
+    samples_arr = _ensure_numpy_no_torch(samples)
+    
+    # Ensure 1D
+    if samples_arr.ndim > 1:
+        if samples_arr.shape[1] == 1:
+            samples_arr = samples_arr.squeeze()
+        else:
+            raise ValueError(f"samples must be 1D, got shape {samples_arr.shape}")
+    
+    # Infer limits if not provided
+    if limits is None:
+        mn, mx = np.min(samples_arr), np.max(samples_arr)
+        span = mx - mn
+        pad = 0.1 * span
+        limits = [mn - pad, mx + pad]
+    limits_arr = np.asarray(limits, dtype=float)
+    
+    # Get default kwargs and merge with user kwargs
+    if plot_kwargs is None:
+        plot_kwargs = {}
+    default_kwargs = _get_default_diag_kwargs_no_torch(plot_type, 0)
+    merged_kwargs = _update_dict(default_kwargs, plot_kwargs)
+    
+    # Get the appropriate plotting function
+    plot_func = {"hist": _hist_1d, "kde": _kde_1d, "scatter": _scatter_1d}.get(plot_type)
+    
+    if plot_func is None:
+        raise ValueError(f"plot_type must be 'hist', 'kde', or 'scatter', got '{plot_type}'")
+    
+    # Plot on the provided axis
+    plot_func(ax, samples_arr, limits_arr, merged_kwargs)
+    
+    # Plot reference points if provided
+    if points is not None:
+        # Convert to array and ensure 1D
+        points_arr = _ensure_numpy_no_torch(points)
+        if points_arr.ndim == 0:
+            points_arr = np.array([points_arr])
+        elif points_arr.ndim > 1:
+            points_arr = points_arr.squeeze()
+        
+        # Get y-limits for vertical lines
+        ymin, ymax = ax.get_ylim()
+        
+        # Default styling for points
+        default_points_kwargs = {"color": "red", "linewidth": 2, "linestyle": "--"}
+        if points_kwargs is not None:
+            default_points_kwargs.update(points_kwargs)
+        
+        # Plot vertical lines for each point
+        for i, pt in enumerate(points_arr):
+            label_to_use = points_label if (i == 0 and points_label is not None) else None
+            ax.axvline(pt, **default_points_kwargs, label=label_to_use)
+    
+    # Set limits and formatting
+    ax.set_xlim(limits_arr[0], limits_arr[1])
+    if label is not None:
+        ax.set_xlabel(label)
+    
+    # Remove top and right spines
+    ax.spines["right"].set_visible(False)
+    ax.spines["top"].set_visible(False)
+    
+    return ax
+
+
+def plot_2d_distribution(
+    ax: Axes,
+    samples_x: Union[np.ndarray, List[float]],
+    samples_y: Union[np.ndarray, List[float]],
+    plot_type: str = "scatter",
+    limits_x: Optional[List[float]] = None,
+    limits_y: Optional[List[float]] = None,
+    plot_kwargs: Optional[Dict] = None,
+    xlabel: Optional[str] = None,
+    ylabel: Optional[str] = None,
+    points: Optional[Union[np.ndarray, List[float]]] = None,
+    points_kwargs: Optional[Dict] = None,
+    points_label: Optional[str] = None,
+) -> Axes:
+    """
+    Plot a 2D joint distribution of two variables on a given axis.
+    
+    This function allows you to visualize the joint distribution between two variables
+    using scatter, contour, 2D histogram, or 2D KDE on any matplotlib axis.
+    
+    Parameters
+    ----------
+    ax : Axes
+        Matplotlib axes to plot on.
+    samples_x : np.ndarray or List[float]
+        1D array of samples for the x-variable. Shape: (n_samples,)
+    samples_y : np.ndarray or List[float]
+        1D array of samples for the y-variable. Shape: (n_samples,)
+    plot_type : str, optional
+        Type of plot. Options: "scatter", "hist", "hist2d", "kde", "kde2d", 
+        "contour", "contourf", "plot". Default: "scatter"
+    limits_x : List[float], optional
+        [min, max] limits for the x-axis. If None, inferred from data.
+    limits_y : List[float], optional
+        [min, max] limits for the y-axis. If None, inferred from data.
+    plot_kwargs : Dict, optional
+        Additional kwargs passed to the plotting function. 
+        Can include "mpl_kwargs" for matplotlib parameters.
+    xlabel : str, optional
+        Label for the x-axis.
+    ylabel : str, optional
+        Label for the y-axis.
+    points : np.ndarray or List[float], optional
+        True/reference values to overlay. Should be 2D array of shape (n_points, 2)
+        or list [[x1, y1], [x2, y2], ...], or a single point [x, y].
+    points_kwargs : Dict, optional
+        Styling kwargs for the reference points (e.g., marker, markersize, color).
+    points_label : str, optional
+        Label for the reference points in the legend.
+        
+    Returns
+    -------
+    ax : Axes
+        The matplotlib axes object (same as input)
+        
+    Examples
+    --------
+    >>> import matplotlib.pyplot as plt
+    >>> import numpy as np
+    >>> x = np.random.randn(1000)
+    >>> y = 0.5 * x + np.random.randn(1000) * 0.5
+    >>> fig, ax = plt.subplots()
+    >>> plot_2d_distribution(ax, x, y, plot_type="scatter")
+    >>> plt.show()
+    
+    >>> # With true value
+    >>> fig, ax = plt.subplots()
+    >>> plot_2d_distribution(
+    ...     ax, x, y, 
+    ...     plot_type="contour",
+    ...     points=[0.0, 0.0],
+    ...     points_kwargs={"marker": "x", "markersize": 10, "color": "red"},
+    ...     points_label="True value"
+    ... )
+    >>> ax.legend()
+    
+    >>> # Contour plot with custom levels
+    >>> fig, ax = plt.subplots()
+    >>> plot_2d_distribution(
+    ...     ax, x, y, 
+    ...     plot_type="contour",
+    ...     plot_kwargs={"levels": [0.68, 0.95], "percentile": True},
+    ...     xlabel="Parameter 1", 
+    ...     ylabel="Parameter 2"
+    ... )
+    
+    >>> # Multiple joint plots
+    >>> fig, axes = plt.subplots(1, 3, figsize=(15, 4))
+    >>> plot_2d_distribution(axes[0], x1, y1, plot_type="scatter", xlabel="X1", ylabel="Y1")
+    >>> plot_2d_distribution(axes[1], x2, y2, plot_type="kde2d", xlabel="X2", ylabel="Y2")
+    >>> plot_2d_distribution(axes[2], x3, y3, plot_type="contour", xlabel="X3", ylabel="Y3")
+    
+    >>> # 2D histogram
+    >>> fig, ax = plt.subplots()
+    >>> plot_2d_distribution(
+    ...     ax, x, y, 
+    ...     plot_type="hist2d",
+    ...     plot_kwargs={"np_hist_kwargs": {"bins": 30}}
+    ... )
+    """
+    # Convert to numpy arrays
+    x_arr = _ensure_numpy_no_torch(samples_x)
+    y_arr = _ensure_numpy_no_torch(samples_y)
+    
+    # Ensure 1D
+    if x_arr.ndim > 1:
+        if x_arr.shape[1] == 1:
+            x_arr = x_arr.squeeze()
+        else:
+            raise ValueError(f"samples_x must be 1D, got shape {x_arr.shape}")
+    
+    if y_arr.ndim > 1:
+        if y_arr.shape[1] == 1:
+            y_arr = y_arr.squeeze()
+        else:
+            raise ValueError(f"samples_y must be 1D, got shape {y_arr.shape}")
+    
+    # Check same length
+    if len(x_arr) != len(y_arr):
+        raise ValueError(f"samples_x and samples_y must have same length, got {len(x_arr)} and {len(y_arr)}")
+    
+    # Infer limits if not provided
+    if limits_x is None:
+        mn, mx = np.min(x_arr), np.max(x_arr)
+        span = mx - mn
+        pad = 0.1 * span
+        limits_x = [mn - pad, mx + pad]
+    limits_x_arr = np.asarray(limits_x, dtype=float)
+    
+    if limits_y is None:
+        mn, mx = np.min(y_arr), np.max(y_arr)
+        span = mx - mn
+        pad = 0.1 * span
+        limits_y = [mn - pad, mx + pad]
+    limits_y_arr = np.asarray(limits_y, dtype=float)
+    
+    # Get default kwargs and merge with user kwargs
+    if plot_kwargs is None:
+        plot_kwargs = {}
+    default_kwargs = _get_default_offdiag_kwargs_no_torch(plot_type, 0)
+    merged_kwargs = _update_dict(default_kwargs, plot_kwargs)
+    
+    # Get the appropriate plotting function
+    plot_func = {
+        "hist": _hist_2d, "hist2d": _hist_2d,
+        "kde": _kde_2d, "kde2d": _kde_2d,
+        "contour": _contour_2d, "contourf": _contour_2d,
+        "scatter": _scatter_2d, "plot": _plot_2d
+    }.get(plot_type)
+    
+    if plot_func is None:
+        raise ValueError(
+            f"plot_type must be one of 'scatter', 'hist', 'hist2d', 'kde', 'kde2d', "
+            f"'contour', 'contourf', 'plot', got '{plot_type}'"
+        )
+    
+    # Plot on the provided axis
+    plot_func(ax, x_arr, y_arr, limits_x_arr, limits_y_arr, merged_kwargs)
+    
+    # Plot reference points if provided
+    if points is not None:
+        # Convert to array
+        points_arr = _ensure_numpy_no_torch(points)
+        
+        # Handle different input shapes
+        if points_arr.ndim == 1:
+            # Single point [x, y] -> reshape to (1, 2)
+            if len(points_arr) == 2:
+                points_arr = points_arr.reshape(1, 2)
+            else:
+                raise ValueError(f"For a single point, expected length 2, got {len(points_arr)}")
+        elif points_arr.ndim == 2:
+            # Multiple points (n, 2)
+            if points_arr.shape[1] != 2:
+                raise ValueError(f"points must have shape (n, 2), got {points_arr.shape}")
+        else:
+            raise ValueError(f"points must be 1D or 2D array, got {points_arr.ndim}D")
+        
+        # Default styling for points
+        default_points_kwargs = {"marker": "x", "markersize": 10, "color": "red"}
+        if points_kwargs is not None:
+            default_points_kwargs.update(points_kwargs)
+        
+        # Plot points
+        label_to_use = points_label if points_label is not None else None
+        ax.plot(points_arr[:, 0], points_arr[:, 1], 
+                linestyle='', **default_points_kwargs, label=label_to_use)
+    
+    # Set limits and formatting
+    ax.set_xlim(limits_x_arr[0], limits_x_arr[1])
+    ax.set_ylim(limits_y_arr[0], limits_y_arr[1])
+    
+    if xlabel is not None:
+        ax.set_xlabel(xlabel)
+    if ylabel is not None:
+        ax.set_ylabel(ylabel)
+    
+    # Remove top and right spines
+    ax.spines["right"].set_visible(False)
+    ax.spines["top"].set_visible(False)
+    
+    return ax
+
+# ---- public API: pairplot_numpy (no torch)
 def pairplot_numpy(
     samples: Union[List[np.ndarray], np.ndarray, List[List[float]]],
     points: Optional[Union[List[np.ndarray], np.ndarray, List[List[float]]]] = None,

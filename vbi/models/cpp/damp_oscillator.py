@@ -2,23 +2,29 @@ import os
 from typing import Any
 import numpy as np
 
+from vbi.models.cpp.base import BaseModel
+
 try:
     from vbi.models.cpp._src.do import DO as _DO
 except ImportError as e:
-    print(f"Could not import modules: {e}, probably C++ code is not compiled or properly linked.")
+    print(
+        f"Could not import modules: {e}, probably C++ code is not compiled or properly linked."
+    )
 
-class DO:
 
-    '''
+class DO(BaseModel):
+    """
     Damp Oscillator model class.
-    '''
-
-    valid_params = ["a", "b", "dt", "t_start", "t_end", "t_cut",
-                    "initial_state", "method", "output"]
+    
+    This model supports heterogeneous parameters across brain regions.
+    Parameters marked as "scalar|vector" in the parameter descriptions can be 
+    specified as either single values (applied to all regions) or arrays 
+    (one value per region).
+    """
 
     # ---------------------------------------------------------------
-    def __init__(self, par={}):
-        '''
+    def __init__(self, par: dict = {}):
+        """
         Parameters
         ----------
         par : dictionary
@@ -28,7 +34,9 @@ class DO:
             - **t_end** [double] final time for simulation.
             - **initial_state** [list] initial state of the system.
 
-        '''
+        """
+        super().__init__()
+        self.valid_params = list(self.get_default_parameters().keys())
         self.check_parameters(par)
         self._par = self.get_default_parameters()
         self._par.update(par)
@@ -38,49 +46,46 @@ class DO:
             value = item[1]
             setattr(self, name, value)
 
+    def get_parameter_descriptions(self):
+        """
+        Get descriptions and types for Damped Oscillator model parameters.
+        
+        Returns
+        -------
+        dict
+            Dictionary mapping parameter names to (description, type) tuples.
+        """
+        return {
+            "a": ("Damping coefficient", "scalar"),
+            "b": ("Spring constant", "scalar"),
+            "dt": ("Integration time step", "scalar"),
+            "t_start": ("Initial time for simulation", "scalar"),
+            "method": ("Integration method", "string"),
+            "t_end": ("End time of simulation", "scalar"),
+            "t_cut": ("Time to cut from beginning", "scalar"),
+            "output": ("Output directory", "string"),
+            "initial_state": ("Initial state [position, velocity]", "vector"),
+        }
+
     def __str__(self) -> str:
         """
         Return a string representation of the model parameters.
-        
+
         Returns
         -------
         str
             Formatted string showing all model parameters and their values.
         """
-        print("Damped Oscillator Model (C++)")
-        print("-----------------------------")
-        
-        # Model parameters
-        print(f"a = {self.a}")
-        print(f"b = {self.b}")
-        
-        # Simulation parameters
-        print(f"dt = {self.dt}")
-        print(f"t_start = {self.t_start}")
-        print(f"t_end = {self.t_end}")
-        print(f"t_cut = {self.t_cut}")
-        print(f"method = {self.method}")
-        print(f"output = {self.output}")
-        print(f"initial_state = {self.initial_state}")
-        
-        return ""
+        return self._format_parameters_table()
 
     def __call__(self, *args: Any, **kwds: Any) -> Any:
         print("Damp Oscillator model")
         return self._par
 
-    def check_parameters(self, par):
-        '''
-        check if the parameters are valid.
-        '''
-        for key in par.keys():
-            if key not in self.valid_params:
-                raise ValueError("Invalid parameter: " + key)
-
     def get_default_parameters(self):
-        '''
+        """
         return default parameters for damp oscillator model.
-        '''
+        """
 
         params = {
             "a": 0.1,
@@ -99,7 +104,7 @@ class DO:
     def update_par(self, par={}):
         """
         Update model parameters.
-        
+
         Parameters
         ----------
         par : dict, optional
@@ -111,9 +116,9 @@ class DO:
                 setattr(self, key, par[key])
 
     def prepare_input(self):
-        '''
+        """
         prepare input for cpp model.
-        '''
+        """
         self.t_start = float(self.t_start)
         self.t_end = float(self.t_end)
         self.dt = float(self.dt)
@@ -130,7 +135,7 @@ class DO:
         self.initial_state = np.asarray(self.initial_state, dtype=np.float64)
 
     # ---------------------------------------------------------------
-    def run(self, par={}, x0=None, verbose=False):
+    def run(self, par: dict = {}, x0: np.ndarray = None, verbose: bool = False):
         """
         Run the damped oscillator simulation.
 
@@ -140,7 +145,7 @@ class DO:
             Dictionary of parameters to update for this simulation run.
             Any parameter from the class documentation can be updated.
         x0 : array-like, optional
-            Initial state vector [x0, y0] of length 2. If None, uses the 
+            Initial state vector [x0, y0] of length 2. If None, uses the
             initial state set during initialization.
         verbose : bool, optional
             If True, print verbose output during simulation. Default is False.
@@ -149,14 +154,14 @@ class DO:
         -------
         dict
             Dictionary containing simulation results:
-            
+
             - 't' : np.ndarray of shape (n_steps,) - time points
             - 'x' : np.ndarray of shape (n_steps, 2) - simulated trajectories
               where x[:, 0] is x(t) and x[:, 1] is y(t)
         """
 
         if x0 is not None:
-            assert(len(x0) == 2)
+            assert len(x0) == 2
             self.initial_state = x0
 
         self.check_parameters(par)
@@ -165,18 +170,13 @@ class DO:
 
         self.prepare_input()
 
-        obj = _DO(self.dt,
-                  self.a,
-                  self.b,
-                  self.t_start,
-                  self.t_end,
-                  self.initial_state)
+        obj = _DO(self.dt, self.a, self.b, self.t_start, self.t_end, self.initial_state)
 
-        if self.method.lower() == 'euler':
+        if self.method.lower() == "euler":
             obj.eulerIntegrate()
-        elif self.method.lower() == 'heun':
+        elif self.method.lower() == "heun":
             obj.heunIntegrate()
-        elif self.method.lower() == 'rk4':
+        elif self.method.lower() == "rk4":
             obj.rk4Integrate()
         else:
             print("unkown integratiom method")

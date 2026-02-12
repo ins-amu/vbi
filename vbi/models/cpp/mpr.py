@@ -2,6 +2,8 @@ import numpy as np
 from typing import Union
 from copy import deepcopy
 
+from vbi.models.cpp.base import BaseModel
+
 try:
     from vbi.models.cpp._src.mpr_sde import MPR_sde as _MPR_sde
     from vbi.models.cpp._src.mpr_sde import BoldParams as _BoldParams
@@ -9,16 +11,23 @@ except ImportError as e:
     print(f"Could not import modules: {e}, probably C++ code is not compiled or properly linked.")
 
 
-class MPR_sde:
+class MPR_sde(BaseModel):
     """
-    MPR model
+    Montbrio-Pazo-Roxin (MPR) model.
+    
+    This model supports heterogeneous parameters across brain regions.
+    Parameters marked as "scalar|vector" in the parameter descriptions can be 
+    specified as either single values (applied to all regions) or arrays 
+    (one value per region).
     """
 
     def __init__(self, par: dict = {}, parbold={}) -> None:
 
+        super().__init__()
         par = deepcopy(par)
         self._par = self.get_default_parameters()
         self.valid_parameters = list(self._par.keys())
+        self.valid_params = self.valid_parameters  # Alias for consistency
         self.check_parameters(par)
         self._par.update(par)
 
@@ -42,26 +51,45 @@ class MPR_sde:
 
     # -------------------------------------------------------------------------
 
+    def get_parameter_descriptions(self):
+        """
+        Get descriptions and types for MPR model parameters.
+        
+        Returns
+        -------
+        dict
+            Dictionary mapping parameter names to (description, type) tuples.
+            Types: scalar, vector, matrix, string, bool, or -
+        """
+        return {
+            "G": ("Global coupling strength", "scalar"),
+            "dt": ("Integration time step for MPR (ms)", "scalar"),
+            "dt_bold": ("Integration time step for BOLD (s)", "scalar"),
+            "J": ("Synaptic coupling parameter", "scalar|vector"),
+            "eta": ("Excitability parameter per node", "scalar|vector"),
+            "tau": ("Time constant", "scalar|vector"),
+            "delta": ("Model parameter", "scalar|vector"),
+            "tr": ("Sampling interval from time series", "scalar"),
+            "rv_decimate": ("Decimation factor for activity", "scalar"),
+            "noise_amp": ("Amplitude of noise", "scalar"),
+            "noise_seed": ("Seed for noise generation", "scalar"),
+            "iapp": ("Applied constant current", "scalar|vector"),
+            "seed": ("Random seed for reproducibility", "-"),
+            "initial_state": ("Initial state of the system", "vector"),
+            "t_cut": ("Transition time (ms)", "scalar"),
+            "t_end": ("End time of simulation (ms)", "scalar"),
+            "weights": ("Structural connectivity matrix", "matrix"),
+            "output": ("Output directory", "string"),
+            "RECORD_RV": ("Record activity time series", "bool"),
+            "RECORD_BOLD": ("Record BOLD signals", "bool"),
+        }
+
+    # -------------------------------------------------------------------------
+
     def __str__(self) -> str:
-        print("MPR sde model.")
-        print("----------------")
-        for item in self._par.items():
-            name = item[0]
-            value = item[1]
-            print(f"{name} = {value}")
-        return ""
+        return self._format_parameters_table()
 
     # -------------------------------------------------------------------------
-
-    def __call__(self):
-        return self._par
-
-    # -------------------------------------------------------------------------
-
-    def check_parameters(self, par: dict):
-        for key in par.keys():
-            if key not in self.valid_parameters:
-                raise ValueError(f"Invalid parameter {key:s} provided.")
 
     def get_default_parameters(self):
 
@@ -221,9 +249,22 @@ class BoldParams:
             setattr(self, name, value)
 
     def check_parameters(self, par):
+        """
+        Validate that all provided parameters are valid for this model.
+        
+        Parameters
+        ----------
+        par : dict
+            Dictionary of parameters to validate.
+            
+        Raises
+        ------
+        ValueError
+            If any parameter name is not in the valid_params list.
+        """
         for key in par.keys():
             if key not in self.valid_parameters:
-                raise ValueError(f"Invalid parameter {key:s} provided.")
+                raise ValueError(f"Invalid parameter: {key}")
 
     def get_default_parameters(self):
         return {
