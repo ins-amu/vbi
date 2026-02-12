@@ -74,6 +74,31 @@ def discover_model_classes():
         except ImportError as e:
             # Module not available (C++ not compiled, etc.)
             print(f"Could not import {module_path}: {e}")
+            
+            # Try to get the class name from the module name
+            # Most modules have a class with the same name as the module
+            class_name = module_name.upper()  # e.g., 'vep' -> 'VEP'
+            if module_name == 'vep':
+                class_name = 'VEP_sde'
+            elif module_name == 'jansen_rit':
+                class_name = 'JR_sde'
+            elif module_name == 'mpr':
+                class_name = 'MPR_sde'
+            elif module_name == 'wc':
+                class_name = 'WC_ode'
+            elif module_name == 'km':
+                class_name = 'KM_sde'
+            elif module_name == 'damp_oscillator':
+                class_name = 'DO'
+            
+            # Add the model as unavailable
+            discovered_models[class_name] = {
+                'module_path': module_path,
+                'class': None,
+                'available': False,
+                'inherits_base': False,  # We don't know, but assume not since import failed
+                'error': str(e)
+            }
     
     return discovered_models
 
@@ -81,11 +106,20 @@ def discover_model_classes():
 # Discover all models
 DISCOVERED_MODELS = discover_model_classes()
 
+# Create CPP_AVAILABLE and CPP_ERRORS dictionaries from discovered models
+CPP_AVAILABLE = {}
+CPP_ERRORS = {}
+
+for model_name, info in DISCOVERED_MODELS.items():
+    CPP_AVAILABLE[model_name] = info['available']
+    CPP_ERRORS[model_name] = str(info.get('error', 'Unknown error')) if not info['available'] else None
+
 print(f"\n{'='*70}")
 print(f"Discovered {len(DISCOVERED_MODELS)} model classes:")
 for name, info in DISCOVERED_MODELS.items():
     inheritance = "✓ BaseModel" if info['inherits_base'] else "✗ No BaseModel"
-    print(f"  - {name:20s} from {info['module_path']:40s} [{inheritance}]")
+    availability = "✓ Available" if info['available'] else "✗ Not Available"
+    print(f"  - {name:20s} from {info['module_path']:40s} [{inheritance}] [{availability}]")
 print(f"{'='*70}\n")
 
 

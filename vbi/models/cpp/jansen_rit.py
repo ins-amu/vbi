@@ -14,7 +14,7 @@ except ImportError as e:
 
 
 class JR_sde(BaseModel):
-    """
+    r"""
     Jansen-Rit model C++ implementation.
 
     Parameters
@@ -24,7 +24,7 @@ class JR_sde(BaseModel):
         Including the following:
         - **A** : [mV] determine the maximum amplitude of the excitatory PSP (EPSP)
         - **B** : [mV] determine the maximum amplitude of the inhibitory PSP (IPSP)
-        - **a** : [Hz]  1/tau_e,  :math:`\sum` of the reciprocal of the time constant of passive membrane and all other spatially distributed  delays in the dendritic network
+        - **a** : [Hz]  1/tau_e,  :math:`\\sum` of the reciprocal of the time constant of passive membrane and all other spatially distributed  delays in the dendritic network
         - **b** : [Hz] 1/tau_i
         - **r**  [mV] the steepness of the sigmoidal transformation.
         - **v0** parameter of nonlinear sigmoid function
@@ -239,13 +239,14 @@ class JR_sdde(BaseModel):
     # -------------------------------------------------------------------------
 
     def __init__(self, par={}) -> None:
-
-        _par = self.get_default_parameters()
-        self.valid_params = list(_par.keys())
+        super().__init__()
+        
+        self._par = self.get_default_parameters()
+        self.valid_params = list(self._par.keys())
         self.check_parameters(par)
-        _par.update(par)
+        self._par.update(par)
 
-        for item in _par.items():
+        for item in self._par.items():
             setattr(self, item[0], item[1])
 
         if self.seed is not None:
