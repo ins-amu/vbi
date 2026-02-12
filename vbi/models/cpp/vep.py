@@ -124,9 +124,9 @@ class VEP_sde:
 def set_initial_state(nn: int, seed: int = None):
     if seed is not None:
         np.random.seed(seed)
-        x0 = np.zeros(2 * nn)
-        x0[:nn] = np.random.uniform(-3.0, -2.0, nn)
-        x0[nn:] = np.random.uniform(0.0, 3.5, nn)
+    x0 = np.zeros(2 * nn)
+    x0[:nn] = np.random.uniform(-3.0, -2.0, nn)
+    x0[nn:] = np.random.uniform(0.0, 3.5, nn)
     return x0
 
 
