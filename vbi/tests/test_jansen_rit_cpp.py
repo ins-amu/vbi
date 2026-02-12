@@ -12,12 +12,14 @@ import os
 from copy import deepcopy
 
 # Check if C++ modules are available
-CPP_JR_AVAILABLE = True
+CPP_JR_AVAILABLE = False
 CPP_IMPORT_ERROR = None
 try:
     from vbi.models.cpp.jansen_rit import JR_sde, JR_sdde
+    from vbi.models.cpp._src.jr_sde import JR_sde as _JR_sde
+    from vbi.models.cpp._src.jr_sdde import JR_sdde as _JR_sdde
+    CPP_JR_AVAILABLE = True
 except ImportError as e:
-    CPP_JR_AVAILABLE = False
     CPP_IMPORT_ERROR = str(e)
 
 # Skip decorator for when C++ is not available

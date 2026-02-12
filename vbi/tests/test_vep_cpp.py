@@ -11,12 +11,13 @@ import os
 from copy import deepcopy
 
 # Check if C++ modules are available
-CPP_VEP_AVAILABLE = True
+CPP_VEP_AVAILABLE = False
 CPP_IMPORT_ERROR = None
 try:
     from vbi.models.cpp.vep import VEP_sde
+    from vbi.models.cpp._src.vep import VEP as _VEP
+    CPP_VEP_AVAILABLE = True
 except ImportError as e:
-    CPP_VEP_AVAILABLE = False
     CPP_IMPORT_ERROR = str(e)
 
 # Skip decorator for when C++ is not available

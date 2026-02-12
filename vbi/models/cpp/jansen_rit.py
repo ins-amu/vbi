@@ -4,13 +4,27 @@ from os.path import join
 
 from vbi.models.cpp.base import BaseModel
 
+_JR_sde = None
+_JR_sdde = None
+_JR_SDE_AVAILABLE = False
+_JR_SDDE_AVAILABLE = False
+
 try:
     from vbi.models.cpp._src.jr_sde import JR_sde as _JR_sde
-    from vbi.models.cpp._src.jr_sdde import JR_sdde as _JR_sdde
+    _JR_SDE_AVAILABLE = True
 except ImportError as e:
-    print(
-        f"Could not import modules: {e}, probably C++ code is not compiled or properly linked."
-    )
+    print(f"Could not import JR_sde C++ module: {e}")
+    print("JR_sde class will be available but run() will raise an error.")
+
+try:
+    from vbi.models.cpp._src.jr_sdde import JR_sdde as _JR_sdde
+    _JR_SDDE_AVAILABLE = True
+except ImportError as e:
+    print(f"Could not import JR_sdde C++ module: {e}")
+    print("JR_sdde class will be available but run() will raise an error.")
+
+if not _JR_SDE_AVAILABLE and not _JR_SDDE_AVAILABLE:
+    print("Please compile C++ extensions or use Python/Numba implementations instead.")
 
 
 class JR_sde(BaseModel):
@@ -173,6 +187,12 @@ class JR_sde(BaseModel):
             - **x** : state variables
 
         """
+        if not _JR_SDE_AVAILABLE:
+            raise RuntimeError(
+                "JR_sde C++ module is not available. "
+                "Please compile C++ extensions using 'python setup.py build_ext --inplace' "
+                "or use Python/Numba JR implementations instead."
+            )
 
         if x0 is None:
             if not self.INITIAL_STATE_SET:
@@ -389,6 +409,12 @@ class JR_sdde(BaseModel):
         """
         Integrate the system of equations for Jansen-Rit model.
         """
+        if not _JR_SDDE_AVAILABLE:
+            raise RuntimeError(
+                "JR_sdde C++ module is not available. "
+                "Please compile C++ extensions using 'python setup.py build_ext --inplace' "
+                "or use Python/Numba JR implementations instead."
+            )
 
         if x0 is None:
             if not self.INITIAL_STATE_SET:
