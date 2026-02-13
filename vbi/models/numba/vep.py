@@ -1,11 +1,13 @@
 import warnings
 import numpy as np
+from typing import Dict, Any
 from numba import njit, jit
 from numba.experimental import jitclass
 from numba.extending import register_jitable
 from numba import float64, int64, types
 from vbi.utils import print_valid_parameters
 from numba.core.errors import NumbaPerformanceWarning
+from vbi.models.numba.base import BaseNumbaModel
 
 warnings.simplefilter("ignore", category=NumbaPerformanceWarning)
 
@@ -50,6 +52,24 @@ vep_spec = [
     ("output", types.string),
 ]
 
+# Default parameter values - single source of truth
+VEP_DEFAULTS = {
+    'G': 1.0,
+    'dt': 0.01,
+    'tau': 10.0,
+    'eta': -1.5,
+    'iext': 0.0,
+    'weights': None,  # Required - must be provided by user
+    't_cut': 0.0,
+    't_end': 100.0,
+    'method': 'euler',
+    'seed': -1,
+    'initial_state': None,  # Auto-generated if not provided
+    'sigma': 0.1,
+    'record_step': 1,
+    'output': 'output',
+}
+
 
 @jitclass(vep_spec)
 class ParVEP:
@@ -60,53 +80,27 @@ class ParVEP:
     compiled by Numba for efficient access during integration. It automatically
     calculates the number of nodes (nn) from the weights matrix shape.
     
-    Parameters
-    ----------
-    G : float, optional
-        Global coupling strength (default: 1.0)
-    dt : float, optional  
-        Integration time step in seconds (default: 0.01)
-    tau : float, optional
-        Time constant for slow variable dynamics (default: 10.0)
-    eta : array_like, optional
-        Epileptogenicity per region (default: [-1.5])
-    iext : array_like, optional
-        External input per region (default: [0.0])
-    weights : array_like
-        Connectivity matrix (nn x nn)
-    t_cut : float, optional
-        Time to cut initial transient (default: 0.0)
-    t_end : float, optional
-        End time of simulation (default: 100.0)
-    method : str, optional
-        Integration method: "euler" or "heun" (default: "euler")
-    seed : int, optional
-        Random seed for noise generation (default: -1)
-    initial_state : array_like, optional
-        Initial state vector (default: [0.0, 0.0])
-    sigma : float, optional
-        Noise amplitude (default: 0.1)
-    record_step : int, optional
-        Recording decimation factor (default: 1)
-    output : str, optional
-        Output directory (default: "output")
+    Note: This is an internal class used by the VEP_sde class. Users should
+    not instantiate this class directly. Use VEP_sde instead.
+    
+    Default values are defined in VEP_DEFAULTS dictionary.
     """
     def __init__(
         self,
-        G=1.0,
-        dt=0.01,
-        tau=10.0,
-        eta=np.array([-1.5]),
-        iext=np.array([0.0]),
+        G=VEP_DEFAULTS['G'],
+        dt=VEP_DEFAULTS['dt'],
+        tau=VEP_DEFAULTS['tau'],
+        eta=np.array([VEP_DEFAULTS['eta']]),
+        iext=np.array([VEP_DEFAULTS['iext']]),
         weights=np.array([[], []]),
-        t_cut=0.0,
-        t_end=100.0,
-        method="euler",
-        seed=-1,
+        t_cut=VEP_DEFAULTS['t_cut'],
+        t_end=VEP_DEFAULTS['t_end'],
+        method=VEP_DEFAULTS['method'],
+        seed=VEP_DEFAULTS['seed'],
         initial_state=np.array([0.0, 0.0]),
-        sigma=0.1,
-        record_step=1,
-        output="output",
+        sigma=VEP_DEFAULTS['sigma'],
+        record_step=VEP_DEFAULTS['record_step'],
+        output=VEP_DEFAULTS['output'],
     ):
         self.G = G
         self.dt = dt
@@ -321,7 +315,7 @@ def _integrate(P):
 
 
 # ------------------------------
-class VEP_sde:
+class VEP_sde(BaseNumbaModel):
     """
     Virtual Epileptic Patient (VEP) model - Numba implementation.
 
@@ -442,26 +436,96 @@ class VEP_sde:
     
     """
     def __init__(self, par_vep: dict = {}):
-        # Accepted parameter names
-        self.valid_par = [item[0] for item in vep_spec]
+        super().__init__()
+        
+        # Define valid parameters from VEP_DEFAULTS, excluding derived parameter 'nn'
+        # Note: 'nn' is derived from weights.shape, not user-settable
+        self.valid_params = [k for k in VEP_DEFAULTS.keys() if k != 'nn']
+        # Add user-settable parameters not in defaults
+        self.valid_params.extend(['weights', 'initial_state'])
+        
         self.P = self._make_par(par_vep)
         self.seed = self.P.seed
 
+    def get_default_parameters(self) -> Dict[str, Any]:
+        """
+        Get the default parameters for the VEP model.
+        
+        Returns the default values from VEP_DEFAULTS dictionary, which is the
+        single source of truth for all default parameter values.
+        
+        Returns
+        -------
+        dict
+            Dictionary containing default parameter values.
+            
+        Examples
+        --------
+        >>> model = VEP_sde({"weights": np.eye(2)})
+        >>> defaults = model.get_default_parameters()
+        >>> print(defaults['G'])
+        1.0
+        
+        Notes
+        -----
+        'nn' is a derived parameter determined from weights.shape[0]
+        """
+        defaults = VEP_DEFAULTS.copy()
+        defaults['nn'] = None  # Derived from weights
+        return defaults
+    
+    def get_parameter_descriptions(self) -> Dict[str, str]:
+        """
+        Get descriptions for all VEP model parameters.
+        
+        Returns
+        -------
+        dict
+            Dictionary mapping parameter names to tuples of (description, type).
+            
+        Examples
+        --------
+        >>> model = VEP_sde({"weights": np.eye(2)})
+        >>> descriptions = model.get_parameter_descriptions()
+        >>> print(descriptions['G'])
+        ('Global coupling strength', 'scalar')
+        """
+        return {
+            'G': ('Global coupling strength', 'scalar'),
+            'dt': ('Integration time step', 'scalar'),
+            'tau': ('Time constant for slow variable', 'scalar'),
+            'eta': ('Epileptogenicity per region', 'vector'),
+            'iext': ('External input per region', 'vector'),
+            'weights': ('Structural connectivity matrix', 'matrix'),
+            't_cut': ('Time to cut initial transient', 'scalar'),
+            't_end': ('End time of simulation', 'scalar'),
+            'nn': ('Number of nodes', 'int'),
+            'method': ('Integration method (euler/heun)', 'string'),
+            'seed': ('Random seed for initialization', 'int'),
+            'initial_state': ('Initial state vector (2*nn)', 'vector'),
+            'sigma': ('Noise amplitude', 'scalar'),
+            'record_step': ('Decimation factor for output', 'int'),
+            'output': ('Output directory path', 'string')
+        }
+
     def __str__(self) -> str:
-        lines = ["VEP model (Numba) Parameters:", "---------------------------------"]
-        for key in self.valid_par:
-            if hasattr(self.P, key):
-                lines.append(f"{key} = {getattr(self.P, key)}")
-        lines.append("---------------------------------")
-        return "\n".join(lines)
+        """
+        Return a string representation of the model parameters.
+        
+        Uses the base class implementation to provide a formatted parameter table.
+        
+        Returns
+        -------
+        str
+            Formatted string showing all model parameters and their values.
+        """
+        return self._format_parameters_table()
 
     
-
-        
     # --- helpers
     def _check_keys(self, par: dict):
         for key in par.keys():
-            if key not in self.valid_par:
+            if key not in self.valid_params:
                 print_valid_parameters(vep_spec)
                 raise ValueError(f"Invalid parameter: {key}")
 

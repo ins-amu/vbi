@@ -7,8 +7,49 @@ from numba.extending import register_jitable
 from numba import float64, boolean, int64, types
 from numba.core.errors import NumbaPerformanceWarning
 from vbi.utils import print_valid_parameters
+from vbi.models.numba.base import BaseNumbaModel
+from typing import Dict, Any, List
 
 warnings.simplefilter("ignore", category=NumbaPerformanceWarning)
+
+
+# ---------- Default Parameters - Single Source of Truth ----------
+
+# Default parameter values for Wilson-Cowan model
+WC_DEFAULTS = {
+    'c_ee': 16.0,
+    'c_ei': 12.0,
+    'c_ie': 15.0,
+    'c_ii': 3.0,
+    'tau_e': 8.0,
+    'tau_i': 8.0,
+    'a_e': 1.3,
+    'a_i': 2.0,
+    'b_e': 4.0,
+    'b_i': 3.7,
+    'c_e': 1.0,
+    'c_i': 1.0,
+    'theta_e': 0.0,
+    'theta_i': 0.0,
+    'r_e': 1.0,
+    'r_i': 1.0,
+    'k_e': 0.994,
+    'k_i': 0.999,
+    'alpha_e': 1.0,
+    'alpha_i': 1.0,
+    'P': 0.0,
+    'Q': 0.0,
+    'g_e': 0.0,
+    'g_i': 0.0,
+    'dt': 0.01,
+    't_end': 300.0,
+    't_cut': 0.0,
+    'noise_amp': 0.0,
+    'decimate': 1,
+    'RECORD_EI': 'E',
+    'shift_sigmoid': False,
+    'seed': -1,
+}
 
 
 # ---------- utilities ----------
@@ -156,40 +197,40 @@ class ParWC:
     """
     def __init__(
         self,
-        c_ee=np.array([16.0]),
-        c_ei=np.array([12.0]),
-        c_ie=np.array([15.0]),
-        c_ii=np.array([3.0]),
-        tau_e=np.array([8.0]),
-        tau_i=np.array([8.0]),
-        a_e=1.3,
-        a_i=2.0,
-        b_e=4.0,
-        b_i=3.7,
-        c_e=1.0,
-        c_i=1.0,
-        theta_e=0.0,
-        theta_i=0.0,
-        r_e=1.0,
-        r_i=1.0,
-        k_e=0.994,
-        k_i=0.999,
-        alpha_e=1.0,
-        alpha_i=1.0,
-        P=np.array([0.0]),
-        Q=np.array([0.0]),
-        g_e=0.0,
-        g_i=0.0,
-        dt=0.01,
-        t_end=300.0,
-        t_cut=0.0,
+        c_ee=np.array([WC_DEFAULTS['c_ee']]),
+        c_ei=np.array([WC_DEFAULTS['c_ei']]),
+        c_ie=np.array([WC_DEFAULTS['c_ie']]),
+        c_ii=np.array([WC_DEFAULTS['c_ii']]),
+        tau_e=np.array([WC_DEFAULTS['tau_e']]),
+        tau_i=np.array([WC_DEFAULTS['tau_i']]),
+        a_e=WC_DEFAULTS['a_e'],
+        a_i=WC_DEFAULTS['a_i'],
+        b_e=WC_DEFAULTS['b_e'],
+        b_i=WC_DEFAULTS['b_i'],
+        c_e=WC_DEFAULTS['c_e'],
+        c_i=WC_DEFAULTS['c_i'],
+        theta_e=WC_DEFAULTS['theta_e'],
+        theta_i=WC_DEFAULTS['theta_i'],
+        r_e=WC_DEFAULTS['r_e'],
+        r_i=WC_DEFAULTS['r_i'],
+        k_e=WC_DEFAULTS['k_e'],
+        k_i=WC_DEFAULTS['k_i'],
+        alpha_e=WC_DEFAULTS['alpha_e'],
+        alpha_i=WC_DEFAULTS['alpha_i'],
+        P=np.array([WC_DEFAULTS['P']]),
+        Q=np.array([WC_DEFAULTS['Q']]),
+        g_e=WC_DEFAULTS['g_e'],
+        g_i=WC_DEFAULTS['g_i'],
+        dt=WC_DEFAULTS['dt'],
+        t_end=WC_DEFAULTS['t_end'],
+        t_cut=WC_DEFAULTS['t_cut'],
         weights=np.empty((0, 0), dtype=np.float64),
-        seed=-1,
-        noise_amp=0.0,
-        decimate=1,
-        RECORD_EI="E",
+        seed=WC_DEFAULTS['seed'],
+        noise_amp=WC_DEFAULTS['noise_amp'],
+        decimate=WC_DEFAULTS['decimate'],
+        RECORD_EI=WC_DEFAULTS['RECORD_EI'],
         initial_state=np.empty(0, dtype=np.float64),
-        shift_sigmoid=False,
+        shift_sigmoid=WC_DEFAULTS['shift_sigmoid'],
     ):
         self.c_ee = c_ee
         self.c_ei = c_ei
@@ -355,7 +396,7 @@ def set_initial_state(nn, seed=-1):
 
 # ---------- high-level API (Python) ----------
 
-class WC_sde_numba:
+class WC_sde_numba(BaseNumbaModel):
     """
     Numba implementation of the Wilson-Cowan neural mass model with stochastic dynamics.
     
@@ -536,12 +577,124 @@ class WC_sde_numba:
             Dictionary containing model parameters. See class documentation for 
             available parameters. The 'weights' parameter is required.
         """
+        # Define valid parameters from WC_DEFAULTS, excluding 'nn' (derived from weights.shape)
+        # Note: 'nn' is derived and should not be set by users
+        self.valid_params = [k for k in WC_DEFAULTS.keys() if k != 'nn']
+        # Add user-settable parameters not in defaults
+        self.valid_params.extend(['weights', 'initial_state'])
+        
+        # Validate parameters before building jitclass
+        self.check_parameters(par)
+        
         # Prepare raw dict and build jitclass
         self.P = self._get_par_wc(par)
 
         # Seed
         if self.P.seed >= 0:
             np.random.seed(self.P.seed)
+    
+    def get_default_parameters(self) -> Dict[str, Any]:
+        """
+        Get the default parameters for the Wilson-Cowan model.
+        
+        Returns a copy of the WC_DEFAULTS dictionary with additional
+        required/derived parameters.
+        
+        Returns
+        -------
+        dict
+            Dictionary containing default parameter values.
+            
+        Examples
+        --------
+        >>> from vbi.models.numba.wilson_cowan import WC_sde_numba
+        >>> model = WC_sde_numba({"weights": np.eye(2)})
+        >>> defaults = model.get_default_parameters()
+        >>> print(defaults['c_ee'])
+        16.0
+        """
+        defaults = WC_DEFAULTS.copy()
+        # Add required/derived parameters with None values
+        defaults['weights'] = None  # Required parameter (must be provided by user)
+        defaults['initial_state'] = None  # Optional (auto-generated if not provided)
+        defaults['nn'] = None  # Derived from weights.shape
+        return defaults
+    
+    def get_parameter_descriptions(self) -> Dict[str, tuple]:
+        """
+        Get descriptions of all Wilson-Cowan model parameters.
+        
+        Returns
+        -------
+        dict
+            Dictionary mapping parameter names to tuples of (description, type).
+            
+        Examples
+        --------
+        >>> model = WC_sde_numba({"weights": np.eye(2)})
+        >>> descriptions = model.get_parameter_descriptions()
+        >>> print(descriptions['c_ee'])
+        ('Excitatory to excitatory synaptic strength', 'vector')
+        """
+        return {
+            'c_ee': ('Excitatory to excitatory synaptic strength', 'vector'),
+            'c_ei': ('Inhibitory to excitatory synaptic strength', 'vector'),
+            'c_ie': ('Excitatory to inhibitory synaptic strength', 'vector'),
+            'c_ii': ('Inhibitory to inhibitory synaptic strength', 'vector'),
+            'tau_e': ('Excitatory population time constant (ms)', 'vector'),
+            'tau_i': ('Inhibitory population time constant (ms)', 'vector'),
+            'a_e': ('Excitatory sigmoid slope parameter', 'scalar'),
+            'a_i': ('Inhibitory sigmoid slope parameter', 'scalar'),
+            'b_e': ('Excitatory sigmoid threshold parameter', 'scalar'),
+            'b_i': ('Inhibitory sigmoid threshold parameter', 'scalar'),
+            'c_e': ('Excitatory sigmoid maximum output', 'scalar'),
+            'c_i': ('Inhibitory sigmoid maximum output', 'scalar'),
+            'theta_e': ('Excitatory firing threshold', 'scalar'),
+            'theta_i': ('Inhibitory firing threshold', 'scalar'),
+            'r_e': ('Excitatory refractoriness parameter', 'scalar'),
+            'r_i': ('Inhibitory refractoriness parameter', 'scalar'),
+            'k_e': ('Excitatory maximum response parameter', 'scalar'),
+            'k_i': ('Inhibitory maximum response parameter', 'scalar'),
+            'alpha_e': ('Excitatory gain parameter', 'scalar'),
+            'alpha_i': ('Inhibitory gain parameter', 'scalar'),
+            'P': ('External input to excitatory population', 'vector'),
+            'Q': ('External input to inhibitory population', 'vector'),
+            'g_e': ('Excitatory global coupling strength', 'scalar'),
+            'g_i': ('Inhibitory global coupling strength', 'scalar'),
+            'weights': ('Structural connectivity matrix (nn x nn)', 'matrix'),
+            'dt': ('Integration time step (ms)', 'scalar'),
+            't_end': ('Simulation end time (ms)', 'scalar'),
+            't_cut': ('Initial time to discard (ms)', 'scalar'),
+            'noise_amp': ('Amplitude of additive Gaussian noise', 'scalar'),
+            'decimate': ('Decimation factor for output', 'int'),
+            'RECORD_EI': ('Which populations to record: "E", "I", or "EI"', 'string'),
+            'shift_sigmoid': ('Whether to use shifted sigmoid function', 'bool'),
+            'seed': ('Random seed for reproducibility (-1 for no seeding)', 'int'),
+            'nn': ('[Derived] Number of nodes (from weights.shape)', 'int'),
+            'initial_state': ('Initial state vector (2*nn)', 'vector'),
+        }
+    
+    def get_parameters(self) -> Dict[str, Any]:
+        """
+        Get the current parameter values.
+        
+        Returns
+        -------
+        dict
+            Dictionary containing current parameter values.
+        """
+        return self._par_to_dict()
+    
+    def list_parameters(self) -> List[str]:
+        """
+        List all valid parameter names.
+        
+        Returns
+        -------
+        list of str
+            List of valid parameter names.
+        """
+        return self.valid_params.copy()
 
     def __call__(self):
         return self.P
@@ -553,21 +706,17 @@ class WC_sde_numba:
         Returns
         -------
         str
-            Formatted string showing key model parameters and their values.
+            Formatted table showing all model parameters and their values.
         """
-        params = [
-            "nn", "dt", "t_end", "t_cut", "decimate", "noise_amp",
-            "g_e", "g_i", "a_e", "a_i", "b_e", "b_i", "k_e", "k_i",
-        ]
-        s = ["Wilson-Cowan (Numba) parameters:"]
-        for k in params:
-            s.append(f"{k} = {getattr(self.P, k)}")
-        return "\n".join(s)
+        return self._format_parameters_table()
 
     # ----- builders & checks -----
     def _get_par_wc(self, par: dict):
         par = dict(par)  # shallow copy
 
+        # Validate parameters first (need to do this after valid_params is set)
+        # We'll do basic validation here, more detailed checks in check_input
+        
         # weights first (to infer nn)
         if "weights" not in par:
             raise ValueError("weights (nxn) must be provided.")
@@ -580,16 +729,12 @@ class WC_sde_numba:
             if k in par:
                 par[k] = check_vec_size(par[k], nn)
 
-        # defaults for any missing vector keys
-        defaults = {
-            "c_ee": 16.0, "c_ei": 12.0, "c_ie": 15.0, "c_ii": 3.0,
-            "tau_e": 8.0, "tau_i": 8.0, "P": 0.0, "Q": 0.0
-        }
-        for k, v in defaults.items():
+        # defaults for any missing vector keys (reference WC_DEFAULTS)
+        for k in vec_keys:
             if k not in par:
-                par[k] = np.ones(nn) * v
+                par[k] = np.ones(nn) * WC_DEFAULTS[k]
 
-        # set weights and nn
+        # set weights
         par["weights"] = W
         
         # initial_state (optional)
@@ -601,15 +746,7 @@ class WC_sde_numba:
         else:
             par["initial_state"] = np.empty(0, dtype=np.float64)
 
-        # strings/flags
-        if "RECORD_EI" not in par:
-            par["RECORD_EI"] = "E"
-        if "decimate" not in par:
-            par["decimate"] = 1
-        if "noise_amp" not in par:
-            par["noise_amp"] = 0.0
-
-        # build jitclass
+        # build jitclass (remaining parameters will use defaults from ParWC.__init__)
         P = ParWC(**par)
         return P
 
@@ -638,9 +775,9 @@ class WC_sde_numba:
             If any parameter name is not recognized.
         """
         for key in par.keys():
-            if key not in self.valid_par:
+            if key not in self.valid_params:
                 print(f"Invalid parameter: {key}")
-                print_valid_parameters(wc_spec)
+                print(f"Valid parameters: {', '.join(self.valid_params)}")
                 raise ValueError(f"Invalid parameter: {key}")
 
     def check_input(self):
