@@ -213,13 +213,14 @@ def get_package_data():
 
 
 # Main setup
-setup(
-    name="vbi",
-    version=get_version(),
-    description="Virtual brain inference with optional C++ acceleration",
-    packages=find_packages(),
-    package_data=get_package_data(),
-    ext_modules=get_extensions(),
-    cmdclass={"build_ext": OptionalBuildExt},
-    zip_safe=False,  # Important for C extensions
-)
+if __name__ == "__main__":
+    setup(
+        name="vbi",
+        version=get_version(),
+        description="Virtual brain inference with optional C++ acceleration",
+        packages=find_packages(),
+        package_data=get_package_data(),
+        ext_modules=get_extensions(),
+        cmdclass={"build_ext": OptionalBuildExt},
+        zip_safe=False,  # Important for C extensions
+    )
