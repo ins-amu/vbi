@@ -5,6 +5,7 @@ import numpy as np
 from copy import copy
 from vbi.models.cupy.utils import *
 from vbi.models.cupy.bold import Bold
+from vbi.models.cupy.base import BaseCupyModel
 from typing import List, Dict
 
 try:
@@ -13,7 +14,7 @@ except ImportError:
     logging.warning("Cupy is not installed. Using Numpy instead.")
 
 
-class WW_sde:
+class WW_sde(BaseCupyModel):
     """
     Wong-Wang neural mass including Excitatory and Inhibitory populations.
 
@@ -159,11 +160,16 @@ class WW_sde:
     """
 
     def __init__(self, par: Dict = {}, Bpar: Dict = {}) -> None:
-
+        
+        super().__init__()
+        
         self._par = self.get_default_parameters()
         self.valid_parameters = list(self._par.keys())
+        self.valid_params = self.valid_parameters
         self.check_parameters(par)
         self._par.update(par)
+        
+        self.par_ = self._par
 
         for item in self._par.items():
             setattr(self, item[0], item[1])
@@ -181,10 +187,49 @@ class WW_sde:
         return self._par
 
     def __str__(self) -> str:
-        header = "Wong-Wang Model Parameters"
-        header = header.center(50, "=")
-        params = "\n".join([f"{key:>20}: {value}" for key, value in self._par.items()])
-        return f"{header}\n{params}"
+        return self._format_parameters_table("Wong-Wang (CuPy)")
+    
+    def get_parameter_descriptions(self):
+        """Get parameter descriptions and types."""
+        return {
+            "a_exc": ("Excitatory population gain parameter (n/C)", "float"),
+            "a_inh": ("Inhibitory population gain parameter (nC^-1)", "float"),
+            "b_exc": ("Excitatory population threshold parameter (Hz)", "float"),
+            "b_inh": ("Inhibitory population threshold parameter (Hz)", "float"),
+            "d_exc": ("Excitatory population saturation parameter (s)", "float"),
+            "d_inh": ("Inhibitory population saturation parameter (s)", "float"),
+            "tau_exc": ("Excitatory synaptic time constant (ms)", "float"),
+            "tau_inh": ("Inhibitory synaptic time constant (ms)", "float"),
+            "gamma_exc": ("Excitatory kinetic parameter (ms^-1)", "float"),
+            "gamma_inh": ("Inhibitory kinetic parameter (ms^-1)", "float"),
+            "W_exc": ("Excitatory population local weight for external input", "float"),
+            "W_inh": ("Inhibitory population local weight for external input", "float"),
+            "ext_current": ("External current input (nA)", "float"),
+            "J_NMDA": ("NMDA synaptic coupling strength (nA)", "float"),
+            "J_I": ("Inhibitory synaptic coupling strength (nA)", "float"),
+            "w_plus": ("Local excitatory recurrence strength", "float"),
+            "lambda_inh_exc": ("Long-range feedforward inhibition switch (0=off, 1=on)", "float"),
+            "G_exc": ("Global excitatory coupling strength", "float"),
+            "G_inh": ("Global inhibitory coupling strength", "float"),
+            "t_end": ("End time of simulation (ms)", "float"),
+            "t_cut": ("Time to cut off initial transient (ms)", "float"),
+            "dt": ("Time step for integration (ms)", "float"),
+            "tr": ("Repetition time for BOLD signal (ms)", "float"),
+            "s_decimate": ("Decimation factor for recording gating variables S", "int"),
+            "sigma": ("Noise amplitude for stochastic integration", "float"),
+            "weights": ("Structural connectivity matrix (nn x nn)", "ndarray"),
+            "num_sim": ("Number of parallel simulations", "int"),
+            "nn": ("Number of brain regions/nodes", "int"),
+            "engine": ("Computation engine: cpu or gpu", "str"),
+            "dtype": ("Data type: float32 or float", "str"),
+            "seed": ("Random seed for reproducibility", "int"),
+            "output": ("Output directory for results", "str"),
+            "initial_state": ("Initial state (2*num_nodes x num_sim)", "ndarray"),
+            "same_initial_state": ("If True, all sims have same initial state", "bool"),
+            "same_noise_per_sim": ("If True, all sims have same noise realization", "bool"),
+            "RECORD_S": ("If True, record synaptic gating variables S", "bool"),
+            "RECORD_BOLD": ("If True, record BOLD signal", "bool"),
+        }
 
     def set_initial_state(self):
         return set_initial_state(

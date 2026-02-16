@@ -1,9 +1,10 @@
 import tqdm
 import numpy as np
 from vbi.models.cupy.utils import *
+from vbi.models.cupy.base import BaseCupyModel
 
 
-class KM_sde:
+class KM_sde(BaseCupyModel):
     
     """
     Kuramoto model with noise (stochastic differential equation)
@@ -48,11 +49,16 @@ class KM_sde:
     """
 
     def __init__(self, par={}) -> None:
+        
+        super().__init__()
 
         self._par = self.get_default_parameters()
         self.valid_parameters = list(self._par.keys())
+        self.valid_params = self.valid_parameters
         self.check_parameters(par)
         self._par.update(par)
+        
+        self.par_ = self._par
 
         for item in self._par.items():
             setattr(self, item[0], item[1])
@@ -73,15 +79,35 @@ class KM_sde:
             self.nn, self.ns, self.xp, self.seed, self.same_initial_state)
 
     def __str__(self) -> str:
-        print (f"Kuramoto model with noise (sde), {self.engine} implementation.")
-        print ("----------------")
-        for item in self._par.items():
-            print (f"{item[0]} = {item[1]}")
-        return ""
+        return self._format_parameters_table("Kuramoto (CuPy)")
 
     def __call__(self):
         print(
             f"Kuramoto model with noise (sde), {self.engine} implementation.")
+        return self._par
+    
+    def get_parameter_descriptions(self):
+        """Get parameter descriptions and types."""
+        return {
+            "G": ("Global coupling strength", "float"),
+            "dt": ("Time step", "float"),
+            "noise_amp": ("Noise amplitude", "float"),
+            "weights": ("Weighted connection matrix (nn x nn)", "ndarray"),
+            "omega": ("Natural angular frequency (nn,) or (nn, num_sim)", "ndarray"),
+            "seed": ("Random seed for initial state", "int"),
+            "t_start": ("Initial time", "float"),
+            "t_cut": ("Transition time", "float"),
+            "t_end": ("End time", "float"),
+            "output": ("Output directory", "str"),
+            "initial_state": ("Initial state (nn x num_sim)", "ndarray"),
+            "engine": ("Computation engine: cpu or gpu", "str"),
+            "type": ("Output time series data type", "type"),
+            "alpha": ("Frustration matrix (not implemented)", "ndarray"),
+            "num_sim": ("Number of simulations", "int"),
+            "method": ("Integration method: heun or euler", "str"),
+            "same_initial_state": ("Use same initial state for all sims", "bool"),
+            "decimate": ("Decimate the output time series", "int"),
+        }
         return self._par
 
     def get_default_parameters(self):

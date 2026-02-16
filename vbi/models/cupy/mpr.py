@@ -4,6 +4,7 @@ import logging
 import numpy as np
 from copy import copy
 from vbi.models.cupy.utils import *
+from vbi.models.cupy.base import BaseCupyModel
 
 try:
     import cupy as cp
@@ -127,7 +128,7 @@ class Bold:
 
 
 
-class MPR_sde:
+class MPR_sde(BaseCupyModel):
     """
     Montbrio-Pazo-Roxin model Cupy and Numpy implementation.
 
@@ -190,9 +191,12 @@ class MPR_sde:
     """
 
     def __init__(self, par: dict = {}, Bpar:dict = {}) -> None:
+        super().__init__()
 
         self._par = self.get_default_parameters()
         self.valid_parameters = list(self._par.keys())
+        self.valid_params = self.valid_parameters  # Alias for base class
+        self.par_ = self._par  # Alias for base class
         self.check_parameters(par)
         self._par.update(par)
 
@@ -216,13 +220,43 @@ class MPR_sde:
         return self._par
 
     def __str__(self) -> str:
-        print("Montbrió, Pazó, Roxin model.")
-        print("----------------")
-        for item in self._par.items():
-            name = item[0]
-            value = item[1]
-            print(f"{name} = {value}")
-        return ""
+        return self._format_parameters_table("Montbrio-Pazo-Roxin (CuPy)")
+    
+    def get_parameter_descriptions(self):
+        """Get parameter descriptions and types."""
+        return {
+            "G": ("Global coupling strength", "float"),
+            "dt": ("Integration time step for MPR (ms)", "float"),
+            "dt_bold": ("Time step for Balloon model (s)", "float"),
+            "J": ("Synaptic coupling strength", "float"),
+            "eta": ("Excitability", "float"),
+            "tau": ("Synaptic time constant (ms)", "float"),
+            "delta": ("Synaptic decay parameter", "float"),
+            "tr": ("Repetition time for fMRI (ms)", "float"),
+            "noise_amp": ("Noise amplitude", "float"),
+            "same_noise_per_sim": ("Same noise for all simulations", "bool"),
+            "sti_apply": ("Apply external stimulation", "bool"),
+            "iapp": ("External input current", "float"),
+            "t_start": ("Initial simulation time (ms)", "float"),
+            "t_cut": ("Burn-in/transition time (ms)", "float"),
+            "t_end": ("End simulation time (ms)", "float"),
+            "num_nodes": ("Number of nodes/regions", "int"),
+            "weights": ("Structural connectivity matrix", "ndarray"),
+            "rv_decimate": ("Decimation factor for r/v recording", "int"),
+            "output": ("Output directory path", "str"),
+            "RECORD_RV": ("Record r and v time series", "bool"),
+            "RECORD_BOLD": ("Record BOLD signal", "bool"),
+            "RECORD_AVG_r": ("Record average firing rate", "bool"),
+            "num_sim": ("Number of parallel simulations", "int"),
+            "method": ("Integration method (heun/euler)", "str"),
+            "engine": ("Computation engine: cpu or gpu", "str"),
+            "seed": ("Random seed (None for random)", "int"),
+            "dtype": ("Data type: float or double", "str"),
+            "initial_state": ("Initial state (None for random)", "ndarray"),
+            "same_initial_state": ("Use same initial state for all sims", "bool"),
+            "sigma_r": ("Derived noise for r (computed)", "float"),
+            "sigma_v": ("Derived noise for v (computed)", "float"),
+        }
 
     def set_initial_state(self):
         self.initial_state = set_initial_state(
