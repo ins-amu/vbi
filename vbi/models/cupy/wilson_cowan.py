@@ -4,13 +4,14 @@ import logging
 import numpy as np
 from copy import copy
 from vbi.models.cupy.utils import *
+from vbi.models.cupy.base import BaseCupyModel
 
 try:
     import cupy as cp
 except ImportError:
     logging.warning("Cupy is not installed. Using Numpy instead.")
 
-class WC_sde:
+class WC_sde(BaseCupyModel):
     r"""
     Wilson-Cowan model of neural population dynamics.
 
@@ -36,9 +37,12 @@ class WC_sde:
     """
     
     def __init__(self, par: dict = {}) -> None:
+        super().__init__()
         
         self._par = self.get_default_parameters()
         self.valid_parameters = list(self._par.keys())
+        self.valid_params = self.valid_parameters  # Alias for base class
+        self.par_ = self._par  # Alias for base class
         self.check_parameters(par)
         self._par.update(par)
 
@@ -60,13 +64,52 @@ class WC_sde:
         return self._par
     
     def __str__(self) -> str:
-        print("Wilson-Cowan model of neural population dynamics")
-        print("----------------")
-        for item in self._par.items():
-            name = item[0]
-            value = item[1]
-            print(f"{name} = {value}")
-        return ""
+        return self._format_parameters_table("Wilson-Cowan (CuPy)")
+    
+    def get_parameter_descriptions(self):
+        """Get parameter descriptions and types."""
+        return {
+            "c_ee": ("Excitatory-to-excitatory connection strength", "float"),
+            "c_ei": ("Excitatory-to-inhibitory connection strength", "float"),
+            "c_ie": ("Inhibitory-to-excitatory connection strength", "float"),
+            "c_ii": ("Inhibitory-to-inhibitory connection strength", "float"),
+            "tau_e": ("Excitatory population time constant (ms)", "float"),
+            "tau_i": ("Inhibitory population time constant (ms)", "float"),
+            "a_e": ("Excitatory population gain parameter", "float"),
+            "a_i": ("Inhibitory population gain parameter", "float"),
+            "b_e": ("Excitatory population threshold parameter", "float"),
+            "b_i": ("Inhibitory population threshold parameter", "float"),
+            "c_e": ("Excitatory population sigmoid steepness", "float"),
+            "c_i": ("Inhibitory population sigmoid steepness", "float"),
+            "theta_e": ("Excitatory population firing threshold", "float"),
+            "theta_i": ("Inhibitory population firing threshold", "float"),
+            "r_e": ("Excitatory population maximum firing rate", "float"),
+            "r_i": ("Inhibitory population maximum firing rate", "float"),
+            "k_e": ("Excitatory refractory period", "float"),
+            "k_i": ("Inhibitory refractory period", "float"),
+            "alpha_e": ("Excitatory external input gain", "float"),
+            "alpha_i": ("Inhibitory external input gain", "float"),
+            "P": ("External input to excitatory population", "float"),
+            "Q": ("External input to inhibitory population", "float"),
+            "g_e": ("Global coupling strength for excitatory", "float"),
+            "g_i": ("Global coupling strength for inhibitory", "float"),
+            "method": ("Integration method (heun/euler)", "str"),
+            "weights": ("Structural connectivity matrix (nn x nn)", "ndarray"),
+            "seed": ("Random seed (None for random)", "int"),
+            "t_end": ("Total simulation time (ms)", "float"),
+            "t_cut": ("Burn-in time to discard (ms)", "float"),
+            "dt": ("Integration time step (ms)", "float"),
+            "noise_amp": ("Noise amplitude", "float"),
+            "output": ("Output directory path", "str"),
+            "num_sim": ("Number of parallel simulations", "int"),
+            "engine": ("Computation engine: cpu or gpu", "str"),
+            "same_initial_state": ("Use same initial state for all sims", "bool"),
+            "dtype": ("Data type: float or double", "str"),
+            "RECORD_EI": ("Record E, I, or both (E/I/EI)", "str"),
+            "initial_state": ("Initial state (None for random)", "ndarray"),
+            "decimate": ("Decimation factor for recording", "int"),
+            "shift_sigmoid": ("Shift sigmoid activation function", "bool"),
+        }
     
     def get_default_parameters(self):
 

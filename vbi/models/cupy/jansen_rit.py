@@ -1,9 +1,10 @@
 import tqdm
 import numpy as np
 from vbi.models.cupy.utils import *
+from vbi.models.cupy.base import BaseCupyModel
 
 
-class JR_sde:
+class JR_sde(BaseCupyModel):
     """
     Jansen-Rit model cupy implementation.
     
@@ -92,11 +93,16 @@ class JR_sde:
     """
 
     def __init__(self, par: dict = {}):
+        
+        super().__init__()
 
         self.valid_parameters = list(self.get_default_parameters().keys())
+        self.valid_params = self.valid_parameters
         self.check_parameters(par)
         self._par = self.get_default_parameters()
         self._par.update(par)
+        
+        self.par_ = self._par
 
         for item in self._par.items():
             name = item[0]
@@ -108,17 +114,44 @@ class JR_sde:
             self.xp.random.seed(self.seed)
 
     def __str__(self) -> str:
-        print("Jansen-Rit Model")
-        print("----------------")
-        for item in self._par.items():
-            name = item[0]
-            value = item[1]
-            print(f"{name} = {value}")
-        return ""
+        return self._format_parameters_table("Jansen-Rit (CuPy)")
 
     def __call__(self):
         print("Jansen-Rit Model")
         return self._par
+    
+    def get_parameter_descriptions(self):
+        """Get parameter descriptions and types."""
+        return {
+            "G": ("Scaling the strength of network connections", "float"),
+            "A": ("Excitatory post synaptic potential amplitude", "float"),
+            "B": ("Inhibitory post synaptic potential amplitude", "float"),
+            "v": ("Potential at half of maximum firing rate", "float"),
+            "r": ("Slope of sigmoid function at v_0", "float"),
+            "v0": ("Threshold potential for sigmoid function", "float"),
+            "vmax": ("Maximum firing rate", "float"),
+            "C0": ("Average number of synapses: pyramidal → excitatory", "float"),
+            "C1": ("Average number of synapses: excitatory → pyramidal", "float"),
+            "C2": ("Average number of synapses: pyramidal → inhibitory", "float"),
+            "C3": ("Average number of synapses: inhibitory → pyramidal", "float"),
+            "a": ("Time constant of excitatory postsynaptic potential", "float"),
+            "b": ("Time constant of inhibitory postsynaptic potential", "float"),
+            "mu": ("Mean of the noise", "float"),
+            "noise_amp": ("Amplitude of the noise", "float"),
+            "decimate": ("Decimation factor for the output time series", "int"),
+            "dt": ("Time step (ms)", "float"),
+            "t_end": ("End time of simulation (ms)", "float"),
+            "t_cut": ("Cut time (ms)", "float"),
+            "engine": ("Computation engine: cpu or gpu", "str"),
+            "method": ("Integration method: heun or euler", "str"),
+            "num_sim": ("Number of simulations", "int"),
+            "weights": ("Weight matrix (num_nodes x num_nodes)", "ndarray"),
+            "dtype": ("Data type: float or float32", "str"),
+            "seed": ("Random seed (None for random)", "int"),
+            "initial_state": ("Initial state (num_nodes x num_sim)", "ndarray"),
+            "same_initial_state": ("Use same initial state for all sims", "bool"),
+            "same_noise_per_sim": ("Use same noise for all sims", "bool"),
+        }
 
     def check_parameters(self, par):
         """

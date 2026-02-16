@@ -5,7 +5,7 @@ from numba.experimental import jitclass
 from numba import float64, int64, boolean, types
 from numba.extending import register_jitable
 from vbi.models.numba.utils import check_parameters
-
+from vbi.models.numba.base import BaseNumbaModel
 # ----------------------------------------
 # Stuart-Landau model spec
 # ----------------------------------------
@@ -28,26 +28,56 @@ sl_spec = [
     ("x_decimate", int64),
 ]
 
+# Default parameter values - single source of truth
+SL_DEFAULTS = {
+    'a': 0.1,
+    'omega': 2.0 * np.pi * 0.040,  # rad/ms (40 Hz oscillation)
+    'G': 0.0,
+    'sigma': 0.01,
+    'dt': 0.1,
+    't_end': 1000.0,
+    't_cut': 0.0,
+    'seed': -1,
+    'speed': 5.0,
+    'weights': None,  # Required - must be provided by user
+    'tr_len': None,  # Optional - defaults to zeros if not provided
+    'initial_state': None,  # Optional - auto-generated if not provided
+    'RECORD_X': True,
+    'x_decimate': 1,
+}
+
 
 @jitclass(sl_spec)
 class ParSL:
+    """
+    Numba jitclass container for Stuart-Landau model parameters.
+    
+    This class holds all parameters needed for the Stuart-Landau oscillator model
+    in a format optimized for Numba compilation. It stores both scalar parameters
+    and array parameters like connectivity weights and transmission delays.
+    
+    Note: This is an internal class used by the SL_sde class. Users should
+    not instantiate this class directly.
+    
+    Default values are defined in SL_DEFAULTS dictionary.
+    """
     def __init__(
         self,
-        a=0.1,
-        omega=2.0 * np.pi * 0.040,  # rad/ms (40 Hz oscillation, time in ms)
-        G=0.0,
-        sigma=0.01,
-        dt=0.1,  # ms - needs small step for numerical stability
-        t_end=1000.0,
-        t_cut=0.0,
-        nn=1,
-        seed=-1,
-        speed=5.0,
+        a=SL_DEFAULTS['a'],
+        omega=SL_DEFAULTS['omega'],
+        G=SL_DEFAULTS['G'],
+        sigma=SL_DEFAULTS['sigma'],
+        dt=SL_DEFAULTS['dt'],
+        t_end=SL_DEFAULTS['t_end'],
+        t_cut=SL_DEFAULTS['t_cut'],
+        nn=1,  # Will be set from weights.shape
+        seed=SL_DEFAULTS['seed'],
+        speed=SL_DEFAULTS['speed'],
         weights=np.array([[0.0]]),
         tr_len=np.array([[0.0]]),
-        initial_state=np.array([0.01 + 0.01j]),  # Larger init for stability
-        RECORD_X=True,
-        x_decimate=1,
+        initial_state=np.array([0.01 + 0.01j]),
+        RECORD_X=SL_DEFAULTS['RECORD_X'],
+        x_decimate=SL_DEFAULTS['x_decimate'],
     ):
         self.a = a
         self.omega = omega
@@ -168,7 +198,7 @@ def heun_sde_sl(Z, delays_state, W, P):
 # --------------------------------
 # Public API class
 # --------------------------------
-class SL_sde:
+class SL_sde(BaseNumbaModel):
     """
     Numba implementation of the Stuart-Landau oscillator model with delayed coupling.
 
@@ -352,6 +382,68 @@ class SL_sde:
             if k == "weights":
                 v = np.array(v, dtype=np.float64)
             setattr(self.P, k, v)
+        
+        # Set valid_params for BaseNumbaModel (excluding 'nn' which is derived)
+        self.valid_params = [k for k in SL_DEFAULTS.keys() if k != 'nn']
+    
+    def get_default_parameters(self):
+        """
+        Get the default parameters for the Stuart-Landau model.
+        
+        Returns a copy of the SL_DEFAULTS dictionary with additional
+        required/derived parameters.
+        
+        Returns
+        -------
+        dict
+            Dictionary containing default parameter values.
+            
+        Examples
+        --------
+        >>> from vbi.models.numba.sl import SL_sde
+        >>> import numpy as np
+        >>> model = SL_sde({"weights": np.eye(2)})
+        >>> defaults = model.get_default_parameters()
+        >>> print(defaults['a'])
+        0.1
+        """
+        defaults = SL_DEFAULTS.copy()
+        defaults['nn'] = None  # Derived from weights.shape
+        return defaults
+    
+    def get_parameter_descriptions(self):
+        """
+        Get descriptions for all Stuart-Landau model parameters.
+        
+        Returns
+        -------
+        dict
+            Dictionary mapping parameter names to tuples of (description, type).
+            
+        Examples
+        --------
+        >>> model = SL_sde({"weights": np.eye(2)})
+        >>> descriptions = model.get_parameter_descriptions()
+        >>> print(descriptions['a'])
+        ('Bifurcation parameter', 'scalar')
+        """
+        return {
+            'a': ('Bifurcation parameter controlling oscillatory behavior', 'scalar'),
+            'omega': ('Angular frequency (rad/ms)', 'scalar'),
+            'G': ('Global coupling strength', 'scalar'),
+            'sigma': ('Noise amplitude for stochastic dynamics', 'scalar'),
+            'dt': ('Integration time step (ms)', 'scalar'),
+            't_end': ('Simulation end time (ms)', 'scalar'),
+            't_cut': ('Burn-in period (ms)', 'scalar'),
+            'nn': ('[Derived] Number of oscillators/nodes', 'int'),
+            'seed': ('Random seed (-1 = no seed)', 'int'),
+            'speed': ('Conduction velocity (mm/ms)', 'scalar'),
+            'weights': ('Structural connectivity matrix', 'matrix'),
+            'tr_len': ('Transmission distances (mm)', 'matrix'),
+            'initial_state': ('[Derived] Initial complex states', 'vector'),
+            'RECORD_X': ('Record activity time series', 'bool'),
+            'x_decimate': ('Recording decimation factor', 'int'),
+        }
     
     def run(self, par: dict = {}, x0=None):
         """

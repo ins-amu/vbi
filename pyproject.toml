@@ -101,8 +101,7 @@ docs = [
     "numpydoc",
     "nbformat",
     "nbsphinx",
-    "cloud_sptheme",
-    "sphinx_bootstrap_theme",
+    "furo",
 ]
 
 # All dependencies (torch, cupy, sbi, features, dev tools, docs, notebooks)
@@ -115,8 +114,7 @@ all = [
     "numpydoc",
     "nbformat",
     "nbsphinx",
-    "cloud_sptheme",
-    "sphinx_bootstrap_theme",
+    "furo",
     # "ipywidgets",
 ]
 
@@ -128,8 +126,7 @@ all-docker = [
     "numpydoc",
     "nbformat",
     "nbsphinx",
-    "cloud_sptheme",
-    "sphinx_bootstrap_theme",
+    "furo",
     # "ipywidgets",
 ]
 

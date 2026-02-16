@@ -8,6 +8,7 @@ from vbi.utils import print_valid_parameters
 from numba import float64, boolean, int64, types
 from numba.core.errors import NumbaPerformanceWarning
 from vbi.models.numba.utils import check_vec_size_1d
+from vbi.models.numba.base import BaseNumbaModel
 
 warnings.simplefilter("ignore", category=NumbaPerformanceWarning)
 
@@ -219,6 +220,41 @@ def do_bold_step(r_in, s, f, ftilde, vtilde, qtilde, v, q, dtt, P):
 # Wong–Wang model params (Numba jitclass)
 # -----------------------------
 
+# Default parameter values for Wong-Wang model
+WW_DEFAULTS = {
+    # Excitatory/Inhibitory population parameters
+    "a_exc": 310.0,
+    "a_inh": 0.615,
+    "b_exc": 125.0,
+    "b_inh": 177.0,
+    "d_exc": 0.16,
+    "d_inh": 0.087,
+    "tau_exc": 100.0,
+    "tau_inh": 10.0,
+    "gamma_exc": 0.641 / 1000.0,
+    "gamma_inh": 1.0 / 1000.0,
+    "W_exc": 1.0,
+    "W_inh": 0.7,
+    "J_NMDA": 0.15,
+    "J_I": 1.0,
+    "w_plus": 1.4,
+    "lambda_inh_exc": 0.0,
+    # Simulation parameters
+    "t_end": 1000.0,
+    "t_cut": 0.0,
+    "dt": 0.1,
+    "G_exc": 0.0,
+    "G_inh": 0.0,
+    "tr": 300.0,
+    "s_decimate": 1,
+    "noise_amp": 0.0,
+    "seed": -1,
+    "output": "output",
+    "dtype": "f",
+    "RECORD_S": False,
+    "RECORD_BOLD": True,
+}
+
 ww_spec = [
     # local population parameters
     ("a_exc", float64),
@@ -247,7 +283,7 @@ ww_spec = [
     ("weights", float64[:, :]),
     ("tr", float64),
     ("s_decimate", int64),
-    ("sigma", float64[:]),
+    ("noise_amp", float64[:]),
     ("nn", int64),
     ("seed", int64),
     ("output", types.string),
@@ -334,7 +370,7 @@ class ParWW:
         weights=np.array([[], []]),
         tr=300.0,         # ms
         s_decimate=1,
-        sigma=np.array([0.0]),
+        noise_amp=np.array([0.0]),
         nn=1,
         seed=-1,
         output="output",
@@ -370,7 +406,7 @@ class ParWW:
         self.weights = weights
         self.tr = tr
         self.s_decimate = s_decimate
-        self.sigma = sigma
+        self.noise_amp = noise_amp
         self.nn = nn
         self.seed = seed
         self.output = output
@@ -509,7 +545,7 @@ def heun_sde(S, t, P):
     t : float
         Current time (ms).
     P : ParWW
-        Parameter object containing model parameters including dt and sigma.
+        Parameter object containing model parameters including dt and noise_amp.
         
     Returns
     -------
@@ -519,15 +555,15 @@ def heun_sde(S, t, P):
     dt = P.dt
     nn = P.nn
 
-    # Handle sigma as either scalar or array
-    if P.sigma.size == 1:
+    # Handle noise_amp as either scalar or array
+    if P.noise_amp.size == 1:
         # Scalar case: apply same noise to all variables
-        dW = P.sigma[0] * np.sqrt(dt) * np.random.randn(2 * nn)
+        dW = P.noise_amp[0] * np.sqrt(dt) * np.random.randn(2 * nn)
     else:
         # Array case: apply different noise to exc and inh populations
         dW = np.zeros(2 * nn)
-        dW[:nn] = P.sigma * np.sqrt(dt) * np.random.randn(nn)
-        dW[nn:] = P.sigma * np.sqrt(dt) * np.random.randn(nn)
+        dW[:nn] = P.noise_amp * np.sqrt(dt) * np.random.randn(nn)
+        dW[nn:] = P.noise_amp * np.sqrt(dt) * np.random.randn(nn)
 
     k1 = f_ww(S, t, P)
     y_ = S + dt * k1 + dW
@@ -541,7 +577,7 @@ def heun_sde(S, t, P):
 # Public-facing class (mirror mpr.py style)
 # -----------------------------
 
-class WW_sde:
+class WW_sde(BaseNumbaModel):
     """
     Numba implementation of the Wong-Wang full neural mass model with stochastic dynamics.
     
@@ -645,7 +681,7 @@ class WW_sde:
         * - `G_inh`
           - Global inhibitory coupling strength
           - 0.0
-        * - `sigma`
+        * - `noise_amp`
           - Noise amplitude
           - 0.0
         * - `weights`
@@ -675,7 +711,7 @@ class WW_sde:
         ...     "dt": 0.1, 
         ...     "t_end": 1000.0, 
         ...     "t_cut": 100.0,
-        ...     "sigma": 0.01
+        ...     "noise_amp": 0.01
         ... })
         >>> data = ww.run()
         >>> print(data['bold_d'].shape)  # BOLD data shape
@@ -731,16 +767,28 @@ class WW_sde:
         par.setdefault("ext_current", 0.382)
         par["ext_current"] = check_vec_size_1d(par["ext_current"], nn)
 
-        # handle sigma parameter - can be scalar or array
-        par.setdefault("sigma", 0.0)
-        sigma_val = par["sigma"]
-        if np.isscalar(sigma_val):
-            par["sigma"] = np.array([sigma_val], dtype=np.float64)
+        # Handle noise_amp parameter with backward compatibility for sigma
+        if "sigma" in par:
+            warnings.warn(
+                "Parameter 'sigma' is deprecated and will be removed in a future version. "
+                "Please use 'noise_amp' instead.",
+                DeprecationWarning,
+                stacklevel=2
+            )
+            # If both are provided, noise_amp takes precedence
+            if "noise_amp" not in par:
+                par["noise_amp"] = par["sigma"]
+            del par["sigma"]
+        
+        par.setdefault("noise_amp", 0.0)
+        noise_amp_val = par["noise_amp"]
+        if np.isscalar(noise_amp_val):
+            par["noise_amp"] = np.array([noise_amp_val], dtype=np.float64)
         else:
-            sigma_val = np.array(sigma_val, dtype=np.float64)
-            if sigma_val.size != 1 and sigma_val.size != nn:
-                raise ValueError(f"sigma must be scalar or array of size {nn}, got size {sigma_val.size}")
-            par["sigma"] = sigma_val
+            noise_amp_val = np.array(noise_amp_val, dtype=np.float64)
+            if noise_amp_val.size != 1 and noise_amp_val.size != nn:
+                raise ValueError(f"noise_amp must be scalar or array of size {nn}, got size {noise_amp_val.size}")
+            par["noise_amp"] = noise_amp_val
 
         # initial state
         if "initial_state" in par:
@@ -778,7 +826,7 @@ class WW_sde:
             weights=weights,
             tr=par.get("tr", 300.0),
             s_decimate=int(par.get("s_decimate", 1)),
-            sigma=par["sigma"].astype(np.float64),
+            noise_amp=par["noise_amp"].astype(np.float64),
             nn=nn,
             seed=int(par.get("seed", -1)),
             output=par.get("output", "output"),
@@ -805,26 +853,78 @@ class WW_sde:
             atol=Bpar.get("atol", 1e-8),
         )
 
+        # Store valid parameter names for base class API
+        self.valid_params = [ww_spec[i][0] for i in range(len(ww_spec))]
+        self.valid_par = self.valid_params  # Keep for backward compatibility
+
         # seeding
         if self.P.seed >= 0:
             # set_seed_compat(self.P.seed)
             initialize_random_state(self.P.seed)
             # print(f"WW_sde: setting random seed to {self.P.seed}")
 
+    @staticmethod
+    def get_default_parameters():
+        """
+        Get default parameters for the Wong-Wang model.
+        
+        Returns
+        -------
+        dict
+            Dictionary containing default parameter values.
+        """
+        return copy(WW_DEFAULTS)
+    
+    @staticmethod
+    def get_parameter_descriptions():
+        """
+        Get descriptions of all model parameters.
+        
+        Returns
+        -------
+        dict
+            Dictionary mapping parameter names to (description, type) tuples.
+        """
+        return {
+            "a_exc": ("Excitatory population gain parameter (n/C)", "float"),
+            "a_inh": ("Inhibitory population gain parameter (nC⁻¹)", "float"),
+            "b_exc": ("Excitatory population threshold parameter (Hz)", "float"),
+            "b_inh": ("Inhibitory population threshold parameter (Hz)", "float"),
+            "d_exc": ("Excitatory population saturation parameter (s)", "float"),
+            "d_inh": ("Inhibitory population saturation parameter (s)", "float"),
+            "tau_exc": ("Excitatory synaptic time constant (ms)", "float"),
+            "tau_inh": ("Inhibitory synaptic time constant (ms)", "float"),
+            "gamma_exc": ("Excitatory synaptic gating rate", "float"),
+            "gamma_inh": ("Inhibitory synaptic gating rate", "float"),
+            "W_exc": ("Excitatory external input weight", "float"),
+            "W_inh": ("Inhibitory external input weight", "float"),
+            "J_NMDA": ("NMDA synaptic coupling strength (nA)", "float"),
+            "J_I": ("Inhibitory synaptic coupling strength (nA)", "float"),
+            "w_plus": ("Local excitatory recurrence weight", "float"),
+            "lambda_inh_exc": ("Inhibitory-to-excitatory long-range coupling weight", "float"),
+            "G_exc": ("Global excitatory coupling strength", "float"),
+            "G_inh": ("Global inhibitory coupling strength", "float"),
+            "t_end": ("Total simulation time (ms)", "float"),
+            "t_cut": ("Initial transient to discard (ms)", "float"),
+            "dt": ("Integration time step (ms)", "float"),
+            "tr": ("BOLD repetition time (ms)", "float"),
+            "s_decimate": ("Decimation factor for saving state variables", "int"),
+            "seed": ("Random number generator seed (-1 for no seeding)", "int"),
+            "output": ("Output file path", "str"),
+            "dtype": ("Data type for output ('f' or 'd')", "str"),
+            "RECORD_S": ("Record synaptic gating variables", "bool"),
+            "RECORD_BOLD": ("Record BOLD signal", "bool"),
+            # Additional runtime parameters
+            "weights": ("Structural connectivity matrix (nn x nn)", "ndarray"),
+            "ext_current": ("External current input to each region", "ndarray"),
+            "initial_state": ("Initial state vector [S_exc, S_inh] for each region", "ndarray"),
+            "nn": ("Number of brain regions/nodes", "int"),
+            "noise_amp": ("Noise amplitude (scalar or per-region array)", "ndarray"),
+        }
+
     def __str__(self) -> str:
-        lines = [
-            "Wong-Wang (Numba) model",
-            "Parameters: --------------------------------",
-        ]
-        for name in [
-            "nn", "dt", "t_end", "t_cut", "G_exc", "G_inh", "sigma", "tr",
-            "a_exc", "b_exc", "d_exc", "tau_exc", "gamma_exc",
-            "a_inh", "b_inh", "d_inh", "tau_inh", "gamma_inh",
-            "W_exc", "W_inh", "w_plus", "J_NMDA", "J_I",
-        ]:
-            lines.append(f"{name} = {getattr(self.P, name)}")
-        lines.append("--------------------------------------------")
-        return "\n".join(lines)
+        """Return formatted string representation of model parameters."""
+        return self._format_parameters_table("Wong-Wang Full Model")
     
     def check_parameters(self, par: dict) -> None:
         """
@@ -889,7 +989,8 @@ class WW_sde:
         """
         
         self.valid_par = [ww_spec[i][0] for i in range(len(ww_spec))]
-        self.check_parameters(par)
+        if par is not None:
+            self.check_parameters(par)
         
         # update runtime parameters if provided
         if par:

@@ -2,9 +2,10 @@ import tqdm
 import cupy as cp
 from copy import copy
 from vbi.models.cupy.utils import *
+from vbi.models.cupy.base import BaseCupyModel
 
 
-class GHB_sde:
+class GHB_sde(BaseCupyModel):
     """
     Generic Hopf model cupy implementation
 
@@ -29,6 +30,7 @@ class GHB_sde:
     K3 = -0.43
 
     def __init__(self, par: dict = {}) -> None:
+        super().__init__()
 
         self.valid_params = list(self.get_default_parameters().keys())
         self.check_parameters(par)
@@ -47,13 +49,29 @@ class GHB_sde:
         return self.par_
 
     def __str__(self):
-        print("GHB model")
-        print("-" * 50)
-        for item in self.par_items():
-            name = item[0]
-            value = item[1]
-            print(f"{name} : {value}")
-        return ""
+        return self._format_parameters_table("Generic Hopf Bifurcation (CuPy)")
+
+    def get_parameter_descriptions(self):
+        """Get parameter descriptions and types."""
+        return {
+            "G": ("Global coupling strength", "float"),
+            "t_cut": ("Initial transient to discard (ms)", "float"),
+            "dt": ("Integration time step", "float"),
+            "eta": ("Bifurcation parameter (array or None)", "ndarray"),
+            "num_sim": ("Number of parallel simulations", "int"),
+            "sigma": ("Noise amplitude", "float"),
+            "seed": ("Random seed (None for random)", "int"),
+            "decimate": ("Decimation factor for saving", "int"),
+            "omega": ("Oscillation frequency (array or None)", "ndarray"),
+            "t_end": ("Total simulation time (ms)", "float"),
+            "engine": ("Computation engine: 'cpu' or 'gpu'", "str"),
+            "weights": ("Structural connectivity matrix (nn x nn)", "ndarray"),
+            "dtype": ("Data type: 'float' or 'double'", "str"),
+            "method": ("Integration method", "str"),
+            "output": ("Output directory path", "str"),
+            "initial_state": ("Initial state (None for random)", "ndarray"),
+            "same_initial_state": ("Use same initial state for all sims", "bool"),
+        }
 
     def set_initial_state(self):
         self.initial_state = set_initial_state(

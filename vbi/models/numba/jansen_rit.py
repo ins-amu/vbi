@@ -1,11 +1,13 @@
 import warnings
 import numpy as np
+from typing import Dict, Any
 from numba import njit
 from vbi.utils import pretty_dtype
 from numba.experimental import jitclass
 from numba import float64, boolean, int64
 from numba.extending import register_jitable
 from numba.core.errors import NumbaPerformanceWarning
+from vbi.models.numba.base import BaseNumbaModel
 
 warnings.simplefilter("ignore", category=NumbaPerformanceWarning)
 
@@ -88,6 +90,31 @@ jr_spec = [
     ("initial_state", float64[:]),
 ]
 
+# Default parameter values - single source of truth
+JR_DEFAULTS = {
+    'G': 1.0,
+    'A': 3.25,
+    'B': 22.0,
+    'a': 0.1,
+    'b': 0.05,
+    'v0': 6.0,
+    'vmax': 0.005,
+    'r': 0.56,
+    'mu': 0.24,
+    'noise_amp': 0.01,
+    'dt': 0.01,
+    't_cut': 0.0,
+    't_end': 1000.0,
+    'decimate': 1,
+    'C0': 135.0,
+    'C1': 0.8 * 135.0,
+    'C2': 0.25 * 135.0,
+    'C3': 0.25 * 135.0,
+    'seed': -1,
+    'weights': None,  # Required - must be provided by user
+    'initial_state': None,  # Auto-generated if not provided
+}
+
 
 @jitclass(jr_spec)
 class ParJR:
@@ -99,30 +126,32 @@ class ParJR:
     and array parameters like connectivity weights and coupling constants.
     
     Note: This is an internal class used by the JR_sde class. Users should
-    not instantiate this class directly.
+    not instantiate this class directly. Use JR_sde instead.
+    
+    Default values are defined in JR_DEFAULTS dictionary.
     """
     def __init__(
         self,
         weights,
-        G=1.0,
-        A=3.25,
-        B=22.0,
-        a=0.1,
-        b=0.05,
-        v0=6.0,
-        vmax=0.005,
-        r=0.56,
-        mu=0.24,
-        noise_amp=0.01,
-        dt=0.01,
-        t_cut=0.0,
-        t_end=1000.0,
-        decimate=1,
-        C0=135.0,
-        C1=0.8*135.0,
-        C2=0.25*135.0,
-        C3=0.25*135.0,
-        seed=-1
+        G=JR_DEFAULTS['G'],
+        A=JR_DEFAULTS['A'],
+        B=JR_DEFAULTS['B'],
+        a=JR_DEFAULTS['a'],
+        b=JR_DEFAULTS['b'],
+        v0=JR_DEFAULTS['v0'],
+        vmax=JR_DEFAULTS['vmax'],
+        r=JR_DEFAULTS['r'],
+        mu=JR_DEFAULTS['mu'],
+        noise_amp=JR_DEFAULTS['noise_amp'],
+        dt=JR_DEFAULTS['dt'],
+        t_cut=JR_DEFAULTS['t_cut'],
+        t_end=JR_DEFAULTS['t_end'],
+        decimate=JR_DEFAULTS['decimate'],
+        C0=JR_DEFAULTS['C0'],
+        C1=JR_DEFAULTS['C1'],
+        C2=JR_DEFAULTS['C2'],
+        C3=JR_DEFAULTS['C3'],
+        seed=JR_DEFAULTS['seed']
     ):
         self.weights = weights
         self.nn = len(weights)
@@ -327,7 +356,7 @@ def integrate(P):
     return {"t": ts, "x": ys}
 
 
-class JR_sde:
+class JR_sde(BaseNumbaModel):
     """
     Numba implementation of the Jansen-Rit neural mass model.
     
@@ -432,7 +461,12 @@ class JR_sde:
             Dictionary containing model parameters. See class documentation for available parameters.
             The 'weights' parameter is required and must be a square connectivity matrix.
         """
-        self.valid_params = [jr_spec[i][0] for i in range(len(jr_spec))]
+        super().__init__()
+        
+        # Define valid parameters from JR_DEFAULTS, excluding derived parameters
+        # 'nn' is derived from weights.shape, 'sigma' is derived from sqrt(dt) * noise_amp
+        self.valid_params = [k for k in JR_DEFAULTS.keys() if k not in ['nn', 'sigma']]
+        
         self.check_parameters(par_jr)
         
         # Validate weights early and create parameter jitclass
@@ -484,77 +518,91 @@ class JR_sde:
 
         self._checked = False
 
+    def get_default_parameters(self) -> Dict[str, Any]:
+        """
+        Get the default parameters for the Jansen-Rit model.
+        
+        Returns the default values from JR_DEFAULTS dictionary, which is the
+        single source of truth for all default parameter values.
+        
+        Returns
+        -------
+        dict
+            Dictionary containing default parameter values.
+            
+        Examples
+        --------
+        >>> model = JR_sde({"weights": np.eye(2)})
+        >>> defaults = model.get_default_parameters()
+        >>> print(defaults['G'])
+        1.0
+        
+        Notes
+        -----
+        'nn' and 'sigma' are derived parameters:
+        - 'nn': Number of nodes, determined from weights.shape[0]
+        - 'sigma': Noise standard deviation, computed as sqrt(dt) * noise_amp
+        """
+        # Return a copy with derived parameters added
+        defaults = JR_DEFAULTS.copy()
+        defaults['nn'] = None  # Derived from weights
+        defaults['sigma'] = None  # Derived from dt and noise_amp
+        return defaults
+    
+    def get_parameter_descriptions(self) -> Dict[str, str]:
+        """
+        Get descriptions for all Jansen-Rit model parameters.
+        
+        Returns
+        -------
+        dict
+            Dictionary mapping parameter names to tuples of (description, type).
+            
+        Examples
+        --------
+        >>> model = JR_sde({"weights": np.eye(2)})
+        >>> descriptions = model.get_parameter_descriptions()
+        >>> print(descriptions['G'])
+        ('Global coupling strength', 'scalar')
+        """
+        return {
+            'G': ('Global coupling strength', 'scalar'),
+            'A': ('Excitatory EPSP amplitude', 'scalar'),
+            'B': ('Inhibitory IPSP amplitude', 'scalar'),
+            'a': ('Inverse time constant of EPSP', 'scalar'),
+            'b': ('Inverse time constant of IPSP', 'scalar'),
+            'v0': ('Potential at half max firing rate', 'scalar'),
+            'vmax': ('Maximum firing rate', 'scalar'),
+            'r': ('Slope of sigmoid at v0', 'scalar'),
+            'mu': ('Mean external input', 'scalar'),
+            'noise_amp': ('Noise amplitude', 'scalar'),
+            'weights': ('Structural connectivity matrix', 'matrix'),
+            'dt': ('Integration time step', 'scalar'),
+            't_end': ('End time of simulation', 'scalar'),
+            't_cut': ('Cut-off time for output', 'scalar'),
+            'decimate': ('Decimation factor for output', 'int'),
+            'C0': ('Synapses: pyramidal to excitatory', 'vector'),
+            'C1': ('Synapses: excitatory to pyramidal', 'vector'),
+            'C2': ('Synapses: pyramidal to inhibitory', 'vector'),
+            'C3': ('Synapses: inhibitory to pyramidal', 'vector'),
+            'seed': ('Random seed for reproducibility', 'int'),
+            'initial_state': ('Initial state vector (6*nn)', 'vector'),
+            'nn': ('Number of nodes', 'int'),
+        }
+
     def __str__(self) -> str:
         """
         Return a string representation of the model parameters.
+        
+        Uses the base class implementation to provide a formatted parameter table.
         
         Returns
         -------
         str
             Formatted string showing all model parameters and their values.
         """
-        print("Jansen-Rit Model (Numba)")
-        print("------------------------")
-        
-        # Model parameters
-        print(f"G = {self.P.G}")
-        print(f"A = {self.P.A}")
-        print(f"B = {self.P.B}")
-        print(f"a = {self.P.a}")
-        print(f"b = {self.P.b}")
-        print(f"v0 = {self.P.v0}")
-        print(f"vmax = {self.P.vmax}")
-        print(f"r = {self.P.r}")
-        print(f"mu = {self.P.mu}")
-        print(f"noise_amp = {self.P.noise_amp}")
-        
-        # Connectivity parameters
-        print(f"C0 = {self.P.C0}")
-        print(f"C1 = {self.P.C1}")
-        print(f"C2 = {self.P.C2}")
-        print(f"C3 = {self.P.C3}")
-        
-        # Simulation parameters
-        print(f"dt = {self.P.dt}")
-        print(f"t_end = {self.P.t_end}")
-        print(f"t_cut = {self.P.t_cut}")
-        print(f"decimate = {self.P.decimate}")
-        print(f"nn = {self.P.nn}")
-        print(f"seed = {self.P.seed}")
-        print(f"sigma = {self.P.sigma}")
-        print(f"weights shape = {self.P.weights.shape}")
-        
-        return ""
+        return self._format_parameters_table()
     
-    def check_parameters(self, par: dict):
-        """
-        Validate provided parameter names.
-
-        Parameters
-        ----------
-        par : dict
-            Dictionary of parameters to validate.
-
-        Raises
-        ------
-        ValueError
-            If any parameter names are invalid.
-        """
-        for k in par.keys():
-            if k not in self.valid_params:
-                print(f"Invalide parameter: {k}")
-                self.print_valid_parameters()
-                raise ValueError(f"Invalid parameter: {k}.")
-            
-    def print_valid_parameters(self):
-        print("Valid parameters:")
-        print("────────────────────────────────────────────")
-        print(f"{'Name':<15} {'Datatype':<20}")
-        print("────────────────────────────────────────────")
-        for name, dtype in jr_spec:
-            print(f"{name:<15} {pretty_dtype(dtype)}")
-        print("────────────────────────────────────────────")
-
     def check_input(self):
         """
         Validate model parameters.

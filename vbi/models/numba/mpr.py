@@ -1,15 +1,43 @@
 import warnings
 import numpy as np
 from copy import copy
+from typing import Dict, Any, List
 from numba import njit, jit
 from numba.experimental import jitclass
 from numba.extending import register_jitable
 from numba import float64, boolean, int64, types
 from numba.core.errors import NumbaPerformanceWarning
 from vbi.utils import print_valid_parameters
+from vbi.models.numba.base import BaseNumbaModel
 
 warnings.simplefilter("ignore", category=NumbaPerformanceWarning)
 np.random.seed(42)
+
+
+# ---------- Default Parameters - Single Source of Truth ----------
+
+# Default parameter values for Montbrió-Pazó-Roxin model
+MPR_DEFAULTS = {
+    'G': 0.5,
+    'dt': 0.01,
+    'J': 14.5,
+    'eta': -4.6,
+    'tau': 1.0,
+    'delta': 0.7,
+    'rv_decimate': 1,
+    'noise_amp': 0.037,
+    'weights': None,  # Required - must be provided by user
+    'initial_state': None,  # Optional - if None, will be set to small random values
+    't_init': 0.0,
+    't_cut': 0.0,
+    't_end': 1000.0,
+    'iapp': 0.0,
+    'seed': -1,
+    'output': 'output',
+    'RECORD_RV': True,
+    'RECORD_BOLD': True,
+    'tr': 500.0,
+}
 
 
 @njit
@@ -263,7 +291,7 @@ def integrate(P, B):
     }
 
 
-class MPR_sde:
+class MPR_sde(BaseNumbaModel):
     """
     Numba implementation of the Montbrió neural mass model with BOLD signal generation.
     
@@ -401,7 +429,12 @@ class MPR_sde:
             available parameters. The 'weights' parameter is required for proper 
             functionality.
         """
-        self.valid_par = [mpr_spec[i][0] for i in range(len(mpr_spec))]
+        super().__init__()
+        
+        # Define valid parameters from MPR_DEFAULTS, excluding derived parameters
+        # 'nn' is derived from weights.shape, 'sigma_r'/'sigma_v' derived from noise_amp
+        self.valid_params = [k for k in MPR_DEFAULTS.keys() if k not in ['nn', 'sigma_r', 'sigma_v']]
+        
         self.check_parameters(par_mpr)
         self.P = self.get_par_mpr(par_mpr)
         self.B = ParBold()
@@ -409,6 +442,87 @@ class MPR_sde:
         self.seed = self.P.seed
         if self.seed > 0:
             np.random.seed(self.seed)
+    
+    def get_default_parameters(self) -> Dict[str, Any]:
+        """
+        Get the default parameters for the Montbrió model.
+        
+        Returns a copy of the MPR_DEFAULTS dictionary with additional
+        required/derived parameters.
+        
+        Returns
+        -------
+        dict
+            Dictionary containing default parameter values.
+            
+        Examples
+        --------
+        >>> from vbi.models.numba.mpr import MPR_sde
+        >>> model = MPR_sde({"weights": np.eye(2)})
+        >>> defaults = model.get_default_parameters()
+        >>> print(defaults['G'])
+        0.5
+        """
+        defaults = MPR_DEFAULTS.copy()
+        # Add required/derived parameters with None values
+        defaults['weights'] = None  # Required parameter (must be provided by user)
+        defaults['initial_state'] = None  # Optional (auto-generated if not provided)
+        defaults['nn'] = None  # Derived from weights.shape
+        defaults['sigma_r'] = None  # Derived from sqrt(dt) * sqrt(2 * noise_amp)
+        defaults['sigma_v'] = None  # Derived from sqrt(dt) * sqrt(4 * noise_amp)
+        return defaults
+    
+    def get_parameter_descriptions(self) -> Dict[str, tuple]:
+        """
+        Get descriptions of all Montbrió model parameters.
+        
+        Returns
+        -------
+        dict
+            Dictionary mapping parameter names to tuples of (description, type).
+            
+        Examples
+        --------
+        >>> model = MPR_sde({"weights": np.eye(2)})
+        >>> descriptions = model.get_parameter_descriptions()
+        >>> print(descriptions['G'])
+        ('Global coupling strength', 'scalar')
+        """
+        return {
+            'G': ('Global coupling strength scaling network connections', 'scalar'),
+            'dt': ('Integration time step (ms)', 'scalar'),
+            'J': ('Synaptic weight strength (ms⁻¹)', 'scalar'),
+            'eta': ('Mean excitability parameter', 'vector'),
+            'tau': ('Characteristic time constant (ms)', 'scalar'),
+            'delta': ('Spread of heterogeneous excitability distribution (ms⁻¹)', 'scalar'),
+            'rv_decimate': ('Decimation factor for neural activity recording', 'int'),
+            'noise_amp': ('Amplitude of additive Gaussian noise', 'scalar'),
+            'weights': ('Structural connectivity matrix (nn x nn)', 'matrix'),
+            't_init': ('Initial time of simulation (ms)', 'scalar'),
+            't_cut': ('Time from which to start collecting output (ms)', 'scalar'),
+            't_end': ('End time of simulation (ms)', 'scalar'),
+            'iapp': ('External applied current (stimulation)', 'scalar'),
+            'seed': ('Random seed for reproducibility (-1 for no seeding)', 'int'),
+            'output': ('Output directory name', 'string'),
+            'RECORD_RV': ('Whether to record neural activity (r, v) time series', 'bool'),
+            'RECORD_BOLD': ('Whether to record BOLD signal time series', 'bool'),
+            'tr': ('BOLD repetition time (ms)', 'scalar'),
+            'nn': ('[Derived] Number of nodes (from weights.shape)', 'int'),
+            'initial_state': ('[Derived] Initial state vector (2*nn)', 'vector'),
+            'sigma_r': ('[Derived] Noise std for firing rate (from noise_amp)', 'scalar'),
+            'sigma_v': ('[Derived] Noise std for membrane potential (from noise_amp)', 'scalar'),
+        }
+    
+    def list_parameters(self) -> List[str]:
+        """
+        List all valid parameter names.
+        
+        Returns
+        -------
+        list of str
+            List of valid parameter names.
+        """
+        return self.valid_params.copy()
 
     def __str__(self) -> str:
         """
@@ -419,13 +533,40 @@ class MPR_sde:
         str
             Formatted string showing all model parameters and their values.
         """
-        print("Montbrió Neural Mass Model (Numba)")
-        print("----------------------------------")
-        print("Parameters: --------------------------------")
-        for key in self.valid_par:
-            print(f"{key} = {getattr(self.P, key)}")
-        print("--------------------------------------------")
-        return ""
+        return self._format_parameters_table("MPR")
+
+    def _par_to_dict(self):
+        """
+        Convert parameter jitclass to dictionary.
+        
+        Returns
+        -------
+        dict
+            Dictionary containing all parameter values.
+        """
+        P = self.P
+        d = {
+            "G": P.G,
+            "dt": P.dt,
+            "J": P.J,
+            "eta": np.array(P.eta),
+            "tau": P.tau,
+            "delta": P.delta,
+            "rv_decimate": P.rv_decimate,
+            "noise_amp": P.noise_amp,
+            "t_init": P.t_init,
+            "t_cut": P.t_cut,
+            "t_end": P.t_end,
+            "iapp": P.iapp,
+            "seed": P.seed,
+            "output": P.output,
+            "weights": np.array(P.weights),
+            "RECORD_RV": P.RECORD_RV,
+            "RECORD_BOLD": P.RECORD_BOLD,
+            "tr": P.tr,
+            "initial_state": np.array(P.initial_state),
+        }
+        return d
 
     def check_parameters(self, par: dict) -> None:
         """
@@ -442,9 +583,9 @@ class MPR_sde:
             If any parameter name is not recognized.
         """
         for key in par.keys():
-            if key not in self.valid_par:
+            if key not in self.valid_params:
                 print(f"Invalid parameter: {key}")
-                print_valid_parameters(mpr_spec)
+                print(f"Valid parameters: {self.valid_params}")
                 raise ValueError(f"Invalid parameter: {key}")
 
     def get_par_mpr(self, par: dict):
@@ -612,27 +753,29 @@ class ParMPR:
     
     Note: This is an internal class used by the MPR_sde class. Users should
     not instantiate this class directly.
+    
+    Default values are defined in MPR_DEFAULTS dictionary.
     """
     def __init__(
         self,
-        G=0.5,
-        dt=0.01,
-        J=14.5,
-        eta=np.array([-4.6]),
-        tau=1.0,
-        delta=0.7,
-        rv_decimate=1.0,
-        noise_amp=0.037,
+        G=MPR_DEFAULTS['G'],
+        dt=MPR_DEFAULTS['dt'],
+        J=MPR_DEFAULTS['J'],
+        eta=np.array([MPR_DEFAULTS['eta']]),
+        tau=MPR_DEFAULTS['tau'],
+        delta=MPR_DEFAULTS['delta'],
+        rv_decimate=MPR_DEFAULTS['rv_decimate'],
+        noise_amp=MPR_DEFAULTS['noise_amp'],
         weights=np.array([[], []]),
-        t_init=0.0,
-        t_cut=0.0,
-        t_end=1000.0,
-        iapp=0.0,
-        seed=-1,
-        output="output",
-        RECORD_RV=True,
-        RECORD_BOLD=True,
-        tr=500.0,  # TR in milliseconds
+        t_init=MPR_DEFAULTS['t_init'],
+        t_cut=MPR_DEFAULTS['t_cut'],
+        t_end=MPR_DEFAULTS['t_end'],
+        iapp=MPR_DEFAULTS['iapp'],
+        seed=MPR_DEFAULTS['seed'],
+        output=MPR_DEFAULTS['output'],
+        RECORD_RV=MPR_DEFAULTS['RECORD_RV'],
+        RECORD_BOLD=MPR_DEFAULTS['RECORD_BOLD'],
+        tr=MPR_DEFAULTS['tr'],
     ):
 
         self.G = G

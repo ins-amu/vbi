@@ -11,3 +11,4 @@ myst_parser
 sphinx-autoapi
 sphinxcontrib-napoleon
 sphinxcontrib-bibtex
+furo
