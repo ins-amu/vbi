@@ -1,7 +1,6 @@
 import sys
 import os
 import subprocess
-import sphinx_bootstrap_theme
 # Import version directly from _version.py instead of using setuptools_scm
 sys.path.insert(0, os.path.abspath(".."))
 from vbi._version import __version__
@@ -27,13 +26,13 @@ nbsphinx_execute = 'never'
 
 default_role = "any"
 add_module_names = False
-html_theme = 'nature'
+html_theme = "furo"
+html_theme_options = {
+    "default_mode": "light",
+}
 pygments_style = "colorful"
 add_function_parentheses = True
 html_static_path = ['_static']
-
-# html_theme = "bootstrap"
-# html_theme_path = sphinx_bootstrap_theme.get_html_theme_path()
 
 exclude_patterns = ["_build", "**.ipynb_checkpoints"]
 
