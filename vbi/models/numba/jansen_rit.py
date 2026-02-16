@@ -466,8 +466,6 @@ class JR_sde(BaseNumbaModel):
         # Define valid parameters from JR_DEFAULTS, excluding derived parameters
         # 'nn' is derived from weights.shape, 'sigma' is derived from sqrt(dt) * noise_amp
         self.valid_params = [k for k in JR_DEFAULTS.keys() if k not in ['nn', 'sigma']]
-        # Add user-settable parameters not in defaults
-        self.valid_params.extend(['weights', 'initial_state'])
         
         self.check_parameters(par_jr)
         

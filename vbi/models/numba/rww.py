@@ -7,7 +7,7 @@ from numba.extending import register_jitable
 # from vbi.models.numba.utils import set_seed_compat
 from vbi.models.numba.bold import ParBold, bold_spec, do_bold_step
 from vbi.models.numba.utils import check_vec_size_1d, check_parameters
-
+from vbi.models.numba.base import BaseNumbaModel
 # ----------------------------------------
 # Reduced Wong–Wang spec (excitatory only)
 # ----------------------------------------
@@ -36,32 +36,67 @@ rww_spec = [
     ("s_decimate", int64),
 ]
 
+# Default parameter values - single source of truth
+RWW_DEFAULTS = {
+    'a': 270.0 / 1000.0,
+    'b': 108.0 / 1000.0,
+    'd': 0.154 * 1000.0,
+    'tau_s': 100.0,  # ms
+    'gamma': 0.641,
+    'w': 1.0,
+    'J': 0.2609,
+    'G': 0.0,
+    'I_ext': 0.382,
+    'weights': None,  # Required - must be provided by user
+    'sigma': 0.05,
+    'dt': 1.0,
+    't_end': 1000.0,
+    't_cut': 0.0,
+    'tr': 300.0,
+    'seed': -1,
+    'initial_state': None,  # Optional - auto-generated if not provided
+    'RECORD_S': True,
+    'RECORD_BOLD': True,
+    's_decimate': 1,
+}
+
 
 @jitclass(rww_spec)
 class ParRWW:
+    """
+    Numba jitclass container for Reduced Wong-Wang model parameters.
+    
+    This class holds all parameters needed for the Reduced Wong-Wang model
+    in a format optimized for Numba compilation.
+    
+    Note: This is an internal class used by the RWW_sde class. Users should
+    not instantiate this class directly.
+    
+    Default values are defined in RWW_DEFAULTS dictionary.
+    """
     def __init__(
         self,
-        a=270.0/1000.0,
-        b=108.0/1000.0,
-        d=0.154 * 1000.0,
-        tau_s=100.0,  # ms
-        gamma=0.641,
-        w=1.0,
-        J=0.2609,
-        G=0.0,
-        I_ext=np.array([0.382]),
+        a=RWW_DEFAULTS['a'],
+        b=RWW_DEFAULTS['b'],
+        d=RWW_DEFAULTS['d'],
+        tau_s=RWW_DEFAULTS['tau_s'],
+        gamma=RWW_DEFAULTS['gamma'],
+        w=RWW_DEFAULTS['w'],
+        J=RWW_DEFAULTS['J'],
+        G=RWW_DEFAULTS['G'],
+        I_ext=np.array([RWW_DEFAULTS['I_ext']]),
         weights=np.array([[0.0]]),
-        sigma=0.05,
-        dt=1.0,
-        t_end=1000.0,
-        t_cut=0.0,
-        tr=300.0,
+        sigma=RWW_DEFAULTS['sigma'],
+        dt=RWW_DEFAULTS['dt'],
+        t_end=RWW_DEFAULTS['t_end'],
+        t_cut=RWW_DEFAULTS['t_cut'],
+        tr=RWW_DEFAULTS['tr'],
         nn=1,
-        seed=-1,
+        seed=RWW_DEFAULTS['seed'],
         initial_state=np.array([0.0]),
-        RECORD_S=True,
-        RECORD_BOLD=True,
-        s_decimate=1,
+        RECORD_S=RWW_DEFAULTS['RECORD_S'],
+        RECORD_BOLD=RWW_DEFAULTS['RECORD_BOLD'],
+        s_decimate=RWW_DEFAULTS['s_decimate'],
     ):
         self.a = a
         self.b = b
@@ -132,10 +167,20 @@ def heun_sde(S, t, P):
 # -----------------------------
 # Public API class
 # -----------------------------
-class RWW_sde:
+class RWW_sde(BaseNumbaModel):
+    """
+    Reduced Wong-Wang model for simulating large-scale brain dynamics.
+    
+    This model implements a network of coupled excitatory populations using
+    a mean-field reduction of the Wong-Wang spiking neuron model. It includes
+    BOLD signal generation for comparison with fMRI data.
+    """
     def __init__(self, par: dict = {}, Bpar: dict = {}) -> None:
+        super().__init__()
         
         self.valid_par = [rww_spec[i][0] for i in range(len(rww_spec))]
+        # Set valid_params for BaseNumbaModel (excluding 'nn' which is derived)
+        self.valid_params = [k for k in RWW_DEFAULTS.keys() if k != 'nn']
         check_parameters(par, self.valid_par, rww_spec)
         
         nn = par.get("nn", None)
@@ -168,6 +213,82 @@ class RWW_sde:
         self.B = ParBold()
         for k, v in Bpar.items():
             setattr(self.B, k, v)
+    
+    def get_default_parameters(self):
+        """
+        Get the default parameters for the Reduced Wong-Wang model.
+        
+        Returns a copy of the RWW_DEFAULTS dictionary with additional
+        required/derived parameters.
+        
+        Returns
+        -------
+        dict
+            Dictionary containing default parameter values.
+            
+        Examples
+        --------
+        >>> from vbi.models.numba.rww import RWW_sde
+        >>> import numpy as np
+        >>> model = RWW_sde({"weights": np.eye(2)})
+        >>> defaults = model.get_default_parameters()
+        >>> print(defaults['G'])
+        0.0
+        """
+        defaults = RWW_DEFAULTS.copy()
+        defaults['nn'] = None  # Derived from weights.shape
+        return defaults
+    
+    def get_parameter_descriptions(self):
+        """
+        Get descriptions for all Reduced Wong-Wang model parameters.
+        
+        Returns
+        -------
+        dict
+            Dictionary mapping parameter names to tuples of (description, type).
+            
+        Examples
+        --------
+        >>> model = RWW_sde({"weights": np.eye(2)})
+        >>> descriptions = model.get_parameter_descriptions()
+        >>> print(descriptions['G'])
+        ('Global coupling strength', 'scalar')
+        """
+        return {
+            'a': ('Firing rate parameter a (dimensionless)', 'scalar'),
+            'b': ('Firing rate parameter b (dimensionless)', 'scalar'),
+            'd': ('Firing rate parameter d (dimensionless)', 'scalar'),
+            'tau_s': ('Synaptic time constant (ms)', 'scalar'),
+            'gamma': ('Kinetic parameter gamma', 'scalar'),
+            'w': ('Recurrent weight w', 'scalar'),
+            'J': ('Synaptic coupling J (nA)', 'scalar'),
+            'G': ('Global coupling strength', 'scalar'),
+            'I_ext': ('External input current per node (nA)', 'vector'),
+            'weights': ('Structural connectivity matrix', 'matrix'),
+            'sigma': ('Noise amplitude', 'scalar'),
+            'dt': ('Integration time step (ms)', 'scalar'),
+            't_end': ('End time of simulation (ms)', 'scalar'),
+            't_cut': ('Time to cut initial transient (ms)', 'scalar'),
+            'nn': ('[Derived] Number of nodes', 'int'),
+            'seed': ('Random seed (-1 = no seed)', 'int'),
+            'initial_state': ('[Derived] Initial state vector (nn)', 'vector'),
+            'RECORD_S': ('Whether to record synaptic activity', 'bool'),
+            'RECORD_BOLD': ('Whether to record BOLD signal', 'bool'),
+            'tr': ('BOLD repetition time (ms)', 'scalar'),
+            's_decimate': ('Decimation factor for synaptic activity', 'int'),
+        }
+    
+    def __str__(self) -> str:
+        """
+        Return a formatted string representation of the model parameters.
+        
+        Returns
+        -------
+        str
+            Formatted string showing all model parameters and their values.
+        """
+        return self._format_parameters_table("Reduced Wong-Wang")
             
     def run(self, par: dict = {}, x0=None):
         

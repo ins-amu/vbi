@@ -28,6 +28,7 @@ from numba import float64, types
 from numba import njit
 from typing import Any
 from vbi.utils import print_valid_parameters
+from vbi.models.numba.base import BaseNumbaModel
 
 jit_spec = [('a', float64),
             ('b', float64),
@@ -240,7 +241,7 @@ def _integrate(x, P, intg=euler):
     return t, x_out
 
 
-class DO:
+class DO(BaseNumbaModel):
     """
     Numba implementation of the damped oscillator model.
     
@@ -325,39 +326,58 @@ class DO:
             available parameters. Default is an empty dictionary which uses 
             all default parameter values.
         """
+        # initialize base
+        super().__init__()
+
+        # valid parameter list used by BaseNumbaModel
         self.valid_params = [jit_spec[i][0] for i in range(len(jit_spec))]
+        if par is None:
+            par = {}
         self.check_parameters(par)
+
+        # create numba parameter object
         self.P = self.get_parobj(par)
 
+        # ensure output directory
         self.P.output = "output" if self.P.output is None else self.P.output
         os.makedirs(self.P.output, exist_ok=True)
 
+    @staticmethod
+    def get_default_parameters() -> dict:
+        """Return default parameter values for the damped oscillator."""
+        return {
+            "a": 0.1,
+            "b": 0.05,
+            "dt": 0.01,
+            "t_start": 0,
+            "t_end": 100.0,
+            "t_cut": 20,
+            "output": "output",
+            "method": "euler",
+            "initial_state": np.array([0.5, 1.0]),
+        }
+
+    @staticmethod
+    def get_parameter_descriptions() -> dict:
+        """Return descriptions and types for model parameters.
+
+        Each value is a tuple (description, type_string).
+        """
+        return {
+            "a": ("Damping parameter for x (ax^2)", "float"),
+            "b": ("Damping parameter for y (by^2)", "float"),
+            "dt": ("Integration time step", "float"),
+            "t_start": ("Start time of simulation", "float"),
+            "t_end": ("End time of simulation", "float"),
+            "t_cut": ("Burn-in time to discard", "float"),
+            "output": ("Output directory", "str"),
+            "method": ("Integration method: euler | heun | rk4", "str"),
+            "initial_state": ("Initial state vector [x0, y0]", "ndarray"),
+        }
+
     def __str__(self) -> str:
-        """
-        Return a string representation of the model parameters.
-        
-        Returns
-        -------
-        str
-            Formatted string showing all model parameters and their values.
-        """
-        print("Damped Oscillator Model (Numba)")
-        print("-------------------------------")
-        
-        # Model parameters
-        print(f"a = {self.P.a}")
-        print(f"b = {self.P.b}")
-        
-        # Simulation parameters
-        print(f"dt = {self.P.dt}")
-        print(f"t_start = {self.P.t_start}")
-        print(f"t_end = {self.P.t_end}")
-        print(f"t_cut = {self.P.t_cut}")
-        print(f"method = {self.P.method}")
-        print(f"output = {self.P.output}")
-        print(f"initial_state = {self.P.initial_state}")
-        
-        return ""
+        """Return formatted table of parameters using BaseNumbaModel helper."""
+        return self._format_parameters_table("Damped Oscillator (Numba)")
 
     def __call__(self, *args: Any, **kwds: Any) -> Any:
         print("Damped Oscillator Model (Numba)")

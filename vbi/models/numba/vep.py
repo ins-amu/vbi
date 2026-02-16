@@ -442,7 +442,7 @@ class VEP_sde(BaseNumbaModel):
         # Note: 'nn' is derived from weights.shape, not user-settable
         self.valid_params = [k for k in VEP_DEFAULTS.keys() if k != 'nn']
         # Add user-settable parameters not in defaults
-        self.valid_params.extend(['weights', 'initial_state'])
+        # self.valid_params.extend(['weights', 'initial_state'])
         
         self.P = self._make_par(par_vep)
         self.seed = self.P.seed

@@ -10,6 +10,7 @@ These tests verify:
 6. Coupling effects
 7. Deterministic vs. stochastic behavior
 8. Parameter validation
+9. Unified parameter access methods (get_parameters, get_parameter, etc.)
 """
 
 import unittest
@@ -17,6 +18,197 @@ import numpy as np
 import pytest
 from copy import deepcopy
 from vbi.models.numba.sl import SL_sde
+
+
+class TestStuartLandauParameterAccess(unittest.TestCase):
+    """Test unified parameter access methods for Stuart-Landau model."""
+
+    def setUp(self):
+        """Set up common test parameters."""
+        self.nn = 2
+        self.weights = np.array([
+            [0.0, 0.1],
+            [0.1, 0.0],
+        ])
+        self.custom_params = {
+            "weights": self.weights,
+            "a": 0.25,
+            "G": 0.7,
+            "omega": 2.0 * np.pi * 0.050,  # 50 Hz
+            "sigma": 0.02,
+            "dt": 0.05,
+            "t_end": 500.0,
+        }
+
+    def test_get_parameters_returns_dict(self):
+        """Test that get_parameters() returns a dictionary."""
+        model = SL_sde(self.custom_params)
+        params = model.get_parameters()
+        
+        self.assertIsInstance(params, dict)
+        self.assertGreater(len(params), 0)
+
+    def test_get_parameters_includes_custom_values(self):
+        """Test that get_parameters() returns actual custom values."""
+        model = SL_sde(self.custom_params)
+        params = model.get_parameters()
+        
+        self.assertAlmostEqual(params['a'], 0.25)
+        self.assertAlmostEqual(params['G'], 0.7)
+        self.assertAlmostEqual(params['omega'], 2.0 * np.pi * 0.050, places=6)
+        self.assertAlmostEqual(params['sigma'], 0.02)
+        self.assertAlmostEqual(params['dt'], 0.05)
+
+    def test_get_parameters_includes_defaults(self):
+        """Test that get_parameters() includes default values for non-custom params."""
+        model = SL_sde(self.custom_params)
+        params = model.get_parameters()
+        
+        # These should have default values
+        self.assertIn('t_cut', params)
+        self.assertIn('seed', params)
+        self.assertIn('speed', params)
+        self.assertIn('RECORD_X', params)
+        self.assertIn('x_decimate', params)
+
+    def test_get_parameter_single_value(self):
+        """Test that get_parameter(name) returns single parameter value."""
+        model = SL_sde(self.custom_params)
+        
+        a_value = model.get_parameter('a')
+        self.assertAlmostEqual(a_value, 0.25)
+        
+        G_value = model.get_parameter('G')
+        self.assertAlmostEqual(G_value, 0.7)
+
+    def test_get_parameter_derived_param(self):
+        """Test that get_parameter() can access derived parameters like 'nn'."""
+        model = SL_sde(self.custom_params)
+        
+        nn_value = model.get_parameter('nn')
+        self.assertEqual(nn_value, 2)
+
+    def test_get_parameter_invalid_raises_error(self):
+        """Test that get_parameter() raises error for invalid parameter."""
+        model = SL_sde(self.custom_params)
+        
+        with self.assertRaises(AttributeError) as context:
+            model.get_parameter('invalid_parameter_name')
+        
+        self.assertIn('not found', str(context.exception).lower())
+
+    def test_get_default_parameters_returns_dict(self):
+        """Test that get_default_parameters() returns dictionary."""
+        model = SL_sde(self.custom_params)
+        defaults = model.get_default_parameters()
+        
+        self.assertIsInstance(defaults, dict)
+        self.assertGreater(len(defaults), 0)
+
+    def test_get_default_parameters_has_correct_values(self):
+        """Test that get_default_parameters() returns correct default values."""
+        model = SL_sde(self.custom_params)
+        defaults = model.get_default_parameters()
+        
+        self.assertAlmostEqual(defaults['a'], 0.1)
+        self.assertAlmostEqual(defaults['G'], 0.0)
+        self.assertAlmostEqual(defaults['sigma'], 0.01)
+        self.assertAlmostEqual(defaults['dt'], 0.1)
+        self.assertEqual(defaults['seed'], -1)
+        self.assertTrue(defaults['RECORD_X'])
+        self.assertEqual(defaults['x_decimate'], 1)
+
+    def test_get_default_vs_get_parameters_difference(self):
+        """Test difference between get_default_parameters() and get_parameters()."""
+        model = SL_sde(self.custom_params)
+        
+        defaults = model.get_default_parameters()
+        actual = model.get_parameters()
+        
+        # Custom values should differ
+        self.assertNotAlmostEqual(defaults['a'], actual['a'])
+        self.assertNotAlmostEqual(defaults['G'], actual['G'])
+        
+        # Non-custom values should match defaults
+        self.assertEqual(defaults['seed'], actual['seed'])
+        self.assertEqual(defaults['RECORD_X'], actual['RECORD_X'])
+
+    def test_get_parameter_descriptions_returns_dict(self):
+        """Test that get_parameter_descriptions() returns dictionary."""
+        model = SL_sde(self.custom_params)
+        descriptions = model.get_parameter_descriptions()
+        
+        self.assertIsInstance(descriptions, dict)
+        self.assertGreater(len(descriptions), 0)
+
+    def test_get_parameter_descriptions_has_tuples(self):
+        """Test that parameter descriptions are tuples of (description, type)."""
+        model = SL_sde(self.custom_params)
+        descriptions = model.get_parameter_descriptions()
+        
+        for param_name, desc in descriptions.items():
+            self.assertIsInstance(desc, tuple, f"{param_name} should have tuple description")
+            self.assertEqual(len(desc), 2, f"{param_name} should have (description, type)")
+            self.assertIsInstance(desc[0], str, "Description should be string")
+            self.assertIsInstance(desc[1], str, "Type should be string")
+
+    def test_get_parameter_descriptions_has_all_params(self):
+        """Test that get_parameter_descriptions() covers all parameters."""
+        model = SL_sde(self.custom_params)
+        descriptions = model.get_parameter_descriptions()
+        
+        # Check key parameters are described
+        expected_params = ['a', 'omega', 'G', 'sigma', 'dt', 't_end', 't_cut', 
+                          'nn', 'seed', 'speed', 'weights', 'tr_len', 
+                          'initial_state', 'RECORD_X', 'x_decimate']
+        
+        for param in expected_params:
+            self.assertIn(param, descriptions, f"Missing description for {param}")
+
+    def test_get_parameter_descriptions_types(self):
+        """Test that parameter type descriptions are correct."""
+        model = SL_sde(self.custom_params)
+        descriptions = model.get_parameter_descriptions()
+        
+        # Check some known types
+        self.assertEqual(descriptions['a'][1], 'scalar')
+        self.assertEqual(descriptions['G'][1], 'scalar')
+        self.assertEqual(descriptions['nn'][1], 'int')
+        self.assertEqual(descriptions['seed'][1], 'int')
+        self.assertEqual(descriptions['weights'][1], 'matrix')
+        self.assertEqual(descriptions['tr_len'][1], 'matrix')
+        self.assertEqual(descriptions['RECORD_X'][1], 'bool')
+
+    def test_list_parameters(self):
+        """Test that list_parameters() returns valid parameter names."""
+        model = SL_sde(self.custom_params)
+        param_list = model.list_parameters()
+        
+        self.assertIsInstance(param_list, list)
+        self.assertGreater(len(param_list), 0)
+        
+        # Should include user-settable parameters
+        self.assertIn('a', param_list)
+        self.assertIn('G', param_list)
+        self.assertIn('weights', param_list)
+
+    def test_parameters_consistency_after_run(self):
+        """Test that parameters remain consistent after running simulation."""
+        model = SL_sde(self.custom_params)
+        
+        params_before = model.get_parameters()
+        result = model.run()
+        params_after = model.get_parameters()
+        
+        # Key parameters should remain the same
+        self.assertAlmostEqual(params_before['a'], params_after['a'])
+        self.assertAlmostEqual(params_before['G'], params_after['G'])
+        
+        # Check derived parameter directly
+        nn_before = model.get_parameter('nn')
+        nn_after = model.get_parameter('nn')
+        self.assertEqual(nn_before, nn_after)
+
 
 
 class TestStuartLandauBasic(unittest.TestCase):

@@ -49,6 +49,8 @@ WC_DEFAULTS = {
     'RECORD_EI': 'E',
     'shift_sigmoid': False,
     'seed': -1,
+    'weights': None,
+    'initial_state': None,
 }
 
 
@@ -579,9 +581,7 @@ class WC_sde_numba(BaseNumbaModel):
         """
         # Define valid parameters from WC_DEFAULTS, excluding 'nn' (derived from weights.shape)
         # Note: 'nn' is derived and should not be set by users
-        self.valid_params = [k for k in WC_DEFAULTS.keys() if k != 'nn']
-        # Add user-settable parameters not in defaults
-        self.valid_params.extend(['weights', 'initial_state'])
+        self.valid_params = [k for k in WC_DEFAULTS.keys() if k != 'nn']        
         
         # Validate parameters before building jitclass
         self.check_parameters(par)
@@ -673,17 +673,6 @@ class WC_sde_numba(BaseNumbaModel):
             'nn': ('[Derived] Number of nodes (from weights.shape)', 'int'),
             'initial_state': ('Initial state vector (2*nn)', 'vector'),
         }
-    
-    def get_parameters(self) -> Dict[str, Any]:
-        """
-        Get the current parameter values.
-        
-        Returns
-        -------
-        dict
-            Dictionary containing current parameter values.
-        """
-        return self._par_to_dict()
     
     def list_parameters(self) -> List[str]:
         """

@@ -4,6 +4,7 @@ from numba import njit
 from numba.experimental import jitclass
 from numba.core.errors import NumbaPerformanceWarning
 from numba import float64, int64
+from vbi.models.numba.base import BaseNumbaModel
 
 warnings.simplefilter("ignore", category=NumbaPerformanceWarning)
 
@@ -38,7 +39,7 @@ def run(P, times):
     omega = P.omega
     tcut = P.tcut
     decimate = P.decimate
-    init_state = P.init_state
+    initial_state = P.initial_state
 
     epsilon = 0.5
     itaus = 1.25
@@ -63,7 +64,7 @@ def run(P, times):
     # act = np.zeros((nn, nt))
 
     # initial conditions (similar value for all regions)
-    x_init, y_init = init_state[:nn], init_state[nn:]
+    x_init, y_init = initial_state[:nn], initial_state[nn:]
     x[:] = x_init
     y[:] = y_init
 
@@ -125,7 +126,7 @@ def run(P, times):
     return t_bold, bold
 
 
-class GHB_sde(object):
+class GHB_sde(BaseNumbaModel):
     """
     Numba implementation of the Generic Hopf Bifurcation model with BOLD signal generation.
     
@@ -179,7 +180,7 @@ class GHB_sde(object):
         * - `decimate`
           - Decimation factor for output time series (every `decimate`-th point is saved).
           - 1
-        * - `init_state`
+        * - `initial_state`
           - Initial state vector of shape (2*nn,) containing [x₀, y₀]. If None, random initial conditions are generated.
           - np.array([])
         * - `seed`
@@ -227,9 +228,64 @@ class GHB_sde(object):
             available parameters. The 'weights', 'eta', and 'omega' parameters 
             are required for proper functionality.
         """
+        super().__init__()
         self.valid_par = [par_spec[i][0] for i in range(len(par_spec))]
+        # Set valid_params for BaseNumbaModel (excluding derived parameters if any)
+        self.valid_params = [k for k in GHB_DEFAULTS.keys()]
         self.check_parameters(par)
         self.P = self.get_par_obj(par)
+    
+    def get_default_parameters(self):
+        """
+        Get the default parameters for the Generic Hopf Bifurcation model.
+        
+        Returns a copy of the GHB_DEFAULTS dictionary.
+        
+        Returns
+        -------
+        dict
+            Dictionary containing default parameter values.
+            
+        Examples
+        --------
+        >>> from vbi.models.numba.ghb import GHB_sde
+        >>> import numpy as np
+        >>> model = GHB_sde({"weights": np.eye(2), "eta": np.array([0.1, 0.1]), "omega": np.array([40.0, 40.0])})
+        >>> defaults = model.get_default_parameters()
+        >>> print(defaults['G'])
+        1.0
+        """
+        return GHB_DEFAULTS.copy()
+    
+    def get_parameter_descriptions(self):
+        """
+        Get descriptions for all Generic Hopf Bifurcation model parameters.
+        
+        Returns
+        -------
+        dict
+            Dictionary mapping parameter names to tuples of (description, type).
+            
+        Examples
+        --------
+        >>> model = GHB_sde({"weights": np.eye(2), "eta": np.array([0.1, 0.1]), "omega": np.array([40.0, 40.0])})
+        >>> descriptions = model.get_parameter_descriptions()
+        >>> print(descriptions['G'])
+        ('Global coupling strength', 'scalar')
+        """
+        return {
+            'G': ('Global coupling strength scaling network connections', 'scalar'),
+            'dt': ('Integration time step (seconds)', 'scalar'),
+            'sigma': ('Noise amplitude (standard deviation)', 'scalar'),
+            'tend': ('End time of simulation (seconds)', 'scalar'),
+            'tcut': ('Burn-in time (seconds)', 'scalar'),
+            'eta': ('Bifurcation parameter per node', 'vector'),
+            'omega': ('Intrinsic frequency per node (Hz)', 'vector'),
+            'weights': ('Structural connectivity matrix', 'matrix'),
+            'decimate': ('Decimation factor for output', 'int'),
+            'initial_state': ('[Derived] Initial state vector (2*nn)', 'vector'),
+            'seed': ('Random seed (-1 = no seed)', 'int'),
+        }
 
     def get_par_obj(self, par: dict):
         """
@@ -245,26 +301,22 @@ class GHB_sde(object):
         ParGHB
             Numba jitclass parameter object.
         """
-        if "init_state" in par.keys():
-            par["init_state"] = np.array(par["init_state"])
+        if "initial_state" in par.keys():
+            par["initial_state"] = np.array(par["initial_state"])
         if "weights" in par.keys():
             par["weights"] = np.array(par["weights"])
         return ParGHB(**par)
 
     def __str__(self) -> str:
         """
-        Return a string representation of the model parameters.
+        Return a formatted string representation of the model parameters.
         
         Returns
         -------
         str
             Formatted string showing all model parameters and their values.
         """
-        print("Generic Hopf Bifurcation Model (Numba)")
-        print("---------------------------------------")
-        for key in self.valid_par:
-            print(f"{key}: {getattr(self.P, key)}")
-        return ""
+        return self._format_parameters_table("Generic Hopf Bifurcation")
 
     def check_parameters(self, par: dict) -> None:
         """
@@ -347,9 +399,9 @@ class GHB_sde(object):
         """
         if x0 is None:
             self.seed = self.P.seed if self.P.seed > 0 else None
-            self.P.init_state = self.set_initial_state(seed=self.seed)
+            self.P.initial_state = self.set_initial_state(seed=self.seed)
         else:
-            self.P.init_state = x0
+            self.P.initial_state = x0
 
         if tspan is None:
             times = np.arange(0, self.P.tend, self.P.dt)
@@ -377,8 +429,23 @@ par_spec = [
     ("decimate", int64),
     ("omega", float64[:]),
     ("weights", float64[:, :]),
-    ("init_state", float64[:]),
+    ("initial_state", float64[:]),
 ]
+
+# Default parameter values - single source of truth
+GHB_DEFAULTS = {
+    'G': 1.0,
+    'dt': 0.001,
+    'sigma': 0.1,
+    'tend': 10.0,
+    'tcut': 0.0,
+    'eta': None,  # Required - must be provided by user
+    'omega': None,  # Required - must be provided by user
+    'weights': None,  # Required - must be provided by user
+    'decimate': 1,
+    'initial_state': None,  # Optional - auto-generated if not provided
+    'seed': -1,
+}
 
 
 @jitclass(par_spec)
@@ -392,19 +459,22 @@ class ParGHB:
     
     Note: This is an internal class used by the GHB_sde class. Users should
     not instantiate this class directly.
+    
+    Default values are defined in GHB_DEFAULTS dictionary.
     """
     def __init__(
         self,
-        G=1.0,
-        dt=0.001,
-        sigma=0.1,
-        tend=10.0,
-        tcut=0.0,
+        G=GHB_DEFAULTS['G'],
+        dt=GHB_DEFAULTS['dt'],
+        sigma=GHB_DEFAULTS['sigma'],
+        tend=GHB_DEFAULTS['tend'],
+        tcut=GHB_DEFAULTS['tcut'],
         eta=np.array([]),
-        init_state=np.array([]),
+        initial_state=np.array([]),
         omega=np.array([]),
         weights=np.array([[], []]),
-        decimate=1,
+        decimate=GHB_DEFAULTS['decimate'],
+        seed=-1,
     ):
         """
         Initialize the parameter container.
@@ -423,7 +493,7 @@ class ParGHB:
             Burn-in time.
         eta : np.ndarray
             Bifurcation parameters for each node.
-        init_state : np.ndarray
+        initial_state : np.ndarray
             Initial state vector.
         omega : np.ndarray
             Intrinsic frequencies for each node.
@@ -442,7 +512,7 @@ class ParGHB:
         self.omega = omega
         self.weights = weights
         self.decimate = decimate
-        self.init_state = init_state
+        self.initial_state = initial_state
 
 
 # Alias for consistency with naming convention

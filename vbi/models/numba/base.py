@@ -5,12 +5,11 @@ This base class provides a consistent API across all Numba-based neural mass mod
 similar to the BaseModel class used for C++ models. However, it accounts for the
 specific architecture of Numba models which use jitclass for efficient parameter storage.
 """
-from abc import ABC, abstractmethod
 from typing import Dict, List, Any
 import numpy as np
 
 
-class BaseNumbaModel(ABC):
+class BaseNumbaModel:
     """
     Abstract base class for all VBI Numba models.
     
@@ -36,7 +35,6 @@ class BaseNumbaModel(ABC):
         self.valid_params = []
         self._checked = False
     
-    @abstractmethod
     def get_default_parameters(self) -> Dict[str, Any]:
         """
         Get the default parameters for the model.
@@ -53,9 +51,8 @@ class BaseNumbaModel(ABC):
         >>> print(defaults['G'])
         1.0
         """
-        pass
+        raise NotImplementedError("Subclass must implement get_default_parameters()")
     
-    @abstractmethod
     def get_parameter_descriptions(self) -> Dict[str, str]:
         """
         Get descriptions for all model parameters.
@@ -74,7 +71,7 @@ class BaseNumbaModel(ABC):
         >>> print(descriptions['G'])
         ('Global coupling strength', 'scalar')
         """
-        pass
+        raise NotImplementedError("Subclass must implement get_parameter_descriptions()")
     
     def check_parameters(self, par: Dict[str, Any]) -> None:
         """
@@ -110,6 +107,9 @@ class BaseNumbaModel(ABC):
         """
         Get all model parameters as a dictionary.
         
+        This method can be overridden by subclasses that have a _par_to_dict()
+        helper method. By default, it reads parameters directly from self.P.
+        
         Returns
         -------
         dict
@@ -125,11 +125,20 @@ class BaseNumbaModel(ABC):
         if self.P is None:
             return {}
         
+        # If subclass has _par_to_dict, use it
+        if hasattr(self, '_par_to_dict'):
+            return self._par_to_dict()
+        
+        # Default fallback: read directly from self.P
         params = {}
         for param_name in self.valid_params:
             if hasattr(self.P, param_name):
                 value = getattr(self.P, param_name)
-                params[param_name] = value
+                # Convert numpy arrays for consistency
+                if isinstance(value, np.ndarray):
+                    params[param_name] = np.array(value)
+                else:
+                    params[param_name] = value
         
         return params
     
@@ -212,7 +221,6 @@ class BaseNumbaModel(ABC):
         print("Valid parameters:")
         print(", ".join(self.valid_params))
     
-    @abstractmethod
     def run(self, par: Dict[str, Any] = None, **kwargs) -> Dict[str, Any]:
         """
         Run the model simulation.
@@ -236,7 +244,7 @@ class BaseNumbaModel(ABC):
         >>> result = model.run()
         >>> t, x = result['t'], result['x']
         """
-        pass
+        raise NotImplementedError("Subclass must implement run()")
     
     def __call__(self) -> Dict[str, Any]:
         """
@@ -299,9 +307,14 @@ class BaseNumbaModel(ABC):
             # Other types
             return str(value)
     
-    def _format_parameters_table(self) -> str:
+    def _format_parameters_table(self, model_name: str = None) -> str:
         """
         Format model parameters as a table with names, descriptions, values, and types.
+        
+        Parameters
+        ----------
+        model_name : str, optional
+            Custom name to display for the model. If None, uses self.__class__.__name__.
         
         Returns
         -------
@@ -315,9 +328,12 @@ class BaseNumbaModel(ABC):
         param_info = self.get_parameter_descriptions()
         current_params = self.get_parameters()
         
+        # Use provided model_name or default to class name
+        display_name = model_name if model_name is not None else self.__class__.__name__
+        
         lines = [
             "=" * 110,
-            f"{self.__class__.__name__}",
+            f"{display_name}",
             "=" * 110,
             "",
             "Model Parameters:",
