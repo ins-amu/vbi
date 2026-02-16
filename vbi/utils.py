@@ -1163,3 +1163,78 @@ def print_valid_parameters(par_spec):
     for name, dtype in par_spec:
         print(f"{name:<15} {pretty_dtype(dtype)}")
     print("────────────────────────────────────────────")
+
+
+def update_codemeta_version():
+    """
+    Update codemeta.json with current version from vbi/_version.py
+    
+    This function automatically syncs the following fields in codemeta.json:
+      - version: synced from vbi/_version.py
+      - downloadUrl: updated to https://pypi.org/project/vbi/{version}/
+      - releaseNotes: updated to https://github.com/ins-amu/vbi/releases/tag/v{version}
+      - dateModified: set to current date
+    
+    Usage:
+        python -m vbi.utils
+        
+    Or in Python:
+        from vbi.utils import update_codemeta_version
+        update_codemeta_version()
+    
+    Workflow when releasing a new version:
+        1. Update version in vbi/_version.py (e.g., "0.4.4")
+        2. Run: python -m vbi.utils
+        3. Commit both files together
+    """
+    import json
+    from datetime import datetime
+    from pathlib import Path
+    
+    # Get paths
+    vbi_dir = Path(__file__).parent
+    project_root = vbi_dir.parent
+    version_file = vbi_dir / '_version.py'
+    codemeta_file = project_root / 'codemeta.json'
+    
+    # Get version from _version.py
+    if not version_file.exists():
+        raise FileNotFoundError(f"Version file not found: {version_file}")
+    
+    with open(version_file, 'r') as f:
+        for line in f:
+            if line.startswith('__version__'):
+                version = line.split('=')[1].strip().strip('"\'')
+                break
+        else:
+            raise ValueError(f"No __version__ found in {version_file}")
+    
+    # Update codemeta.json
+    if not codemeta_file.exists():
+        print(f"Warning: {codemeta_file} not found")
+        return
+    
+    with open(codemeta_file, 'r') as f:
+        codemeta = json.load(f)
+    
+    # Update only these 4 fields
+    old_version = codemeta.get('version', 'unknown')
+    codemeta['version'] = version
+    codemeta['downloadUrl'] = f"https://pypi.org/project/vbi/{version}/"
+    codemeta['releaseNotes'] = f"https://github.com/ins-amu/vbi/releases/tag/v{version}"
+    codemeta['dateModified'] = datetime.now().strftime('%Y-%m-%d')
+    
+    # Write back with same formatting
+    with open(codemeta_file, 'w') as f:
+        json.dump(codemeta, f, indent=2, ensure_ascii=False)
+        f.write('\n')
+    
+    print(f"✅ Updated codemeta.json: {old_version} → {version}")
+    print(f"   Download URL: {codemeta['downloadUrl']}")
+    print(f"   Release notes: {codemeta['releaseNotes']}")
+    print(f"   Date modified: {codemeta['dateModified']}")
+
+
+# Allow running as: python -m vbi.utils
+if __name__ == "__main__":
+    update_codemeta_version()

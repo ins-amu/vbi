@@ -23,11 +23,18 @@ except ImportError:
     ENGINE = "cpu"
 
 
+# Import BaseCupyModel separately to avoid NameError
+BASE_AVAILABLE = True
+try:
+    from vbi.models.cupy.base import BaseCupyModel
+except ImportError:
+    BASE_AVAILABLE = False
+
+
 # Import all CuPy models
 GHB_AVAILABLE = True
 try:
     from vbi.models.cupy.ghb import GHB_sde
-    from vbi.models.cupy.base import BaseCupyModel
 except ImportError:
     GHB_AVAILABLE = False
 
