@@ -58,6 +58,12 @@ vbi.models.cpp.damp_oscillator
 Cupy models 
 -----------
 
+vbi.models.cupy.base
+~~~~~~~~~~~~~~~~~~~~
+    .. automodule:: vbi.models.cupy.base
+        :members:
+        :undoc-members:
+
 vbi.models.cupy.mpr 
 ~~~~~~~~~~~~~~~~~~~
     .. automodule:: vbi.models.cupy.mpr
@@ -121,6 +127,12 @@ vbi.models.cupy.ww
 
 Numba models 
 ------------
+
+vbi.models.numba.base
+~~~~~~~~~~~~~~~~~~~~~
+    .. automodule:: vbi.models.numba.base
+        :members:
+        :undoc-members:
 
 vbi.models.numba.damp_oscillator
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
