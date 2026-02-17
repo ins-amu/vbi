@@ -183,15 +183,13 @@ Brain Models
 
    models
 
-Inference Methods
------------------
+Inference Methods & Examples
+----------------------------
 
 .. toctree::
    :maxdepth: 1
 
    inference_examples
-   inference_cde_guide
-   inference_cde_mdn_basic
 
 Examples & Tutorials
 --------------------
