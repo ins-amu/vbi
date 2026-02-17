@@ -69,14 +69,14 @@ class KM_sde(BaseModel):
             "alpha": ("Frustration matrix", "matrix"),
             "omega": ("Natural angular frequencies per node", "vector"),
             "noise_seed": ("Seed for noise generation in C++", "scalar"),
-            "seed": ("Random seed for initial state", "-"),
+            "seed": ("Random seed for initial state", "int"),
             "t_initial": ("Initial time", "scalar"),
             "t_transition": ("Transition time", "scalar"),
             "t_end": ("End time of simulation", "scalar"),
             "num_threads": ("Number of OpenMP threads", "scalar"),
             "output": ("Output directory", "string"),
             "initial_state": ("Initial state of the system", "vector"),
-            "type": ("Data type for computations", "-"),
+            "type": ("Data type for computations", "np.float32|np.float64"),
         }
 
     def __str__(self) -> str:

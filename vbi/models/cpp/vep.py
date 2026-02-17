@@ -107,7 +107,7 @@ class VEP_sde(BaseModel):
         """
         return {
             "G": ("Global coupling strength", "scalar"),
-            "seed": ("Random seed for reproducibility", "-"),
+            "seed": ("Random seed for reproducibility", "int"),
             "initial_state": ("Initial state of the system", "vector"),
             "weights": ("Structural connectivity matrix", "matrix"),
             "tau": ("Time constant", "scalar"),

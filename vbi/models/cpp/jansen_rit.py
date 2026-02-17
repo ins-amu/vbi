@@ -309,6 +309,11 @@ class JR_sdde(BaseModel):
 
     def __init__(self, par={}) -> None:
         super().__init__()
+        if "C" in par:
+            raise ValueError(
+                "Parameter 'C' is no longer supported in JR_sdde. "
+                "Use explicit synaptic parameters 'C0', 'C1', 'C2', and 'C3' instead."
+            )
         
         self._par = self.get_default_parameters()
         self.valid_params = list(self._par.keys())
@@ -358,7 +363,6 @@ class JR_sdde(BaseModel):
             "v0": 6.0,
             "vmax": 0.005,
             "r": 0.56,
-            "C": None,  # kept for backward compatibility
             "C0": 135.0 * 1.0,
             "C1": 135.0 * 0.8,
             "C2": 135.0 * 0.25,
@@ -406,7 +410,6 @@ class JR_sdde(BaseModel):
             "v0": ("Firing threshold", "scalar"),
             "vmax": ("Maximum firing rate parameter", "scalar"),
             "r": ("Steepness of sigmoid", "scalar"),
-            "C": ("Legacy synaptic contacts parameter", "-"),
             "C0": ("Synaptic contacts (pyr→exc)", "scalar|vector"),
             "C1": ("Synaptic contacts (exc→pyr)", "scalar|vector"),
             "C2": ("Synaptic contacts (pyr→inh)", "scalar|vector"),

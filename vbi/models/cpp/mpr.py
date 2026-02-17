@@ -74,7 +74,7 @@ class MPR_sde(BaseModel):
             "noise_amp": ("Amplitude of noise", "scalar"),
             "noise_seed": ("Seed for noise generation", "scalar"),
             "iapp": ("Applied constant current", "scalar|vector"),
-            "seed": ("Random seed for reproducibility", "-"),
+            "seed": ("Random seed for reproducibility", "int"),
             "initial_state": ("Initial state of the system", "vector"),
             "t_cut": ("Transition time (ms)", "scalar"),
             "t_end": ("End time of simulation (ms)", "scalar"),

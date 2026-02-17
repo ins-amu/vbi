@@ -113,7 +113,7 @@ class WC_ode(BaseModel):
             "G_inh": ("Inhibitory global coupling", "scalar"),
             "method": ("Integration method", "string"),
             "weights": ("Structural connectivity matrix", "matrix"),
-            "seed": ("Random seed for reproducibility", "-"),
+            "seed": ("Random seed for reproducibility", "int"),
             "t_end": ("End time of simulation", "scalar"),
             "t_cut": ("Transition time to cut", "scalar"),
             "dt": ("Integration time step", "scalar"),
