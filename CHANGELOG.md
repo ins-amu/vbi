@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.3] - 2026-02-17
+
+### Added
+- Unified parameter API tests for CuPy models.
+- New tests for the Reduced Wong-Wang (RWW) model, including parameter access, validation, and BOLD signal generation.
+- A notebook for plotting examples with 1D and 2D distributions.
+- Parameter description methods across multiple C++ models.
+- Improved parameter table display test coverage for C++ models.
+- API docs now include automodule directives for base models in CuPy and Numba sections.
+- GitHub Actions workflow to auto-update `codemeta.json`.
+
+### Changed
+- Refactored CuPy models to inherit from `BaseCupyModel` with unified parameter management and descriptions (GHB, JR, KM, MPR, WC, WW).
+- Refactored parameter handling in C++ models (`JR_sdde`, `KM_sde`, `MPR_sde`, `VEP_sde`, `WC_ode`) for more consistent display and access.
+- Refactored parameter handling and compatibility naming for Numba models (`JR_sde`, `VEP_sde`, `WC_ode`).
+- Refactored Stuart-Landau model parameter access for consistency.
+- Updated docs theme to Furo and reorganized parts of inference documentation.
+- Updated installation/workflow documentation around optional C++ compilation steps and dependencies.
+- Refactored CuPy model imports and version update logic for metadata maintenance.
+- Updated version to 0.4.3.
+
+### Fixed
+- Fixed notebook markdown header formatting for Jansen-Rit whole-brain (NUMBA) examples.
+- Improved error handling for C++ module imports in Jansen-Rit and VEP tests.
+- Minor code cleanup in VEP (`get_parameter_descriptions` removal) and formatting/clarity improvements in MPR outputs.
+
 ## [0.4.1] - 2026-02-06
 
 ### Added
