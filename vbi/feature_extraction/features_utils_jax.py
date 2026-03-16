@@ -11,44 +11,48 @@ def get_fcd(
     positive: bool = False
 ):
     """
-    JAX-compatible and jittable version of get_fcd for use within vmap/jit contexts.
+    JAX-compatible and jittable version of :func:`get_fcd` for use within
+    ``vmap`` and ``jit`` contexts.
 
-    Args:
-        ts: Time series array (n_regions, n_samples)
-        tr: Repetition time in any time unit (milliseconds, seconds, etc.).
-            This parameter sets the unit for `win_len`.
-        win_len: Sliding window length in the same units as `tr`.
-            Default is 30.
-        overlap: Overlap between consecutive windows as a fraction (0.0 to 1.0).
-            - overlap=0.0: no overlap (stride = win_len, non-overlapping windows)
-            - overlap=0.5: 50% overlap (stride = win_len/2)
-            - overlap=0.9: 90% overlap (stride = win_len/10, high overlap)
-            - overlap=1.0: maximum overlap (stride = 1 sample)
-            - If None (default): uses stride of 1 sample (equivalent to overlap=1.0)
-            
-            **Intuitive rule**: Higher overlap value = MORE overlap between windows
-            
-        positive: If True, only positive values of FC are considered (negative correlations set to 0).
-            Default is False.
+    :param ts: Time series array with shape ``(n_regions, n_samples)``.
+    :type ts: jnp.ndarray
+    :param tr: Repetition time in any time unit. This sets the unit used by
+        ``win_len``.
+    :type tr: float | int
+    :param win_len: Sliding window length in the same units as ``tr``.
+        Defaults to ``30``.
+    :type win_len: float | int
+    :param overlap: Overlap between consecutive windows as a fraction in
+        ``[0.0, 1.0]``. If ``None``, a stride of one sample is used, which is
+        equivalent to ``overlap=1.0``.
 
-    Returns:
-        FCD: Functional Connectivity Dynamics matrix (n_windows x n_windows)
-        
-    Examples:
-        >>> import jax.numpy as jnp
-        >>> ts = jnp.array(np.random.randn(5, 200))  # 5 regions, 200 timepoints
-        >>> 
-        >>> # Maximum overlap (stride=1)
-        >>> fcd = get_fcd(ts, tr=1, win_len=30)
-        >>> 
-        >>> # 90% overlap (high overlap)
-        >>> fcd = get_fcd(ts, tr=1, win_len=30, overlap=0.9)
-        >>> 
-        >>> # 50% overlap (moderate)
-        >>> fcd = get_fcd(ts, tr=1, win_len=30, overlap=0.5)
-        >>> 
-        >>> # No overlap
-        >>> fcd = get_fcd(ts, tr=1, win_len=30, overlap=0.0)
+        - ``overlap=0.0``: no overlap, ``stride = win_len``
+        - ``overlap=0.5``: 50% overlap, ``stride = win_len / 2``
+        - ``overlap=0.9``: 90% overlap, ``stride = win_len / 10``
+        - ``overlap=1.0``: maximum overlap, ``stride = 1``
+
+        Higher ``overlap`` means more overlap between windows.
+    :type overlap: float | None
+    :param positive: If ``True``, only positive FC values are kept and
+        negative correlations are set to zero. Defaults to ``False``.
+    :type positive: bool
+    :returns: Functional Connectivity Dynamics matrix with shape
+        ``(n_windows, n_windows)``.
+    :rtype: jnp.ndarray
+
+    **Example**
+
+    .. code-block:: python
+
+        import numpy as np
+        import jax.numpy as jnp
+
+        ts = jnp.array(np.random.randn(5, 200))
+
+        fcd_max_overlap = get_fcd(ts, tr=1, win_len=30)
+        fcd_high_overlap = get_fcd(ts, tr=1, win_len=30, overlap=0.9)
+        fcd_medium_overlap = get_fcd(ts, tr=1, win_len=30, overlap=0.5)
+        fcd_no_overlap = get_fcd(ts, tr=1, win_len=30, overlap=0.0)
     """
     # Convert overlap to default value if None (must be done before jit)
     if overlap is None:
