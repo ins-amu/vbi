@@ -264,6 +264,12 @@ vbi.feature_extraction.features_utils
         :members:
         :undoc-members:
 
+vbi.feature_extraction.features_utils_jax
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    .. automodule:: vbi.feature_extraction.features_utils_jax
+        :members:
+        :undoc-members:
+
 vbi.feature_extraction.utility
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     .. automodule:: vbi.feature_extraction.utility
