@@ -46,3 +46,4 @@ executed_notebooks/
 dist/
 
 vbi/models/cupy/_mpr.py
+.coverage
