@@ -183,13 +183,6 @@ Brain Models
 
    models
 
-Inference Methods & Examples
-----------------------------
-
-.. toctree::
-   :maxdepth: 1
-
-   inference_examples
 
 Examples & Tutorials
 --------------------
@@ -199,6 +192,15 @@ Examples & Tutorials
 
    examples_overview
    Examples
+
+Inference Methods & Examples
+----------------------------
+
+.. toctree::
+   :maxdepth: 1
+
+   inference_examples
+
 
 API Reference
 -------------
