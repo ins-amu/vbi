@@ -13,6 +13,7 @@ import numpy as np
 
 
 def ensure_repo_on_path(file: str, parents_up: int = 3) -> Path:
+    """Add the repository root inferred from ``file`` to ``sys.path``."""
     repo_root = Path(file).resolve().parents[parents_up]
     if str(repo_root) not in sys.path:
         sys.path.insert(0, str(repo_root))
@@ -20,12 +21,14 @@ def ensure_repo_on_path(file: str, parents_up: int = 3) -> Path:
 
 
 def complete_graph_weights(n_nodes: int) -> np.ndarray:
+    """Return a dense complete-graph weight matrix with zero diagonal."""
     weights = np.ones((n_nodes, n_nodes), dtype=np.float64)
     np.fill_diagonal(weights, 0.0)
     return weights
 
 
 def constant_tract_lengths(weights: np.ndarray, length: float) -> np.ndarray:
+    """Return tract lengths matching nonzero connections in ``weights``."""
     tract_lengths = np.full_like(weights, float(length), dtype=np.float64)
     tract_lengths[weights == 0.0] = 0.0
     np.fill_diagonal(tract_lengths, 0.0)
@@ -37,6 +40,7 @@ def homogeneous_node_params(
     params: dict[str, float],
     scalar_names: tuple[str, ...] = ("G",),
 ) -> dict[str, float | np.ndarray]:
+    """Expand scalar parameters to per-node arrays, except named globals."""
     return {
         name: value if name in scalar_names else np.full(n_nodes, value)
         for name, value in params.items()
@@ -48,6 +52,7 @@ def make_tvb_connectivity(
     tract_lengths: np.ndarray | None = None,
     speed: float = 1.0,
 ):
+    """Build and configure a minimal TVB connectivity object."""
     from tvb.datatypes.connectivity import Connectivity
 
     n_nodes = weights.shape[0]
@@ -67,12 +72,14 @@ def make_tvb_connectivity(
 
 @contextmanager
 def quiet_optional_imports() -> Iterator[None]:
+    """Suppress stderr noise from optional dependency probes during imports."""
     with redirect_stderr(StringIO()):
         yield
 
 
 @contextmanager
 def quiet_tvb() -> Iterator[None]:
+    """Suppress TVB logging and stream output inside the context."""
     previous_logging_disable = logging.root.manager.disable
     try:
         logging.disable(logging.WARNING)
@@ -83,6 +90,7 @@ def quiet_tvb() -> Iterator[None]:
 
 
 def comparison_metrics(reference: np.ndarray, candidate: np.ndarray) -> dict[str, float]:
+    """Return max absolute and RMS error between two trajectories."""
     diff = candidate - reference
     return {
         "max_abs": float(np.max(np.abs(diff))),
@@ -100,8 +108,10 @@ def save_state_comparison_plot(
     title: str = "Simulator trajectory comparison",
     decimate: int = 1,
 ) -> None:
+    """Save an overlay plot comparing state variables from two simulators."""
     import matplotlib.pyplot as plt
 
+    out_path.parent.mkdir(parents=True, exist_ok=True)
     decimate = max(1, decimate)
     t = times[::decimate]
     n_vars = len(variable_names)

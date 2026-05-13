@@ -20,6 +20,9 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
+import sys
+
+sys.dont_write_bytecode = True
 
 import numpy as np
 
@@ -169,7 +172,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output",
         type=Path,
-        default=Path(__file__).with_name("mpr_tvb_vbi_timeseries.png"),
+        default=Path(__file__).with_name("outputs") / "mpr_tvb_vbi_timeseries.png",
         help="path for the comparison figure",
     )
     return parser.parse_args()
