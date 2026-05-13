@@ -1,19 +1,5 @@
-"""Compare VBI simulator and TVB MPR trajectories.
-
-The network and working-point parameters mirror
-``docs/examples/mpr_sde_numba.ipynb``:
-
-    nn = 6
-    weights = complete_graph(nn)
-    G = 0.33
-    I = 2.0
-    delay = 1.0 ms
-    dt = 0.01 ms
-    tau = 1.0
-    eta = -4.6
-
-The notebook also uses ``noise_amp`` for the Numba SDE model. This comparison is
-deterministic so that TVB and the new simulator can be compared point by point.
+"""
+Compare VBI simulator and TVB MPR trajectories.
 """
 
 from __future__ import annotations
