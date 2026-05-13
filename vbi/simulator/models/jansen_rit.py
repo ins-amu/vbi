@@ -12,7 +12,7 @@ jansen_rit = ModelSpec(
         StateVar("y1", default_init=0.0),
         StateVar("y2", default_init=0.0),
         StateVar("y3", default_init=0.0),
-        StateVar("y4", default_init=0.0),
+        StateVar("y4", default_init=0.0, noise=True),
         StateVar("y5", default_init=0.0),
     ),
     parameters=(
@@ -39,6 +39,6 @@ jansen_rit = ModelSpec(
         "y4": "A * a * (mu + a_2*J*(2*nu_max/(1+exp(r*(v0 - a_1*J*y0)))) + c) - 2*a*y4 - a**2*y1",
         "y5": "B * b * (a_4*J*(2*nu_max/(1+exp(r*(v0 - a_3*J*y0))))) - 2*b*y5 - b**2*y2",
     },
-    noise_variables=(),
+    noise_variables=("y4",),
     reference="Jansen BH, Rit VG. Biol Cybern. 1995;73(4):357-366. doi:10.1007/BF00199471",
 )
