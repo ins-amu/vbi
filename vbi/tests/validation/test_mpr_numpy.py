@@ -96,6 +96,63 @@ class TestMultiNodeDeterministic:
             err_msg="Uncoupled identical nodes diverged"
         )
 
+    def test_ring_buffer_delay_matches_tvb_convention(self):
+        """
+        Confirm the ring buffer follows TVB DenseHistory semantics exactly.
+
+        TVB convention (DenseHistory.query / update):
+          - update(step, state): writes buf[step % n]
+          - query(step):        reads  buf[(step-1-d) % n]
+          - loop order: integrate → write → read-for-next
+
+        VBI convention (read-before-write loop):
+          - write(_step, state): buf[_step % h]  then _step += 1
+          - read_delayed:        buf[(_step-1-d) % h]  (identical formula)
+
+        Result: coupling at loop iteration s uses state written at s-1-d.
+          d=0  → state written one iteration ago  (most recent available)
+          d=k  → state written k+1 iterations ago
+
+        Impulse test: write impulse at loop step 0 (goes into buf[0]).
+        It should be read when (_step - 1 - d) % h == 0, i.e. _step == d+1,
+        which is loop iteration s = d+1 (because write happens at end of each
+        iteration and _step == s at the start of iteration s).
+        """
+        from vbi.simulator.backend.numpy_.history import History
+        from vbi.simulator.backend.numpy_.coupling import LinearCoupling
+        from vbi.simulator.spec.coupling import CouplingSpec
+
+        d = 15            # delay_steps
+        n_nodes, n_cvar = 2, 1
+        delay_arr = np.array([[0, d], [d, 0]], dtype=np.int32)
+        horizon = int(delay_arr.max()) + 1
+        history = History(horizon, n_cvar, n_nodes)
+        W = np.array([[0., 1.], [1., 0.]], dtype=np.float64)
+        coupling_fn = LinearCoupling(CouplingSpec("linear", a=1.0, b=0.0), W, G=1.0)
+        history.initialize(np.array([[0.0, 0.0]]))
+
+        received = []
+        for step in range(40):
+            source_state = 1.0 if step == 0 else 0.0   # impulse written at step 0
+            # Read BEFORE write (TVB-equivalent: coupling reads (step-1-d) slot)
+            delayed = history.read_delayed(delay_arr)
+            c = coupling_fn.compute(delayed)
+            received.append(c[0, 1])
+            history.write(np.array([[source_state, 0.0]]))
+
+        # Impulse is in buf[0] after step 0's write.
+        # It is read when (_step - 1 - d) % h == 0, i.e. _step == d+1 == 16.
+        # _step == 16 at the start of loop iteration s=16.
+        arrival_step = d + 1   # TVB convention: delay d → arrives at iteration d+1
+        assert received[arrival_step] == 1.0, (
+            f"Expected impulse at loop step {arrival_step} (TVB d={d}), "
+            f"got {received[arrival_step]:.4f}.\n"
+            f"received = {received[:arrival_step+5]}"
+        )
+        for s, v in enumerate(received):
+            if s != arrival_step:
+                assert v == 0.0, f"Unexpected coupling at step {s}: {v}"
+
     def test_80_nodes_runs_without_error(self):
         spec = make_mpr_spec(n_nodes=80, dt=0.01,
                              monitors=(MonitorSpec("tavg", period=1.0),))

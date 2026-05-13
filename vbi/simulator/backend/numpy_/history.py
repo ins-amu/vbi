@@ -58,8 +58,14 @@ class History:
             out[cvar, src, tgt] = buf[(current_step - delay[src,tgt]) % horizon,
                                       cvar, src]
         """
+        # Matches TVB DenseHistory.query exactly:
+        #   TVB: buf[(tvb_step - 1 - d + n) % n]  after update(tvb_step, state)
+        #   VBI: buf[(_step  - 1 - d + h) % h]    before write(_step, state)
+        # Both formulas are identical when _step == tvb_step.
+        # Semantic: delay d reads the state written d+1 writes ago,
+        # i.e. coupling for loop step s uses state(s-1-d).
+        # d=0 → state(s-1) [most recent written]; d=k → state(s-1-k).
         step = self._step - 1
-        # idx[src, tgt] = buffer slot for the state of src at t - delay[src,tgt]
         idx = (step - delay_steps) % self.horizon   # (n_nodes, n_nodes)
         src_idx = np.arange(self.n_nodes)            # (n_nodes,)
 
