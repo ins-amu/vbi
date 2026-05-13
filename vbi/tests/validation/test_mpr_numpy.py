@@ -5,7 +5,13 @@ Tests correctness of integrators, ring buffer, coupling, monitors.
 import numpy as np
 import pytest
 from vbi.simulator import Simulator
-from vbi.simulator.spec import MonitorSpec, IntegratorSpec
+from vbi.simulator.spec import (
+    CouplingSpec,
+    IntegratorSpec,
+    MonitorSpec,
+    SimulationSpec,
+)
+from vbi.simulator.models.mpr import mpr
 from .conftest import make_mpr_spec
 
 
@@ -187,3 +193,110 @@ class TestMonitors:
         result = Simulator(spec).run(10_000.0)
         assert "tavg" in result
         assert "bold" in result
+
+
+# ---------------------------------------------------------------------------
+# TVB reference validation
+# ---------------------------------------------------------------------------
+
+TVB_MPR_PARAMS = {
+    "tau": 1.0,
+    "I": 0.0,
+    "Delta": 1.0,
+    "J": 15.0,
+    "eta": -5.0,
+    "Gamma": 0.0,
+    "cr": 1.0,
+    "cv": 0.0,
+    "G": 0.4,
+}
+
+
+def _make_vbi_tvb_reference_spec(weights, dt, method):
+    params = {name: np.full(weights.shape[0], value)
+              for name, value in TVB_MPR_PARAMS.items()
+              if name != "G"}
+    params["G"] = TVB_MPR_PARAMS["G"]
+    return SimulationSpec(
+        model=mpr,
+        integrator=IntegratorSpec(method=method, dt=dt),
+        coupling=CouplingSpec("linear", a=1.0),
+        monitors=(MonitorSpec("raw"),),
+        weights=weights,
+        tract_lengths=np.zeros_like(weights),
+        speed=1.0,
+        node_params=params,
+    )
+
+
+def _run_tvb_mpr_reference(weights, dt, method, duration):
+    tvb = pytest.importorskip("tvb")
+    del tvb  # imported only to trigger pytest's skip message when unavailable
+
+    from tvb.datatypes.connectivity import Connectivity
+    from tvb.simulator.coupling import Linear
+    from tvb.simulator.integrators import EulerDeterministic, HeunDeterministic
+    from tvb.simulator.models.infinite_theta import MontbrioPazoRoxin
+    from tvb.simulator.monitors import Raw
+    from tvb.simulator.simulator import Simulator as TVBSimulator
+
+    n_nodes = weights.shape[0]
+    conn = Connectivity(
+        weights=weights,
+        tract_lengths=np.zeros_like(weights),
+        region_labels=np.array([str(i) for i in range(n_nodes)]),
+        centres=np.zeros((n_nodes, 3)),
+        speed=np.array([1.0]),
+    )
+    conn.configure()
+
+    tvb_model = MontbrioPazoRoxin(
+        tau=np.array([TVB_MPR_PARAMS["tau"]]),
+        I=np.array([TVB_MPR_PARAMS["I"]]),
+        Delta=np.array([TVB_MPR_PARAMS["Delta"]]),
+        J=np.array([TVB_MPR_PARAMS["J"]]),
+        eta=np.array([TVB_MPR_PARAMS["eta"]]),
+        Gamma=np.array([TVB_MPR_PARAMS["Gamma"]]),
+        cr=np.array([TVB_MPR_PARAMS["cr"]]),
+        cv=np.array([TVB_MPR_PARAMS["cv"]]),
+    )
+    integrator_cls = {
+        "euler": EulerDeterministic,
+        "heun": HeunDeterministic,
+    }[method]
+    sim = TVBSimulator(
+        connectivity=conn,
+        model=tvb_model,
+        coupling=Linear(a=np.array([TVB_MPR_PARAMS["G"]])),
+        integrator=integrator_cls(dt=dt),
+        monitors=[Raw()],
+        simulation_length=duration,
+    ).configure()
+
+    initial_state = np.zeros((tvb_model.nvar, n_nodes, 1))
+    initial_state[0, :, 0] = 0.0
+    initial_state[1, :, 0] = -2.0
+    sim.current_state[:] = initial_state
+    sim.history.buffer[:] = initial_state[tvb_model.cvar][np.newaxis, ...]
+
+    (_times, data), = sim.run()
+    return data[:, :, :, 0]
+
+
+class TestAgainstTVBMPR:
+    @pytest.mark.parametrize("method", ["euler", "heun"])
+    def test_raw_trajectory_matches_tvb_without_delays(self, method):
+        weights = np.array([
+            [0.0, 0.25, 0.10],
+            [0.50, 0.0, 0.20],
+            [0.15, 0.35, 0.0],
+        ])
+        dt = 0.01
+        duration = 0.2
+
+        spec = _make_vbi_tvb_reference_spec(weights, dt, method)
+        _times, vbi_data = Simulator(spec, backend="numpy").run(duration)["raw"]
+        tvb_data = _run_tvb_mpr_reference(weights, dt, method, duration)
+
+        assert vbi_data.shape == tvb_data.shape
+        np.testing.assert_allclose(vbi_data, tvb_data, rtol=2e-10, atol=2e-12)

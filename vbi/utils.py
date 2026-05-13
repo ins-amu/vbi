@@ -26,7 +26,7 @@ except:
 try:
     from sbi.analysis.plot import _get_default_fig_kwargs, _get_default_diag_kwargs
     from sbi.analysis.plot import _update, ensure_numpy
-except ImportError:
+except (ImportError, ValueError):
     # warnings.warn(
     #     "sbi package is not installed: functions that require sbi (e.g. posterior_peaks) will raise if used. "
     #     "Install with: pip install sbi",

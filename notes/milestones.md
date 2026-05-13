@@ -138,10 +138,31 @@ TVB reference (gold)
 
 ---
 
-## M0 — Spec Layer + NumPy Baseline
+## M0 — Spec Layer + NumPy Baseline  ✅ COMPLETE
 
 **Goal:** Define the data model, implement a pure-NumPy simulator, validate
 against TVB for MPR. Everything that follows builds on this layer.
+
+### Status (implemented)
+
+| Component | File | State |
+|-----------|------|-------|
+| Spec dataclasses | `vbi/simulator/spec/` | ✅ done |
+| MPR model spec | `vbi/simulator/models/mpr.py` | ✅ done — TVB-consistent `cvar=(r,V)`, `cr`/`cv` params |
+| Ring buffer | `vbi/simulator/backend/numpy_/history.py` | ✅ done |
+| Coupling (linear, sigmoidal) | `vbi/simulator/backend/numpy_/coupling.py` | ✅ done |
+| Integrators (Euler/Heun det+stoch) | `vbi/simulator/backend/numpy_/integrators.py` | ✅ done |
+| Monitors (Raw/SubSample/TAvg/GAvg/Bold) | `vbi/simulator/backend/numpy_/monitors.py` | ✅ done |
+| dfun codegen (exec-based) | `vbi/simulator/backend/numpy_/simulator.py` | ✅ done |
+| NumPy simulator loop | `vbi/simulator/backend/numpy_/simulator.py` | ✅ done |
+| NumPy sweeper | `vbi/simulator/backend/numpy_/sweeper.py` | ✅ done |
+| Public API (`Simulator`, `Sweeper`) | `vbi/simulator/api.py` | ✅ done |
+| FeaturePipeline (NumPy) | `vbi/feature_extraction/pipeline.py` | ✅ done |
+| Validation tests | `vbi/tests/validation/` | ✅ 23 tests passing |
+| TVB trajectory comparison | — | ⏳ deferred (needs `tvb-library` as dev dep) |
+
+**Note:** Backend-specific feature extraction variants (`get_fc_nb`, `get_fc_jax`, etc.)
+are deferred to their respective backend milestones (M1, M3, M4).
 
 ### Files to create
 
@@ -957,17 +978,19 @@ _FEATURE_REGISTRY = {
 Adding a new feature = add one entry to `_FEATURE_REGISTRY`. No changes to
 `Simulator`, `Sweeper`, or any monitor class.
 
-**Backend variants** for sweep inner loops (avoid Python overhead per run):
+**Backend variants** — *deferred to each backend milestone.*
 
-| Backend | Variant | Location |
-|---------|---------|----------|
-| NumPy (default, always available) | `get_fc`, `get_fcd` | `features_utils.py` (existing) |
-| Numba CPU sweep | `get_fc_nb`, `get_fcd_nb` | `features_utils_nb.py` -- @njit |
-| JAX sweep | `get_fc_jax`, `get_fcd_jax` | `features_utils_jax.py` (extend existing) |
-| CUDA sweep | `get_fc_cuda`, `get_fcd_cuda` | `features_utils_cuda.py` -- @cuda.jit device fn |
+The `FeaturePipeline` always works with NumPy functions from `features_utils.py`
+at the Python level. JIT-compiled variants (`get_fc_nb`, `get_fcd_nb`, etc.) that
+run inside the sweep inner loop are added when each backend is implemented:
 
-The sweeper selects the right variant automatically; users only call
-`FeaturePipeline`.
+- M1 (Numba CPU): `features_utils_nb.py` — `@njit` variants
+- M2 (C++): FC/FCD computed in C++ sweep loop, result returned as ndarray
+- M3 (CUDA): `features_utils_cuda.py` — `@cuda.jit` device functions
+- M4 (JAX): extend `features_utils_jax.py` — already partially done
+
+Until then, the NumPy sweeper calls the existing `features_utils.py` functions
+directly at Python level — correct but not maximally fast.
 
 **`SweepSpec` -- updated with pipeline:**
 
@@ -1121,10 +1144,15 @@ tests pass.
 
 ---
 
-## M1 — Numba CPU Backend
+## M1 — Numba CPU Backend  ← NEXT
 
 **Goal:** JIT-compile the dfun and the inner simulation loop using Numba.
 The NumPy baseline is the reference. No new model specs needed — reuse M0 specs.
+
+**Prerequisite:** M0 complete. ✅
+
+**Feature extraction note:** Add `vbi/feature_extraction/features_utils_nb.py`
+with `@njit` variants of `get_fc` and `get_fcd` as part of M1.5 (Numba sweeper).
 
 ### Files to create
 
@@ -1592,6 +1620,8 @@ baseline; C++ sweep FC matches Numba sweep; build cache works.
 
 ## M3 — Numba-CUDA Backend
 
+**Feature extraction note:** Add `vbi/feature_extraction/features_utils_cuda.py` with `@cuda.jit` device functions `get_fc_cuda`, `get_fcd_cuda` as part of M3.
+
 **Goal:** Run the parameter sweep on GPU. The CUDA design is batch-first — the
 primary kernel simulates N parameter sets simultaneously. A single-run mode is
 derived from the sweep (batch size 1). This is the highest-throughput backend
@@ -1753,6 +1783,8 @@ def test_cuda_sweep_throughput(n_nodes=80, n_samples=2000, duration=5000.0):
 ---
 
 ## M4 — JAX Backend
+
+**Feature extraction note:** Extend `vbi/feature_extraction/features_utils_jax.py` (already partially exists) with `get_fc_jax`, `get_fcd_jax` compatible with `jax.vmap` as part of M4.3.
 
 **Goal:** JIT + grad-able simulator for gradient-based inference. The JAX
 backend uses `jax.lax.scan` for the time loop, enabling `jax.grad` through
