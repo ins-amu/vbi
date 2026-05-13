@@ -63,20 +63,36 @@ t, state = result["subsample"]
 ```python
 from vbi.simulator import Sweeper
 from vbi.simulator.spec import SweepSpec
+from vbi.feature_extraction.pipeline import FeaturePipeline
 
+# 1. Define what to extract from each simulation
+pipeline = FeaturePipeline(
+    features=["fc", "fcd_ks"],   # registered feature names
+    signal="tavg",               # monitor to consume
+    t_cut=500.0,                 # ms burn-in to discard
+    fcd_window_ms=1000.0,
+    fcd_overlap=0.5,
+)
+
+# 2. Define the parameter sweep
 sweep_spec = SweepSpec(
     params = {
         "G":   np.linspace(0.5, 5.0, 50),
         "eta": np.linspace(-5.5, -3.0, 50),
-    },
-    # 2500 parameter combinations (outer product) or pass a (N,2) array for LHS
+    },                     # 2500 runs (outer product); or (N,k) array for LHS
+    pipeline=pipeline,
 )
 
-sweeper = Sweeper(spec, sweep_spec, backend="cuda")   # or "numba"
-features = sweeper.run(duration=5000.0)
-# features["fc"]:      shape (n_param_sets, n_nodes, n_nodes)
-# features["fcd_ks"]:  shape (n_param_sets,)
-# features["bold"]:    shape (n_param_sets, n_nodes, n_bold_steps)
+# 3. Run -- returns DataFrame ready for SBI
+sweeper = Sweeper(spec, sweep_spec, backend="cuda")   # or "numba", "cpp", "jax"
+df = sweeper.run_df(duration=5000.0)
+# df.columns: ["G", "eta", "fc_0_1", "fc_0_2", ..., "fcd_ks"]
+# df.shape:   (2500, 2 + n_fc_entries + 1)
+
+# Or as (labels, values) arrays:
+labels, values = sweeper.run(duration=5000.0)
+# labels: list[str] -- parameter names + feature names
+# values: shape (n_samples, len(labels))
 ```
 
 ### Rules derived from this contract
@@ -135,7 +151,7 @@ vbi/simulator/spec/__init__.py
 vbi/simulator/spec/model.py
 vbi/simulator/spec/integrator.py
 vbi/simulator/spec/coupling.py
-vbi/simulator/spec/monitor.py        # raw, subsample, bold, fc, fcd
+vbi/simulator/spec/monitor.py        # raw, subsample, tavg, gavg, bold
 vbi/simulator/spec/simulation.py
 vbi/simulator/spec/sweep.py          # SweepSpec — NEW
 
@@ -230,24 +246,36 @@ class CouplingSpec:
 **`vbi/simulator/spec/monitor.py`**
 
 Monitors follow the TVB pattern — they record simulator state during the run.
-Feature extraction is a **separate post-processing step** (see M0.11).
+Feature extraction is a **separate post-processing step** applied to monitor
+output (see M0.10).
 
 ```python
 @dataclass(frozen=True)
 class MonitorSpec:
-    kind: Literal["raw", "subsample", "bold"]
-    period: float | None = None    # ms; None → every step for raw
-    variables: tuple[str, ...] = ()  # empty → all state vars
+    kind: Literal["raw", "subsample", "tavg", "gavg", "bold"]
+    period: float | None = None      # ms — ignored for "raw" (uses dt)
+    variables: tuple[str, ...] = ()  # state-var names to record; empty → all VOIs
+    # bold-only
+    tr: float = 2000.0               # BOLD repetition time in ms
 ```
 
-| Monitor | What it records | Output shape |
-|---------|----------------|--------------|
-| `raw` | Every integration step | `(n_steps, n_sv, n_nodes)` |
-| `subsample` | Every `period` ms | `(n_steps//k, n_sv, n_nodes)` |
-| `bold` | Balloon-Windkessel haemodynamics driven by `r` | `(n_bold_steps, n_nodes)` |
+| Monitor | TVB equivalent | What it records | Output shape |
+|---------|---------------|----------------|--------------|
+| `raw` | `Raw` | Every integration step, all VOIs | `(n_steps, n_voi, n_nodes)` |
+| `subsample` | `SubSample` | Every `period` ms (decimation) | `(n_steps//k, n_voi, n_nodes)` |
+| `tavg` | `TemporalAverage` | Time-average of VOIs over `period` ms windows | `(n_windows, n_voi, n_nodes)` |
+| `gavg` | `GlobalAverage` | Spatial mean of VOIs, every `period` ms | `(n_steps//k, n_voi, 1)` |
+| `bold` | `Bold` | Balloon-Windkessel haemodynamics driven by first VOI | `(n_bold_steps, n_nodes)` |
 
-BOLD monitor integrates its own ODE at every neural step and outputs at `TR`
-(default 2000 ms). It does not subsample the neural signal first.
+- **`tavg`** accumulates states into a rolling stock array and flushes the
+  time-average every `istep = round(period/dt)` steps — identical to TVB
+  `TemporalAverage`. This is the most useful monitor for SBI because it acts
+  as a low-pass filter before feature extraction.
+- **`bold`** integrates its own Balloon-Windkessel ODE at every neural step
+  and outputs at `tr` (repetition time). The neural input is the `tavg` of
+  the BOLD-driving variable (typically `r` or `E`) over one TR window.
+- **`subsample`** and **`raw`** are interchangeable for SBI; prefer `subsample`
+  or `tavg` to reduce memory.
 
 **`vbi/simulator/spec/sweep.py`** — NEW
 
@@ -538,34 +566,157 @@ def _build_numpy_dfun(spec: ModelSpec) -> Callable:
 
 **`vbi/simulator/backend/numpy_/monitors.py`**
 
+All monitors share the same abstract interface. The simulator calls `sample()`
+at every integration step; each monitor decides internally whether this step
+should be recorded.
+
 ```python
-class RawMonitor:
-    period_steps: int = 1
+class Monitor(ABC):
+    """Abstract base — mirrors TVB Monitor interface."""
+    istep: int      # record every istep integration steps
+    dt: float
+    voi: np.ndarray # indices into state array to record
 
-    def __init__(self, spec: MonitorSpec, sv_names, dt):
-        self.var_indices = _resolve_var_indices(spec.variables, sv_names)
-        self.period_steps = 1
-        self._times, self._data = [], []
+    def configure(self, spec: MonitorSpec, sv_names: tuple, dt: float) -> None:
+        self.dt = dt
+        self.voi = _resolve_var_indices(spec.variables, sv_names)
+        self.istep = max(1, round(spec.period / dt)) if spec.period else 1
 
-    def record(self, t: float, state: np.ndarray) -> None:
-        # state: (n_sv, n_nodes)
-        self._times.append(t)
-        self._data.append(state[self.var_indices].copy())
+    @abstractmethod
+    def sample(self, step: int, state: np.ndarray) -> tuple[float, np.ndarray] | None:
+        """Called every integration step. Returns (t, data) or None."""
 
     def result(self) -> tuple[np.ndarray, np.ndarray]:
+        """Return (times, data) after simulation."""
         return np.array(self._times), np.stack(self._data)
 
 
-class SubSampleMonitor:
-    # Records every period_steps integration steps
-    def __init__(self, spec: MonitorSpec, sv_names, dt):
-        self.period_steps = max(1, round(spec.period / dt))
-        ...
+class RawMonitor(Monitor):
+    """Records every integration step. TVB: Raw."""
+    def configure(self, spec, sv_names, dt):
+        super().configure(spec, sv_names, dt)
+        self.istep = 1
+        self._times, self._data = [], []
 
-    def record(self, t, state, step_idx) -> None:
-        if step_idx % self.period_steps == 0:
-            ...
+    def sample(self, step, state):
+        t = step * self.dt
+        self._times.append(t)
+        self._data.append(state[self.voi].copy())
+        return t, state[self.voi]
+
+
+class SubSampleMonitor(Monitor):
+    """Decimates: records every period ms. TVB: SubSample."""
+    def configure(self, spec, sv_names, dt):
+        super().configure(spec, sv_names, dt)
+        self._times, self._data = [], []
+
+    def sample(self, step, state):
+        if step % self.istep == 0:
+            t = step * self.dt
+            self._times.append(t)
+            self._data.append(state[self.voi].copy())
+            return t, state[self.voi]
+        return None
+
+
+class TemporalAverageMonitor(Monitor):
+    """
+    Accumulates states into a rolling stock; flushes the time-average
+    every istep steps. TVB: TemporalAverage.
+
+    Useful for SBI: acts as a low-pass filter before feature extraction.
+    """
+    def configure(self, spec, sv_names, dt):
+        super().configure(spec, sv_names, dt)
+        n_nodes = None  # set in first sample call
+        self._stock = None
+        self._stock_idx = 0
+        self._times, self._data = [], []
+
+    def sample(self, step, state):
+        if self._stock is None:
+            n_nodes = state.shape[1]
+            self._stock = np.zeros((self.istep, len(self.voi), n_nodes))
+
+        self._stock[self._stock_idx] = state[self.voi]
+        self._stock_idx += 1
+
+        if self._stock_idx == self.istep:
+            avg = self._stock.mean(axis=0)
+            t = (step - self.istep / 2.0) * self.dt
+            self._times.append(t)
+            self._data.append(avg.copy())
+            self._stock_idx = 0
+            return t, avg
+        return None
+
+
+class GlobalAverageMonitor(Monitor):
+    """
+    Spatial mean of VOIs across all nodes, every period ms.
+    TVB: GlobalAverage. Useful for quick sanity-check of mean activity.
+    """
+    def configure(self, spec, sv_names, dt):
+        super().configure(spec, sv_names, dt)
+        self._times, self._data = [], []
+
+    def sample(self, step, state):
+        if step % self.istep == 0:
+            t = step * self.dt
+            data = state[self.voi].mean(axis=1, keepdims=True)  # (n_voi, 1)
+            self._times.append(t)
+            self._data.append(data.copy())
+            return t, data
+        return None
+
+
+class BoldMonitor(Monitor):
+    """
+    Balloon-Windkessel haemodynamic response. TVB: Bold.
+
+    Integrates the BW ODE at every neural step using the BOLD-driving variable
+    (first VOI). Outputs at tr ms (repetition time).
+    The neural input is the mean of the driving variable over one TR window.
+    """
+    def configure(self, spec, sv_names, dt):
+        self.dt = dt
+        self.voi = _resolve_var_indices(spec.variables, sv_names)
+        self.tr = spec.tr                          # ms
+        self.tr_steps = round(spec.tr / dt)
+        self._bw_state = None    # Balloon-Windkessel state (4, n_nodes)
+        self._neural_avg = None  # running average of driving variable
+        self._avg_count = 0
+        self._times, self._data = [], []
+
+    def sample(self, step, state):
+        neural = state[self.voi[0]]   # (n_nodes,) — BOLD-driving variable
+
+        # Accumulate for TR-window average (input to BW model)
+        if self._neural_avg is None:
+            self._neural_avg = np.zeros_like(neural)
+            self._bw_state = _init_bw_state(neural.shape[0])
+
+        self._neural_avg += neural
+        self._avg_count += 1
+
+        # BW ODE step every neural step
+        self._bw_state = _bw_euler_step(self._bw_state, neural, self.dt)
+
+        if step % self.tr_steps == 0 and step > 0:
+            t = step * self.dt
+            bold = _bw_bold_signal(self._bw_state)   # (n_nodes,)
+            self._times.append(t)
+            self._data.append(bold.copy())
+            self._neural_avg[:] = 0.0
+            self._avg_count = 0
+            return t, bold
+        return None
 ```
+
+The Balloon-Windkessel ODEs (`_bw_euler_step`, `_bw_bold_signal`,
+`_init_bw_state`) are ported from `vbi/models/numba/bold.py` and
+`vbi/models/cpp/_src/bold.hpp` — no reimplementation needed.
 
 ---
 
@@ -685,67 +836,179 @@ class Sweeper:
         return self._impl.run(duration)
 ```
 
-### M0.10 — Feature extraction (separate from monitors)
+### M0.10 — Feature extraction pipeline (separate from monitors)
 
-**Distinction (important):**
+**Data flow:**
 
 ```
 Simulator / Sweeper
-    └─ Monitors (TVB-style)
-           raw → (t, state)
-           subsample → (t, state)         ← neural signal
-           bold → (t, bold)               ← haemodynamic signal
-                    │
-                    ▼  post-processing (separate step)
+    |__ Monitors (TVB-style)
+           tavg  -> (t, state)   neural signal (low-pass averaged)
+           bold  -> (t, bold)    haemodynamic signal (BOLD fMRI)
+           raw   -> (t, state)   full time series (large)
+                    |
+                    v  FeaturePipeline (post-processing)
          vbi.feature_extraction
-                    │
-                    ├── get_fc(ts)         → (n_nodes, n_nodes)
-                    ├── get_fcd(ts)        → (n_windows, n_windows), ks_stat
-                    ├── calc_fft(ts, fs)   → (n_freqs, n_nodes)
-                    ├── band_pass_filter   → filtered ts
-                    └── ... (many more)
+                    |
+                    |-- fc             (n_nodes, n_nodes)  Pearson correlation
+                    |-- fcd            (n_win, n_win)       sliding-window FC
+                    |-- fcd_ks         scalar               KS-stat vs empirical FCD
+                    |-- power_spectrum (n_freqs, n_nodes)
+                    |-- band_power     (n_bands, n_nodes)
+                    |-- mean           (n_nodes,)
+                    |-- std            (n_nodes,)
+                    |__ ... (anything in vbi/feature_extraction/)
 ```
 
-Monitors are **not** feature extractors. Features are computed from monitor
-output **after** the simulation. This keeps the simulator loop clean and
-allows users to apply any feature to any signal without changing the
-simulator code.
+Monitors are **not** feature extractors. `FeaturePipeline` consumes monitor
+output and produces labelled feature vectors — the direct input to SBI.
 
-**For sweeps:** the sweeper runs each simulation, collects monitor output,
-applies feature extraction inline (to avoid storing all raw time series), and
-accumulates results. The feature extraction functions are applied per
-simulation inside the sweep loop — this is an internal optimization, not a
-change to the public API.
+**`vbi/feature_extraction/pipeline.py`** — NEW
 
-**What changes in `vbi/feature_extraction/`:**
+```python
+class FeaturePipeline:
+    """
+    Applies a sequence of named feature functions to monitor output.
+    Returns (labels, values) lists or a pandas DataFrame.
 
-| Current state | Required extension |
-|---|---|
-| `get_fc(ts)` — NumPy | Add `get_fc_nb(ts)` — `@njit` for Numba sweeper |
-| `get_fcd(ts)` — NumPy | Add `get_fcd_nb(ts)` — `@njit` for Numba sweeper |
-| `features_utils_jax.py` — partial JAX port | Extend with `get_fc_jax`, `get_fcd_jax` for JAX sweeper |
-| No CUDA variant | Add `get_fc_cuda`, `get_fcd_cuda` for GPU reduction |
+    Parameters
+    ----------
+    features : list[str]
+        Names of features to compute. Keys from the feature registry.
+    t_cut : float
+        Milliseconds of burn-in to discard before extracting features.
+    signal : str
+        Which monitor to consume: "tavg", "bold", "subsample", "raw".
+    **kwargs
+        Per-feature configuration passed through to each feature function:
+        fcd_window_ms, fcd_overlap, freq_band, fc_function, ...
 
-The extensions go in `vbi/feature_extraction/` (existing module), not inside
-`vbi/simulator/`. The sweeper imports the appropriate variant based on backend.
+    Examples
+    --------
+    pipeline = FeaturePipeline(
+        features=["fc", "fcd_ks", "mean"],
+        t_cut=500.0,
+        signal="tavg",
+        fcd_window_ms=1000.0,
+        fcd_overlap=0.5,
+    )
+    labels, values = pipeline.extract(monitor_result)
+    df = pipeline.extract_df(monitor_result)
+    """
 
-**`SweepSpec` feature selection:**
+    def __init__(self, features: list[str], t_cut: float = 500.0,
+                 signal: str = "tavg", **kwargs):
+        self.features = features
+        self.t_cut = t_cut
+        self.signal = signal
+        self.kwargs = kwargs
+
+    def extract(self, monitor_result: dict) -> tuple[list[str], np.ndarray]:
+        """
+        Parameters
+        ----------
+        monitor_result : dict
+            Output of Simulator.run() -- keys are monitor kinds.
+
+        Returns
+        -------
+        labels : list[str]
+            One label per feature value, e.g. "fc_0_1", "fc_0_2", "fcd_ks".
+        values : np.ndarray
+            1-D float64 array, same order as labels.
+        """
+        t, ts = monitor_result[self.signal]
+        t_cut_idx = np.searchsorted(t, self.t_cut)
+        ts_cut = ts[t_cut_idx:]       # (n_steps, n_voi, n_nodes)
+        signal = ts_cut[:, 0, :]      # first VOI by default; (n_steps, n_nodes)
+
+        labels, values = [], []
+        for feat in self.features:
+            fn = _FEATURE_REGISTRY[feat]
+            lab, val = fn(signal, **self.kwargs)
+            labels.extend(lab)
+            values.extend(val)
+
+        return labels, np.array(values, dtype=np.float64)
+
+    def extract_df(self, monitor_result: dict) -> "pd.DataFrame":
+        labels, values = self.extract(monitor_result)
+        return pd.DataFrame([values], columns=labels)
+```
+
+**Feature registry** in `vbi/feature_extraction/pipeline.py`:
+
+Each entry wraps an existing `features_utils.py` function with signature
+`fn(ts, **kwargs) -> (list[str], list[float])`:
+
+```python
+_FEATURE_REGISTRY = {
+    "fc":             _wrap_fc,          # get_fc  -> upper-triangle values
+    "fcd":            _wrap_fcd_matrix,  # get_fcd -> upper-triangle of FCD matrix
+    "fcd_ks":         _wrap_fcd_ks,      # get_fcd -> KS scalar
+    "mean":           _wrap_mean,        # per-node temporal mean
+    "std":            _wrap_std,         # per-node temporal std
+    "power_spectrum": _wrap_psd,         # calc_fft -> band-averaged
+    "band_power":     _wrap_band_power,  # band-pass filter + RMS per node
+    # extend by adding entries here; no simulator changes needed
+}
+```
+
+Adding a new feature = add one entry to `_FEATURE_REGISTRY`. No changes to
+`Simulator`, `Sweeper`, or any monitor class.
+
+**Backend variants** for sweep inner loops (avoid Python overhead per run):
+
+| Backend | Variant | Location |
+|---------|---------|----------|
+| NumPy (default, always available) | `get_fc`, `get_fcd` | `features_utils.py` (existing) |
+| Numba CPU sweep | `get_fc_nb`, `get_fcd_nb` | `features_utils_nb.py` -- @njit |
+| JAX sweep | `get_fc_jax`, `get_fcd_jax` | `features_utils_jax.py` (extend existing) |
+| CUDA sweep | `get_fc_cuda`, `get_fcd_cuda` | `features_utils_cuda.py` -- @cuda.jit device fn |
+
+The sweeper selects the right variant automatically; users only call
+`FeaturePipeline`.
+
+**`SweepSpec` -- updated with pipeline:**
 
 ```python
 @dataclass
 class SweepSpec:
     params: dict[str, np.ndarray] | np.ndarray
     param_names: tuple[str, ...] | None = None
-    t_cut: float = 500.0    # ms burn-in to discard before feature extraction
-    features: tuple[str, ...] = ("fc",)
-    # supported: "fc", "fcd", "fcd_ks", "bold", "power_spectrum", "raw"
-    # "raw" is the only one that stores full time series — use sparingly
-    fcd_window_ms: float = 1000.0
-    fcd_overlap: float = 0.5
+    t_cut: float = 500.0            # ms burn-in (passed to pipeline)
+    pipeline: FeaturePipeline | None = None
+    # If pipeline is None, sweeper returns raw monitor output per run.
+    # If pipeline is set, sweeper.run() returns (labels, values_array)
+    # and sweeper.run_df() returns a DataFrame.
 
     @property
     def n_samples(self) -> int: ...
+    @property
+    def param_sets(self) -> np.ndarray: ...
 ```
+
+**Sweeper output format when pipeline is set:**
+
+```python
+pipeline = FeaturePipeline(features=["fc", "fcd_ks"], signal="tavg", t_cut=500.0)
+sweep_spec = SweepSpec(params={"G": np.linspace(1,4,50)}, pipeline=pipeline)
+
+sweeper = Sweeper(spec, sweep_spec, backend="numba")
+
+# Option A: (labels, values) lists
+labels, values = sweeper.run(duration=5000.0)
+# labels: ["G", "fc_0_1", "fc_0_2", ..., "fcd_ks"]
+# values: shape (n_samples, n_labels)
+
+# Option B: DataFrame -- direct input to SBI
+df = sweeper.run_df(duration=5000.0)
+# df.columns = ["G", "fc_0_1", ..., "fcd_ks"]
+# df.shape   = (n_samples, 1_param + n_features)
+```
+
+The DataFrame is the direct input to `sbi.utils.simulate_for_sbi` or any
+inference engine that expects a table of (theta, x) pairs.
 
 ### M0.11 — NumPy Sweeper (reference implementation)
 
