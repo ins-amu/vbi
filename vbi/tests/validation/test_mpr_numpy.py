@@ -167,6 +167,23 @@ class TestMultiNodeDeterministic:
 # ---------------------------------------------------------------------------
 
 class TestStochastic:
+    def test_tvb_noise_style_scales_nsig_to_amplitude(self):
+        from vbi.simulator.backend.numpy_.simulator import _resolve_noise_amplitude
+        from vbi.simulator.spec import IntegratorSpec
+        import dataclasses
+
+        spec = make_mpr_spec(n_nodes=2, dt=0.01, stochastic=True,
+                             monitors=(MonitorSpec("raw"),))
+        spec = dataclasses.replace(
+            spec,
+            integrator=dataclasses.replace(spec.integrator, noise_style="tvb"),
+        )
+        nsig = np.array([0.5, 2.0])
+        np.testing.assert_allclose(
+            _resolve_noise_amplitude(spec, nsig),
+            np.sqrt(2.0 * nsig),
+        )
+
     def test_stochastic_heun_runs(self):
         spec = make_mpr_spec(n_nodes=2, dt=0.01, stochastic=True,
                              monitors=(MonitorSpec("tavg", period=1.0),))

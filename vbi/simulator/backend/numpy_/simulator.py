@@ -90,6 +90,16 @@ def _apply_bounds(state: np.ndarray, spec: SimulationSpec) -> None:
             np.minimum(state[i], sv.upper_bound, out=state[i])
 
 
+def _resolve_noise_amplitude(spec: SimulationSpec, nsig: np.ndarray) -> np.ndarray:
+    """Return direct additive noise amplitude for the chosen noise convention."""
+    style = getattr(spec.integrator, "noise_style", "amplitude")
+    if style == "amplitude":
+        return nsig
+    if style == "tvb":
+        return np.sqrt(2.0 * nsig)
+    raise ValueError(f"Unknown noise_style: {style!r}")
+
+
 # ---------------------------------------------------------------------------
 # Main simulator
 # ---------------------------------------------------------------------------
@@ -124,10 +134,11 @@ class NumpySimulator:
             nsig = spec.integrator.noise_nsig
             if nsig is None:
                 nsig = np.ones(len(ni)) * 1e-3
-            self._noise_nsig = np.asarray(nsig, dtype=np.float64)
+            nsig = np.asarray(nsig, dtype=np.float64)
+            self._noise_amp = _resolve_noise_amplitude(spec, nsig)
         else:
             self._noise_mask = None
-            self._noise_nsig = None
+            self._noise_amp = None
 
     def run(self, duration: float) -> dict[str, tuple[np.ndarray, np.ndarray]]:
         spec = self.spec
@@ -152,7 +163,7 @@ class NumpySimulator:
             if stochastic:
                 self._state = self._integrator.step(
                     self._state, dfun_fn, coupling, dt,
-                    self._noise_nsig, self._noise_mask, rng)
+                    self._noise_amp, self._noise_mask, rng)
             else:
                 self._state = self._integrator.step(
                     self._state, dfun_fn, coupling, dt)
