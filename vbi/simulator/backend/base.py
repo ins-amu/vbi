@@ -14,9 +14,17 @@ def load_backend(name: str) -> type:
     if name == "numpy":
         from vbi.simulator.backend.numpy_.simulator import NumpySimulator
         return NumpySimulator
+    if name == "numba":
+        try:
+            from vbi.simulator.backend.numba_.simulator import NumbaSimulator
+            return NumbaSimulator
+        except ImportError as exc:
+            raise ImportError(
+                "Numba backend requires numba: pip install numba"
+            ) from exc
     raise ImportError(
         f"Backend {name!r} is not available. "
-        "Available now: 'numpy'. Coming: 'numba', 'cpp', 'cuda', 'jax'."
+        "Available: 'numpy', 'numba'. Coming: 'cpp', 'cuda', 'jax'."
     )
 
 
@@ -24,7 +32,15 @@ def load_sweep_backend(name: str) -> type:
     if name == "numpy":
         from vbi.simulator.backend.numpy_.sweeper import NumpySweeper
         return NumpySweeper
+    if name == "numba":
+        try:
+            from vbi.simulator.backend.numba_.sweeper import NumbaSweeperCPU
+            return NumbaSweeperCPU
+        except ImportError as exc:
+            raise ImportError(
+                "Numba backend requires numba: pip install numba"
+            ) from exc
     raise ImportError(
         f"Sweep backend {name!r} is not available. "
-        "Available now: 'numpy'. Coming: 'numba', 'cpp', 'cuda', 'jax'."
+        "Available: 'numpy', 'numba'. Coming: 'cpp', 'cuda', 'jax'."
     )
