@@ -72,18 +72,23 @@ def build_vbi_spec(method: str) -> SimulationSpec:
         scalar_names=(),
     )
 
-    # To run a stochastic simulation, noise_variables=("y4",) is already
-    # declared in the model (y4 is the p(t) entry point from JR 1995).
-    # Just switch the integrator:
+    # This demo compares deterministic VBI and TVB trajectories.
+    #
+    # For a VBI-only stochastic run, the JR model already marks y4 as the
+    # noisy state variable, so switch only the integrator:
     #
     #   IntegratorSpec(
     #       method=method,
     #       dt=JR_PARAMS["dt"],
     #       stochastic=True,
     #       noise_nsig=np.array([0.001]),  # σ, one value per noise_variable
-    #       noise_style="amplitude",       # dW = σ * sqrt(dt) * N(0,1)
+    #       noise_style="amplitude",       # σ * sqrt(dt) * N(0,1)
     #       noise_seed=42,
     #   )
+    #
+    # For a stochastic TVB comparison, run_tvb() must also use TVB's
+    # stochastic integrator and Additive noise. Use noise_style="tvb" on
+    # the VBI side if you want TVB-compatible nsig semantics.
     return SimulationSpec(
         model=jansen_rit,
         integrator=IntegratorSpec(method=method, dt=JR_PARAMS["dt"]),
