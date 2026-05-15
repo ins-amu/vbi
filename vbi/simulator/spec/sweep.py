@@ -1,10 +1,6 @@
 from __future__ import annotations
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
 import numpy as np
-
-if TYPE_CHECKING:
-    from vbi.feature_extraction.pipeline import FeaturePipeline
 
 
 @dataclass
@@ -21,9 +17,10 @@ class SweepSpec:
         Required when params is an ndarray; ignored when params is a dict.
     t_cut : float
         Milliseconds of burn-in to discard before feature extraction.
-    pipeline : FeaturePipeline | None
+    pipeline : object | None
         If set, sweeper.run() returns (labels, values); sweeper.run_df() returns
-        a DataFrame.  If None, sweeper returns the raw monitor output dict.
+        a DataFrame. The object must expose ``extract(result) -> (labels, values)``.
+        If None, sweeper returns the raw monitor output dict.
 
     Examples
     --------
@@ -36,7 +33,7 @@ class SweepSpec:
     params: dict[str, np.ndarray] | np.ndarray
     param_names: tuple[str, ...] | None = None
     t_cut: float = 500.0
-    pipeline: "FeaturePipeline | None" = None
+    pipeline: object | None = None
 
     @property
     def _param_names_list(self) -> list[str]:

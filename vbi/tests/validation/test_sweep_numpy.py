@@ -1,12 +1,37 @@
 """
-M0 validation: NumPy sweeper — shape, consistency, and FeaturePipeline.
+M0 validation: NumPy sweeper — shape, consistency, and pipeline hooks.
 """
 import numpy as np
 import pytest
 from vbi.simulator import Simulator, Sweeper
 from vbi.simulator.spec import MonitorSpec, SweepSpec
-from vbi.feature_extraction.pipeline import FeaturePipeline
 from .conftest import make_mpr_spec
+
+
+class MeanStdPipeline:
+    def __init__(self, features=("mean", "std"), signal="tavg", t_cut=0.0):
+        self.features = features
+        self.signal = signal
+        self.t_cut = t_cut
+
+    def extract(self, result):
+        times, data = result[self.signal]
+        keep = times >= self.t_cut
+        if np.any(keep):
+            data = data[keep]
+        if data.ndim == 3:
+            data = data[:, 0, :]
+        flat = data.reshape(data.shape[0], -1)
+
+        labels = []
+        values = []
+        if "mean" in self.features:
+            labels.extend([f"mean_{i}" for i in range(flat.shape[1])])
+            values.extend(np.mean(flat, axis=0))
+        if "std" in self.features:
+            labels.extend([f"std_{i}" for i in range(flat.shape[1])])
+            values.extend(np.std(flat, axis=0))
+        return labels, np.asarray(values, dtype=np.float64)
 
 
 # ---------------------------------------------------------------------------
@@ -39,7 +64,7 @@ class TestSweepNoPipeline:
 
 
 # ---------------------------------------------------------------------------
-# Sweeper with FeaturePipeline
+# Sweeper with pipeline
 # ---------------------------------------------------------------------------
 
 class TestSweepWithPipeline:
@@ -48,7 +73,7 @@ class TestSweepWithPipeline:
             n_nodes=4,
             monitors=(MonitorSpec("tavg", period=1.0),),
         )
-        self.pipeline = FeaturePipeline(
+        self.pipeline = MeanStdPipeline(
             features=["mean", "std"],
             signal="tavg",
             t_cut=100.0,
@@ -96,7 +121,7 @@ class TestSweepConsistency:
             n_nodes=4,
             monitors=(MonitorSpec("tavg", period=1.0),),
         )
-        pipeline = FeaturePipeline(
+        pipeline = MeanStdPipeline(
             features=["mean"], signal="tavg", t_cut=200.0
         )
 
