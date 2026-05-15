@@ -224,7 +224,7 @@ def do_bold_step(r_in, s, f, ftilde, vtilde, qtilde, v, q, dtt, P):
 WW_DEFAULTS = {
     # Excitatory/Inhibitory population parameters
     "a_exc": 310.0,
-    "a_inh": 0.615,
+    "a_inh": 615.0,
     "b_exc": 125.0,
     "b_inh": 177.0,
     "d_exc": 0.16,
@@ -308,7 +308,7 @@ class ParWW:
     ----------
     a_exc : float, default 310.0
         Excitatory population gain parameter (n/C)
-    a_inh : float, default 0.615
+    a_inh : float, default 615.0
         Inhibitory population gain parameter (nC⁻¹)
     b_exc : float, default 125.0
         Excitatory population threshold parameter (Hz)
@@ -345,7 +345,7 @@ class ParWW:
         self,
         # exc/inh params (Wong & Wang 2006 / Deco et al.)
         a_exc=310.0,
-        a_inh=0.615,
+        a_inh=615.0,
         b_exc=125.0,
         b_inh=177.0,
         d_exc=0.16,
@@ -509,7 +509,7 @@ def f_ww(S, t, P):
 
     current_inh = (
         P.W_inh * P.ext_current
-        + P.J_NMDA * S_inh
+        + P.J_NMDA * S_exc
         - S_inh
         + P.G_inh * P.J_NMDA * network_inh_exc
     )
@@ -802,7 +802,7 @@ class WW_sde(BaseNumbaModel):
         # create numba jitclass param holders
         self.P = ParWW(
             a_exc=par.get("a_exc", 310.0),
-            a_inh=par.get("a_inh", 0.615),
+            a_inh=par.get("a_inh", 615.0),
             b_exc=par.get("b_exc", 125.0),
             b_inh=par.get("b_inh", 177.0),
             d_exc=par.get("d_exc", 0.16),
