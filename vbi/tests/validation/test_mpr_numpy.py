@@ -59,7 +59,7 @@ class TestDeterministicSingleNode:
         burn = 20   # discard first 20 ms
         np.testing.assert_allclose(
             d_e[burn:, 0, 0], d_h[burn:, 0, 0],
-            atol=0.05, err_msg="Euler and Heun diverge too much at dt=0.001"
+            atol=0.05, err_msg="Euler and Heun diverge too much at dt=0.005"
         )
 
 
