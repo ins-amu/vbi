@@ -31,9 +31,18 @@ class LinearCoupling:
         -------
         (n_cvar, n_nodes)   coupling input per (cvar, target node)
         """
-        # sum_src weights[tgt,src] * delayed_state[cvar, src, tgt]
-        # = einsum('ts, cst -> ct', weights, delayed_state)
         result = np.einsum('ts,cst->ct', self.weights, delayed_state)
+        return self.G * self.a * result + self.b
+
+    def compute_instant(self, cvar_state: np.ndarray) -> np.ndarray:
+        """Fast path for zero-delay (ODE) case — skips the ring buffer.
+
+        Parameters
+        ----------
+        cvar_state : (n_cvar, n_nodes)   current coupling-variable state.
+        """
+        # weights @ cvar_state.T → (n_nodes, n_cvar) → transpose → (n_cvar, n_nodes)
+        result = (self.weights @ cvar_state.T).T
         return self.G * self.a * result + self.b
 
 
@@ -54,6 +63,12 @@ class SigmoidalCoupling:
     def compute(self, delayed_state: np.ndarray) -> np.ndarray:
         sigm = 1.0 / (1.0 + np.exp(-(delayed_state - self.midpoint) / self.sigma))
         result = np.einsum('ts,cst->ct', self.weights, sigm)
+        return self.G * self.a * result + self.b
+
+    def compute_instant(self, cvar_state: np.ndarray) -> np.ndarray:
+        """Fast path for zero-delay (ODE) case."""
+        sigm = 1.0 / (1.0 + np.exp(-(cvar_state - self.midpoint) / self.sigma))
+        result = (self.weights @ sigm.T).T
         return self.G * self.a * result + self.b
 
 

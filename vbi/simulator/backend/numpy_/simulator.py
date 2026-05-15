@@ -115,6 +115,7 @@ class NumpySimulator:
         self._params = _build_params(spec)
         G = float(self._params.get("G", 1.0))
 
+        self._has_delays = spec.has_delays
         self._delay_steps = spec.delay_steps(dt)
         self._history = History(spec.horizon(dt), len(spec.model.cvar), n_nodes)
         self._coupling = build_coupling(spec.coupling, spec.weights, G)
@@ -154,10 +155,15 @@ class NumpySimulator:
             # coupling: (n_cvar, n_nodes) — passed directly; build_dfun unpacks by name
             return self._dfun(state, coupling, params)
 
+        has_delays = self._has_delays
+
         for step in range(n_steps):
-            # 1. Delayed coupling
-            delayed = self._history.read_delayed(self._delay_steps)
-            coupling = self._coupling.compute(delayed)      # (n_cvar, n_nodes)
+            # 1. Coupling — fast instant path when all delays are zero
+            if has_delays:
+                delayed = self._history.read_delayed(self._delay_steps)
+                coupling = self._coupling.compute(delayed)
+            else:
+                coupling = self._coupling.compute_instant(self._state[cvar_idx])
 
             # 2. Integrate
             if stochastic:
@@ -171,8 +177,9 @@ class NumpySimulator:
             # 3. Clamp state bounds
             _apply_bounds(self._state, spec)
 
-            # 4. Update history
-            self._history.write(self._state[cvar_idx])
+            # 4. Update history (only needed for DDE)
+            if has_delays:
+                self._history.write(self._state[cvar_idx])
 
             # 5. Sample all monitors
             for mon in self._monitors:

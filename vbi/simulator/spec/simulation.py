@@ -36,13 +36,23 @@ class SimulationSpec:
     coupling: CouplingSpec
     monitors: tuple[MonitorSpec, ...]
     weights: np.ndarray
-    tract_lengths: np.ndarray
+    tract_lengths: np.ndarray | None = None  # None → zero delays (pure ODE/SDE)
     speed: float = 4.0
     node_params: dict[str, np.ndarray] = field(default_factory=dict)
+
+    def __post_init__(self):
+        if self.tract_lengths is None:
+            object.__setattr__(self, "tract_lengths",
+                               np.zeros_like(self.weights))
 
     @property
     def n_nodes(self) -> int:
         return self.weights.shape[0]
+
+    @property
+    def has_delays(self) -> bool:
+        """True only when at least one tract length is non-zero."""
+        return bool(self.tract_lengths.any())
 
     def delay_steps(self, dt: float | None = None) -> np.ndarray:
         """(n_nodes, n_nodes) int32 array of delay in integration steps."""
