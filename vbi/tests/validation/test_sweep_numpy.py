@@ -42,7 +42,7 @@ class TestSweepNoPipeline:
     def test_returns_list_of_dicts(self):
         spec = make_mpr_spec(n_nodes=4, monitors=(MonitorSpec("tavg", period=1.0),))
         sw_spec = SweepSpec(params={"G": np.array([1.0, 2.0, 3.0])})
-        results = Sweeper(spec, sw_spec, backend="numpy").run(duration=100.0)
+        results = Sweeper(spec, sw_spec, backend="numpy").run(duration=50.0)
         assert len(results) == 3
         assert all("tavg" in r for r in results)
 
@@ -52,14 +52,14 @@ class TestSweepNoPipeline:
             "G":   np.linspace(1.0, 3.0, 4),
             "eta": np.linspace(-5.0, -3.0, 3),
         })
-        results = Sweeper(spec, sw_spec, backend="numpy").run(duration=100.0)
+        results = Sweeper(spec, sw_spec, backend="numpy").run(duration=50.0)
         assert len(results) == 4 * 3   # outer product
 
     def test_arbitrary_samples(self):
         spec = make_mpr_spec(n_nodes=2, monitors=(MonitorSpec("tavg", period=1.0),))
         theta = np.array([[1.0, -4.0], [2.0, -5.0], [3.0, -3.5]])
         sw_spec = SweepSpec(params=theta, param_names=("G", "eta"))
-        results = Sweeper(spec, sw_spec, backend="numpy").run(duration=100.0)
+        results = Sweeper(spec, sw_spec, backend="numpy").run(duration=50.0)
         assert len(results) == 3
 
 

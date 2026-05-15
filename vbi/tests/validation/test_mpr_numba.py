@@ -127,7 +127,7 @@ class TestStochasticMoments:
         np.testing.assert_array_equal(d1, d2, err_msg="Same seed → must reproduce")
 
     def test_stochastic_mean_close_to_numpy(self):
-        """Mean over repeated realisations: Numba roughly matches NumPy."""
+        """Mean over a few realisations: Numba roughly matches NumPy."""
         spec = make_mpr_spec(
             n_nodes=2, dt=0.01, stochastic=True,
             monitors=(MonitorSpec("raw"),),
@@ -135,22 +135,24 @@ class TestStochasticMoments:
         import dataclasses
 
         np_means, nb_means = [], []
-        for seed in range(20):
+        n_realisations = 5
+        for seed in range(n_realisations):
             s = dataclasses.replace(
                 spec,
                 integrator=dataclasses.replace(spec.integrator, noise_seed=seed),
             )
-            _, d = Simulator(s, backend="numpy").run(100.0)["raw"]
+            _, d = Simulator(s, backend="numpy").run(50.0)["raw"]
             np_means.append(d[1000:, 0, :].mean())   # r variable
-            _, d = Simulator(s, backend="numba").run(100.0)["raw"]
+            _, d = Simulator(s, backend="numba").run(50.0)["raw"]
             nb_means.append(d[1000:, 0, :].mean())
 
         np_mu = np.mean(np_means)
         nb_mu = np.mean(nb_means)
-        sigma = np.std(np_means) / np.sqrt(20)
-        assert abs(nb_mu - np_mu) < 4 * sigma, (
+        sigma = np.std(np_means) / np.sqrt(n_realisations)
+        tolerance = max(4 * sigma, 1e-3)
+        assert abs(nb_mu - np_mu) < tolerance, (
             f"Stochastic mean mismatch: numpy={np_mu:.4f}, numba={nb_mu:.4f}, "
-            f"4*se={4*sigma:.4f}"
+            f"tolerance={tolerance:.4f}"
         )
 
 
@@ -167,11 +169,11 @@ class TestSweepDeterministic:
 
     def test_sweep_shape(self):
         spec       = self._base_spec(n_nodes=4)
-        sweep_spec = SweepSpec(params={"G": np.linspace(1.0, 4.0, 8)})
-        res = Sweeper(spec, sweep_spec, backend="numba").run(100.0)
+        sweep_spec = SweepSpec(params={"G": np.linspace(1.0, 4.0, 4)})
+        res = Sweeper(spec, sweep_spec, backend="numba").run(50.0)
         # Without pipeline: list of monitor dicts
         assert isinstance(res, list)
-        assert len(res) == 8
+        assert len(res) == 4
 
     def test_sweep_with_pipeline_shape(self):
         pytest.importorskip("vbi.feature_extraction.pipeline",

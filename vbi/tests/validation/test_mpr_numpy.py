@@ -49,9 +49,9 @@ class TestDeterministicSingleNode:
 
     def test_euler_vs_heun_close(self):
         from .conftest import make_mpr_spec
-        spec_euler = make_mpr_spec(n_nodes=1, dt=0.001, method="euler",
+        spec_euler = make_mpr_spec(n_nodes=1, dt=0.005, method="euler",
                                    monitors=(MonitorSpec("tavg", period=1.0),))
-        spec_heun = make_mpr_spec(n_nodes=1, dt=0.001, method="heun",
+        spec_heun = make_mpr_spec(n_nodes=1, dt=0.005, method="heun",
                                   monitors=(MonitorSpec("tavg", period=1.0),))
         t_e, d_e = Simulator(spec_euler).run(100.0)["tavg"]
         t_h, d_h = Simulator(spec_heun).run(100.0)["tavg"]
