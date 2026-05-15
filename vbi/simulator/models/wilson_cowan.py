@@ -2,7 +2,8 @@ from vbi.simulator.spec.model import ModelSpec, StateVar, Parameter
 
 # Defaults match TVB WilsonCowan exactly.
 # cvar=[E, I]: TVB cvar=[0, 1]; long-range coupling enters x_e only via c (=c_E=coupling[0]).
-# Shifted sigmoid (TVB default shift_sigmoid=True): S(x) - S(0) so that S(0)=0.
+# shift_sigmoid=1.0 matches TVB's shifted sigmoid: S(x) - S(0) so that S(0)=0.
+# shift_sigmoid=0.0 uses the unshifted sigmoid used by legacy notebook examples.
 # S_e(x_e) = c_e * (1/(1+exp(-a_e*(x_e-b_e))) - 1/(1+exp(a_e*b_e)))
 wilson_cowan = ModelSpec(
     name="WilsonCowan",
@@ -33,22 +34,23 @@ wilson_cowan = ModelSpec(
         Parameter("Q",        0.0, "external stimulus to inhibitory population"),
         Parameter("alpha_e",  1.0, "excitatory gain factor"),
         Parameter("alpha_i",  1.0, "inhibitory gain factor"),
+        Parameter("shift_sigmoid", 1.0, "1.0 for TVB shifted sigmoid, 0.0 for unshifted sigmoid"),
     ),
     cvar=("E", "I"),
     dfun_str={
         # x_e = alpha_e*(c_ee*E - c_ei*I + P - theta_e + c)   [c = long-range coupling on E]
-        # s_e = c_e*(sigmoid(x_e) - sigmoid(0))                [shifted so S(0)=0]
+        # s_e = c_e*(sigmoid(x_e) - shift_sigmoid*sigmoid(0))
         "E": (
             "(-E + (k_e - r_e*E) * (c_e * ("
             "1/(1+exp(-a_e*(alpha_e*(c_ee*E - c_ei*I + P - theta_e + c) - b_e)))"
-            " - 1/(1+exp(a_e*b_e))))) / tau_e"
+            " - shift_sigmoid/(1+exp(a_e*b_e))))) / tau_e"
         ),
         # x_i = alpha_i*(c_ie*E - c_ii*I + Q - theta_i)        [no long-range coupling]
-        # s_i = c_i*(sigmoid(x_i) - sigmoid(0))
+        # s_i = c_i*(sigmoid(x_i) - shift_sigmoid*sigmoid(0))
         "I": (
             "(-I + (k_i - r_i*I) * (c_i * ("
             "1/(1+exp(-a_i*(alpha_i*(c_ie*E - c_ii*I + Q - theta_i) - b_i)))"
-            " - 1/(1+exp(a_i*b_i))))) / tau_i"
+            " - shift_sigmoid/(1+exp(a_i*b_i))))) / tau_i"
         ),
     },
     noise_variables=("E", "I"),

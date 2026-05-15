@@ -1,4 +1,4 @@
-"""Compare VBI simulator and TVB Wilson-Cowan trajectories."""
+"""Reproduce the first Wilson-Cowan SDE notebook visualization."""
 
 from __future__ import annotations
 
@@ -11,14 +11,9 @@ sys.dont_write_bytecode = True
 import numpy as np
 
 from helpers import (
-    comparison_metrics,
-    complete_graph_weights,
     ensure_repo_on_path,
     homogeneous_node_params,
-    make_tvb_connectivity,
     quiet_optional_imports,
-    quiet_tvb,
-    save_state_comparison_plot,
 )
 
 ensure_repo_on_path(__file__)
@@ -33,61 +28,71 @@ with quiet_optional_imports():
 
 
 WC_PARAMS = {
-    "nn": 6,
-    "coupling_strength": 0.15,
-    "dt": 0.01,
-    "c_ee": 12.0,
-    "c_ei": 4.0,
-    "c_ie": 13.0,
-    "c_ii": 11.0,
-    "tau_e": 10.0,
-    "tau_i": 10.0,
-    "a_e": 1.2,
-    "b_e": 2.8,
+    "nn": 2,
+    "coupling_strength": 0.0,
+    "dt": 0.05,
+    "t_cut": 101.0,
+    "noise_amp": 0.0005,
+    "noise_seed": 42,
+    "c_ee": 16.0,
+    "c_ei": 12.0,
+    "c_ie": 15.0,
+    "c_ii": 3.0,
+    "tau_e": 8.0,
+    "tau_i": 8.0,
+    "a_e": 1.3,
+    "b_e": 4.0,
     "c_e": 1.0,
     "theta_e": 0.0,
-    "a_i": 1.0,
-    "b_i": 4.0,
+    "a_i": 2.0,
+    "b_i": 3.7,
     "c_i": 1.0,
     "theta_i": 0.0,
     "r_e": 1.0,
     "r_i": 1.0,
-    "k_e": 1.0,
-    "k_i": 1.0,
-    "P": 0.5,
+    "k_e": 0.994,
+    "k_i": 0.999,
+    "P": 1.025,
     "Q": 0.0,
     "alpha_e": 1.0,
     "alpha_i": 1.0,
-    "decimate": 100,
+    "shift_sigmoid": 0.0,
+    "decimate": 1,
 }
 
 
-def demo_weights(n_nodes: int) -> np.ndarray:
-    """Return row-normalized complete-graph weights for a compact demo."""
-    weights = complete_graph_weights(n_nodes)
-    row_sums = weights.sum(axis=1, keepdims=True)
-    row_sums[row_sums == 0.0] = 1.0
-    return weights / row_sums
-
-
-def build_vbi_spec(method: str) -> SimulationSpec:
-    weights = demo_weights(WC_PARAMS["nn"])
+def build_vbi_spec(
+    method: str,
+    stochastic: bool = True,
+    param_overrides: dict[str, float] | None = None,
+) -> SimulationSpec:
+    weights = np.array([[0.0, 1.0], [1.0, 0.0]], dtype=np.float64)
+    params = dict(WC_PARAMS)
+    if param_overrides:
+        params.update(param_overrides)
     param_names = (
         "c_ee", "c_ei", "c_ie", "c_ii", "tau_e", "tau_i",
         "a_e", "b_e", "c_e", "theta_e", "a_i", "b_i", "c_i",
         "theta_i", "r_e", "r_i", "k_e", "k_i", "P", "Q",
-        "alpha_e", "alpha_i",
+        "alpha_e", "alpha_i", "shift_sigmoid",
     )
     node_params = homogeneous_node_params(
         n_nodes=weights.shape[0],
-        params={name: WC_PARAMS[name] for name in param_names},
+        params={name: params[name] for name in param_names},
         scalar_names=(),
     )
 
     return SimulationSpec(
         model=wilson_cowan,
-        integrator=IntegratorSpec(method=method, dt=WC_PARAMS["dt"]),
-        coupling=CouplingSpec(kind="linear", a=WC_PARAMS["coupling_strength"]),
+        integrator=IntegratorSpec(
+            method=method,
+            dt=params["dt"],
+            stochastic=stochastic,
+            noise_nsig=np.array([params["noise_amp"], params["noise_amp"]]),
+            noise_style="amplitude",
+            noise_seed=params["noise_seed"],
+        ),
+        coupling=CouplingSpec(kind="linear", a=params["coupling_strength"]),
         monitors=(MonitorSpec(kind="raw"),),
         weights=weights,
         tract_lengths=np.zeros_like(weights),
@@ -96,87 +101,92 @@ def build_vbi_spec(method: str) -> SimulationSpec:
     )
 
 
-def run_vbi(duration: float, method: str) -> tuple[np.ndarray, np.ndarray]:
-    return Simulator(build_vbi_spec(method), backend="numpy").run(duration)["raw"]
+def run_vbi(
+    duration: float,
+    method: str,
+    stochastic: bool = True,
+    param_overrides: dict[str, float] | None = None,
+) -> tuple[np.ndarray, np.ndarray]:
+    spec = build_vbi_spec(method, stochastic=stochastic, param_overrides=param_overrides)
+    return Simulator(spec, backend="numpy").run(duration)["raw"]
 
 
-def run_tvb(duration: float, method: str) -> np.ndarray:
+def spectrum(signal: np.ndarray, dt: float) -> tuple[np.ndarray, np.ndarray]:
+    """Return Welch spectrum for a one-dimensional signal."""
+    signal = signal - np.mean(signal)
     try:
-        from tvb.simulator.coupling import Linear
-        from tvb.simulator.integrators import EulerDeterministic, HeunDeterministic
-        from tvb.simulator.models.wilson_cowan import WilsonCowan
-        from tvb.simulator.monitors import Raw
-        from tvb.simulator.simulator import Simulator as TVBSimulator
-    except ImportError as exc:
-        raise RuntimeError("TVB comparison requires the 'tvb' package") from exc
+        from scipy.signal import welch
+    except ImportError:
+        freqs = np.fft.rfftfreq(signal.size, d=dt / 1000.0)
+        power = np.abs(np.fft.rfft(signal)) ** 2 / max(signal.size, 1)
+        return freqs, power
 
-    weights = demo_weights(WC_PARAMS["nn"])
-    n_nodes = weights.shape[0]
-    conn = make_tvb_connectivity(weights, speed=1.0)
+    nperseg = min(4096, signal.size)
+    return welch(signal, fs=1000.0 / dt, nperseg=nperseg)
 
-    tvb_model = WilsonCowan(
-        c_ee=np.array([WC_PARAMS["c_ee"]]),
-        c_ei=np.array([WC_PARAMS["c_ei"]]),
-        c_ie=np.array([WC_PARAMS["c_ie"]]),
-        c_ii=np.array([WC_PARAMS["c_ii"]]),
-        tau_e=np.array([WC_PARAMS["tau_e"]]),
-        tau_i=np.array([WC_PARAMS["tau_i"]]),
-        a_e=np.array([WC_PARAMS["a_e"]]),
-        b_e=np.array([WC_PARAMS["b_e"]]),
-        c_e=np.array([WC_PARAMS["c_e"]]),
-        theta_e=np.array([WC_PARAMS["theta_e"]]),
-        a_i=np.array([WC_PARAMS["a_i"]]),
-        b_i=np.array([WC_PARAMS["b_i"]]),
-        c_i=np.array([WC_PARAMS["c_i"]]),
-        theta_i=np.array([WC_PARAMS["theta_i"]]),
-        r_e=np.array([WC_PARAMS["r_e"]]),
-        r_i=np.array([WC_PARAMS["r_i"]]),
-        k_e=np.array([WC_PARAMS["k_e"]]),
-        k_i=np.array([WC_PARAMS["k_i"]]),
-        P=np.array([WC_PARAMS["P"]]),
-        Q=np.array([WC_PARAMS["Q"]]),
-        alpha_e=np.array([WC_PARAMS["alpha_e"]]),
-        alpha_i=np.array([WC_PARAMS["alpha_i"]]),
-        shift_sigmoid=np.array([True]),
-        variables_of_interest=("E", "I"),
-    )
-    integrator_cls = {
-        "euler": EulerDeterministic,
-        "heun": HeunDeterministic,
-    }[method]
 
-    with quiet_tvb():
-        sim = TVBSimulator(
-            connectivity=conn,
-            model=tvb_model,
-            coupling=Linear(a=np.array([WC_PARAMS["coupling_strength"]])),
-            integrator=integrator_cls(dt=WC_PARAMS["dt"]),
-            monitors=[Raw()],
-            simulation_length=duration,
-        ).configure()
+def after_cut(times: np.ndarray, data: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Drop the initial transient used by the original notebook examples."""
+    keep = times >= WC_PARAMS["t_cut"]
+    if not np.any(keep):
+        return times, data
+    return times[keep], data[keep]
 
-        initial_state = np.zeros((tvb_model.nvar, n_nodes, 1))
-        sim.current_state[:] = initial_state
-        sim.history.buffer[:] = initial_state[tvb_model.cvar][np.newaxis, ...]
+def save_single_run_plot(
+    times: np.ndarray,
+    data: np.ndarray,
+    out_path: Path,
+    decimate: int,
+) -> None:
+    """Save time-series, spectrum, and phase-plane views for one run."""
+    import matplotlib.pyplot as plt
 
-        (_times, data), = sim.run()
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    decimate = max(1, decimate)
+    post_times, post_data = after_cut(times, data)
+    post_e = post_data[:, 0, 0]
+    post_i = post_data[:, 1, 0]
+    freqs_e, power_e = spectrum(post_e, WC_PARAMS["dt"])
+    freqs_i, power_i = spectrum(post_i, WC_PARAMS["dt"])
 
-    return data[:, :, :, 0]
+    fig = plt.figure(constrained_layout=True, figsize=(11, 6))
+    axes = fig.subplot_mosaic("AA\nBC")
+    axes["A"].plot(post_times[::decimate], post_e[::decimate], color="tab:red", lw=0.8, label="E")
+    axes["A"].plot(post_times[::decimate], post_i[::decimate], color="tab:blue", lw=0.8, label="I")
+    axes["A"].set_ylabel("activity")
+    axes["A"].set_title("Wilson-Cowan stochastic trajectory")
+    axes["A"].legend(frameon=False)
+    axes["A"].grid(True, alpha=0.25)
 
+    axes["B"].plot(freqs_e, power_e, color="tab:red", lw=1.0, label="E")
+    axes["B"].plot(freqs_i, power_i, color="tab:blue", lw=1.0, label="I")
+    axes["B"].set_xlim(0, 100)
+    axes["B"].set_xlabel("frequency [Hz]")
+    axes["B"].set_ylabel("power")
+    axes["B"].legend(frameon=False)
+    axes["B"].grid(True, alpha=0.25)
+
+    axes["C"].plot(post_e[::decimate], post_i[::decimate], color="black", lw=0.6, alpha=0.75)
+    axes["C"].set_xlabel("E")
+    axes["C"].set_ylabel("I")
+    axes["C"].grid(True, alpha=0.25)
+
+    fig.savefig(out_path, dpi=160)
+    plt.close(fig)
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--duration",
         type=float,
-        default=100.0,
-        help="comparison duration in milliseconds",
+        default=2000.0,
+        help="simulation duration in milliseconds",
     )
     parser.add_argument(
         "--method",
         choices=("euler", "heun"),
         default="heun",
-        help="deterministic integrator used by both simulators",
+        help="stochastic integrator drift method",
     )
     parser.add_argument(
         "--decimate",
@@ -185,42 +195,39 @@ def parse_args() -> argparse.Namespace:
         help="plot every Nth raw sample",
     )
     parser.add_argument(
-        "--output",
+        "--single-output",
         type=Path,
-        default=Path(__file__).with_name("outputs") / "wilson_cowan_tvb_vbi_timeseries.png",
-        help="path for the comparison figure",
+        default=Path(__file__).with_name("outputs") / "wilson_cowan_notebook_single_run.png",
+        help="path for the single-run figure",
     )
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
-    times, vbi_data = run_vbi(duration=args.duration, method=args.method)
-    tvb_data = run_tvb(duration=args.duration, method=args.method)
-    metrics = comparison_metrics(reference=tvb_data, candidate=vbi_data)
-    scale = max(float(np.nanmax(np.abs(tvb_data))), 1.0)
-    relative_max_error = metrics["max_abs"] / scale
+    times, data = run_vbi(duration=args.duration, method=args.method)
 
-    save_state_comparison_plot(
+    save_single_run_plot(
         times=times,
-        left_data=vbi_data,
-        right_data=tvb_data,
-        out_path=args.output,
-        variable_names=("E", "I"),
-        title="Wilson-Cowan trajectories: VBI simulator vs TVB",
+        data=data,
+        out_path=args.single_output,
         decimate=args.decimate,
     )
 
-    print("Wilson-Cowan TVB comparison")
+    _post_times, post_data = after_cut(times, data)
+    freqs, power = spectrum(post_data[:, 0, 0], WC_PARAMS["dt"])
+    nonzero = freqs > 0.0
+    peak_freq = float(freqs[nonzero][np.argmax(power[nonzero])]) if np.any(nonzero) else 0.0
+
+    print("Wilson-Cowan notebook-style stochastic simulator demo")
     print(
         f"nodes: {WC_PARAMS['nn']}, coupling: {WC_PARAMS['coupling_strength']}, "
-        f"dt: {WC_PARAMS['dt']} ms"
+        f"P: {WC_PARAMS['P']}, dt: {WC_PARAMS['dt']} ms, noise_amp: {WC_PARAMS['noise_amp']}"
     )
-    print(f"trajectory shape: {vbi_data.shape}  # (time, variable, node)")
-    print(f"max absolute error: {metrics['max_abs']:.6e}")
-    print(f"RMS error: {metrics['rms']:.6e}")
-    print(f"relative max error: {relative_max_error:.6e}")
-    print(f"saved figure: {args.output}")
+    print(f"trajectory shape: {data.shape}  # (time, variable, node)")
+    print(f"post-cut shape: {post_data.shape}  # t >= {WC_PARAMS['t_cut']} ms")
+    print(f"single-run peak E frequency: {peak_freq:.3f} Hz")
+    print(f"saved figure: {args.single_output}")
 
 
 if __name__ == "__main__":
