@@ -112,10 +112,11 @@ class NumbaSweeperCPU:
         else:
             record_period = 1
 
-        # burn-in from pipeline or sweep_spec
+        # burn-in: only applied inside @njit when a pipeline is set.
+        # Without a pipeline the full simulation is returned (t_cut applied later
+        # by the caller, matching NumpySweeper semantics).
         pipeline      = self.sweep.pipeline
-        t_cut_ms      = pipeline.t_cut if pipeline is not None else self.sweep.t_cut
-        t_cut_step    = round(t_cut_ms / dt)
+        t_cut_step    = round(pipeline.t_cut / dt) if pipeline is not None else 0
         n_record      = _count_records(n_steps, t_cut_step, record_period)
 
         n_sv   = spec.model.n_sv
@@ -175,14 +176,13 @@ class NumbaSweeperCPU:
         dt = self.spec.integrator.dt
 
         if pipeline is None:
-            # Wrap each run's raw array into a monitor dict (subsample format)
-            t = (np.arange(raw.shape[1]) * record_period * dt +
-                 round(self.sweep.t_cut / dt) * dt)
+            # Wrap each run's raw array into a monitor dict (subsample format).
+            # t_cut_step=0 so raw starts from step 0 — matches NumpySweeper.
+            t = np.arange(raw.shape[1], dtype=np.float64) * record_period * dt
             results = []
+            mon_kind = self.spec.monitors[0].kind if self.spec.monitors else "raw"
             for i in range(n_samples):
-                results.append({
-                    self.spec.monitors[0].kind: (t, raw[i])
-                })
+                results.append({mon_kind: (t, raw[i])})
             return results
 
         # Pipeline mode: build a pseudo monitor_result dict per run and extract

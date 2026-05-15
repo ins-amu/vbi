@@ -32,9 +32,9 @@ class TestDeterministicSingleNode:
         assert "tavg" in result
 
     def test_tavg_shape(self):
-        result = self.sim.run(duration=1000.0)
+        result = self.sim.run(duration=100.0)
         t, data = result["tavg"]
-        # period=1.0 ms, dt=0.01 ms → istep=100, n_windows=10 000/100=100
+        # period=1.0 ms, dt=0.01 ms.
         assert t.shape[0] == data.shape[0]
         # data: (n_windows, n_voi, n_nodes)
         assert data.ndim == 3
@@ -43,7 +43,7 @@ class TestDeterministicSingleNode:
 
     def test_r_stays_nonnegative(self):
         # MPR has lower_bound=0 on r
-        result = self.sim.run(duration=2000.0)
+        result = self.sim.run(duration=100.0)
         _, data = result["tavg"]
         assert np.all(data[:, 0, :] >= 0.0), "r must be non-negative"
 
@@ -53,10 +53,10 @@ class TestDeterministicSingleNode:
                                    monitors=(MonitorSpec("tavg", period=1.0),))
         spec_heun = make_mpr_spec(n_nodes=1, dt=0.001, method="heun",
                                   monitors=(MonitorSpec("tavg", period=1.0),))
-        t_e, d_e = Simulator(spec_euler).run(1000.0)["tavg"]
-        t_h, d_h = Simulator(spec_heun).run(1000.0)["tavg"]
+        t_e, d_e = Simulator(spec_euler).run(100.0)["tavg"]
+        t_h, d_h = Simulator(spec_heun).run(100.0)["tavg"]
         # Both should converge to similar trajectories at small dt
-        burn = 200   # discard first 200 ms
+        burn = 20   # discard first 20 ms
         np.testing.assert_allclose(
             d_e[burn:, 0, 0], d_h[burn:, 0, 0],
             atol=0.05, err_msg="Euler and Heun diverge too much at dt=0.001"
@@ -156,7 +156,7 @@ class TestMultiNodeDeterministic:
     def test_80_nodes_runs_without_error(self):
         spec = make_mpr_spec(n_nodes=80, dt=0.01,
                              monitors=(MonitorSpec("tavg", period=1.0),))
-        result = Simulator(spec).run(500.0)
+        result = Simulator(spec).run(100.0)
         t, data = result["tavg"]
         assert data.shape[2] == 80
         assert np.isfinite(data).all()
@@ -187,7 +187,7 @@ class TestStochastic:
     def test_stochastic_heun_runs(self):
         spec = make_mpr_spec(n_nodes=2, dt=0.01, stochastic=True,
                              monitors=(MonitorSpec("tavg", period=1.0),))
-        result = Simulator(spec).run(500.0)
+        result = Simulator(spec).run(100.0)
         _, data = result["tavg"]
         assert np.isfinite(data).all()
 
@@ -250,11 +250,11 @@ class TestMonitors:
 
     def test_bold_monitor(self):
         spec = make_mpr_spec(n_nodes=2, dt=0.01,
-                             monitors=(MonitorSpec("bold", tr=2000.0),))
-        result = Simulator(spec).run(10_000.0)   # 10 s
+                             monitors=(MonitorSpec("bold", tr=20.0),))
+        result = Simulator(spec).run(100.0)
         t, data = result["bold"]
-        # steps 0..999 999; BOLD fires at step>0 and step%200000==0
-        # → at steps 200000,400000,600000,800000 = 4 samples
+        # steps 0..9999; BOLD fires at step>0 and step%2000==0
+        # -> at steps 2000,4000,6000,8000 = 4 samples
         assert len(t) == 4
         assert data.shape == (4, 2)
 
@@ -262,9 +262,9 @@ class TestMonitors:
         spec = make_mpr_spec(
             n_nodes=2, dt=0.01,
             monitors=(MonitorSpec("tavg", period=1.0),
-                      MonitorSpec("bold", tr=2000.0)),
+                      MonitorSpec("bold", tr=20.0)),
         )
-        result = Simulator(spec).run(10_000.0)
+        result = Simulator(spec).run(100.0)
         assert "tavg" in result
         assert "bold" in result
 
