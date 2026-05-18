@@ -30,6 +30,58 @@ _MODULE_CACHE: dict[str, types.ModuleType] = {}
 
 
 # ---------------------------------------------------------------------------
+# Prerequisites check
+# ---------------------------------------------------------------------------
+
+class CppBackendUnavailable(RuntimeError):
+    """Raised when the C++ backend cannot be used due to missing dependencies."""
+
+
+def check_prerequisites() -> None:
+    """
+    Verify all build-time dependencies are present before touching the filesystem.
+
+    Raises CppBackendUnavailable with a consolidated list of what is missing
+    and how to fix it.
+    """
+    missing: list[str] = []
+    hints:   list[str] = []
+
+    # 1. mako (template engine)
+    try:
+        import mako  # noqa: F401
+    except ImportError:
+        missing.append("mako")
+        hints.append("  pip install mako")
+
+    # 2. pybind11 (Python/C++ bindings)
+    try:
+        import pybind11  # noqa: F401
+    except ImportError:
+        missing.append("pybind11")
+        hints.append("  pip install pybind11")
+
+    # 3. A C++ compiler — accept cmake, c++, g++, or clang++ in PATH
+    compiler_found = any(shutil.which(cmd) for cmd in ("cmake", "c++", "g++", "clang++"))
+    if not compiler_found:
+        missing.append("C++ compiler (cmake / g++ / clang++)")
+        hints.append(
+            "  Ubuntu/Debian : sudo apt install build-essential cmake\n"
+            "  macOS         : xcode-select --install  (provides clang++)\n"
+            "  Conda         : conda install -c conda-forge cxx-compiler cmake"
+        )
+
+    if missing:
+        raise CppBackendUnavailable(
+            "VBI C++ backend is missing required dependencies:\n\n"
+            + "\n".join(f"  • {m}" for m in missing)
+            + "\n\nTo fix:\n"
+            + "\n".join(hints)
+            + "\n\nAlternatively, use backend='numpy' or backend='numba'."
+        )
+
+
+# ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
 
@@ -39,7 +91,11 @@ def build_or_load(spec: SimulationSpec, verbose: bool = False) -> types.ModuleTy
 
     - On first call: generate C++ sources, compile, cache the .so.
     - On subsequent calls (same spec): load from in-process cache or disk.
+
+    Raises CppBackendUnavailable if mako, pybind11, or a C++ compiler is absent.
     """
+    check_prerequisites()
+
     key = spec.cache_key()
 
     if key in _MODULE_CACHE:
@@ -90,12 +146,36 @@ def _write_sources(spec: SimulationSpec, key: str,
 # ---------------------------------------------------------------------------
 
 def _compile(build_dir: Path, key: str, verbose: bool = False) -> Path:
+    cmake_err: str = ""
     try:
         return _cmake_build(build_dir, verbose=verbose)
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        if verbose:
-            print("[vbi-cpp] CMake failed — trying direct compiler")
+    except FileNotFoundError:
+        cmake_err = "cmake not found in PATH"
+    except subprocess.CalledProcessError as exc:
+        cmake_err = (exc.stderr or exc.stdout or "").strip()
+
+    if verbose:
+        print(f"[vbi-cpp] CMake failed ({cmake_err}) — trying direct compiler")
+
+    try:
         return _direct_build(build_dir, key, verbose=verbose)
+    except FileNotFoundError:
+        raise CppBackendUnavailable(
+            "No C++ compiler found in PATH (tried cmake, c++, g++, clang++).\n"
+            "Install one and retry:\n"
+            "  Ubuntu/Debian : sudo apt install build-essential cmake\n"
+            "  macOS         : xcode-select --install\n"
+            "  Conda         : conda install -c conda-forge cxx-compiler cmake"
+        ) from None
+    except subprocess.CalledProcessError as exc:
+        detail = (exc.stderr or exc.stdout or "").strip()
+        raise CppBackendUnavailable(
+            f"C++ compilation failed.\n"
+            f"cmake error : {cmake_err or '(not tried)'}\n"
+            f"direct error: {detail}\n\n"
+            f"Sources are in: {build_dir}\n"
+            f"Re-run with verbose=True for full output."
+        ) from exc
 
 
 def _cmake_build(build_dir: Path, verbose: bool = False) -> Path:
