@@ -22,7 +22,10 @@ from .codegen import (
     get_bounds,
     get_noise_params,
 )
-from ._nb_sim import nb_sweep_det, nb_sweep_stoch
+from ._nb_sim import (
+    nb_sweep_det, nb_sweep_stoch,
+    nb_sweep_det_feat, nb_sweep_stoch_feat,
+)
 
 
 def _count_records(n_steps: int, t_cut_step: int, record_period: int) -> int:
@@ -154,6 +157,19 @@ class NumbaSweeperCPU:
 
         return raw, record_period  # (n_samples, n_record, n_sv, n_nodes)
 
+    def _sweep_params(self, duration: float):
+        """Return commonly-needed loop params without running the simulation."""
+        dt            = self.spec.integrator.dt
+        n_steps       = round(duration / dt)
+        m0            = self.spec.monitors[0] if self.spec.monitors else None
+        record_period = max(1, round(m0.period / dt)) if (m0 and m0.period) else 1
+        pipeline      = self.sweep.pipeline
+        t_cut_step    = round(pipeline.t_cut / dt) if pipeline is not None else 0
+        n_record      = _count_records(n_steps, t_cut_step, record_period)
+        n_sv          = self.spec.model.n_sv
+        voi_indices   = np.arange(n_sv, dtype=np.int64)
+        return dt, n_steps, record_period, t_cut_step, n_record, n_sv, voi_indices
+
     def run(self, duration: float):
         """
         Run all parameter sets in parallel.
@@ -165,50 +181,96 @@ class NumbaSweeperCPU:
         If pipeline is set:
             (all_labels, values) where values shape (n_samples, n_params + n_features).
         """
-        pipeline     = self.sweep.pipeline
-        param_names  = self.sweep._param_names_list
-        param_sets   = self.sweep.param_sets
-        n_samples    = param_sets.shape[0]
+        pipeline    = self.sweep.pipeline
+        param_names = self.sweep._param_names_list
+        param_sets  = self.sweep.param_sets
+        n_samples   = param_sets.shape[0]
 
+        # ------------------------------------------------------------------
+        # Tier-2: JIT inline feature extraction — skip full raw materialisation
+        # ------------------------------------------------------------------
+        nb_spec = getattr(pipeline, "nb_extractor", None) if pipeline else None
+
+        if nb_spec is not None:
+            dt, n_steps, record_period, t_cut_step, n_record, n_sv, voi_indices = \
+                self._sweep_params(duration)
+
+            n_nodes     = self.spec.n_nodes
+            n_feat      = nb_spec.n_features(n_nodes)
+            feat_labels = nb_spec.labels(n_nodes)
+            ps          = param_sets.astype(np.float64)
+
+            common_args = (
+                ps, self._params, self._state0, self._srcbuf0,
+                self._weights, self._delay_steps, self._horizon,
+                self._G_idx, self._a, self._b,
+                np.float64(dt), n_steps, n_record,
+                self._has_delays, self._cvar_indices,
+                self._lower_bounds, self._has_lower,
+                self._upper_bounds, self._has_upper,
+                record_period, t_cut_step, n_sv, voi_indices,
+                self._use_heun, self._sweep_param_indices,
+                nb_spec.do_mean, nb_spec.do_std,
+                nb_spec.do_fc, nb_spec.do_fcd,
+                np.int64(nb_spec.fcd_window), np.int64(n_feat),
+                self._dfun,
+            )
+
+            if self._stochastic:
+                base_seed = self.spec.integrator.noise_seed
+                seeds     = np.arange(n_samples, dtype=np.int64) + base_seed
+                feat_vals = nb_sweep_stoch_feat(
+                    ps, self._params, self._state0, self._srcbuf0,
+                    self._weights, self._delay_steps, self._horizon,
+                    self._G_idx, self._a, self._b,
+                    np.float64(dt), n_steps, n_record,
+                    self._has_delays, self._cvar_indices,
+                    self._lower_bounds, self._has_lower,
+                    self._upper_bounds, self._has_upper,
+                    self._eff_noise_amp, self._noise_mask,
+                    record_period, t_cut_step, n_sv, voi_indices,
+                    self._use_heun, self._sweep_param_indices, seeds,
+                    nb_spec.do_mean, nb_spec.do_std,
+                    nb_spec.do_fc, nb_spec.do_fcd,
+                    np.int64(nb_spec.fcd_window), np.int64(n_feat),
+                    self._dfun,
+                )
+            else:
+                feat_vals = nb_sweep_det_feat(*common_args)
+
+            values = np.concatenate([ps, feat_vals], axis=1)
+            return param_names + feat_labels, values
+
+        # ------------------------------------------------------------------
+        # Tier-1 / no-pipeline: run full simulation, wrap or reduce in Python
+        # ------------------------------------------------------------------
         raw, record_period = self._run_raw(duration)
-        # raw: (n_samples, n_record, n_sv, n_nodes)
-
         dt = self.spec.integrator.dt
 
         if pipeline is None:
-            # Wrap each run's raw array into a monitor dict (subsample format).
-            # t_cut_step=0 so raw starts from step 0 — matches NumpySweeper.
-            t = np.arange(raw.shape[1], dtype=np.float64) * record_period * dt
-            results = []
+            t        = np.arange(raw.shape[1], dtype=np.float64) * record_period * dt
             mon_kind = self.spec.monitors[0].kind if self.spec.monitors else "raw"
-            for i in range(n_samples):
-                results.append({mon_kind: (t, raw[i])})
-            return results
+            return [{mon_kind: (t, raw[i])} for i in range(n_samples)]
 
-        # Pipeline mode: build a pseudo monitor_result dict per run and extract
+        # Tier-1 pipeline loop
+        t_cut_step   = round(pipeline.t_cut / dt)
+        t_base       = t_cut_step * dt
         labels_set   = False
         all_labels: list[str] = []
         rows: list[np.ndarray] = []
 
-        t_cut_step = round(pipeline.t_cut / dt)
-        t_base = t_cut_step * dt
-
         for i in range(n_samples):
-            # Wrap this run's array into the format pipeline.extract() expects
-            signal_key = pipeline.signal  # e.g. "tavg"
-            t_i = t_base + np.arange(raw.shape[1]) * record_period * dt
-            monitor_result = {signal_key: (t_i, raw[i])}
-
-            feat_labels, feat_vals = pipeline.extract(monitor_result)
+            t_i            = t_base + np.arange(raw.shape[1]) * record_period * dt
+            monitor_result = {pipeline.signal: (t_i, raw[i])}
+            feat_labels_i, feat_vals_i = pipeline.extract(monitor_result)
             if not labels_set:
-                all_labels = param_names + feat_labels
+                all_labels = param_names + feat_labels_i
                 labels_set = True
+            rows.append(np.concatenate(
+                [param_sets[i].astype(np.float64), feat_vals_i]
+            ))
 
-            row = np.concatenate([param_sets[i].astype(np.float64), feat_vals])
-            rows.append(row)
-
-        values = np.stack(rows)
-        return all_labels, values
+        return all_labels, np.stack(rows)
 
     def run_df(self, duration: float):
         """Return sweep results as a pandas DataFrame."""

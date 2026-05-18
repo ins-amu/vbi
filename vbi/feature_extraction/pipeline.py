@@ -118,3 +118,37 @@ class FeaturePipeline:
 
         labels, values = self.extract(monitor_result)
         return pd.DataFrame([values], columns=labels)
+
+    # ------------------------------------------------------------------
+    # Tier-2 JIT descriptor
+    # ------------------------------------------------------------------
+
+    @property
+    def nb_extractor(self):
+        """
+        Return an NbExtractorSpec if every feature in this pipeline's cfg
+        is supported by the Numba JIT tier, otherwise return None.
+
+        Currently supported cfg keys: calc_mean, calc_std.
+        When None is returned the sweeper falls back to the Tier-1 Python path.
+        """
+        from vbi.feature_extraction.features_utils_nb import (
+            NbExtractorSpec,
+            _PYTHON_TIER_COMPAT,
+        )
+
+        # Collect all feature names across every domain in the cfg
+        all_names: set[str] = set()
+        for domain_feats in self.cfg.values():
+            all_names |= set(domain_feats.keys())
+
+        # Any unsupported feature → fall back to Tier 1
+        if not all_names.issubset(_PYTHON_TIER_COMPAT):
+            return None
+
+        spec = NbExtractorSpec()
+        for name in all_names:
+            flag = _PYTHON_TIER_COMPAT[name]
+            setattr(spec, flag, True)
+
+        return spec

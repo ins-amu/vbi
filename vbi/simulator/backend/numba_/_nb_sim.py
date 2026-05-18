@@ -19,6 +19,8 @@ from __future__ import annotations
 import numpy as np
 from numba import njit, prange
 
+from vbi.feature_extraction.features_utils_nb import nb_extract
+
 
 # ---------------------------------------------------------------------------
 # Coupling — Linear (instant, no delays)
@@ -371,5 +373,119 @@ def nb_sweep_stoch(
             record_period, t_cut_step, n_voi, voi_indices,
             use_heun, seeds[i], dfun_fn,
         )
+
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Parallel deterministic sweep — inline feature extraction (Tier-2)
+# ---------------------------------------------------------------------------
+
+@njit(parallel=True, cache=False)
+def nb_sweep_det_feat(
+    param_sets, base_params, state0, srcbuf0,
+    weights, delay_steps, horizon, G_idx, a, b, dt, n_steps, n_record,
+    has_delays, cvar_indices,
+    lower_bounds, has_lower, upper_bounds, has_upper,
+    record_period, t_cut_step, n_voi, voi_indices,
+    use_heun, sweep_param_indices,
+    do_mean, do_std, do_fc, do_fcd, fcd_window, n_features,
+    dfun_fn,
+):
+    """
+    Parallel deterministic sweep with inline feature extraction.
+
+    Features are computed inside prange from the thread-local time series;
+    only the feature vector is written to the global output — the full
+    time series is never materialised across all samples simultaneously.
+
+    Returns
+    -------
+    out : (n_samples, n_features) float64
+    """
+    n_samples = param_sets.shape[0]
+    n_nodes   = state0.shape[1]
+
+    out = np.empty((n_samples, n_features))
+
+    for i in prange(n_samples):
+        params_i = base_params.copy()
+        for j in range(param_sets.shape[1]):
+            pidx = sweep_param_indices[j]
+            val  = param_sets[i, j]
+            for node in range(n_nodes):
+                params_i[pidx, node] = val
+
+        # Run simulation — ts_i is thread-local (n_record, n_voi, n_nodes)
+        ts_i = nb_simulate_det(
+            state0.copy(), srcbuf0.copy(),
+            weights, delay_steps, horizon,
+            params_i, G_idx, a, b, dt, n_steps, n_record,
+            has_delays, cvar_indices,
+            lower_bounds, has_lower, upper_bounds, has_upper,
+            record_period, t_cut_step, n_voi, voi_indices,
+            use_heun, dfun_fn,
+        )
+
+        # Extract features from voi=0  →  (n_record, n_nodes)
+        ts_2d = ts_i[:, 0, :]
+        feat_buf = np.empty(n_features)
+        nb_extract(ts_2d, do_mean, do_std, do_fc, do_fcd, fcd_window, feat_buf)
+        out[i] = feat_buf
+
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Parallel stochastic sweep — inline feature extraction (Tier-2)
+# ---------------------------------------------------------------------------
+
+@njit(parallel=True, cache=False)
+def nb_sweep_stoch_feat(
+    param_sets, base_params, state0, srcbuf0,
+    weights, delay_steps, horizon, G_idx, a, b, dt, n_steps, n_record,
+    has_delays, cvar_indices,
+    lower_bounds, has_lower, upper_bounds, has_upper,
+    eff_noise_amp, noise_mask,
+    record_period, t_cut_step, n_voi, voi_indices,
+    use_heun, sweep_param_indices, seeds,
+    do_mean, do_std, do_fc, do_fcd, fcd_window, n_features,
+    dfun_fn,
+):
+    """
+    Parallel stochastic sweep with inline feature extraction.
+
+    Returns
+    -------
+    out : (n_samples, n_features) float64
+    """
+    n_samples = param_sets.shape[0]
+    n_nodes   = state0.shape[1]
+
+    out = np.empty((n_samples, n_features))
+
+    for i in prange(n_samples):
+        params_i = base_params.copy()
+        for j in range(param_sets.shape[1]):
+            pidx = sweep_param_indices[j]
+            val  = param_sets[i, j]
+            for node in range(n_nodes):
+                params_i[pidx, node] = val
+
+        ts_i = nb_simulate_stoch(
+            state0.copy(), srcbuf0.copy(),
+            weights, delay_steps, horizon,
+            params_i, G_idx, a, b, dt, n_steps, n_record,
+            has_delays, cvar_indices,
+            lower_bounds, has_lower, upper_bounds, has_upper,
+            eff_noise_amp, noise_mask,
+            record_period, t_cut_step, n_voi, voi_indices,
+            use_heun, seeds[i], dfun_fn,
+        )
+
+        ts_2d = ts_i[:, 0, :]
+        feat_buf = np.empty(n_features)
+        nb_extract(ts_2d, do_mean, do_std, do_fc, do_fcd, fcd_window, feat_buf)
+        out[i] = feat_buf
 
     return out
