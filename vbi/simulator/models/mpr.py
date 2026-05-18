@@ -19,12 +19,12 @@ mpr = ModelSpec(
         Parameter("Gamma",  0.0,   "half-width of synaptic weight distribution"),
         Parameter("cr",     1.0,   "coupling weight on r (firing rate)"),
         Parameter("cv",     0.0,   "coupling weight on V (membrane potential)"),
-        Parameter("G",      2.0,   "global coupling strength (scales weights)"),
     ),
     cvar=("r", "V"),   # TVB cvar=[0,1]; both variables enter coupling
     dfun_str={
-        # c_r = G * sum_j(w_ij * r_j(t-delay))   [injected as c_r by build_dfun]
-        # c_V = G * sum_j(w_ij * V_j(t-delay))   [injected as c_V by build_dfun]
+        # c_r = a * sum_j(w_ij * r_j(t-delay))   [injected as c_r by build_dfun]
+        # c_V = a * sum_j(w_ij * V_j(t-delay))   [injected as c_V by build_dfun]
+        # Global coupling strength goes in CouplingSpec.a (same convention as TVB).
         "r": "(Delta / (pi * tau) + 2 * V * r) / tau",
         "V": "(V**2 - (pi * tau * r)**2 + eta + J * tau * r + I + cr * c_r + cv * c_V) / tau",
     },
