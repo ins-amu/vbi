@@ -241,7 +241,7 @@ def render_bindings(spec: SimulationSpec, module_name: str, cpp_filename: str) -
 
 def render_cmake(module_name: str, bindings_cpp_filename: str) -> str:
     return _render(
-        _TEMPLATES_DIR / "CMakeLists.txt.mako",
+        _TEMPLATES_DIR / "cmake_template.mako",
         {
             "module_name":          module_name,
             "bindings_cpp_filename": bindings_cpp_filename,
