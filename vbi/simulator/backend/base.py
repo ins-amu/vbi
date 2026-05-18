@@ -22,9 +22,18 @@ def load_backend(name: str) -> type:
             raise ImportError(
                 "Numba backend requires numba: pip install numba"
             ) from exc
+    if name == "cpp":
+        try:
+            from vbi.simulator.backend.cpp.simulator import CppSimulator
+            return CppSimulator
+        except ImportError as exc:
+            raise ImportError(
+                "C++ backend requires pybind11 and mako: "
+                "pip install pybind11 mako"
+            ) from exc
     raise ImportError(
         f"Backend {name!r} is not available. "
-        "Available: 'numpy', 'numba'. Coming: 'cpp', 'cuda', 'jax'."
+        "Available: 'numpy', 'numba', 'cpp'. Coming: 'cuda', 'jax'."
     )
 
 
