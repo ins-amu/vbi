@@ -91,7 +91,9 @@ def warmup(spec: SimulationSpec) -> None:
     numba.set_num_threads(N_WORKERS)
     tiny = SweepSpec(params={"eta": np.array([-4.6, -4.0])})
     Sweeper(spec, tiny, backend="numba").run(100.0)
-    CppSweeper(spec, tiny, n_workers=N_WORKERS).run_serial(100.0)
+    cpp_tiny = CppSweeper(spec, tiny, n_workers=N_WORKERS)
+    cpp_tiny.run_serial(100.0)    # compiles .so and warms ThreadPoolExecutor
+    cpp_tiny.run_parallel(100.0)
     print("  done.\n", flush=True)
 
 
@@ -115,8 +117,8 @@ def run_benchmark(n_nodes: int, duration: float, dt: float,
 
     T = N_WORKERS
     cols = ["n_samples", "np-ser(s)", "nb-ser(s)", f"nb-par×{T}(s)",
-            "cpp-ser(s)", f"cpp-par×{T}(s)", "nb-ser/np", f"nb-par/np",
-            "cpp-ser/np", f"cpp-par/np"]
+            "cpp-ser(s)", f"cpp-par×{T}(s)",
+            "nb-ser/np", f"nb-par/np", f"cpp-ser/np", f"cpp-par/np"]
     col_w = [10, 10, 10, 14, 11, 14, 11, 11, 12, 11]
     header = "  ".join(c.rjust(w) for c, w in zip(cols, col_w))
     sep    = "-" * len(header)
@@ -151,9 +153,10 @@ def run_benchmark(n_nodes: int, duration: float, dt: float,
     print(f"\nNetwork : {n_nodes} nodes  |  duration={duration} ms  |  dt={dt} ms")
     print(f"Parallel backends pinned to {N_WORKERS} threads "
           f"(override: VBI_BENCH_THREADS=N).")
-    print("Numba serial = prange with 1 thread; "
-          "C++ serial = Python loop; "
-          "C++ parallel = ThreadPoolExecutor (GIL released).")
+    print("nb-ser  = Numba prange, 1 thread")
+    print(f"nb-par  = Numba prange, {T} threads  (prange)")
+    print("cpp-ser = C++ Python loop, 1 thread")
+    print(f"cpp-par = C++ ThreadPoolExecutor, {T} threads  (GIL released per call)")
 
     if plot:
         _plot(rows, sweep_sizes, n_nodes, duration)
@@ -166,12 +169,7 @@ def _plot(rows, sweep_sizes, n_nodes, duration):
         print("matplotlib not available — skipping plot.")
         return
 
-    ns   = [r[0] for r in rows]
-    t_np = [r[1] for r in rows]
-    t_nbs= [r[2] for r in rows]
-    t_nbp= [r[3] for r in rows]
-    t_cs = [r[4] for r in rows]
-    t_cp = [r[5] for r in rows]
+    ns,  t_np, t_nbs, t_nbp, t_cs, t_cp = zip(*rows)
 
     fig, axes = plt.subplots(1, 2, figsize=(14, 5))
 

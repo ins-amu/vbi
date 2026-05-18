@@ -264,11 +264,11 @@ class CppSweeper:
         return all_labels, np.stack(rows)
 
     def run_serial(self, duration: float):
-        """Convenience: force serial execution."""
+        """Convenience: force serial execution (Python loop, C++ per run)."""
         return self.run(duration, parallel=False)
 
     def run_parallel(self, duration: float, n_workers: int | None = None):
-        """Convenience: force parallel execution with optional worker count."""
+        """Parallel via Python ThreadPoolExecutor — n_workers threads, GIL released in C++."""
         old = self.n_workers
         if n_workers is not None:
             self.n_workers = n_workers
@@ -277,7 +277,7 @@ class CppSweeper:
         return result
 
     def run_df(self, duration: float, parallel: bool | None = None):
-        """Return sweep results as a pandas DataFrame."""
+        """Return sweep results as a pandas DataFrame (ThreadPoolExecutor mode)."""
         import pandas as pd
         labels, values = self.run(duration, parallel=parallel)
         return pd.DataFrame(values, columns=labels)
