@@ -84,14 +84,14 @@ def timed(fn, *args, **kwargs) -> float:
 # Warmup (compile / JIT)
 # ---------------------------------------------------------------------------
 
-def warmup(spec: SimulationSpec) -> None:
-    print(f"Warming up (Numba JIT + C++ compile, {N_WORKERS} threads each)…", flush=True)
+def warmup(spec: SimulationSpec, n_workers: int) -> None:
+    print(f"Warming up (Numba JIT + C++ compile, {n_workers} threads each)…", flush=True)
     # Pin Numba's thread pool before the first JIT compile so the compiled
-    # code uses exactly N_WORKERS threads for every subsequent prange call.
-    numba.set_num_threads(N_WORKERS)
+    # code uses exactly n_workers threads for every subsequent prange call.
+    numba.set_num_threads(n_workers)
     tiny = SweepSpec(params={"eta": np.array([-4.6, -4.0])})
     Sweeper(spec, tiny, backend="numba").run(500.0)
-    cpp_tiny = CppSweeper(spec, tiny, n_workers=N_WORKERS)
+    cpp_tiny = CppSweeper(spec, tiny, n_workers=n_workers)
     cpp_tiny.run_serial(500.0)    # compiles .so and warms ThreadPoolExecutor
     cpp_tiny.run_parallel(500.0)
     print("  done.\n", flush=True)
@@ -101,21 +101,21 @@ def warmup(spec: SimulationSpec) -> None:
 # Main benchmark
 # ---------------------------------------------------------------------------
 
-def timed_numba_serial(sweeper, duration: float) -> float:
+def timed_numba_serial(sweeper, duration: float, n_workers: int) -> float:
     """Run Numba sweep with 1 thread (forces prange to be sequential)."""
     numba.set_num_threads(1)
     try:
         return timed(sweeper.run, duration)
     finally:
-        numba.set_num_threads(N_WORKERS)
+        numba.set_num_threads(n_workers)
 
 
 def run_benchmark(n_nodes: int, duration: float, dt: float,
-                  sweep_sizes: list[int], plot: bool) -> None:
+                  sweep_sizes: list[int], n_workers: int, plot: bool) -> None:
     spec = make_spec(n_nodes, dt)
-    warmup(spec)
+    warmup(spec, n_workers)
 
-    T = N_WORKERS
+    T = n_workers
     cols = ["n_samples", "np-ser(s)", "nb-ser(s)", f"nb-par×{T}(s)",
             "cpp-ser(s)", f"cpp-par×{T}(s)",
             "nb-ser/np", f"nb-par/np", f"cpp-ser/np", f"cpp-par/np"]
@@ -129,10 +129,10 @@ def run_benchmark(n_nodes: int, duration: float, dt: float,
     for n in sweep_sizes:
         sw  = make_sweep(n)
         nb_sweeper = Sweeper(spec, sw, backend="numba")
-        cpp        = CppSweeper(spec, sw, n_workers=N_WORKERS)
+        cpp        = CppSweeper(spec, sw, n_workers=n_workers)
 
         t_np  = timed(Sweeper(spec, sw, backend="numpy").run, duration)
-        t_nbs = timed_numba_serial(nb_sweeper,                duration)
+        t_nbs = timed_numba_serial(nb_sweeper,                duration, n_workers)
         t_nbp = timed(nb_sweeper.run,                         duration)
         t_cs  = timed(cpp.run_serial,                         duration)
         t_cp  = timed(cpp.run_parallel,                       duration)
@@ -151,18 +151,18 @@ def run_benchmark(n_nodes: int, duration: float, dt: float,
 
     print(sep)
     print(f"\nNetwork : {n_nodes} nodes  |  duration={duration} ms  |  dt={dt} ms")
-    print(f"Parallel backends pinned to {N_WORKERS} threads "
-          f"(override: VBI_BENCH_THREADS=N).")
+    print(f"Parallel backends pinned to {n_workers} threads "
+          f"(override: VBI_BENCH_THREADS=N or --n-workers).")
     print("nb-ser  = Numba prange, 1 thread")
     print(f"nb-par  = Numba prange, {T} threads  (prange)")
     print("cpp-ser = C++ Python loop, 1 thread")
     print(f"cpp-par = C++ ThreadPoolExecutor, {T} threads  (GIL released per call)")
 
     if plot:
-        _plot(rows, sweep_sizes, n_nodes, duration)
+        _plot(rows, sweep_sizes, n_nodes, duration, n_workers)
 
 
-def _plot(rows, sweep_sizes, n_nodes, duration):
+def _plot(rows, sweep_sizes, n_nodes, duration, n_workers):
     try:
         import matplotlib.pyplot as plt
     except ImportError:
@@ -177,10 +177,10 @@ def _plot(rows, sweep_sizes, n_nodes, duration):
     ax = axes[0]
     ax.plot(ns, t_np,  "o-", label="NumPy serial",            color="tab:blue")
     ax.plot(ns, t_nbs, "s--",label="Numba serial (1 thread)", color="tab:orange")
-    ax.plot(ns, t_nbp, "s-", label=f"Numba parallel ×{N_WORKERS}", color="tab:orange",
+    ax.plot(ns, t_nbp, "s-", label=f"Numba parallel ×{n_workers}", color="tab:orange",
             markerfacecolor="white")
     ax.plot(ns, t_cs,  "^--",label="C++ serial",              color="tab:green")
-    ax.plot(ns, t_cp,  "D-", label=f"C++ parallel ×{N_WORKERS}",   color="tab:green",
+    ax.plot(ns, t_cp,  "D-", label=f"C++ parallel ×{n_workers}",   color="tab:green",
             markerfacecolor="white")
     ax.set_xlabel("n_samples")
     ax.set_ylabel("Wall time (s)")
@@ -193,12 +193,12 @@ def _plot(rows, sweep_sizes, n_nodes, duration):
     ax.plot(ns, [t_np[i]/t_nbs[i] for i in range(len(ns))],
             "s--", label="Numba serial / NumPy",            color="tab:orange")
     ax.plot(ns, [t_np[i]/t_nbp[i] for i in range(len(ns))],
-            "s-",  label=f"Numba par×{N_WORKERS} / NumPy", color="tab:orange",
+            "s-",  label=f"Numba par×{n_workers} / NumPy", color="tab:orange",
             markerfacecolor="white")
     ax.plot(ns, [t_np[i]/t_cs[i]  for i in range(len(ns))],
             "^--", label="C++ serial / NumPy",              color="tab:green")
     ax.plot(ns, [t_np[i]/t_cp[i]  for i in range(len(ns))],
-            "D-",  label=f"C++ par×{N_WORKERS} / NumPy",   color="tab:green",
+            "D-",  label=f"C++ par×{n_workers} / NumPy",   color="tab:green",
             markerfacecolor="white")
     ax.axhline(1.0, color="k", lw=0.8, ls=":")
     ax.set_xlabel("n_samples")
@@ -224,8 +224,9 @@ if __name__ == "__main__":
     parser.add_argument("--n-nodes",  type=int,   default=DEFAULT_N_NODES)
     parser.add_argument("--duration", type=float, default=DEFAULT_DURATION)
     parser.add_argument("--dt",       type=float, default=DEFAULT_DT)
-    parser.add_argument("--sizes",    type=int,   nargs="+", default=[4, 8, 16, 32])
-    parser.add_argument("--no-plot",  action="store_true")
+    parser.add_argument("--sizes",     type=int,   nargs="+", default=[4, 8, 16, 32])
+    parser.add_argument("--n-workers", type=int,   default=N_WORKERS)
+    parser.add_argument("--no-plot",   action="store_true")
     args = parser.parse_args()
 
     run_benchmark(
@@ -233,5 +234,6 @@ if __name__ == "__main__":
         duration=args.duration,
         dt=args.dt,
         sweep_sizes=args.sizes,
+        n_workers=args.n_workers,
         plot=not args.no_plot,
     )
