@@ -12,6 +12,7 @@ Interface matches NumpySweeper and NumbaSweeperCPU:
 from __future__ import annotations
 
 import concurrent.futures
+import os
 import numpy as np
 
 from vbi.simulator.spec.simulation import SimulationSpec
@@ -150,7 +151,6 @@ class CppSweeper:
                 noise_style=getattr(spec.integrator, "noise_style", "amplitude"),
                 noise_seed=spec.integrator.noise_seed + seed_offset,
             )
-            from dataclasses import replace
             patched_spec = SimulationSpec(
                 model=spec.model,
                 integrator=patched_int,
@@ -174,7 +174,7 @@ class CppSweeper:
             n_steps, record_every, t_cut_steps,
         )
 
-    def _raw_to_monitor(self, raw: np.ndarray, duration: float) -> dict:
+    def _raw_to_monitor(self, raw: np.ndarray) -> dict:
         spec = self.spec
         dt   = spec.integrator.dt
         record_every = 1 if not (spec.monitors and spec.monitors[0].period) else \
@@ -187,17 +187,23 @@ class CppSweeper:
     # run — returns either list[dict] or (labels, values)
     # ------------------------------------------------------------------
 
-    def run(self, duration: float, parallel: bool | None = None):
+    def run(self, duration: float, parallel: bool | None = None,
+            batch_size: int | None = None):
         """
         Run all parameter sets.
 
         Parameters
         ----------
-        duration : float   simulation length in ms
-        parallel : bool | None
+        duration   : float        simulation length in ms
+        parallel   : bool | None
             True  → thread pool (n_workers threads)
             False → serial Python loop
             None  → use self.n_workers (None = serial, int = parallel)
+        batch_size : int | None
+            Max number of sweep points whose args are live in memory at once.
+            None means process all points in one shot (original behaviour).
+            Set to e.g. 64 or 128 when sweeping thousands of points to avoid
+            OOM from pre-allocating every params_flat array simultaneously.
 
         Returns
         -------
@@ -216,19 +222,30 @@ class CppSweeper:
         n_samples    = param_sets.shape[0]
         pipeline     = self.sweep.pipeline
 
-        all_arg_lists = [
-            self._build_run_args(duration, param_sets[i], param_names, i)
-            for i in range(n_samples)
-        ]
+        # Resolved thread count — used both for the pool and as the default batch size.
+        resolved_workers = (self.n_workers if self.n_workers and self.n_workers > 0
+                            else os.cpu_count() or 4)
+        workers = resolved_workers if use_parallel else None
+        effective_batch = batch_size if batch_size and batch_size > 0 else resolved_workers
 
-        # --- execute ---
+        # --- execute in batches ---
+        raw_list: list[np.ndarray] = []
+
         if use_parallel:
-            workers = self.n_workers if self.n_workers and self.n_workers > 0 \
-                      else None  # None → os.cpu_count()
             with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
-                raw_list = list(pool.map(lambda args: _run_one(*args), all_arg_lists))
+                for start in range(0, n_samples, effective_batch):
+                    batch_args = [
+                        self._build_run_args(duration, param_sets[i], param_names, i)
+                        for i in range(start, min(start + effective_batch, n_samples))
+                    ]
+                    raw_list.extend(pool.map(lambda args: _run_one(*args), batch_args))
         else:
-            raw_list = [_run_one(*args) for args in all_arg_lists]
+            for start in range(0, n_samples, effective_batch):
+                batch_args = [
+                    self._build_run_args(duration, param_sets[i], param_names, i)
+                    for i in range(start, min(start + effective_batch, n_samples))
+                ]
+                raw_list.extend(_run_one(*args) for args in batch_args)
 
         # --- post-process ---
         spec = self.spec
@@ -263,21 +280,23 @@ class CppSweeper:
 
         return all_labels, np.stack(rows)
 
-    def run_serial(self, duration: float):
+    def run_serial(self, duration: float, batch_size: int | None = None):
         """Convenience: force serial execution (Python loop, C++ per run)."""
-        return self.run(duration, parallel=False)
+        return self.run(duration, parallel=False, batch_size=batch_size)
 
-    def run_parallel(self, duration: float, n_workers: int | None = None):
+    def run_parallel(self, duration: float, n_workers: int | None = None,
+                     batch_size: int | None = None):
         """Parallel via Python ThreadPoolExecutor — n_workers threads, GIL released in C++."""
         old = self.n_workers
         if n_workers is not None:
             self.n_workers = n_workers
-        result = self.run(duration, parallel=True)
+        result = self.run(duration, parallel=True, batch_size=batch_size)
         self.n_workers = old
         return result
 
-    def run_df(self, duration: float, parallel: bool | None = None):
+    def run_df(self, duration: float, parallel: bool | None = None,
+               batch_size: int | None = None):
         """Return sweep results as a pandas DataFrame (ThreadPoolExecutor mode)."""
         import pandas as pd
-        labels, values = self.run(duration, parallel=parallel)
+        labels, values = self.run(duration, parallel=parallel, batch_size=batch_size)
         return pd.DataFrame(values, columns=labels)

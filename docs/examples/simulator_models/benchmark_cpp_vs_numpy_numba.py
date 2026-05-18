@@ -45,7 +45,7 @@ from vbi.simulator.backend.cpp.sweeper import CppSweeper
 # ---------------------------------------------------------------------------
 
 DEFAULT_N_NODES  = 40
-DEFAULT_DURATION = 500.0   # ms  (short enough for NumPy to finish)
+DEFAULT_DURATION = 2000.0  # ms  (longer for stable timing across n_samples)
 DEFAULT_DT       = 0.1
 ETA_RANGE        = (-5.5, -3.5)
 
@@ -90,10 +90,10 @@ def warmup(spec: SimulationSpec) -> None:
     # code uses exactly N_WORKERS threads for every subsequent prange call.
     numba.set_num_threads(N_WORKERS)
     tiny = SweepSpec(params={"eta": np.array([-4.6, -4.0])})
-    Sweeper(spec, tiny, backend="numba").run(100.0)
+    Sweeper(spec, tiny, backend="numba").run(500.0)
     cpp_tiny = CppSweeper(spec, tiny, n_workers=N_WORKERS)
-    cpp_tiny.run_serial(100.0)    # compiles .so and warms ThreadPoolExecutor
-    cpp_tiny.run_parallel(100.0)
+    cpp_tiny.run_serial(500.0)    # compiles .so and warms ThreadPoolExecutor
+    cpp_tiny.run_parallel(500.0)
     print("  done.\n", flush=True)
 
 
