@@ -176,13 +176,13 @@ class TestSweepDeterministic:
         assert len(res) == 4
 
     def test_sweep_with_pipeline_shape(self):
-        pytest.importorskip("vbi.feature_extraction.pipeline",
-                            reason="FeaturePipeline not yet implemented (M0.10)")
-        from vbi.feature_extraction.pipeline import FeaturePipeline
-        spec = self._base_spec(n_nodes=4)
-        pipeline = FeaturePipeline(
-            features=["mean", "std"], signal="tavg", t_cut=50.0
+        from vbi.feature_extraction import (
+            FeaturePipeline, get_features_by_domain, get_features_by_given_names,
         )
+        spec = self._base_spec(n_nodes=4)
+        cfg = get_features_by_domain("statistical")
+        cfg = get_features_by_given_names(cfg, ["calc_mean", "calc_std"])
+        pipeline = FeaturePipeline(cfg, signal="tavg", t_cut=50.0)
         sweep_spec = SweepSpec(
             params={"G": np.linspace(1.0, 4.0, 10)},
             pipeline=pipeline,
