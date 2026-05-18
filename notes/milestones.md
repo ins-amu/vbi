@@ -2017,6 +2017,183 @@ def compute_delay_steps(tract_lengths, speed, dt) -> np.ndarray:
 
 ---
 
+---
+
+## MF — Feature Extraction Pipeline (cross-cutting, all backends)
+
+**Goal:** Define a single user-facing `FeaturePipeline` API that works identically
+across all backends while dispatching to the right JIT-compiled implementation
+internally. The existing `vbi/feature_extraction/` machinery (cfg dicts,
+`get_features_by_domain`, `extract_features`, `n_workers`) is **kept and reused**
+as the NumPy tier; compiled variants are added per-backend milestone.
+
+---
+
+### MF.0 — Two-tier architecture
+
+Feature extraction splits into two tiers depending on where it runs:
+
+```
+Tier 1 — Python level (NumPy backend + post-processing)
+    vbi/feature_extraction/calc_features.py
+        extract_features(ts, fs, cfg, n_workers=N)
+        get_features_by_domain(domain="statistical")
+        get_features_by_given_names(cfg, names=[...])
+        report_cfg(cfg)
+
+    Used for:
+    - Single Simulator runs (any backend — result already on CPU)
+    - NumpySweeper (sequential; Python overhead acceptable)
+    - Post-processing stored BOLD/tavg batches
+    - Rich feature sets (100+ features, catch22, spectral, HMM, …)
+
+Tier 2 — JIT level (inside Numba prange / CUDA kernel / JAX scan)
+    vbi/feature_extraction/features_utils_nb.py    (M1)
+    vbi/feature_extraction/features_utils_cuda.py  (M3)
+    vbi/feature_extraction/features_utils_jax.py   (M4, partially exists)
+
+    Used for:
+    - NumbaSweeperCPU — @njit functions called inside prange
+    - CUDA sweeper    — @cuda.jit device functions inside kernel
+    - JAX sweeper     — jit+vmap compatible pure functions
+
+    Supported core set: fc, fcd_ks, mean, std, band_power
+    (anything expressible as array ops on a (n_steps, n_nodes) buffer)
+```
+
+**Why two tiers?** `extract_features()` is a Python-level function with dict
+dispatch, list appending, and pandas output — none of which can enter a Numba
+`@njit` or CUDA kernel. The JIT tier supports only the subset of features that
+can be expressed as pure numeric kernels. The `FeaturePipeline` hides this split.
+
+---
+
+### MF.1 — FeaturePipeline: cfg-first API
+
+`FeaturePipeline` wraps the existing cfg-dict machinery. Per-feature parameters
+live in the cfg dict (exactly where they already are); the pipeline only adds
+the three sim-level concerns it uniquely knows: which monitor signal to consume,
+how much burn-in to discard, and (later) which JIT backend to dispatch to.
+
+```python
+from vbi.feature_extraction.pipeline import FeaturePipeline
+from vbi.feature_extraction.features_settings import (
+    get_features_by_domain, get_features_by_given_names, update_cfg
+)
+
+# Build and tune cfg — per-feature params stay in the cfg
+cfg = get_features_by_domain(domain="connectivity")
+cfg = get_features_by_given_names(cfg, names=["calc_fc", "calc_fcd"])
+cfg = update_cfg(cfg, "calc_fcd", {"window_size": 30})   # per-feature param
+
+# Wrap in FeaturePipeline — only sim-level concerns here
+pipeline = FeaturePipeline(cfg, signal="tavg", t_cut=500.0)
+
+# Single run
+result = Simulator(spec, backend="numpy").run(5000.0)
+labels, values = pipeline.extract(result)          # (list[str], ndarray)
+df = pipeline.extract_df(result)                   # one-row DataFrame
+
+# Parameter sweep
+sweep_spec = SweepSpec(params={"G": np.linspace(1, 4, 50)}, pipeline=pipeline)
+df = Sweeper(spec, sweep_spec, backend="numba").run_df(5000.0)
+# df.columns = ["G", "fc_0_1", "fc_0_2", ..., "fcd_ks"]
+```
+
+`FeaturePipeline.__init__` signature:
+```python
+class FeaturePipeline:
+    def __init__(self, cfg: dict, signal: str = "tavg", t_cut: float = 500.0):
+        ...
+    def extract(self, monitor_result: dict) -> tuple[list[str], np.ndarray]:
+        ...
+    def extract_df(self, monitor_result: dict) -> pd.DataFrame:
+        ...
+```
+
+The existing workflow without `FeaturePipeline` (models outside `vbi.simulator`)
+is unchanged:
+```python
+cfg = get_features_by_domain(domain="statistical")
+cfg = get_features_by_given_names(cfg, names=["calc_std", "calc_mean"])
+stat_vec = extract_features(ts=[sol["x"].T], cfg=cfg, fs=fs, n_workers=4).values
+```
+
+---
+
+### MF.2 — Internal dispatch: Tier 1 (Python) only for now
+
+---
+
+### MF.3 — Backend-specific implementations (schedule)
+
+| Backend | File | Features | Added in |
+|---------|------|----------|----------|
+| NumPy (Tier 1) | `features_utils.py` (exists) | All 100+ | M0 (already done) |
+| Numba CPU | `features_utils_nb.py` | fc, fcd_ks, mean, std, band_power | M1.5 |
+| C++ | computed in C++ sweep loop; returned as ndarray | fc, fcd_ks | M2.4 |
+| CUDA | `features_utils_cuda.py` | fc, fcd_ks, mean | M3 |
+| JAX | `features_utils_jax.py` (partially exists) | fc, fcd_ks, mean, std | M4.3 |
+
+**Core JIT feature set** (must be in every JIT backend):
+
+| Feature key | Input | Output | Notes |
+|-------------|-------|--------|-------|
+| `fc` | `(n_steps, n_nodes)` | `(n_nodes, n_nodes)` | Pearson correlation matrix |
+| `fcd_ks` | `(n_steps, n_nodes)` | scalar | KS-distance of FCD vs. empirical |
+| `mean` | `(n_steps, n_nodes)` | `(n_nodes,)` | Temporal mean per node |
+| `std` | `(n_steps, n_nodes)` | `(n_nodes,)` | Temporal std per node |
+| `band_power` | `(n_steps, n_nodes)` | `(n_bands, n_nodes)` | Band-pass RMS |
+
+These five are sufficient for SBI training data. The full `extract_features`
+suite is available whenever results are back on the CPU (Tier 1 path).
+
+---
+
+### MF.4 — Memory strategy for sweep feature extraction
+
+For large sweeps, the time-series buffer is the bottleneck:
+
+```
+NumPy sweeper:    store full ts per run (ok — sequential; only 1 run in memory)
+Numba prange:     ts_buf is thread-local (n_record × n_sv × n_nodes per thread)
+                  feature written to pre-allocated out array; ts_buf discarded
+CUDA:             ts_d is (n_samples, n_record, n_sv, n_nodes) on GPU
+                  → use rolling window buffer in "feature-only" mode (M3.3)
+JAX:              lax.scan accumulates ts; vmap over batch axis; fc via jax.vmap
+```
+
+Rule: **never store full time series for all sweep samples simultaneously** unless
+the user explicitly requests `MonitorSpec(kind="raw")`.
+
+---
+
+### MF.5 — BOLD + FCD workflow (common SBI pattern)
+
+When the model is BOLD-based (RWW, MPR with BOLD monitor):
+
+```python
+# Option A: compute features inline (all backends)
+pipeline = FeaturePipeline(
+    features=["fc", "fcd_ks"],
+    signal="bold",
+    t_cut=500.0,
+    fcd_window_ms=30_000.0,   # 30 s window for BOLD (TR=2s)
+    fcd_overlap=0.5,
+)
+
+# Option B: store BOLD time series first, then extract in bulk (NumPy only)
+# Useful when you have a large existing dataset of BOLD signals
+from vbi.feature_extraction.calc_features import extract_features
+cfg = get_features_by_domain(domain="connectivity")
+df = extract_features(ts=bold_signals, fs=0.5, cfg=cfg, n_workers=8)
+```
+
+Option A is the preferred path for new code — it works with all backends.
+Option B is the legacy path and remains fully supported for compatibility.
+
+---
+
 ## Open questions (decide before M0)
 
 1. **`c` as scalar vs vector:** Current dfun_str uses a single `c` (first
