@@ -22,6 +22,7 @@ import sys
 sys.dont_write_bytecode = True
 
 import numpy as np
+import numba
 
 from helpers import ensure_repo_on_path, complete_graph_weights
 
@@ -47,7 +48,10 @@ DEFAULT_N_NODES  = 40
 DEFAULT_DURATION = 500.0   # ms  (short enough for NumPy to finish)
 DEFAULT_DT       = 0.1
 ETA_RANGE        = (-5.5, -3.5)
-N_CPU            = os.cpu_count() // 2 or 4
+
+# Both parallel backends (Numba prange + C++ ThreadPoolExecutor) are pinned
+# to the same thread count so the comparison is apples-to-apples.
+N_WORKERS = int(os.environ.get("VBI_BENCH_THREADS", os.cpu_count() // 2 or 4))
 
 
 # ---------------------------------------------------------------------------
@@ -81,10 +85,13 @@ def timed(fn, *args, **kwargs) -> float:
 # ---------------------------------------------------------------------------
 
 def warmup(spec: SimulationSpec) -> None:
-    print("Warming up (Numba JIT + C++ compile)…", flush=True)
+    print(f"Warming up (Numba JIT + C++ compile, {N_WORKERS} threads each)…", flush=True)
+    # Pin Numba's thread pool before the first JIT compile so the compiled
+    # code uses exactly N_WORKERS threads for every subsequent prange call.
+    numba.set_num_threads(N_WORKERS)
     tiny = SweepSpec(params={"eta": np.array([-4.6, -4.0])})
     Sweeper(spec, tiny, backend="numba").run(100.0)
-    CppSweeper(spec, tiny).run_serial(100.0)
+    CppSweeper(spec, tiny, n_workers=N_WORKERS).run_serial(100.0)
     print("  done.\n", flush=True)
 
 
@@ -92,14 +99,25 @@ def warmup(spec: SimulationSpec) -> None:
 # Main benchmark
 # ---------------------------------------------------------------------------
 
+def timed_numba_serial(sweeper, duration: float) -> float:
+    """Run Numba sweep with 1 thread (forces prange to be sequential)."""
+    numba.set_num_threads(1)
+    try:
+        return timed(sweeper.run, duration)
+    finally:
+        numba.set_num_threads(N_WORKERS)
+
+
 def run_benchmark(n_nodes: int, duration: float, dt: float,
                   sweep_sizes: list[int], plot: bool) -> None:
     spec = make_spec(n_nodes, dt)
     warmup(spec)
 
-    cols = ["n_samples", "numpy(s)", "numba(s)", "cpp-ser(s)", f"cpp-par×{N_CPU}(s)",
-            "nb/np", f"cpp-par/np"]
-    col_w = [10, 10, 10, 12, 16, 8, 12]
+    T = N_WORKERS
+    cols = ["n_samples", "np-ser(s)", "nb-ser(s)", f"nb-par×{T}(s)",
+            "cpp-ser(s)", f"cpp-par×{T}(s)", "nb-ser/np", f"nb-par/np",
+            "cpp-ser/np", f"cpp-par/np"]
+    col_w = [10, 10, 10, 14, 11, 14, 11, 11, 12, 11]
     header = "  ".join(c.rjust(w) for c, w in zip(cols, col_w))
     sep    = "-" * len(header)
     print(header)
@@ -107,27 +125,35 @@ def run_benchmark(n_nodes: int, duration: float, dt: float,
 
     rows = []
     for n in sweep_sizes:
-        sw = make_sweep(n)
+        sw  = make_sweep(n)
+        nb_sweeper = Sweeper(spec, sw, backend="numba")
+        cpp        = CppSweeper(spec, sw, n_workers=N_WORKERS)
 
-        t_np  = timed(Sweeper(spec, sw, backend="numpy").run,  duration)
-        t_nb  = timed(Sweeper(spec, sw, backend="numba").run,  duration)
+        t_np  = timed(Sweeper(spec, sw, backend="numpy").run, duration)
+        t_nbs = timed_numba_serial(nb_sweeper,                duration)
+        t_nbp = timed(nb_sweeper.run,                         duration)
+        t_cs  = timed(cpp.run_serial,                         duration)
+        t_cp  = timed(cpp.run_parallel,                       duration)
 
-        cpp = CppSweeper(spec, sw, n_workers=N_CPU)
-        t_cs  = timed(cpp.run_serial,   duration)
-        t_cp  = timed(cpp.run_parallel, duration)
-
-        row = [n, t_np, t_nb, t_cs, t_cp, t_np / t_nb, t_np / t_cp]
+        row = [n, t_np, t_nbs, t_nbp, t_cs, t_cp]
         rows.append(row)
 
-        vals = [f"{n:>10}",
-                f"{t_np:>10.2f}", f"{t_nb:>10.2f}",
-                f"{t_cs:>12.2f}", f"{t_cp:>16.2f}",
-                f"{t_np/t_nb:>8.1f}x", f"{t_np/t_cp:>12.1f}x"]
+        vals = [
+            f"{n:>10}",
+            f"{t_np:>10.2f}", f"{t_nbs:>10.2f}", f"{t_nbp:>14.2f}",
+            f"{t_cs:>11.2f}", f"{t_cp:>14.2f}",
+            f"{t_np/t_nbs:>11.1f}x", f"{t_np/t_nbp:>11.1f}x",
+            f"{t_np/t_cs:>12.1f}x",  f"{t_np/t_cp:>11.1f}x",
+        ]
         print("  ".join(vals))
 
     print(sep)
     print(f"\nNetwork : {n_nodes} nodes  |  duration={duration} ms  |  dt={dt} ms")
-    print(f"Parallel C++ uses {N_CPU} threads (os.cpu_count()).")
+    print(f"Parallel backends pinned to {N_WORKERS} threads "
+          f"(override: VBI_BENCH_THREADS=N).")
+    print("Numba serial = prange with 1 thread; "
+          "C++ serial = Python loop; "
+          "C++ parallel = ThreadPoolExecutor (GIL released).")
 
     if plot:
         _plot(rows, sweep_sizes, n_nodes, duration)
@@ -142,37 +168,45 @@ def _plot(rows, sweep_sizes, n_nodes, duration):
 
     ns   = [r[0] for r in rows]
     t_np = [r[1] for r in rows]
-    t_nb = [r[2] for r in rows]
-    t_cs = [r[3] for r in rows]
-    t_cp = [r[4] for r in rows]
+    t_nbs= [r[2] for r in rows]
+    t_nbp= [r[3] for r in rows]
+    t_cs = [r[4] for r in rows]
+    t_cp = [r[5] for r in rows]
 
-    fig, axes = plt.subplots(1, 2, figsize=(13, 5))
+    fig, axes = plt.subplots(1, 2, figsize=(14, 5))
 
     # Wall-clock time
     ax = axes[0]
-    ax.plot(ns, t_np, "o-", label="NumPy (serial)")
-    ax.plot(ns, t_nb, "s-", label="Numba (parallel)")
-    ax.plot(ns, t_cs, "^-", label="C++ serial")
-    ax.plot(ns, t_cp, "D-", label=f"C++ parallel ×{N_CPU}")
+    ax.plot(ns, t_np,  "o-", label="NumPy serial",            color="tab:blue")
+    ax.plot(ns, t_nbs, "s--",label="Numba serial (1 thread)", color="tab:orange")
+    ax.plot(ns, t_nbp, "s-", label=f"Numba parallel ×{N_WORKERS}", color="tab:orange",
+            markerfacecolor="white")
+    ax.plot(ns, t_cs,  "^--",label="C++ serial",              color="tab:green")
+    ax.plot(ns, t_cp,  "D-", label=f"C++ parallel ×{N_WORKERS}",   color="tab:green",
+            markerfacecolor="white")
     ax.set_xlabel("n_samples")
     ax.set_ylabel("Wall time (s)")
     ax.set_title(f"Sweep time — {n_nodes} nodes, {duration} ms")
-    ax.legend()
+    ax.legend(fontsize=9)
     ax.grid(True, alpha=0.3)
 
-    # Speedup vs NumPy
+    # Speedup vs NumPy serial
     ax = axes[1]
-    ax.plot(ns, [t_np[i] / t_nb[i] for i in range(len(ns))],
-            "s-", label="Numba / NumPy")
-    ax.plot(ns, [t_np[i] / t_cs[i] for i in range(len(ns))],
-            "^-", label="C++ serial / NumPy")
-    ax.plot(ns, [t_np[i] / t_cp[i] for i in range(len(ns))],
-            "D-", label=f"C++ par×{N_CPU} / NumPy")
-    ax.axhline(1.0, color="k", lw=0.8, ls="--")
+    ax.plot(ns, [t_np[i]/t_nbs[i] for i in range(len(ns))],
+            "s--", label="Numba serial / NumPy",            color="tab:orange")
+    ax.plot(ns, [t_np[i]/t_nbp[i] for i in range(len(ns))],
+            "s-",  label=f"Numba par×{N_WORKERS} / NumPy", color="tab:orange",
+            markerfacecolor="white")
+    ax.plot(ns, [t_np[i]/t_cs[i]  for i in range(len(ns))],
+            "^--", label="C++ serial / NumPy",              color="tab:green")
+    ax.plot(ns, [t_np[i]/t_cp[i]  for i in range(len(ns))],
+            "D-",  label=f"C++ par×{N_WORKERS} / NumPy",   color="tab:green",
+            markerfacecolor="white")
+    ax.axhline(1.0, color="k", lw=0.8, ls=":")
     ax.set_xlabel("n_samples")
-    ax.set_ylabel("Speedup")
+    ax.set_ylabel("Speedup vs NumPy serial")
     ax.set_title("Speedup vs NumPy baseline")
-    ax.legend()
+    ax.legend(fontsize=9)
     ax.grid(True, alpha=0.3)
 
     plt.tight_layout()
