@@ -90,9 +90,9 @@ class TestPipelineNumpySweep:
     def setup_method(self):
         self.spec = _make_spec(n_nodes=4)
         self.pipeline = _stat_pipeline(signal="tavg", t_cut=50.0)
-        self.G_vals = np.array([1.0, 2.0, 3.0])
+        self.cr_vals = np.array([0.2, 0.5, 0.8])
         self.sw_spec = SweepSpec(
-            params={"G": self.G_vals},
+            params={"cr": self.cr_vals},
             pipeline=self.pipeline,
         )
 
@@ -102,22 +102,22 @@ class TestPipelineNumpySweep:
         ).run(duration=200.0)
         assert isinstance(labels, list)
         assert isinstance(values, np.ndarray)
-        assert values.shape[0] == 3          # one row per G value
-        assert labels[0] == "G"
+        assert values.shape[0] == 3          # one row per cr value
+        assert labels[0] == "cr"
         assert values.shape[1] == len(labels)
 
     def test_param_column_matches_sweep_values(self):
         labels, values = Sweeper(
             self.spec, self.sw_spec, backend="numpy"
         ).run(duration=200.0)
-        np.testing.assert_array_equal(values[:, 0], self.G_vals)
+        np.testing.assert_array_equal(values[:, 0], self.cr_vals)
 
     def test_run_df_columns(self):
         pd = pytest.importorskip("pandas")
         df = Sweeper(self.spec, self.sw_spec, backend="numpy").run_df(200.0)
         assert df.shape[0] == 3
-        assert "G" in df.columns
-        assert df.shape[1] > 1   # at least G + one feature
+        assert "cr" in df.columns
+        assert df.shape[1] > 1   # at least cr + one feature
 
     def test_feature_values_finite(self):
         _, values = Sweeper(
@@ -134,9 +134,9 @@ class TestPipelineNumbaSweep:
     def setup_method(self):
         self.spec = _make_spec(n_nodes=4)
         self.pipeline = _stat_pipeline(signal="tavg", t_cut=50.0)
-        self.G_vals = np.array([1.0, 2.0, 3.0])
+        self.cr_vals = np.array([0.2, 0.5, 0.8])
         self.sw_spec = SweepSpec(
-            params={"G": self.G_vals},
+            params={"cr": self.cr_vals},
             pipeline=self.pipeline,
         )
 
@@ -146,13 +146,13 @@ class TestPipelineNumbaSweep:
         ).run(duration=200.0)
         assert isinstance(labels, list)
         assert values.shape[0] == 3
-        assert labels[0] == "G"
+        assert labels[0] == "cr"
 
     def test_param_column_matches_sweep_values(self):
         _, values = Sweeper(
             self.spec, self.sw_spec, backend="numba"
         ).run(duration=200.0)
-        np.testing.assert_array_equal(values[:, 0], self.G_vals)
+        np.testing.assert_array_equal(values[:, 0], self.cr_vals)
 
     def test_feature_values_finite(self):
         _, values = Sweeper(
@@ -171,7 +171,7 @@ class TestPipelineBackendConsistency:
         spec = _make_spec(n_nodes=4)
         pipeline = _stat_pipeline()
         sw_spec = SweepSpec(
-            params={"G": np.array([2.0])},
+            params={"cr": np.array([0.5])},
             pipeline=pipeline,
         )
         np_labels, _ = Sweeper(spec, sw_spec, backend="numpy").run(200.0)
@@ -182,20 +182,13 @@ class TestPipelineBackendConsistency:
         """Labels from pipeline.extract on a single run must equal sweep labels."""
         spec = _make_spec(n_nodes=4)
         pipeline = _stat_pipeline(t_cut=50.0)
-        from vbi.simulator.spec import SimulationSpec
-        single_spec = SimulationSpec(
-            model=spec.model, integrator=spec.integrator,
-            coupling=spec.coupling, monitors=spec.monitors,
-            weights=spec.weights, tract_lengths=spec.tract_lengths,
-            speed=spec.speed, node_params={"G": 2.0},
-        )
-        single_result = Simulator(single_spec, backend="numpy").run(200.0)
+        single_result = Simulator(spec, backend="numpy").run(200.0)
         single_labels, _ = pipeline.extract(single_result)
 
         sw_spec = SweepSpec(
-            params={"G": np.array([2.0])},
+            params={"cr": np.array([0.5])},
             pipeline=pipeline,
         )
         sweep_labels, _ = Sweeper(spec, sw_spec, backend="numpy").run(200.0)
-        # sweep_labels includes "G" as first entry; rest must match
+        # sweep_labels includes "cr" as first entry; rest must match
         assert sweep_labels[1:] == single_labels

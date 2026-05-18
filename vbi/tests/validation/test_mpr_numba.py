@@ -169,7 +169,7 @@ class TestSweepDeterministic:
 
     def test_sweep_shape(self):
         spec       = self._base_spec(n_nodes=4)
-        sweep_spec = SweepSpec(params={"G": np.linspace(1.0, 4.0, 4)})
+        sweep_spec = SweepSpec(params={"cr": np.linspace(0.1, 0.9, 4)})
         res = Sweeper(spec, sweep_spec, backend="numba").run(50.0)
         # Without pipeline: list of monitor dicts
         assert isinstance(res, list)
@@ -184,12 +184,12 @@ class TestSweepDeterministic:
         cfg = get_features_by_given_names(cfg, ["calc_mean", "calc_std"])
         pipeline = FeaturePipeline(cfg, signal="tavg", t_cut=50.0)
         sweep_spec = SweepSpec(
-            params={"G": np.linspace(1.0, 4.0, 10)},
+            params={"cr": np.linspace(0.1, 0.9, 10)},
             pipeline=pipeline,
         )
         labels, values = Sweeper(spec, sweep_spec, backend="numba").run(100.0)
         assert values.shape[0] == 10
-        assert "G" in labels
+        assert "cr" in labels
         assert "mean_0" in labels or "mean" in labels or any("mean" in l for l in labels)
 
     def test_single_param_set_matches_simulator(self):
@@ -198,7 +198,7 @@ class TestSweepDeterministic:
             n_nodes=4, dt=0.01,
             monitors=(MonitorSpec("raw"),),
         )
-        sweep_spec = SweepSpec(params={"G": np.array([2.0])})
+        sweep_spec = SweepSpec(params={"cr": np.array([1.0])})
         res_list = Sweeper(spec, sweep_spec, backend="numba").run(100.0)
         _, d_sweep = res_list[0]["raw"]   # (n_record, n_sv, n_nodes)
 
@@ -216,7 +216,7 @@ class TestSweepDeterministic:
             monitors=(MonitorSpec("raw"),),
         )
         n_samples  = 6
-        sweep_spec = SweepSpec(params={"G": np.linspace(1.0, 3.0, n_samples)})
+        sweep_spec = SweepSpec(params={"cr": np.linspace(0.1, 0.9, n_samples)})
 
         nb_res = Sweeper(spec, sweep_spec, backend="numba").run(100.0)
         np_res = Sweeper(spec, sweep_spec, backend="numpy").run(100.0)
@@ -241,7 +241,7 @@ class TestThroughput:
             monitors=(MonitorSpec("tavg", period=1.0),),
         )
         n_samples  = 10
-        sweep_spec = SweepSpec(params={"G": np.linspace(0.5, 5.0, n_samples)})
+        sweep_spec = SweepSpec(params={"cr": np.linspace(0.1, 0.9, n_samples)})
         t0 = time.perf_counter()
         Sweeper(spec, sweep_spec, backend="numba").run(200.0)
         elapsed = time.perf_counter() - t0

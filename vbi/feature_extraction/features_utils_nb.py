@@ -151,8 +151,8 @@ def nb_extract(ts_2d, do_mean, do_std, do_fc, do_fcd, fcd_window, out):
     """
     Fill pre-allocated `out` with the requested features.
 
-    Feature order (whichever are enabled):
-        mean_0 … mean_{n-1}  |  std_0 … std_{n-1}
+    Feature order (whichever are enabled) — matches Tier-1 (JSON) order:
+        std_0 … std_{n-1}  |  mean_0 … mean_{n-1}
         fc_0_1 … fc_{n-2}_{n-1}  |  fcd_mean
 
     Parameters
@@ -168,16 +168,16 @@ def nb_extract(ts_2d, do_mean, do_std, do_fc, do_fcd, fcd_window, out):
     _, n_nodes = ts_2d.shape
     idx = 0
 
-    if do_mean:
-        m = nb_mean(ts_2d)
-        for i in range(n_nodes):
-            out[idx] = m[i]
-            idx += 1
-
     if do_std:
         s = nb_std(ts_2d)
         for i in range(n_nodes):
             out[idx] = s[i]
+            idx += 1
+
+    if do_mean:
+        m = nb_mean(ts_2d)
+        for i in range(n_nodes):
+            out[idx] = m[i]
             idx += 1
 
     if do_fc:
@@ -236,10 +236,10 @@ class NbExtractorSpec:
 
     def labels(self, n_nodes: int) -> list[str]:
         lbls: list[str] = []
-        if self.do_mean:
-            lbls += [f"mean_{i}" for i in range(n_nodes)]
         if self.do_std:
             lbls += [f"std_{i}" for i in range(n_nodes)]
+        if self.do_mean:
+            lbls += [f"mean_{i}" for i in range(n_nodes)]
         if self.do_fc:
             lbls += [f"fc_{i}_{j}"
                      for i in range(n_nodes)
