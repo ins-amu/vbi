@@ -49,7 +49,16 @@ def load_sweep_backend(name: str) -> type:
             raise ImportError(
                 "Numba backend requires numba: pip install numba"
             ) from exc
+    if name == "cpp":
+        try:
+            from vbi.simulator.backend.cpp.sweeper import CppSweeper
+            return CppSweeper
+        except ImportError as exc:
+            raise ImportError(
+                "C++ backend requires pybind11 and mako: "
+                "pip install pybind11 mako"
+            ) from exc
     raise ImportError(
         f"Sweep backend {name!r} is not available. "
-        "Available: 'numpy', 'numba'. Coming: 'cpp', 'cuda', 'jax'."
+        "Available: 'numpy', 'numba', 'cpp'. Coming: 'cuda', 'jax'."
     )
