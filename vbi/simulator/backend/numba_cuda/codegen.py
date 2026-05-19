@@ -1,36 +1,38 @@
 """
 Code generation for the Numba-CUDA backend.
 
-In Numba CUDA, device functions must be in the same compilation unit as the
-kernel that calls them.  Therefore this module generates a *complete* Python
-source string containing:
+Memory layout — coalesced (tid is always the LAST dimension)
+-------------------------------------------------------------
+Old layout (bad for GPU):
+    state[n_samples, n_sv,   n_nodes]   thread tid reads state[tid, sv, node]
+    buf  [n_samples, n_cvar, n_nodes, horizon]
+    → adjacent threads are n_sv*n_nodes elements apart → NO coalescing
 
-    1. A @cuda.jit(device=True) dfun  — scalar per-node, float32
-    2. The deterministic sweep kernel
-    3. The stochastic sweep kernel
+New layout (coalesced):
+    state[n_sv,   n_nodes, n_samples]   thread tid reads state[sv, node, tid]
+    buf  [n_cvar, n_nodes, horizon, n_samples]
+    → adjacent threads access consecutive addresses → ONE memory transaction per warp
 
-The source string is exec()‑ed as one module so the kernel sees the dfun.
+The Python wrappers (sweeper.py / simulator.py) transpose host arrays before
+transferring to device and transpose back after copy_to_host.
 
-This mirrors TVB's approach (Mako template → exec); VBI uses plain string
-generation instead of Mako to avoid an extra dependency.
+Connectivity
+------------
+Two modes are generated depending on the ``sparse`` flag:
 
-Thread / block layout (same as TVB nb_hybrid_cuda_sweep.py)
-------------------------------------------------------------
+Dense (``sparse=False``):
+    Coupling: weights[node, src] — full (n_nodes × n_nodes) float32 matrix.
+    Best for small N or fully-connected topologies.
+
+CSR sparse (``sparse=True``):
+    Coupling: w_data[nnz], w_indices[nnz], w_indptr[n_nodes+1]
+    Optional: idelays_csr[nnz]  — delay per non-zero edge (int32)
+    Best for large N with real connectomes (typical density 20–40 %).
+
+Thread layout (same for both):
     grid  = ((n_samples + TPB - 1) // TPB,)
-    block = (TPB,)
-    tid   = cuda.grid(1)   →   1 thread = 1 complete simulation
-
-Each thread integrates ALL nodes of ONE parameter set sequentially.
-This is simple, avoids inter-thread communication, and scales naturally
-to thousands of sweep points.
-
-Memory layout (float32 throughout)
-------------------------------------
-state  : (n_samples, n_sv,   n_nodes)
-buf    : (n_samples, n_cvar, n_nodes, horizon)  — ring buffer (dense)
-params : (n_samples, n_params)
-ts_out : (n_samples, n_record, n_sv, n_nodes)   — time-series output
-noise  : (n_samples, n_steps, n_sv, n_nodes)    — pre-generated dW (stoch)
+    block = (TPB,)                              TPB = 256
+    tid   = cuda.grid(1)   →  1 thread = 1 complete simulation
 """
 from __future__ import annotations
 
@@ -49,7 +51,6 @@ from vbi.simulator.spec.simulation import SimulationSpec
 _CACHE_DIR = Path.home() / ".cache" / "vbi" / "cuda"
 _MODULE_CACHE: dict[str, types.ModuleType] = {}
 
-# Python expression → CUDA-compatible math.* equivalent
 _MATH_MAP = [
     (r'\bexp\b',   'math.exp'),
     (r'\blog2\b',  'math.log2'),
@@ -71,82 +72,84 @@ _MATH_MAP = [
 
 
 def _cuda_expr(expr: str) -> str:
-    """Translate a dfun_str expression to CUDA math.* form."""
-    for pattern, repl in _MATH_MAP:
-        expr = re.sub(pattern, repl, expr)
+    for p, r in _MATH_MAP:
+        expr = re.sub(p, r, expr)
     return expr
 
 
-def _generate_source(spec: ModelSpec) -> str:
+def _generate_source(spec: ModelSpec, sparse: bool = False) -> str:
     """
-    Generate a complete Python module source containing:
-      - _dfun_cuda   : @cuda.jit(device=True) scalar dfun
-      - cuda_sweep_det   : deterministic sweep kernel
-      - cuda_sweep_stoch : stochastic sweep kernel
+    Generate a complete Python module with:
+      - _dfun_cuda        : @cuda.jit(device=True) scalar dfun
+      - cuda_sweep_det    : deterministic sweep kernel
+      - cuda_sweep_stoch  : stochastic sweep kernel
+
+    Both kernels use coalesced memory layout (tid last).
+    When sparse=True, coupling uses CSR instead of the dense weight matrix.
     """
-    sv_names    = spec.sv_names
-    cvar_names  = spec.cvar
-    param_names = spec.param_names
-    n_sv        = spec.n_sv
-    n_cvar      = len(cvar_names)
-    n_params    = len(param_names)
+    sv      = spec.sv_names
+    cvars   = spec.cvar
+    params  = spec.param_names
+    n_sv    = spec.n_sv
+    n_cvar  = len(cvars)
+    n_par   = len(params)
+    returns = ", ".join(f"d_{s}" for s in sv)
 
     # ----------------------------------------------------------------
     # dfun device function
     # ----------------------------------------------------------------
-    c_args  = [f"c_{cn}" for cn in cvar_names]
-    dfun_args = list(sv_names) + c_args + list(param_names)
-
-    lines = [
-        f"# Auto-generated CUDA module for model: {spec.name}",
+    dfun_args = list(sv) + [f"c_{c}" for c in cvars] + list(params)
+    L = [
+        f"# Auto-generated CUDA module for: {spec.name}  sparse={sparse}",
         "import math",
         "import numpy as np",
         "from numba import cuda, float32",
-        "from numba.cuda.random import (xoroshiro128p_normal_float32,",
-        "                               create_xoroshiro128p_states)",
+        "from numba.cuda.random import xoroshiro128p_normal_float32, create_xoroshiro128p_states",
         "",
-        "# ---- dfun device function ----",
         "@cuda.jit(device=True)",
         f"def _dfun_cuda({', '.join(dfun_args)}):",
     ]
-    if cvar_names:
-        lines.append(f"    c = c_{cvar_names[0]}")
-    for sv in sv_names:
-        lines.append(f"    d_{sv} = {_cuda_expr(spec.dfun_str[sv])}")
-    returns = ", ".join(f"d_{sv}" for sv in sv_names)
-    lines.append(f"    return {returns}")
-    lines.append("")
+    if cvars:
+        L.append(f"    c = c_{cvars[0]}")
+    for s in sv:
+        L.append(f"    d_{s} = {_cuda_expr(spec.dfun_str[s])}")
+    L += [f"    return {returns}", ""]
 
     # ----------------------------------------------------------------
-    # Shared helpers: coupling and bounds (inlined into kernel)
+    # Kernel generator (shared structure for det / stoch)
     # ----------------------------------------------------------------
-    # These are inlined via string substitution; see kernel template below.
-
-    # ----------------------------------------------------------------
-    # Kernel template (shared structure for det + stoch)
-    # ----------------------------------------------------------------
-    # We generate the two kernels with a helper function to avoid duplication.
-
     def _kernel(stochastic: bool) -> list[str]:
-        kname = "cuda_sweep_stoch" if stochastic else "cuda_sweep_det"
-        extra_args = (
-            ["    noise,        # (n_samples, n_steps, n_sv, n_nodes) float32"]
+        kn = "cuda_sweep_stoch" if stochastic else "cuda_sweep_det"
+        conn_args = (
+            [
+                "    w_data,        # (nnz,) float32  CSR values",
+                "    w_indices,     # (nnz,) int32    CSR col indices",
+                "    w_indptr,      # (n_nodes+1,) int32  CSR row pointers",
+                "    idelays_csr,   # (nnz,) int32  delay per edge (or empty)",
+            ]
+            if sparse else
+            [
+                "    weights,       # (n_nodes, n_nodes) float32  dense",
+                "    delay_steps,   # (n_nodes, n_nodes) int32  dense",
+            ]
+        )
+        noise_arg = (
+            ["    noise,         # (n_steps, n_sv, n_nodes, n_samples) float32"]
             if stochastic else []
         )
-        klines = [
-            "# ---- " + kname + " ----",
-            "@cuda.jit",
-            f"def {kname}(",
-            "    state_in,      # (n_samples, n_sv, n_nodes) float32",
-            "    buf,           # (n_samples, n_cvar, n_nodes, horizon) float32",
-            "    weights,       # (n_nodes, n_nodes) float32",
-            "    delay_steps,   # (n_nodes, n_nodes) int32",
-            "    params,        # (n_samples, n_params) float32",
+
+        K = [
+            f"@cuda.jit",
+            f"def {kn}(",
+            "    state,         # (n_sv,   n_nodes, n_samples) float32  coalesced",
+            "    buf,           # (n_cvar, n_nodes, horizon, n_samples) float32",
+        ] + conn_args + [
+            "    params,        # (n_params, n_samples) float32",
             "    cvar_indices,  # (n_cvar,) int32",
-            "    lower_bounds,  # (n_sv,) float32",
-            "    has_lower,     # (n_sv,) bool",
-            "    upper_bounds,  # (n_sv,) float32",
-            "    has_upper,     # (n_sv,) bool",
+            "    lower_bounds,  # (n_sv,)   float32",
+            "    has_lower,     # (n_sv,)   bool",
+            "    upper_bounds,  # (n_sv,)   float32",
+            "    has_upper,     # (n_sv,)   bool",
             "    horizon,       # int32",
             "    dt,            # float32",
             "    n_steps,       # int32",
@@ -157,239 +160,232 @@ def _generate_source(spec: ModelSpec) -> str:
             "    coup_b,        # float32",
             "    has_delays,    # bool",
             "    use_heun,      # bool",
-        ]
-        klines.extend(extra_args)
-        klines.append("    ts_out,        # (n_samples, n_record, n_sv, n_nodes) float32")
-        klines.append("):")
-
-        klines += [
-            "    tid     = cuda.grid(1)",
-            "    n_samp  = state_in.shape[0]",
-            f"    n_sv    = {n_sv}",
-            f"    n_nodes = state_in.shape[2]",
-            f"    n_cvar  = {n_cvar}",
+        ] + noise_arg + [
+            "    ts_out,        # (n_record, n_sv, n_nodes, n_samples) float32",
+            "):",
+            "    tid      = cuda.grid(1)",
+            "    n_samp   = state.shape[2]",
+            f"    n_nodes  = state.shape[1]",
             "    if tid >= n_samp:",
             "        return",
             "",
-            "    # Per-thread local arrays (registers/local memory)",
+            f"    sv     = cuda.local.array(({n_sv},), dtype=float32)",
+            f"    k1     = cuda.local.array(({n_sv},), dtype=float32)",
+            f"    k2     = cuda.local.array(({n_sv},), dtype=float32)",
+            f"    pred   = cuda.local.array(({n_sv},), dtype=float32)",
+            f"    coup   = cuda.local.array(({n_cvar},), dtype=float32)",
+            "    rec_idx = 0",
+            "",
+            "    for step in range(n_steps):",
+            "        for node in range(n_nodes):",
         ]
 
-        # Local arrays for state, intermediates, coupling
-        klines.append(f"    sv     = cuda.local.array(({n_sv},), dtype=float32)")
-        klines.append(f"    k1     = cuda.local.array(({n_sv},), dtype=float32)")
-        klines.append(f"    k2     = cuda.local.array(({n_sv},), dtype=float32)")
-        klines.append(f"    pred   = cuda.local.array(({n_sv},), dtype=float32)")
-        klines.append(f"    coup   = cuda.local.array(({n_cvar},), dtype=float32)")
-        klines += ["    rec_idx = 0", ""]
+        # Load state — coalesced: state[sv, node, tid]
+        K.append("")
+        K.append("            # -- load state (coalesced) --")
+        for i, s in enumerate(sv):
+            K.append(f"            {s} = state[{i}, node, tid]")
 
-        klines.append("    for step in range(n_steps):")
-        klines.append("        for node in range(n_nodes):")
-        klines.append("")
-        klines.append("            # ---- Load state ----")
-        for i, sv in enumerate(sv_names):
-            klines.append(f"            {sv} = state_in[tid, {i}, node]")
-        klines.append("")
-
-        klines.append("            # ---- Coupling ----")
-        for cv_i, cv_name in enumerate(cvar_names):
+        # Coupling
+        K.append("")
+        K.append("            # -- coupling --")
+        for cv_i, cv_name in enumerate(cvars):
             ci = f"cvar_indices[{cv_i}]"
-            klines.append(f"            _s{cv_i} = float32(0.0)")
-            klines.append(f"            if has_delays:")
-            klines.append(f"                _t_last = step - 1")
-            klines.append(f"                for _src in range(n_nodes):")
-            klines.append(f"                    _d   = delay_steps[_src, node]")
-            klines.append(f"                    _idx = (_t_last - _d + horizon) % horizon")
-            klines.append(f"                    _s{cv_i} += weights[node, _src] * buf[tid, {cv_i}, _src, _idx]")
-            klines.append(f"            else:")
-            klines.append(f"                for _src in range(n_nodes):")
-            klines.append(f"                    _s{cv_i} += weights[node, _src] * state_in[tid, {ci}, _src]")
-            klines.append(f"            coup[{cv_i}] = coup_a * _s{cv_i} + coup_b")
-        klines.append("")
+            K.append(f"            _s{cv_i} = float32(0.0)")
+            if sparse:
+                K.append(f"            _rstart = w_indptr[node]")
+                K.append(f"            _rend   = w_indptr[node + 1]")
+                K.append(f"            for _ptr in range(_rstart, _rend):")
+                K.append(f"                _src = w_indices[_ptr]")
+                K.append(f"                _w   = w_data[_ptr]")
+                K.append(f"                if has_delays:")
+                K.append(f"                    _d   = idelays_csr[_ptr]")
+                K.append(f"                    _idx = (step - 1 - _d + horizon) % horizon")
+                K.append(f"                    _s{cv_i} += _w * buf[{cv_i}, _src, _idx, tid]")
+                K.append(f"                else:")
+                K.append(f"                    _s{cv_i} += _w * state[{ci}, _src, tid]")
+            else:
+                K.append(f"            if has_delays:")
+                K.append(f"                _tl = step - 1")
+                K.append(f"                for _src in range(n_nodes):")
+                K.append(f"                    _d   = delay_steps[_src, node]")
+                K.append(f"                    _idx = (_tl - _d + horizon) % horizon")
+                K.append(f"                    _s{cv_i} += weights[node, _src] * buf[{cv_i}, _src, _idx, tid]")
+                K.append(f"            else:")
+                K.append(f"                for _src in range(n_nodes):")
+                K.append(f"                    _s{cv_i} += weights[node, _src] * state[{ci}, _src, tid]")
+            K.append(f"            coup[{cv_i}] = coup_a * _s{cv_i} + coup_b")
 
-        # Unpack coupling for dfun call
-        coup_vals = [f"coup[{i}]" for i in range(n_cvar)]
-        param_vals = [f"params[tid, {i}]" for i in range(n_params)]
-        dfun_call_args = list(sv_names) + coup_vals + param_vals
+        # k1
+        K.append("")
+        K.append("            # -- k1 --")
+        coup_v = [f"coup[{i}]" for i in range(n_cvar)]
+        par_v  = [f"params[{i}, tid]" for i in range(n_par)]
+        dcall  = ", ".join(list(sv) + coup_v + par_v)
+        K.append(f"            {returns} = _dfun_cuda({dcall})")
+        for i, s in enumerate(sv):
+            K.append(f"            k1[{i}] = d_{s}")
 
-        klines.append("            # ---- k1 = dfun(state, coupling, params) ----")
-        klines.append(f"            {returns} = _dfun_cuda({', '.join(dfun_call_args)})")
-        for i, sv in enumerate(sv_names):
-            klines.append(f"            k1[{i}] = d_{sv}")
-        klines.append("")
-
-        klines.append("            # ---- Predictor ----")
-        for i, sv in enumerate(sv_names):
-            klines.append(f"            pred[{i}] = {sv} + dt * k1[{i}]")
-        klines.append("")
-
-        klines.append("            # ---- k2 = dfun(pred, coupling, params) ----")
-        pred_vals = [f"pred[{i}]" for i in range(n_sv)]
-        dfun_pred_args = pred_vals + coup_vals + param_vals
-        klines.append(f"            {returns} = _dfun_cuda({', '.join(dfun_pred_args)})")
-        for i, sv in enumerate(sv_names):
-            klines.append(f"            k2[{i}] = d_{sv}")
-        klines.append("")
-
-        klines.append("            # ---- Heun corrector (or Euler) ----")
-        if stochastic:
-            klines.append("            # stochastic: add noise to both predictor and corrector")
-            for i, sv in enumerate(sv_names):
-                klines.append(
-                    f"            _dw{i} = noise[tid, step, {i}, node]"
-                )
-            klines.append("            if use_heun:")
-            for i, sv in enumerate(sv_names):
-                klines.append(
-                    f"                _new_{sv} = {sv} + float32(0.5)*dt*(k1[{i}]+k2[{i}]) + _dw{i}"
-                )
-            klines.append("            else:")
-            for i, sv in enumerate(sv_names):
-                klines.append(
-                    f"                _new_{sv} = {sv} + dt*k1[{i}] + _dw{i}"
-                )
-        else:
-            klines.append("            if use_heun:")
-            for i, sv in enumerate(sv_names):
-                klines.append(
-                    f"                _new_{sv} = {sv} + float32(0.5)*dt*(k1[{i}]+k2[{i}])"
-                )
-            klines.append("            else:")
-            for i, sv in enumerate(sv_names):
-                klines.append(
-                    f"                _new_{sv} = {sv} + dt*k1[{i}]"
-                )
-        klines.append("")
-
-        klines.append("            # ---- Post-corrector bounds ----")
-        for i, sv in enumerate(sv_names):
-            klines.append(f"            if has_lower[{i}]:")
-            klines.append(f"                if _new_{sv} < lower_bounds[{i}]:")
-            klines.append(f"                    _new_{sv} = lower_bounds[{i}]")
-            klines.append(f"            if has_upper[{i}]:")
-            klines.append(f"                if _new_{sv} > upper_bounds[{i}]:")
-            klines.append(f"                    _new_{sv} = upper_bounds[{i}]")
-        klines.append("")
-
-        klines.append("            # ---- Write back ----")
-        for i, sv in enumerate(sv_names):
-            klines.append(f"            state_in[tid, {i}, node] = _new_{sv}")
-        klines.append("")
-
-        klines.append("        # ---- Update ring buffer ----")
-        klines.append("        if has_delays:")
-        klines.append("            _slot = step % horizon")
-        klines.append("            for node in range(n_nodes):")
-        for cv_i, cv_name in enumerate(cvar_names):
-            ci = f"cvar_indices[{cv_i}]"
-            klines.append(f"                buf[tid, {cv_i}, node, _slot] = state_in[tid, {ci}, node]")
-        klines.append("")
-
-        klines.append("        # ---- Record ----")
-        klines.append("        if step >= t_cut_step:")
-        klines.append("            if (step - t_cut_step) % record_period == 0:")
-        klines.append("                if rec_idx < n_record:")
-        klines.append("                    for node in range(n_nodes):")
+        # predictor
+        K.append("")
+        K.append("            # -- predictor --")
         for i in range(n_sv):
-            klines.append(f"                        ts_out[tid, rec_idx, {i}, node] = state_in[tid, {i}, node]")
-        klines.append("                    rec_idx += 1")
-        klines.append("")
+            K.append(f"            pred[{i}] = sv[{i}] + dt * k1[{i}]" if False
+                     else f"            pred[{i}] = {sv[i]} + dt * k1[{i}]")
 
-        return klines
+        # k2
+        K.append("")
+        K.append("            # -- k2 --")
+        pred_v = [f"pred[{i}]" for i in range(n_sv)]
+        K.append(f"            {returns} = _dfun_cuda({', '.join(pred_v + coup_v + par_v)})")
+        for i, s in enumerate(sv):
+            K.append(f"            k2[{i}] = d_{s}")
 
-    lines += _kernel(stochastic=False)
-    lines += _kernel(stochastic=True)
+        # corrector + noise
+        K.append("")
+        K.append("            # -- corrector --")
+        if stochastic:
+            for i in range(n_sv):
+                K.append(f"            _dw{i} = noise[step, {i}, node, tid]")
+            K.append("            if use_heun:")
+            for i, s in enumerate(sv):
+                K.append(f"                _new_{s} = {s} + float32(0.5)*dt*(k1[{i}]+k2[{i}]) + _dw{i}")
+            K.append("            else:")
+            for i, s in enumerate(sv):
+                K.append(f"                _new_{s} = {s} + dt*k1[{i}] + _dw{i}")
+        else:
+            K.append("            if use_heun:")
+            for i, s in enumerate(sv):
+                K.append(f"                _new_{s} = {s} + float32(0.5)*dt*(k1[{i}]+k2[{i}])")
+            K.append("            else:")
+            for i, s in enumerate(sv):
+                K.append(f"                _new_{s} = {s} + dt*k1[{i}]")
 
-    return "\n".join(lines)
+        # bounds
+        K.append("")
+        K.append("            # -- post-corrector bounds --")
+        for i, s in enumerate(sv):
+            K.append(f"            if has_lower[{i}]:")
+            K.append(f"                if _new_{s} < lower_bounds[{i}]: _new_{s} = lower_bounds[{i}]")
+            K.append(f"            if has_upper[{i}]:")
+            K.append(f"                if _new_{s} > upper_bounds[{i}]: _new_{s} = upper_bounds[{i}]")
+
+        # write back — coalesced
+        K.append("")
+        K.append("            # -- write back (coalesced) --")
+        for i, s in enumerate(sv):
+            K.append(f"            state[{i}, node, tid] = _new_{s}")
+
+        # ring buffer — coalesced: buf[cvar, node, slot, tid]
+        K += [
+            "",
+            "        # -- ring buffer update --",
+            "        if has_delays:",
+            "            _slot = step % horizon",
+            "            for node in range(n_nodes):",
+        ]
+        for cv_i in range(n_cvar):
+            ci = f"cvar_indices[{cv_i}]"
+            K.append(f"                buf[{cv_i}, node, _slot, tid] = state[{ci}, node, tid]")
+
+        # record — coalesced: ts_out[rec, sv, node, tid]
+        K += [
+            "",
+            "        # -- record --",
+            "        if step >= t_cut_step:",
+            "            if (step - t_cut_step) % record_period == 0:",
+            "                if rec_idx < n_record:",
+            "                    for node in range(n_nodes):",
+        ]
+        for i in range(n_sv):
+            K.append(f"                        ts_out[rec_idx, {i}, node, tid] = state[{i}, node, tid]")
+        K += ["                    rec_idx += 1", ""]
+
+        return K
+
+    L += _kernel(False)
+    L += _kernel(True)
+    return "\n".join(L)
 
 
-def _source_hash(src: str) -> str:
+def _hash(src: str) -> str:
     return hashlib.sha256(src.encode()).hexdigest()[:24]
 
 
-def build_cuda_module(spec: ModelSpec) -> types.ModuleType:
-    """
-    Generate, cache to disk, exec(), and return the compiled CUDA module.
-
-    The returned module has attributes:
-        .cuda_sweep_det   : deterministic sweep kernel
-        .cuda_sweep_stoch : stochastic sweep kernel
-    """
-    src = _generate_source(spec)
-    key = _source_hash(src)
-
+def build_cuda_module(spec: ModelSpec, sparse: bool = False) -> types.ModuleType:
+    """Generate, cache and exec() the complete CUDA module."""
+    src = _generate_source(spec, sparse=sparse)
+    key = _hash(src)
     if key in _MODULE_CACHE:
         return _MODULE_CACHE[key]
 
     _CACHE_DIR.mkdir(parents=True, exist_ok=True)
-    mod_path = _CACHE_DIR / f"cuda_sweep_{key}.py"
-    if not mod_path.exists():
-        mod_path.write_text(src)
+    p = _CACHE_DIR / f"cuda_sweep_{key}.py"
+    if not p.exists():
+        p.write_text(src)
 
-    mod_name = f"vbi_cuda_sweep_{key}"
-    spec_obj = importlib.util.spec_from_file_location(mod_name, mod_path)
+    mod_name = f"vbi_cuda_{key}"
+    spec_obj = importlib.util.spec_from_file_location(mod_name, p)
     mod = importlib.util.module_from_spec(spec_obj)
     sys.modules[mod_name] = mod
     spec_obj.loader.exec_module(mod)
-
     _MODULE_CACHE[key] = mod
     return mod
 
 
 # ---------------------------------------------------------------------------
-# Parameter / state helpers (reused by sweeper + simulator)
+# Host array builders
 # ---------------------------------------------------------------------------
 
-def build_params_matrix(spec: SimulationSpec,
-                        n_samples: int,
+def build_params_matrix(spec: SimulationSpec, n_samples: int,
                         sweep_names: list[str] | None = None,
                         sweep_sets: np.ndarray | None = None) -> np.ndarray:
     """
-    (n_samples, n_params) float32 array.
-
-    Base values from spec.model.default_params + spec.node_params (scalar mean).
-    Sweep columns overwritten per-row when sweep_names / sweep_sets are provided.
+    Returns (n_params, n_samples) float32  — coalesced layout.
+    Base values broadcast; sweep columns overwritten per sample.
     """
-    model       = spec.model
-    param_names = list(model.param_names)
-    n_params    = len(param_names)
-    defaults    = model.default_params
-    overrides   = spec.node_params
+    pnames  = list(spec.model.param_names)
+    n_par   = len(pnames)
+    defs    = spec.model.default_params
+    ovr     = spec.node_params
 
-    base = np.empty(n_params, dtype=np.float32)
-    for i, p in enumerate(model.parameters):
-        val = np.asarray(overrides.get(p.name, defaults[p.name]), dtype=np.float64)
+    base = np.empty(n_par, dtype=np.float32)
+    for i, p in enumerate(spec.model.parameters):
+        val = np.asarray(ovr.get(p.name, defs[p.name]), dtype=np.float64)
         base[i] = float(val.mean())
 
-    arr = np.tile(base, (n_samples, 1))   # (n_samples, n_params)
+    arr = np.tile(base[:, np.newaxis], (1, n_samples))  # (n_params, n_samples)
 
     if sweep_names and sweep_sets is not None:
         for j, name in enumerate(sweep_names):
-            if name in param_names:
-                col = param_names.index(name)
-                arr[:, col] = sweep_sets[:, j].astype(np.float32)
+            if name in pnames:
+                arr[pnames.index(name), :] = sweep_sets[:, j].astype(np.float32)
 
-    return arr
+    return np.ascontiguousarray(arr)
 
 
-def build_initial_state(spec: SimulationSpec) -> np.ndarray:
-    """(n_sv, n_nodes) float32."""
-    st = np.zeros((spec.model.n_sv, spec.n_nodes), dtype=np.float32)
+def build_initial_state(spec: SimulationSpec, n_samples: int) -> np.ndarray:
+    """(n_sv, n_nodes, n_samples) float32 — coalesced."""
+    n_sv    = spec.model.n_sv
+    n_nodes = spec.n_nodes
+    st = np.zeros((n_sv, n_nodes), dtype=np.float32)
     for i, sv in enumerate(spec.model.state_variables):
         st[i, :] = sv.default_init
-    return st
+    return np.ascontiguousarray(np.broadcast_to(st[:, :, np.newaxis],
+                                                (n_sv, n_nodes, n_samples))
+                                 .copy())   # (n_sv, n_nodes, n_samples)
 
 
 def build_ring_buffer(n_samples: int, n_cvar: int, n_nodes: int,
                       horizon: int, init_cvar: np.ndarray) -> np.ndarray:
-    """(n_samples, n_cvar, n_nodes, horizon) float32, filled with init_cvar."""
-    buf = np.empty((n_samples, n_cvar, n_nodes, horizon), dtype=np.float32)
+    """(n_cvar, n_nodes, horizon, n_samples) float32 — coalesced."""
+    buf = np.zeros((n_cvar, n_nodes, horizon, n_samples), dtype=np.float32)
     for h in range(horizon):
-        buf[:, :, :, h] = init_cvar[np.newaxis, :, :]
-    return buf
+        buf[:, :, h, :] = init_cvar[:, :, np.newaxis]
+    return np.ascontiguousarray(buf)
 
 
 def get_bounds_arrays(spec: ModelSpec):
-    """Returns (lo, has_lo, hi, has_hi) each float32/bool shape (n_sv,)."""
     n_sv = spec.n_sv
     lo, hi = np.zeros(n_sv, np.float32), np.zeros(n_sv, np.float32)
     hlo, hhi = np.zeros(n_sv, np.bool_), np.zeros(n_sv, np.bool_)
@@ -401,13 +397,52 @@ def get_bounds_arrays(spec: ModelSpec):
     return lo, hlo, hi, hhi
 
 
+def to_csr(weights: np.ndarray, delay_steps: np.ndarray | None = None,
+           has_delays: bool = False):
+    """
+    Convert dense weight matrix to CSR float32 arrays.
+
+    Returns
+    -------
+    w_data   : (nnz,)       float32
+    w_indices: (nnz,)       int32
+    w_indptr : (n_nodes+1,) int32
+    idelays  : (nnz,)       int32  (zeros if has_delays=False)
+    nnz      : int
+    density  : float
+    """
+    import scipy.sparse as sp
+    W  = sp.csr_matrix(weights.astype(np.float32))
+    W.eliminate_zeros()
+    nnz     = W.nnz
+    n_nodes = weights.shape[0]
+    density = nnz / (n_nodes * n_nodes) if n_nodes > 0 else 0.0
+
+    if has_delays and delay_steps is not None:
+        # Reorder idelays to match CSR non-zero positions
+        ds_csr = np.zeros(nnz, dtype=np.int32)
+        for i in range(n_nodes):
+            start, end = W.indptr[i], W.indptr[i + 1]
+            for k, j in enumerate(W.indices[start:end]):
+                ds_csr[start + k] = int(delay_steps[j, i])
+    else:
+        ds_csr = np.zeros(nnz, dtype=np.int32)
+
+    return (
+        np.ascontiguousarray(W.data,    dtype=np.float32),
+        np.ascontiguousarray(W.indices, dtype=np.int32),
+        np.ascontiguousarray(W.indptr,  dtype=np.int32),
+        ds_csr,
+        nnz,
+        density,
+    )
+
+
 def generate_noise(spec: SimulationSpec, n_steps: int,
                    n_samples: int, seed_base: int) -> np.ndarray:
     """
-    Pre-generate noise increments (n_samples, n_steps, n_sv, n_nodes) float32.
-
-    Uses numpy CPU RNG; each sample gets seed = seed_base + sample_idx.
-    Shape matches the ts_out layout so indexing is consistent in the kernel.
+    (n_steps, n_sv, n_nodes, n_samples) float32 — coalesced layout.
+    Each sample gets seed = seed_base + sample_idx.
     """
     n_sv    = spec.model.n_sv
     n_nodes = spec.n_nodes
@@ -421,11 +456,11 @@ def generate_noise(spec: SimulationSpec, n_steps: int,
     amp     = np.sqrt(2.0 * nsig) if style == "tvb" else nsig
     eff_amp = (amp * np.sqrt(spec.integrator.dt)).astype(np.float32)
 
-    noise = np.zeros((n_samples, n_steps, n_sv, n_nodes), dtype=np.float32)
+    noise = np.zeros((n_steps, n_sv, n_nodes, n_samples), dtype=np.float32)
     for s in range(n_samples):
         rng = np.random.default_rng(seed_base + s)
         for k, sv_idx in enumerate(ni):
-            noise[s, :, sv_idx, :] = (
+            noise[:, sv_idx, :, s] = (
                 eff_amp[k] * rng.standard_normal((n_steps, n_nodes))
             ).astype(np.float32)
-    return noise
+    return np.ascontiguousarray(noise)

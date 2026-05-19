@@ -1,15 +1,20 @@
 """
 CudaSweeperGPU — parallel parameter sweep on GPU.
 
-One GPU thread = one complete simulation.
-float32 precision on GPU; results returned as float64 numpy arrays.
+Memory layout: coalesced (sample index is LAST / innermost dimension).
+Connectivity:  dense (default for small N) or CSR sparse (default for N > 64
+               or user-specified via connectivity="sparse"|"dense"|"auto").
 
 Usage
 -----
+    # auto-detect sparse vs dense:
     sweeper = CudaSweeperGPU(spec, sweep_spec)
-    labels, values = sweeper.run(duration=5000.0)
-    # or
-    results = sweeper.run(duration=5000.0)  # list of dicts when no pipeline
+
+    # force sparse (good for real connectomes with ~20-40% density):
+    sweeper = CudaSweeperGPU(spec, sweep_spec, connectivity="sparse")
+
+    labels, values = sweeper.run(5000.0)   # pipeline mode
+    results        = sweeper.run(5000.0)   # list[dict] when no pipeline
 """
 from __future__ import annotations
 
@@ -17,7 +22,7 @@ import numpy as np
 
 from vbi.simulator.spec.simulation import SimulationSpec
 from vbi.simulator.spec.sweep import SweepSpec
-from vbi.simulator.backend.numba_.simulator import _apply_monitor  # reuse post-processing
+from vbi.simulator.backend.numba_.simulator import _apply_monitor
 
 from .codegen import (
     build_cuda_module,
@@ -26,6 +31,7 @@ from .codegen import (
     build_ring_buffer,
     get_bounds_arrays,
     generate_noise,
+    to_csr,
 )
 
 try:
@@ -35,16 +41,16 @@ except Exception:
     CUDA_AVAILABLE = False
 
 _TPB = 256   # threads per block
+_AUTO_SPARSE_THRESHOLD = 0.5   # use CSR when density < this
 
 
 def _require_cuda():
     if not CUDA_AVAILABLE:
         raise RuntimeError(
-            "CUDA backend unavailable. Ensure:\n"
-            "  1. An NVIDIA GPU is present and the CUDA toolkit is installed.\n"
-            "  2. `numba[cuda]` is installed: pip install numba[cuda]\n"
-            "  3. CUDA_HOME or PATH includes nvcc.\n"
-            "Alternatively, use backend='numba' (CPU) or backend='cpp'."
+            "CUDA backend unavailable.  Ensure an NVIDIA GPU is present, "
+            "the CUDA toolkit is installed, and `numba[cuda]` is installed:\n"
+            "    pip install numba[cuda]\n"
+            "Use backend='numba' (CPU) or backend='cpp' instead."
         )
 
 
@@ -54,17 +60,30 @@ def _count_records(n_steps: int, t_cut: int, period: int) -> int:
     return (n_steps - t_cut + period - 1) // period
 
 
+def _auto_sparse(weights: np.ndarray) -> bool:
+    """Decide sparse vs dense based on matrix density."""
+    nz      = np.count_nonzero(weights)
+    total   = weights.size
+    density = nz / total if total > 0 else 0.0
+    return density < _AUTO_SPARSE_THRESHOLD
+
+
 class CudaSweeperGPU:
     """
     GPU parameter sweep backend.
 
     Parameters
     ----------
-    spec        : SimulationSpec   base simulation spec
-    sweep_spec  : SweepSpec        which params to vary
+    spec          : SimulationSpec
+    sweep_spec    : SweepSpec
+    connectivity  : "auto" | "dense" | "sparse"
+        "auto"   — use CSR sparse when weight matrix density < 50 %
+        "dense"  — always use the full (n_nodes × n_nodes) float32 matrix
+        "sparse" — always use CSR (w_data / w_indices / w_indptr)
     """
 
-    def __init__(self, spec: SimulationSpec, sweep_spec: SweepSpec):
+    def __init__(self, spec: SimulationSpec, sweep_spec: SweepSpec,
+                 connectivity: str = "auto"):
         _require_cuda()
         if spec.coupling.kind != "linear":
             raise NotImplementedError(
@@ -78,36 +97,63 @@ class CudaSweeperGPU:
         n_nodes = spec.n_nodes
         model   = spec.model
 
-        # Compile CUDA module (dfun + kernels generated together)
-        self._mod = build_cuda_module(model)
+        # Sparse / dense decision
+        if connectivity == "auto":
+            self._sparse = _auto_sparse(spec.weights)
+        elif connectivity == "sparse":
+            self._sparse = True
+        else:
+            self._sparse = False
 
-        # Connectivity
-        self._weights_f32 = np.ascontiguousarray(spec.weights, dtype=np.float32)
+        # Compile CUDA module (kernel source depends on sparse flag)
+        self._mod = build_cuda_module(model, sparse=self._sparse)
+
+        # Connectivity arrays
+        self._weights_f32  = np.ascontiguousarray(spec.weights, dtype=np.float32)
         ds = spec.delay_steps(dt).astype(np.int32)
         self._delay_steps  = np.ascontiguousarray(ds)
         self._horizon      = spec.horizon(dt)
         self._has_delays   = bool(spec.has_delays)
 
+        if self._sparse:
+            (self._w_data, self._w_indices, self._w_indptr,
+             self._idelays_csr, self._nnz, density) = to_csr(
+                 spec.weights, ds if self._has_delays else None,
+                 has_delays=self._has_delays)
+            self._conn_info = f"CSR sparse  nnz={self._nnz}  density={density:.1%}"
+        else:
+            density = np.count_nonzero(spec.weights) / max(1, spec.weights.size)
+            self._conn_info = f"dense  N={n_nodes}  density={density:.1%}"
+
         # Coupling scale
-        G = float(np.asarray(spec.node_params.get("G",
-                  model.default_params.get("G", 1.0))).mean())
+        G = float(np.asarray(
+            spec.node_params.get("G", model.default_params.get("G", 1.0))
+        ).mean())
         self._coup_a = np.float32(spec.coupling.a * G)
         self._coup_b = np.float32(spec.coupling.b)
 
-        # Bounds
+        # State / bounds
         self._lo, self._hlo, self._hi, self._hhi = get_bounds_arrays(model)
-
-        # Initial state
-        self._state0 = build_initial_state(spec)
-
-        # Integration flags
         self._use_heun   = (spec.integrator.method == "heun")
         self._stochastic = spec.integrator.stochastic
         self._seed_base  = int(spec.integrator.noise_seed)
-
-        # Sweep metadata
-        self._model_param_names = list(model.param_names)
         self._sweep_names = sweep_spec._param_names_list
+
+    def _transfer_connectivity(self):
+        """Transfer connectivity arrays to device; returns dict of device arrays."""
+        from numba import cuda
+        if self._sparse:
+            return dict(
+                w_data_d    = cuda.to_device(self._w_data),
+                w_indices_d = cuda.to_device(self._w_indices),
+                w_indptr_d  = cuda.to_device(self._w_indptr),
+                idelays_d   = cuda.to_device(self._idelays_csr),
+            )
+        else:
+            return dict(
+                weights_d = cuda.to_device(self._weights_f32),
+                delays_d  = cuda.to_device(self._delay_steps),
+            )
 
     def run(self, duration: float):
         """
@@ -115,10 +161,8 @@ class CudaSweeperGPU:
 
         Returns
         -------
-        If sweep_spec.pipeline is None:
-            list[dict]  — one {monitor_kind: (t, data)} per run (float64)
-        If pipeline is set:
-            (labels, values)  shape (n_samples, n_params + n_features) float64
+        list[dict]        — when sweep_spec.pipeline is None
+        (labels, values)  — when pipeline is set
         """
         from numba import cuda
 
@@ -126,11 +170,10 @@ class CudaSweeperGPU:
         dt          = np.float32(spec.integrator.dt)
         n_steps     = int(round(duration / float(dt)))
         pipeline    = self.sweep.pipeline
-        param_sets  = self.sweep.param_sets        # (n_samples, n_sweep)
+        param_sets  = self.sweep.param_sets
         n_samples   = param_sets.shape[0]
         param_names = self.sweep._param_names_list
 
-        # record_period from first monitor
         if spec.monitors and spec.monitors[0].period:
             record_period = max(1, round(float(spec.monitors[0].period) / float(dt)))
         else:
@@ -144,32 +187,42 @@ class CudaSweeperGPU:
         n_cvar  = len(spec.model.cvar)
         n_nodes = spec.n_nodes
 
-        # ---- Build host arrays ----
+        # ---- Host arrays (coalesced layout: tid last) ----
         params_h = build_params_matrix(
             spec, n_samples,
             sweep_names=param_names,
             sweep_sets=param_sets.astype(np.float64),
-        )
+        )   # (n_params, n_samples)
 
-        state_h = np.tile(
-            self._state0[np.newaxis, :, :], (n_samples, 1, 1)
-        ).astype(np.float32)
+        cvar_idx  = np.array(spec.model.cvar_indices, dtype=np.int32)
+        init_cvar = np.zeros((n_cvar, n_nodes), dtype=np.float32)
+        for ci_i, ci in enumerate(spec.model.cvar_indices):
+            init_cvar[ci_i, :] = spec.model.state_variables[ci].default_init
 
-        cvar_idx = np.array(spec.model.cvar_indices, dtype=np.int32)
-        init_cvar = self._state0[list(spec.model.cvar_indices)].astype(np.float32)
-        buf_h = build_ring_buffer(
-            n_samples, n_cvar, n_nodes, self._horizon, init_cvar
-        )
-
-        ts_out_h = np.zeros(
-            (n_samples, n_record, n_sv, n_nodes), dtype=np.float32
-        )
+        state_h  = build_initial_state(spec, n_samples)   # (n_sv, n_nodes, n_samples)
+        buf_h    = build_ring_buffer(n_samples, n_cvar, n_nodes,
+                                     self._horizon, init_cvar)  # (n_cvar, n_nodes, hor, n_samp)
+        # Memory guard: warn if ts_out would exceed GPU memory
+        ts_bytes = n_record * n_sv * n_nodes * n_samples * 4
+        try:
+            from numba import cuda as _c
+            free_mem, total_mem = _c.current_context().get_memory_info()
+            if ts_bytes > free_mem * 0.8:
+                import warnings
+                warnings.warn(
+                    f"CUDA ts_out array ({ts_bytes/1e9:.2f} GB) may exceed available "
+                    f"GPU memory ({free_mem/1e9:.2f} GB free). "
+                    "Use a larger monitor period (e.g. MonitorSpec('tavg', period=1.0)) "
+                    "to reduce output size, or reduce n_samples.",
+                    RuntimeWarning, stacklevel=2,
+                )
+        except Exception:
+            pass
+        ts_out_h = np.zeros((n_record, n_sv, n_nodes, n_samples), dtype=np.float32)
 
         # ---- Transfer to device ----
         state_d    = cuda.to_device(state_h)
         buf_d      = cuda.to_device(buf_h)
-        weights_d  = cuda.to_device(self._weights_f32)
-        delays_d   = cuda.to_device(self._delay_steps)
         params_d   = cuda.to_device(params_h)
         cvar_idx_d = cuda.to_device(cvar_idx)
         lo_d       = cuda.to_device(self._lo)
@@ -177,89 +230,79 @@ class CudaSweeperGPU:
         hi_d       = cuda.to_device(self._hi)
         hhi_d      = cuda.to_device(self._hhi)
         ts_out_d   = cuda.to_device(ts_out_h)
+        conn       = self._transfer_connectivity()
 
-        # ---- Launch ----
         blocks = (n_samples + _TPB - 1) // _TPB
+
+        # ---- Common kernel args (order matches kernel signature) ----
+        common = [
+            state_d, buf_d,
+        ]
+        if self._sparse:
+            common += [conn["w_data_d"], conn["w_indices_d"],
+                       conn["w_indptr_d"], conn["idelays_d"]]
+        else:
+            common += [conn["weights_d"], conn["delays_d"]]
+        common += [
+            params_d, cvar_idx_d,
+            lo_d, hlo_d, hi_d, hhi_d,
+            np.int32(self._horizon),
+            dt,
+            np.int32(n_steps),
+            np.int32(n_record),
+            np.int32(t_cut_step),
+            np.int32(record_period),
+            self._coup_a, self._coup_b,
+            self._has_delays,
+            self._use_heun,
+        ]
 
         if self._stochastic:
             noise_h = generate_noise(spec, n_steps, n_samples, self._seed_base)
             noise_d = cuda.to_device(noise_h)
-            self._mod.cuda_sweep_stoch[blocks, _TPB](
-                state_d, buf_d,
-                weights_d, delays_d,
-                params_d, cvar_idx_d,
-                lo_d, hlo_d, hi_d, hhi_d,
-                np.int32(self._horizon),
-                dt,
-                np.int32(n_steps),
-                np.int32(n_record),
-                np.int32(t_cut_step),
-                np.int32(record_period),
-                self._coup_a, self._coup_b,
-                self._has_delays,
-                self._use_heun,
-                noise_d,
-                ts_out_d,
-            )
+            self._mod.cuda_sweep_stoch[blocks, _TPB](*common, noise_d, ts_out_d)
         else:
-            self._mod.cuda_sweep_det[blocks, _TPB](
-                state_d, buf_d,
-                weights_d, delays_d,
-                params_d, cvar_idx_d,
-                lo_d, hlo_d, hi_d, hhi_d,
-                np.int32(self._horizon),
-                dt,
-                np.int32(n_steps),
-                np.int32(n_record),
-                np.int32(t_cut_step),
-                np.int32(record_period),
-                self._coup_a, self._coup_b,
-                self._has_delays,
-                self._use_heun,
-                ts_out_d,
-            )
+            self._mod.cuda_sweep_det[blocks, _TPB](*common, ts_out_d)
 
         cuda.synchronize()
 
-        # ---- Copy back ----
-        ts_out_h = ts_out_d.copy_to_host().astype(np.float64)
+        # ---- Copy back; transpose to (n_samples, n_record, n_sv, n_nodes) ----
+        # ts_out on device is (n_record, n_sv, n_nodes, n_samples)
+        ts_dev = ts_out_d.copy_to_host()                     # (nr, n_sv, nn, ns)
+        ts     = np.ascontiguousarray(
+                     ts_dev.transpose(3, 0, 1, 2)            # (ns, nr, n_sv, nn)
+                 ).astype(np.float64)
 
         # ---- Post-process ----
         rec_dt = float(dt) * record_period
         t_base = t_cut_step * float(dt)
 
         if pipeline is None:
-            mon_kind = spec.monitors[0].kind if spec.monitors else "raw"
             results = []
             for i in range(n_samples):
                 t_arr = t_base + np.arange(n_record, dtype=np.float64) * rec_dt
                 mon_dict = {}
                 for m in spec.monitors:
                     mon_dict[m.kind] = _apply_monitor(
-                        m.kind, m, ts_out_h[i], t_arr, spec.model)
+                        m.kind, m, ts[i], t_arr, spec.model)
                 results.append(mon_dict)
             return results
 
-        # Pipeline mode
         labels_set = False
         all_labels: list[str] = []
         rows: list[np.ndarray] = []
-
         for i in range(n_samples):
             t_arr = t_base + np.arange(n_record, dtype=np.float64) * rec_dt
-            monitor_result = {pipeline.signal: (t_arr, ts_out_h[i])}
-            feat_labels, feat_vals = pipeline.extract(monitor_result)
+            feat_labels, feat_vals = pipeline.extract(
+                {pipeline.signal: (t_arr, ts[i])})
             if not labels_set:
                 all_labels = param_names + feat_labels
                 labels_set = True
             rows.append(np.concatenate(
-                [param_sets[i].astype(np.float64), feat_vals]
-            ))
-
+                [param_sets[i].astype(np.float64), feat_vals]))
         return all_labels, np.stack(rows)
 
     def run_df(self, duration: float):
-        """Return pipeline sweep results as a pandas DataFrame."""
         import pandas as pd
         labels, values = self.run(duration)
         return pd.DataFrame(values, columns=labels)

@@ -100,11 +100,14 @@ def _weights(n: int, seed: int = 0) -> np.ndarray:
 
 def _make_spec(model_name: str, n_nodes: int, dt: float) -> SimulationSpec:
     model, _, _, _, coup_a = MODELS[model_name]
+    # Use tavg with period = 10*dt so n_record = duration/(10*dt) — manageable on GPU.
+    # For CPU backends this makes no practical difference (they store on host RAM).
+    tavg_period = round(10 * dt, 6)
     return SimulationSpec(
         model=model,
         integrator=IntegratorSpec(method="heun", dt=dt, stochastic=False),
         coupling=CouplingSpec("linear", a=coup_a),
-        monitors=(MonitorSpec("raw"),),
+        monitors=(MonitorSpec("tavg", period=tavg_period),),
         weights=_weights(n_nodes),
     )
 
