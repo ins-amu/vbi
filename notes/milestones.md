@@ -1618,7 +1618,7 @@ baseline; C++ sweep FC matches Numba sweep; build cache works.
 
 ---
 
-## M3 — Numba-CUDA Backend  ← NEXT
+## M3 — Numba-CUDA Backend  ✅ COMPLETE (pending GPU validation)
 
 **Feature extraction note:** Add `vbi/feature_extraction/features_utils_cuda.py` with `@cuda.jit` device functions `get_fc_cuda`, `get_fcd_cuda` as part of M3.
 
@@ -1782,7 +1782,7 @@ def test_cuda_sweep_throughput(n_nodes=80, n_samples=2000, duration=5000.0):
 
 ---
 
-## M4 — JAX Backend
+## M4 — JAX Backend  ← NEXT
 
 **Feature extraction note:** Extend `vbi/feature_extraction/features_utils_jax.py` (already partially exists) with `get_fc_jax`, `get_fcd_jax` compatible with `jax.vmap` as part of M4.3.
 

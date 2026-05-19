@@ -25,9 +25,12 @@ def load_backend(name: str) -> type:
     if name == "cpp":
         from vbi.simulator.backend.cpp.simulator import CppSimulator
         return CppSimulator
+    if name == "cuda":
+        from vbi.simulator.backend.numba_cuda.simulator import CudaSimulator
+        return CudaSimulator
     raise ImportError(
         f"Backend {name!r} is not available. "
-        "Available: 'numpy', 'numba', 'cpp'. Coming: 'cuda', 'jax'."
+        "Available: 'numpy', 'numba', 'cpp', 'cuda'. Coming: 'jax'."
     )
 
 
@@ -46,7 +49,10 @@ def load_sweep_backend(name: str) -> type:
     if name == "cpp":
         from vbi.simulator.backend.cpp.sweeper import CppSweeper
         return CppSweeper
+    if name == "cuda":
+        from vbi.simulator.backend.numba_cuda.sweeper import CudaSweeperGPU
+        return CudaSweeperGPU
     raise ImportError(
         f"Sweep backend {name!r} is not available. "
-        "Available: 'numpy', 'numba', 'cpp'. Coming: 'cuda', 'jax'."
+        "Available: 'numpy', 'numba', 'cpp', 'cuda'. Coming: 'jax'."
     )
