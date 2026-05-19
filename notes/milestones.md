@@ -1409,7 +1409,7 @@ Also test: JR, WilsonCowan, stochastic Heun (moment comparison).
 
 ---
 
-## M2 — C++ Backend  ← NEXT
+## M2 — C++ Backend  ✅ COMPLETE
 
 **Goal:** Generate a `.hpp` model file + CMake target from `ModelSpec`. Reuse
 the SWIG wrapper pattern already established in `vbi/models/cpp/`.
@@ -1618,7 +1618,7 @@ baseline; C++ sweep FC matches Numba sweep; build cache works.
 
 ---
 
-## M3 — Numba-CUDA Backend
+## M3 — Numba-CUDA Backend  ← NEXT
 
 **Feature extraction note:** Add `vbi/feature_extraction/features_utils_cuda.py` with `@cuda.jit` device functions `get_fc_cuda`, `get_fcd_cuda` as part of M3.
 

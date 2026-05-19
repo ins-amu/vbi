@@ -4,6 +4,8 @@ C++ sweeper tests.
 1. Serial sweep matches individual CppSimulator runs (correctness).
 2. Parallel sweep matches serial sweep (parallelism correctness).
 3. Sweep works for JR and WilsonCowan (model coverage).
+4. C++ sweep raw output matches Numba sweep (cross-backend validation).
+5. Pipeline mode produces correct shapes and values.
 """
 import numpy as np
 import pytest
@@ -247,3 +249,102 @@ def test_rww_sweep_serial_finite(model, param_name, values, coup_a, dt):
         _, d = res["raw"]
         assert np.all(np.isfinite(d)), \
             f"{model.name} sweep produced non-finite output"
+
+
+# ---------------------------------------------------------------------------
+# 8. Cross-backend: C++ sweep must match Numba sweep (M2 "done when" criterion)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("model,param_name,values,coup_a,dt", [
+    (mpr,          "eta", np.linspace(-5.0, -4.0, 5), 0.1,  0.01),
+    (jansen_rit,   "mu",  np.linspace(0.15, 0.30, 4), 0.01, 0.1),
+    (wilson_cowan, "P",   np.linspace(0.0,  0.3,  4), 0.05, 0.1),
+])
+def test_cpp_sweep_matches_numba_sweep(model, param_name, values, coup_a, dt):
+    """C++ serial sweep raw output must match Numba sweep to rtol=1e-4."""
+    pytest.importorskip("numba", reason="numba not installed")
+    n_nodes  = 5
+    duration = 30.0
+    spec = _base_spec(model, n_nodes=n_nodes, dt=dt, coup_a=coup_a)
+    sweep_spec = SweepSpec(params={param_name: values})
+
+    cpp_results = CppSweeper(spec, sweep_spec).run_serial(duration)
+    nb_results  = Sweeper(spec, sweep_spec, backend="numba").run(duration)
+
+    for i, val in enumerate(values):
+        _, d_cpp = cpp_results[i]["raw"]
+        _, d_nb  = nb_results[i]["raw"]
+        np.testing.assert_allclose(
+            d_cpp, d_nb, rtol=1e-4, atol=1e-8,
+            err_msg=f"{model.name} {param_name}={val:.3f}: "
+                    f"C++ sweep[{i}] differs from Numba sweep[{i}]",
+        )
+
+
+# ---------------------------------------------------------------------------
+# 9. Pipeline mode: C++ sweep with FeaturePipeline produces correct output
+# ---------------------------------------------------------------------------
+
+def test_cpp_sweep_pipeline_shape():
+    """CppSweeper in pipeline mode returns (labels, values) with correct shape."""
+    from vbi.feature_extraction import (
+        FeaturePipeline, get_features_by_domain, get_features_by_given_names,
+    )
+    n_nodes  = 4
+    n_samples = 6
+    duration  = 100.0
+    spec = SimulationSpec(
+        model=mpr,
+        integrator=IntegratorSpec(method="heun", dt=0.01, stochastic=False),
+        coupling=CouplingSpec(kind="linear", a=0.1, b=0.0),
+        monitors=(MonitorSpec(kind="tavg", period=1.0),),
+        weights=_weights(n_nodes),
+    )
+    cfg = get_features_by_domain("statistical")
+    cfg = get_features_by_given_names(cfg, ["calc_mean", "calc_std"])
+    pipeline = FeaturePipeline(cfg, signal="tavg", t_cut=50.0)
+    sweep_spec = SweepSpec(
+        params={"eta": np.linspace(-5.5, -4.0, n_samples)},
+        pipeline=pipeline,
+    )
+    sweeper = CppSweeper(spec, sweep_spec)
+    labels, values = sweeper.run(duration)
+
+    assert values.shape[0] == n_samples, \
+        f"Expected {n_samples} rows, got {values.shape[0]}"
+    assert "eta" in labels
+    assert any("mean" in l for l in labels)
+    assert np.all(np.isfinite(values)), "Pipeline output contains non-finite values"
+
+
+def test_cpp_sweep_pipeline_matches_numpy_sweep():
+    """C++ pipeline sweep feature values must match NumPy pipeline sweep."""
+    from vbi.feature_extraction import (
+        FeaturePipeline, get_features_by_domain, get_features_by_given_names,
+    )
+    n_nodes   = 4
+    n_samples = 5
+    duration  = 100.0
+    spec = SimulationSpec(
+        model=mpr,
+        integrator=IntegratorSpec(method="heun", dt=0.01, stochastic=False),
+        coupling=CouplingSpec(kind="linear", a=0.1, b=0.0),
+        monitors=(MonitorSpec(kind="tavg", period=1.0),),
+        weights=_weights(n_nodes),
+    )
+    cfg = get_features_by_domain("statistical")
+    cfg = get_features_by_given_names(cfg, ["calc_mean", "calc_std"])
+    pipeline = FeaturePipeline(cfg, signal="tavg", t_cut=50.0)
+    sweep_spec = SweepSpec(
+        params={"eta": np.linspace(-5.5, -4.0, n_samples)},
+        pipeline=pipeline,
+    )
+
+    cpp_labels, cpp_vals = CppSweeper(spec, sweep_spec).run(duration)
+    np_labels,  np_vals  = Sweeper(spec, sweep_spec, backend="numpy").run(duration)
+
+    assert cpp_labels == np_labels, "Label mismatch between C++ and NumPy pipeline"
+    np.testing.assert_allclose(
+        cpp_vals, np_vals, rtol=1e-4, atol=1e-8,
+        err_msg="C++ pipeline sweep features differ from NumPy pipeline sweep",
+    )
