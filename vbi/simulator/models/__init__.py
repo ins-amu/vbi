@@ -3,3 +3,11 @@ from .jansen_rit import jansen_rit
 from .wilson_cowan import wilson_cowan
 from .reduced_wong_wang import reduced_wong_wang
 from .wong_wang_exc_inh import wong_wang_exc_inh
+from .generic_2d_oscillator import generic_2d_oscillator
+from .kuramoto import kuramoto
+from .sup_hopf import sup_hopf
+from .linear import linear
+from .larter_breakspear import larter_breakspear
+from .coombes_byrne_2d import coombes_byrne_2d
+from .gast_sd import gast_sd
+from .gast_sf import gast_sf
