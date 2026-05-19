@@ -1144,7 +1144,7 @@ tests pass.
 
 ---
 
-## M1 — Numba CPU Backend  ← NEXT
+## M1 — Numba CPU Backend  ✅ COMPLETE
 
 **Goal:** JIT-compile the dfun and the inner simulation loop using Numba.
 The NumPy baseline is the reference. No new model specs needed — reuse M0 specs.
@@ -1409,7 +1409,7 @@ Also test: JR, WilsonCowan, stochastic Heun (moment comparison).
 
 ---
 
-## M2 — C++ Backend
+## M2 — C++ Backend  ← NEXT
 
 **Goal:** Generate a `.hpp` model file + CMake target from `ModelSpec`. Reuse
 the SWIG wrapper pattern already established in `vbi/models/cpp/`.
