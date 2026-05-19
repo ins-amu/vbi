@@ -11,6 +11,8 @@ from typing import Iterator
 
 import numpy as np
 
+import numpy as np
+
 
 def ensure_repo_on_path(file: str, parents_up: int = 3) -> Path:
     """Add the repository root inferred from ``file`` to ``sys.path``."""
@@ -134,3 +136,158 @@ def save_state_comparison_plot(
     fig.tight_layout()
     fig.savefig(out_path, dpi=160)
     plt.close(fig)
+
+
+# ---------------------------------------------------------------------------
+# Backend sweep benchmark plotting
+# ---------------------------------------------------------------------------
+
+def extrapolate_wall(ns_measured: list[int], times: list[float],
+                     ns_extrap: list[int]) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Fit  t = slope * n  on the last ≤3 measured CPU points and evaluate at
+    ns_extrap.  CPU sweep time is linear in n_samples after JIT warmup.
+    """
+    ns    = np.array(ns_measured[-3:], dtype=float)
+    ts    = np.array(times[-3:],       dtype=float)
+    slope = float(np.mean(ts / ns))
+    return np.array(ns_extrap, dtype=float), slope * np.array(ns_extrap, dtype=float)
+
+
+def plot_sweep_benchmark(
+    cpu_rows: list[dict],
+    cuda_rows: list[dict],
+    model_name: str,
+    n_nodes: int,
+    duration: float,
+    dt: float,
+    n_workers: int,
+    repeats: int,
+    out_dir: Path,
+) -> None:
+    """
+    Three-panel benchmark figure.
+
+    Panel 1 — Wall time (log-log):
+        Measured CPU lines + dotted extrapolation to the CUDA x-range.
+        CUDA measured points.
+
+    Panel 2 — CPU speedup vs NumPy (linear scale).
+
+    Panel 3 — Throughput in samples/s (log-log):
+        CPU plateau extrapolated with dotted lines.
+        CUDA measured; crossover vs C++ parallel annotated.
+
+    Parameters
+    ----------
+    cpu_rows  : list of dicts with keys n, t_np, t_nb1, t_nbN, t_cs, t_cp
+    cuda_rows : list of dicts with keys n, t_cuda, rate
+    """
+    try:
+        import matplotlib.pyplot as plt
+    except ImportError:
+        print("matplotlib not available — skipping plot.")
+        return
+
+    cpu_max_n  = max(r["n"] for r in cpu_rows)  if cpu_rows  else 64
+    cuda_max_n = max(r["n"] for r in cuda_rows) if cuda_rows else cpu_max_n
+    extrap_ns  = sorted({n for n in [128, 256, 512, 1024, 2048, 4096, 8192]
+                          if cpu_max_n < n <= cuda_max_n * 2})
+
+    STYLES = [
+        # (row_key, label, color, linestyle, marker, markerfacecolor)
+        ("t_np",  "NumPy serial",          "tab:blue",   "-",  "o", None),
+        ("t_nb1", "Numba 1T",              "tab:orange", "--", "s", None),
+        ("t_nbN", f"Numba {n_workers}T",   "tab:orange", "-",  "s", "white"),
+        ("t_cs",  "C++ serial",            "tab:green",  "--", "^", None),
+        ("t_cp",  f"C++ par {n_workers}T", "tab:green",  "-",  "D", "white"),
+    ]
+
+    fig, axes = plt.subplots(1, 3, figsize=(18, 5))
+    fig.suptitle(
+        f"Sweep benchmark — {model_name}  |  {n_nodes} nodes  |  "
+        f"{duration} ms  |  dt={dt} ms  |  {n_workers} CPU threads  |  "
+        f"best-of-{repeats}",
+        fontsize=10,
+    )
+
+    # ---- Panel 1: wall time (log-log + CPU extrapolation) ----
+    ax = axes[0]
+    if cpu_rows:
+        ns = [r["n"] for r in cpu_rows]
+        for key, label, color, ls, marker, mfc in STYLES:
+            ts = [r[key] for r in cpu_rows]
+            ax.plot(ns, ts, marker=marker, linestyle=ls, label=label,
+                    color=color, markerfacecolor=mfc or color, zorder=3)
+            if extrap_ns:
+                ex_ns, ex_ts = extrapolate_wall(ns, ts, extrap_ns)
+                ax.plot(ex_ns, ex_ts, linestyle=":", color=color,
+                        alpha=0.45, lw=1.4)
+    if cuda_rows:
+        gn = [r["n"] for r in cuda_rows]
+        ax.plot(gn, [r["t_cuda"] for r in cuda_rows], "P-",
+                label="CUDA (float32)", color="tab:red", lw=2, zorder=4)
+    if extrap_ns:
+        ax.text(0.97, 0.03, "··· = CPU extrapolation (linear fit)",
+                transform=ax.transAxes, ha="right", va="bottom",
+                fontsize=7, color="gray")
+    ax.set_xlabel("n_samples");  ax.set_ylabel("Wall time (s)")
+    ax.set_title("Wall-clock time");  ax.set_xscale("log");  ax.set_yscale("log")
+    ax.legend(fontsize=7, ncol=2);  ax.grid(True, alpha=0.3, which="both")
+
+    # ---- Panel 2: CPU speedup vs NumPy (linear) ----
+    ax = axes[1]
+    if cpu_rows:
+        ns = [r["n"] for r in cpu_rows]
+        for key, label, color, ls, marker, mfc in STYLES[1:]:  # skip NumPy
+            su = [r["t_np"] / r[key] for r in cpu_rows]
+            ax.plot(ns, su, marker=marker, linestyle=ls,
+                    label=f"{label} / NumPy",
+                    color=color, markerfacecolor=mfc or color)
+    ax.axhline(1.0, color="k", lw=0.8, ls=":")
+    ax.set_xlabel("n_samples");  ax.set_ylabel("Speedup vs NumPy serial")
+    ax.set_title("CPU speedup")
+    ax.legend(fontsize=8);  ax.grid(True, alpha=0.3)
+
+    # ---- Panel 3: throughput (log-log + CPU plateau + CUDA crossover) ----
+    ax = axes[2]
+    if cpu_rows:
+        ns = [r["n"] for r in cpu_rows]
+        for key, label, color, ls, marker, mfc in STYLES:
+            rates = [r["n"] / r[key] for r in cpu_rows]
+            ax.plot(ns, rates, marker=marker, linestyle=ls, label=label,
+                    color=color, markerfacecolor=mfc or color, zorder=3)
+            if extrap_ns:
+                plateau = float(np.mean(rates[-3:]))
+                ax.plot(extrap_ns, [plateau] * len(extrap_ns),
+                        linestyle=":", color=color, alpha=0.45, lw=1.4)
+    if cuda_rows:
+        gn    = [r["n"] for r in cuda_rows]
+        rates = [r["rate"] for r in cuda_rows]
+        ax.plot(gn, rates, "P-", label="CUDA (float32)",
+                color="tab:red", lw=2, markersize=8, zorder=4)
+        if cpu_rows:
+            cp_plateau = float(np.mean(
+                [r["n"] / r["t_cp"] for r in cpu_rows[-3:]]
+            ))
+            for r in sorted(cuda_rows, key=lambda x: x["n"]):
+                if r["rate"] >= cp_plateau:
+                    ax.axvline(r["n"], color="tab:red", ls=":", alpha=0.6, lw=1.2)
+                    ax.text(r["n"] * 1.05, cp_plateau * 0.55,
+                            f'CUDA > C++\n@ n≈{r["n"]}',
+                            color="tab:red", fontsize=7)
+                    break
+    if extrap_ns:
+        ax.text(0.97, 0.03, "··· = CPU plateau (avg last 3 pts)",
+                transform=ax.transAxes, ha="right", va="bottom",
+                fontsize=7, color="gray")
+    ax.set_xlabel("n_samples");  ax.set_ylabel("Samples / second")
+    ax.set_title("Throughput");  ax.set_xscale("log");  ax.set_yscale("log")
+    ax.legend(fontsize=7, ncol=2);  ax.grid(True, alpha=0.3, which="both")
+
+    plt.tight_layout()
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out = out_dir / f"benchmark_all_backends_{model_name}.png"
+    fig.savefig(out, dpi=150, bbox_inches="tight")
+    print(f"\nPlot saved → {out}")
+    plt.show()

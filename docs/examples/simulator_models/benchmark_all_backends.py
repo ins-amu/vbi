@@ -45,7 +45,11 @@ warnings.filterwarnings(
 )
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
-from helpers import ensure_repo_on_path, complete_graph_weights
+from helpers import (
+    ensure_repo_on_path,
+    complete_graph_weights,
+    plot_sweep_benchmark,
+)
 ensure_repo_on_path(__file__)
 
 import numba
@@ -73,18 +77,21 @@ MODELS = {
     "mpr":                   (mpr,                  "eta",  (-5.5,-4.0), 0.01, 0.1),
 }
 
+# ---- Last validated configuration ----
+# SupHopf, 20 nodes, dt=0.1, duration=500ms  →  runs in ~3 min (repeats=2)
+# For brain-scale: --model mpr --n-nodes 80 --cuda-sizes 64 128 512 2048 4096 --repeats 1
 DEFAULT_MODEL    = "sup_hopf"
 DEFAULT_N_NODES  = 20
-DEFAULT_DURATION = 200.0   # ms  — short enough that NumPy finishes in seconds
-DEFAULT_DT       = 0.1     # dt=0.1 ms → 2000 steps per sim; fast on all backends
+DEFAULT_DURATION = 500.0   # ms  — 5000 steps per simulation (dt=0.1)
+DEFAULT_DT       = 0.1     # dt=0.1 ms → fast on all backends
 
-# CPU sweep sizes — linear cost; NumPy gets expensive quickly, so keep ≤ 64
+# CPU: kept ≤ 64 so NumPy finishes in seconds (cost is linear in n_samples)
 DEFAULT_CPU_SIZES  = [4, 8, 16, 32, 64]
-# CUDA sweep sizes — start at 32 (overlap), go to 2048 where GPU dominates
+# CUDA: starts at 32 (overlaps CPU), extends to 2048 where GPU starts winning
 DEFAULT_CUDA_SIZES = [32, 64, 128, 256, 512, 1024, 2048]
 
 N_WORKERS = int(os.environ.get("VBI_BENCH_THREADS", str(max(2, (os.cpu_count() or 4) // 2))))
-N_REPEATS = 3
+N_REPEATS = 2
 
 
 # ---------------------------------------------------------------------------
@@ -288,99 +295,25 @@ def throughput_comparison(cpu_rows: list[dict], cuda_rows: list[dict],
 
 
 # ---------------------------------------------------------------------------
-# Plotting
+# Plotting  — delegated to helpers.plot_sweep_benchmark
 # ---------------------------------------------------------------------------
 
 def plot_results(cpu_rows: list[dict], cuda_rows: list[dict],
                  model_name: str, n_nodes: int, duration: float,
-                 n_workers: int, out_dir: Path) -> None:
-    try:
-        import matplotlib.pyplot as plt
-    except ImportError:
-        print("matplotlib not available — skipping plot.")
-        return
-
-    fig, axes = plt.subplots(1, 3, figsize=(18, 5))
-    fig.suptitle(
-        f"Sweep benchmark — model: {model_name}  |  {n_nodes} nodes  |  "
-        f"{duration} ms  |  CPU {n_workers} threads",
-        fontsize=11,
+                 n_workers: int, repeats: int, dt: float,
+                 out_dir: Path) -> None:
+    """Delegate to helpers.plot_sweep_benchmark."""
+    plot_sweep_benchmark(
+        cpu_rows=cpu_rows,
+        cuda_rows=cuda_rows,
+        model_name=model_name,
+        n_nodes=n_nodes,
+        duration=duration,
+        dt=dt,
+        n_workers=n_workers,
+        repeats=repeats,
+        out_dir=out_dir,
     )
-
-    # ---- Panel 1: wall-clock time (CPU backends) ----
-    ax = axes[0]
-    if cpu_rows:
-        ns = [r["n"] for r in cpu_rows]
-        ax.plot(ns, [r["t_np"]  for r in cpu_rows], "o-",  label="NumPy serial",
-                color="tab:blue")
-        ax.plot(ns, [r["t_nb1"] for r in cpu_rows], "s--", label="Numba 1 thread",
-                color="tab:orange")
-        ax.plot(ns, [r["t_nbN"] for r in cpu_rows], "s-",  label=f"Numba {n_workers}T",
-                color="tab:orange", markerfacecolor="white")
-        ax.plot(ns, [r["t_cs"]  for r in cpu_rows], "^--", label="C++ serial",
-                color="tab:green")
-        ax.plot(ns, [r["t_cp"]  for r in cpu_rows], "D-",  label=f"C++ par {n_workers}T",
-                color="tab:green", markerfacecolor="white")
-    if cuda_rows:
-        gn = [r["n"] for r in cuda_rows]
-        ax.plot(gn, [r["t_cuda"] for r in cuda_rows], "P-", label="CUDA",
-                color="tab:red", lw=2)
-    ax.set_xlabel("n_samples")
-    ax.set_ylabel("Wall time (s)")
-    ax.set_title("Wall-clock time")
-    ax.legend(fontsize=8)
-    ax.grid(True, alpha=0.3)
-
-    # ---- Panel 2: speedup vs NumPy serial (CPU only) ----
-    ax = axes[1]
-    if cpu_rows:
-        ns = [r["n"] for r in cpu_rows]
-        def sp(key): return [r["t_np"] / r[key] for r in cpu_rows]
-        ax.plot(ns, sp("t_nb1"), "s--", label="Numba 1T / NumPy", color="tab:orange")
-        ax.plot(ns, sp("t_nbN"), "s-",  label=f"Numba {n_workers}T / NumPy",
-                color="tab:orange", markerfacecolor="white")
-        ax.plot(ns, sp("t_cs"),  "^--", label="C++ serial / NumPy", color="tab:green")
-        ax.plot(ns, sp("t_cp"),  "D-",  label=f"C++ par {n_workers}T / NumPy",
-                color="tab:green", markerfacecolor="white")
-    ax.axhline(1.0, color="k", lw=0.8, ls=":")
-    ax.set_xlabel("n_samples")
-    ax.set_ylabel("Speedup vs NumPy serial")
-    ax.set_title("CPU speedup")
-    ax.legend(fontsize=8)
-    ax.grid(True, alpha=0.3)
-
-    # ---- Panel 3: throughput (samples/s) for all backends ----
-    ax = axes[2]
-    if cpu_rows:
-        ns = [r["n"] for r in cpu_rows]
-        ax.plot(ns, [r["n"]/r["t_np"]  for r in cpu_rows], "o-",
-                label="NumPy serial", color="tab:blue")
-        ax.plot(ns, [r["n"]/r["t_nb1"] for r in cpu_rows], "s--",
-                label="Numba 1T", color="tab:orange")
-        ax.plot(ns, [r["n"]/r["t_nbN"] for r in cpu_rows], "s-",
-                label=f"Numba {n_workers}T", color="tab:orange", markerfacecolor="white")
-        ax.plot(ns, [r["n"]/r["t_cs"]  for r in cpu_rows], "^--",
-                label="C++ serial", color="tab:green")
-        ax.plot(ns, [r["n"]/r["t_cp"]  for r in cpu_rows], "D-",
-                label=f"C++ par {n_workers}T", color="tab:green", markerfacecolor="white")
-    if cuda_rows:
-        gn = [r["n"] for r in cuda_rows]
-        ax.plot(gn, [r["rate"] for r in cuda_rows], "P-",
-                label="CUDA", color="tab:red", lw=2)
-    ax.set_xlabel("n_samples")
-    ax.set_ylabel("Samples / second")
-    ax.set_title("Throughput")
-    ax.set_xscale("log")
-    ax.set_yscale("log")
-    ax.legend(fontsize=8)
-    ax.grid(True, alpha=0.3, which="both")
-
-    plt.tight_layout()
-    out_dir.mkdir(parents=True, exist_ok=True)
-    out = out_dir / f"benchmark_all_backends_{model_name}.png"
-    fig.savefig(out, dpi=150)
-    print(f"\nPlot saved → {out}")
-    plt.show()
 
 
 # ---------------------------------------------------------------------------
@@ -477,7 +410,8 @@ def main() -> None:
         plot_results(
             cpu_rows, cuda_rows,
             args.model, args.n_nodes, args.duration,
-            args.n_workers, args.output_dir,
+            args.n_workers, args.repeats, args.dt,
+            args.output_dir,
         )
 
 
