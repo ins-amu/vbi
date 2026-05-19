@@ -75,13 +75,13 @@ MODELS = {
 
 DEFAULT_MODEL    = "sup_hopf"
 DEFAULT_N_NODES  = 20
-DEFAULT_DURATION = 500.0   # ms  — kept short so CPU runs complete in seconds
-DEFAULT_DT       = 0.01
+DEFAULT_DURATION = 200.0   # ms  — short enough that NumPy finishes in seconds
+DEFAULT_DT       = 0.1     # dt=0.1 ms → 2000 steps per sim; fast on all backends
 
-# CPU sweep sizes — linear cost, so keep small; overlap with CUDA at 32–128
-DEFAULT_CPU_SIZES  = [4, 8, 16, 32, 64, 128]
-# CUDA sweep sizes — starts where CPU overlap begins; GPU shines at >= 512
-DEFAULT_CUDA_SIZES = [32, 64, 128, 256, 512, 1024, 2048, 4096]
+# CPU sweep sizes — linear cost; NumPy gets expensive quickly, so keep ≤ 64
+DEFAULT_CPU_SIZES  = [4, 8, 16, 32, 64]
+# CUDA sweep sizes — start at 32 (overlap), go to 2048 where GPU dominates
+DEFAULT_CUDA_SIZES = [32, 64, 128, 256, 512, 1024, 2048]
 
 N_WORKERS = int(os.environ.get("VBI_BENCH_THREADS", str(max(2, (os.cpu_count() or 4) // 2))))
 N_REPEATS = 3
