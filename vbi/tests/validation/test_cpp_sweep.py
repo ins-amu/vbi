@@ -19,6 +19,8 @@ from vbi.simulator.backend.cpp.sweeper import CppSweeper
 from vbi.simulator.models.mpr import mpr
 from vbi.simulator.models.jansen_rit import jansen_rit
 from vbi.simulator.models.wilson_cowan import wilson_cowan
+from vbi.simulator.models.reduced_wong_wang import reduced_wong_wang
+from vbi.simulator.models.wong_wang_exc_inh import wong_wang_exc_inh
 
 
 # ---------------------------------------------------------------------------
@@ -180,3 +182,68 @@ def test_stochastic_sweep_unique_trajectories():
         di = results[i]["raw"][1]
         assert not np.array_equal(di, d0), \
             f"Stochastic run {i} is identical to run 0 — seeds not independent"
+
+
+# ---------------------------------------------------------------------------
+# 6. batch_size: batched run must match unbatched run
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("batch_size", [1, 3, 4])
+def test_batch_size_serial_matches_unbatched(batch_size):
+    """Serial run with batch_size must produce bit-identical results to no batching."""
+    n_samples = 8
+    spec = _base_spec(mpr, n_nodes=5, dt=0.01)
+    sweep_spec = SweepSpec(params={"eta": np.linspace(-5.5, -4.0, n_samples)})
+    sweeper = CppSweeper(spec, sweep_spec)
+
+    ref     = sweeper.run_serial(30.0)                          # default (no batching)
+    batched = sweeper.run_serial(30.0, batch_size=batch_size)
+
+    for i in range(n_samples):
+        _, d_ref = ref[i]["raw"]
+        _, d_bat = batched[i]["raw"]
+        np.testing.assert_array_equal(
+            d_bat, d_ref,
+            err_msg=f"batch_size={batch_size}: result[{i}] differs from unbatched",
+        )
+
+
+@pytest.mark.parametrize("batch_size", [2, 5])
+def test_batch_size_parallel_matches_serial(batch_size):
+    """Parallel batched run must match serial unbatched run."""
+    n_samples = 6
+    spec = _base_spec(mpr, n_nodes=5, dt=0.01)
+    sweep_spec = SweepSpec(params={"eta": np.linspace(-5.5, -4.0, n_samples)})
+    sweeper = CppSweeper(spec, sweep_spec, n_workers=2)
+
+    serial   = sweeper.run_serial(30.0)
+    parallel = sweeper.run_parallel(30.0, batch_size=batch_size)
+
+    for i in range(n_samples):
+        _, d_ser = serial[i]["raw"]
+        _, d_par = parallel[i]["raw"]
+        np.testing.assert_array_equal(
+            d_par, d_ser,
+            err_msg=f"batch_size={batch_size}: parallel result[{i}] differs from serial",
+        )
+
+
+# ---------------------------------------------------------------------------
+# 7. Sweep over ReducedWongWang and WongWangExcInh
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("model,param_name,values,coup_a,dt", [
+    (reduced_wong_wang,  "w",   np.linspace(0.4, 0.8, 4), 0.02, 0.1),
+    (wong_wang_exc_inh,  "w_p", np.linspace(0.7, 1.0, 4), 0.02, 0.1),
+])
+def test_rww_sweep_serial_finite(model, param_name, values, coup_a, dt):
+    """RWW / WWEX serial sweep completes with finite output."""
+    spec = _base_spec(model, n_nodes=5, dt=dt, coup_a=coup_a)
+    sweeper = CppSweeper(spec, SweepSpec(params={param_name: values}))
+    results = sweeper.run_serial(30.0)
+
+    assert len(results) == len(values)
+    for res in results:
+        _, d = res["raw"]
+        assert np.all(np.isfinite(d)), \
+            f"{model.name} sweep produced non-finite output"

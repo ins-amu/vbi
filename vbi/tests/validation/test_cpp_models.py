@@ -16,6 +16,8 @@ from vbi.simulator.spec.monitor import MonitorSpec
 from vbi.simulator.models.mpr import mpr
 from vbi.simulator.models.jansen_rit import jansen_rit
 from vbi.simulator.models.wilson_cowan import wilson_cowan
+from vbi.simulator.models.reduced_wong_wang import reduced_wong_wang
+from vbi.simulator.models.wong_wang_exc_inh import wong_wang_exc_inh
 
 
 # ---------------------------------------------------------------------------
@@ -150,6 +152,74 @@ def test_mpr_euler_cpp_vs_numpy():
     _, d_np  = sim_np.run(20.0)["raw"]
     _, d_cpp = sim_cpp.run(20.0)["raw"]
     np.testing.assert_allclose(d_cpp, d_np, rtol=1e-4, atol=1e-8)
+
+
+# ---------------------------------------------------------------------------
+# Delayed coupling (DDE)
+# ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# ReducedWongWang (1 SV, bounded [0,1], piecewise-safe transfer function)
+# ---------------------------------------------------------------------------
+
+def test_rww_cpp_vs_numpy_small():
+    """RWW: 1 SV with exp() in transfer function — tests C++ codegen for RWW."""
+    _check_cpp_vs_numpy(reduced_wong_wang, n_nodes=6, duration=100.0, dt=0.1, coup_a=0.02)
+
+
+def test_rww_cpp_vs_numpy_medium():
+    _check_cpp_vs_numpy(reduced_wong_wang, n_nodes=20, duration=200.0, dt=0.1, coup_a=0.02)
+
+
+def test_rww_cpp_stoch():
+    """RWW stochastic run completes and stays in [0, 1]."""
+    spec = SimulationSpec(
+        model=reduced_wong_wang,
+        integrator=IntegratorSpec(
+            method="heun", dt=0.1, stochastic=True,
+            noise_nsig=np.array([1e-4]), noise_seed=21,
+        ),
+        coupling=CouplingSpec(kind="linear", a=0.02, b=0.0),
+        monitors=(MonitorSpec(kind="raw"),),
+        weights=_make_weights(6),
+    )
+    sim = Simulator(spec, backend="cpp")
+    _, d = sim.run(100.0)["raw"]
+    assert np.all(np.isfinite(d)), "RWW stochastic C++ output has non-finite values"
+    assert d.min() >= -1e-6,       "RWW state went below lower bound"
+    assert d.max() <= 1.0 + 1e-6,  "RWW state exceeded upper bound"
+
+
+# ---------------------------------------------------------------------------
+# WongWangExcInh (2 SVs, separate exc/inh populations, two transfer functions)
+# ---------------------------------------------------------------------------
+
+def test_wwex_cpp_vs_numpy_small():
+    """WWEX: 2-population model with separate exc/inh dynamics."""
+    _check_cpp_vs_numpy(wong_wang_exc_inh, n_nodes=6, duration=100.0, dt=0.1, coup_a=0.02)
+
+
+def test_wwex_cpp_vs_numpy_medium():
+    _check_cpp_vs_numpy(wong_wang_exc_inh, n_nodes=20, duration=200.0, dt=0.1, coup_a=0.02)
+
+
+def test_wwex_cpp_stoch():
+    """WWEX stochastic run completes with both SVs in [0, 1]."""
+    spec = SimulationSpec(
+        model=wong_wang_exc_inh,
+        integrator=IntegratorSpec(
+            method="heun", dt=0.1, stochastic=True,
+            noise_nsig=np.array([1e-4, 1e-4]), noise_seed=33,
+        ),
+        coupling=CouplingSpec(kind="linear", a=0.02, b=0.0),
+        monitors=(MonitorSpec(kind="raw"),),
+        weights=_make_weights(6),
+    )
+    sim = Simulator(spec, backend="cpp")
+    _, d = sim.run(100.0)["raw"]
+    assert np.all(np.isfinite(d)), "WWEX stochastic C++ output has non-finite values"
+    assert d.min() >= -1e-6,       "WWEX state went below lower bound"
+    assert d.max() <= 1.0 + 1e-6,  "WWEX state exceeded upper bound"
 
 
 # ---------------------------------------------------------------------------
