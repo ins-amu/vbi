@@ -41,6 +41,9 @@ dependencies = [
     "matplotlib",
     "tqdm",
     "scikit-learn",
+    "rich",           # used in vbi/utils.py at import time
+    "networkx",       # graph utilities
+    "parameterized",  # used in vbi/tests/
 ]
 
 [project.urls]
