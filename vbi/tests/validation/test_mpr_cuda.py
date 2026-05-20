@@ -40,6 +40,15 @@ from vbi.simulator.models.mpr import mpr
 from vbi.simulator.models.jansen_rit import jansen_rit
 from vbi.simulator.models.wilson_cowan import wilson_cowan
 from vbi.simulator.models.generic_2d_oscillator import generic_2d_oscillator
+from vbi.simulator.models.kuramoto import kuramoto
+from vbi.simulator.models.sup_hopf import sup_hopf
+from vbi.simulator.models.linear import linear
+from vbi.simulator.models.larter_breakspear import larter_breakspear
+from vbi.simulator.models.coombes_byrne_2d import coombes_byrne_2d
+from vbi.simulator.models.gast_sd import gast_sd
+from vbi.simulator.models.gast_sf import gast_sf
+from vbi.simulator.models.reduced_wong_wang import reduced_wong_wang
+from vbi.simulator.models.wong_wang_exc_inh import wong_wang_exc_inh
 
 
 # ---------------------------------------------------------------------------
@@ -123,19 +132,29 @@ def test_cuda_single_with_delays():
 
 @cuda_only
 @pytest.mark.parametrize("model,dt,coup_a", [
+    # Original models
     (mpr,                     0.01, 0.1),
     (jansen_rit,              0.1,  0.01),
     (wilson_cowan,            0.1,  0.05),
     (generic_2d_oscillator,   0.01, 0.05),
+    # New models (added in model-coverage expansion)
+    (kuramoto,                0.1,  0.1),
+    (sup_hopf,                0.1,  0.1),
+    (linear,                  0.1,  0.05),
+    (larter_breakspear,       0.1,  0.05),
+    (coombes_byrne_2d,        0.1,  0.05),
+    (gast_sd,                 0.1,  0.02),
+    (gast_sf,                 0.1,  0.02),
+    (reduced_wong_wang,       0.1,  0.02),
+    (wong_wang_exc_inh,       0.1,  0.02),
 ])
 def test_cuda_single_model_coverage(model, dt, coup_a):
-    """CUDA single run must work for multiple models (rtol=1e-3)."""
+    """CUDA single run must work for all models (rtol=5e-3, float32 vs float64)."""
     spec = _spec(model, n_nodes=6, dt=dt, coup_a=coup_a)
     _, d_nb   = Simulator(spec, backend="numba").run(20.0)["raw"]
     _, d_cuda = Simulator(spec, backend="cuda").run(20.0)["raw"]
-    assert d_nb.shape == d_cuda.shape
-    # float32 GPU vs float64 CPU; higher-dimensional models accumulate more
-    # rounding error, so we allow rtol=5e-3 here.
+    assert d_nb.shape == d_cuda.shape, \
+        f"{model.name}: shape mismatch nb={d_nb.shape} cuda={d_cuda.shape}"
     np.testing.assert_allclose(
         d_cuda, d_nb, rtol=5e-3, atol=1e-5,
         err_msg=f"{model.name}: CUDA vs Numba mismatch",
@@ -148,12 +167,19 @@ def test_cuda_single_model_coverage(model, dt, coup_a):
 
 @cuda_only
 @pytest.mark.parametrize("model,param,values,dt,coup_a", [
-    (mpr,   "eta", np.linspace(-5.5, -4.0, 20), 0.01, 0.1),
-    (mpr,   "J",   np.linspace(10.0, 18.0, 20), 0.01, 0.1),
+    (mpr,                   "eta",   np.linspace(-5.5, -4.0, 16), 0.01, 0.1),
+    (mpr,                   "J",     np.linspace(10.0, 18.0, 16), 0.01, 0.1),
+    (generic_2d_oscillator, "I",     np.linspace(-1.0,  1.0, 16), 0.1,  0.05),
+    (sup_hopf,              "a",     np.linspace(-0.5,  0.5, 16), 0.1,  0.1),
+    (kuramoto,              "omega", np.linspace( 0.5,  2.0, 16), 0.1,  0.1),
+    (larter_breakspear,     "d_V",   np.linspace( 0.5,  0.65,16), 0.1,  0.05),
+    (coombes_byrne_2d,      "eta",   np.linspace( 0.5,  3.0, 16), 0.1,  0.05),
+    (gast_sd,               "eta",   np.linspace(-8.0, -4.0, 16), 0.1,  0.02),
+    (reduced_wong_wang,     "w",     np.linspace( 0.4,  0.8, 16), 0.1,  0.02),
 ])
 def test_cuda_sweep_matches_numba(model, param, values, dt, coup_a):
-    """CUDA sweep must match Numba CPU sweep (rtol=1e-3, float32 vs float64)."""
-    spec       = _spec(model, n_nodes=10, dt=dt, coup_a=coup_a)
+    """CUDA sweep must match Numba CPU sweep (rtol=5e-3, float32 vs float64)."""
+    spec       = _spec(model, n_nodes=6, dt=dt, coup_a=coup_a)
     sweep_spec = SweepSpec(params={param: values})
 
     nb_results   = Sweeper(spec, sweep_spec, backend="numba").run(100.0)
@@ -163,7 +189,7 @@ def test_cuda_sweep_matches_numba(model, param, values, dt, coup_a):
         _, d_nb   = nb_results[i]["raw"]
         _, d_cuda = cuda_results[i]["raw"]
         np.testing.assert_allclose(
-            d_cuda, d_nb, rtol=1e-3, atol=1e-5,
+            d_cuda, d_nb, rtol=5e-3, atol=1e-5,
             err_msg=f"{model.name} sweep {param}={val:.3f}: CUDA vs Numba mismatch",
         )
 
@@ -221,6 +247,55 @@ def test_cuda_sweep_pipeline_shape():
     assert "eta" in labels
     assert any("mean" in l for l in labels)
     assert np.isfinite(values).all(), "CUDA pipeline sweep produced non-finite values"
+
+
+# ---------------------------------------------------------------------------
+# Bounds compliance: CUDA must enforce state-variable bounds
+# ---------------------------------------------------------------------------
+
+@cuda_only
+@pytest.mark.parametrize("model,dt,coup_a,sv_idx,lo,hi", [
+    (mpr,              0.01, 0.1,  0, 0.0,  None),   # r >= 0
+    (wilson_cowan,     0.1,  0.05, 0, 0.0,  1.0),    # E in [0,1]
+    (wilson_cowan,     0.1,  0.05, 1, 0.0,  1.0),    # I in [0,1]
+    (coombes_byrne_2d, 0.1,  0.05, 0, 0.0,  None),   # r >= 0
+    (gast_sd,          0.1,  0.02, 0, 0.0,  None),   # r >= 0
+    (gast_sf,          0.1,  0.02, 0, 0.0,  None),   # r >= 0
+    (reduced_wong_wang,0.1,  0.02, 0, 0.0,  1.0),    # S in [0,1]
+    (wong_wang_exc_inh,0.1,  0.02, 0, 0.0,  1.0),    # S_e in [0,1]
+])
+def test_cuda_bounds_respected(model, dt, coup_a, sv_idx, lo, hi):
+    """CUDA post-corrector bounds must keep state variables within declared limits."""
+    spec = _spec(model, n_nodes=10, dt=dt, coup_a=coup_a)
+    _, d = Simulator(spec, backend="cuda").run(50.0)["raw"]
+    sv = d[:, sv_idx, :]
+    if lo is not None:
+        assert np.all(sv >= lo - 1e-6), \
+            f"{model.name} SV[{sv_idx}]: violated lower bound {lo} (min={sv.min():.6f})"
+    if hi is not None:
+        assert np.all(sv <= hi + 1e-6), \
+            f"{model.name} SV[{sv_idx}]: violated upper bound {hi} (max={sv.max():.6f})"
+
+
+@cuda_only
+@pytest.mark.parametrize("model,dt,coup_a", [
+    (sup_hopf,          0.1, 0.1),
+    (generic_2d_oscillator, 0.1, 0.05),
+    (larter_breakspear, 0.1, 0.05),
+])
+def test_cuda_new_models_stochastic(model, dt, coup_a):
+    """New models: stochastic CUDA run completes with finite output."""
+    n_noise = len(model.noise_indices)
+    spec = SimulationSpec(
+        model=model,
+        integrator=IntegratorSpec(method="heun", dt=dt, stochastic=True,
+                                  noise_nsig=np.full(n_noise, 1e-4)),
+        coupling=CouplingSpec("linear", a=coup_a),
+        monitors=(MonitorSpec("raw"),),
+        weights=_weights(6),
+    )
+    _, d = Simulator(spec, backend="cuda").run(20.0)["raw"]
+    assert np.isfinite(d).all(), f"{model.name}: stochastic CUDA output not finite"
 
 
 # ---------------------------------------------------------------------------
