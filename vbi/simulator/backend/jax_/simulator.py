@@ -43,6 +43,39 @@ from .codegen import build_jax_dfun
 
 
 # ---------------------------------------------------------------------------
+# Balloon-Windkessel helpers (2-state, matching numpy/C++ backends)
+# State per node: [s, f]  (vasodilatory signal, blood inflow)
+# ---------------------------------------------------------------------------
+
+_BW_DEFAULTS = dict(rho=0.8, e=0.02, taus=0.8, tauf=0.4, k1=5.6, eps=0.5)
+
+
+def _bw_init_jax(n_nodes: int) -> jnp.ndarray:
+    """Initial BW state (2, n_nodes): s=0, f=1."""
+    return jnp.stack([jnp.zeros(n_nodes), jnp.ones(n_nodes)])
+
+
+def _bw_step_jax(bw: jnp.ndarray, neural: jnp.ndarray, dt_sec: float,
+                 p: dict) -> jnp.ndarray:
+    """
+    Euler step of the simplified Balloon-Windkessel ODE.
+
+    ds/dt = neural * eps - s/taus - (f-1)/tauf
+    df/dt = s
+    """
+    s, f = bw[0], bw[1]
+    ds = neural * p["eps"] - s / p["taus"] - (f - 1.0) / p["tauf"]
+    df = s
+    return jnp.stack([s + dt_sec * ds, f + dt_sec * df])
+
+
+def _bw_bold_jax(bw: jnp.ndarray, p: dict) -> jnp.ndarray:
+    """BOLD signal: coef * (f - 1),  shape (n_nodes,)."""
+    coef = (100.0 / p["rho"]) * p["e"] * p["k1"]
+    return coef * (bw[1] - 1.0)
+
+
+# ---------------------------------------------------------------------------
 # Parameter helpers
 # ---------------------------------------------------------------------------
 
@@ -269,6 +302,38 @@ def _run_monitor(
     kind = monitor_spec.kind
     period = monitor_spec.period if monitor_spec.period is not None else dt
     istep = max(1, round(period / dt))
+
+    if kind == "bold":
+        tr = getattr(monitor_spec, "tr", 2000.0)   # ms
+        tr_steps = round(tr / dt)
+        n_record = n_steps // tr_steps
+        n_nodes = init_carry[0].shape[1]            # state: (n_sv, n_nodes)
+        bw0 = _bw_init_jax(n_nodes)
+        dt_sec = jnp.float32(dt * 1e-3)            # ms → s for BW ODE
+        p = _BW_DEFAULTS
+
+        def bold_outer(carry, _):
+            neural_carry, bw = carry
+
+            def inner_bold(c, __):
+                nc, bw_i = c
+                new_nc, new_state = step_fn(nc, None)
+                # First state variable (r) drives the BW ODE
+                new_bw = _bw_step_jax(bw_i, new_state[0], dt_sec, p)
+                return (new_nc, new_bw), None
+
+            (new_nc, new_bw), _ = jax.lax.scan(
+                inner_bold, (neural_carry, bw), None, length=tr_steps)
+
+            bold_signal = _bw_bold_jax(new_bw, p)   # (n_nodes,)
+            _, _, t, _ = new_nc
+            t_out = jnp.float32(t) * dt
+            return (new_nc, new_bw), (t_out, bold_signal)
+
+        _, (times, bolds) = jax.lax.scan(
+            bold_outer, (init_carry, bw0), None, length=n_record)
+        # times: (n_record,)   bolds: (n_record, n_nodes)
+        return times, bolds
 
     if kind == "raw":
         # One output per integration step — simple scan

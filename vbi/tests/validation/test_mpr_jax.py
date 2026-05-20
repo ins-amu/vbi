@@ -220,6 +220,61 @@ class TestGradient:
 
 
 # ---------------------------------------------------------------------------
+# BOLD monitor
+# ---------------------------------------------------------------------------
+
+class TestBoldMonitor:
+    def _bold_spec(self, n_nodes, tr=2000.0):
+        W, D = make_weights(n_nodes)
+        return SimulationSpec(
+            model=mpr,
+            integrator=IntegratorSpec(method="heun", dt=0.1),
+            coupling=CouplingSpec("linear", a=1.0),
+            monitors=(MonitorSpec("bold", tr=tr),),
+            weights=W,
+            tract_lengths=D,
+        )
+
+    def test_bold_shape(self):
+        spec = self._bold_spec(n_nodes=4, tr=2000.0)
+        _, bold = _jx_sim(spec, 6000.0)["bold"]
+        # 6000 ms / 2000 ms TR = 3 samples
+        assert bold.shape == (3, 4), f"expected (3, 4), got {bold.shape}"
+
+    def test_bold_matches_numpy(self):
+        """
+        JAX and NumPy BOLD values agree on shared samples (rtol=5e-2 float32).
+
+        NumPy records at step % tr_steps == 0 and step > 0, so for a 6000ms
+        run at TR=2000ms it returns 2 samples (at 2000ms, 4000ms).
+        JAX runs 3 full TR windows and returns 3 samples (2000, 4000, 6000ms).
+        We compare the first min(n_np, n_jx) samples.
+        """
+        spec = self._bold_spec(n_nodes=4, tr=2000.0)
+        _, bold_np = _np_sim(spec, 6000.0)["bold"]
+        _, bold_jx = _jx_sim(spec, 6000.0)["bold"]
+        n = min(bold_np.shape[0], bold_jx.shape[0])
+        np.testing.assert_allclose(bold_jx[:n], bold_np[:n], rtol=5e-2,
+                                   err_msg="JAX BOLD diverges from NumPy BOLD")
+
+    def test_bold_nonzero(self):
+        """BOLD signal should be non-trivial after a few TR periods."""
+        spec = self._bold_spec(n_nodes=4, tr=2000.0)
+        _, bold = _jx_sim(spec, 6000.0)["bold"]
+        assert not np.allclose(bold, 0.0), "BOLD signal is all zeros"
+
+    def test_bold_tr_respected(self):
+        """Number of BOLD samples = floor(duration / TR)."""
+        tr = 1500.0
+        duration = 7500.0
+        spec = self._bold_spec(n_nodes=4, tr=tr)
+        _, bold = _jx_sim(spec, duration)["bold"]
+        expected = int(duration / tr)   # 7500/1500 = 5
+        assert bold.shape[0] == expected, (
+            f"expected {expected} TR samples, got {bold.shape[0]}")
+
+
+# ---------------------------------------------------------------------------
 # Sweep: shape and consistency
 # ---------------------------------------------------------------------------
 
@@ -279,6 +334,26 @@ class TestSweep:
             sweep_data, single_data, rtol=1e-4,
             err_msg="Sweep run with one sample must match single Simulator run",
         )
+
+    def test_sweep_bold_shape(self):
+        n_nodes = 6
+        n_G = 4
+        W, D = make_weights(n_nodes)
+        spec = SimulationSpec(
+            model=mpr,
+            integrator=IntegratorSpec(method="heun", dt=0.1),
+            coupling=CouplingSpec("linear", a=1.0),
+            monitors=(MonitorSpec("bold", tr=2000.0),),
+            weights=W,
+            tract_lengths=D,
+        )
+        sweep_spec = SweepSpec(params={"G": np.linspace(1.0, 4.0, n_G)})
+        results = Sweeper(spec, sweep_spec, backend="jax").run(6000.0)
+        assert len(results) == n_G
+        _, bold = results[0]["bold"]
+        # shape: (n_record, n_nodes)
+        assert bold.shape[1] == n_nodes
+        assert bold.shape[0] > 0
 
     def test_sweep_throughput(self):
         """Record throughput — not a pass/fail, but logs samples/s."""
