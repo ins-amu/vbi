@@ -11,8 +11,6 @@ from typing import Iterator
 
 import numpy as np
 
-import numpy as np
-
 
 def ensure_repo_on_path(file: str, parents_up: int = 3) -> Path:
     """Add the repository root inferred from ``file`` to ``sys.path``."""
@@ -233,7 +231,7 @@ def plot_sweep_benchmark(
                 fontsize=7, color="gray")
     ax.set_xlabel("n_samples");  ax.set_ylabel("Wall time (s)")
     ax.set_title("Wall-clock time");  ax.set_xscale("log");  ax.set_yscale("log")
-    ax.legend(fontsize=7, ncol=2);  ax.grid(True, alpha=0.3, which="both")
+    ax.legend(fontsize=7, loc="best");  ax.grid(True, alpha=0.3, which="both")
 
     # ---- Panel 2: CPU speedup vs NumPy (linear) ----
     ax = axes[1]
@@ -247,7 +245,7 @@ def plot_sweep_benchmark(
     ax.axhline(1.0, color="k", lw=0.8, ls=":")
     ax.set_xlabel("n_samples");  ax.set_ylabel("Speedup vs NumPy serial")
     ax.set_title("CPU speedup")
-    ax.legend(fontsize=8);  ax.grid(True, alpha=0.3)
+    ax.legend(fontsize=8, loc="best");  ax.grid(True, alpha=0.3)
 
     # ---- Panel 3: throughput (log-log + CPU plateau + CUDA crossover) ----
     ax = axes[2]
@@ -283,11 +281,11 @@ def plot_sweep_benchmark(
                 fontsize=7, color="gray")
     ax.set_xlabel("n_samples");  ax.set_ylabel("Samples / second")
     ax.set_title("Throughput");  ax.set_xscale("log");  ax.set_yscale("log")
-    ax.legend(fontsize=7, ncol=2);  ax.grid(True, alpha=0.3, which="both")
+    ax.legend(fontsize=7, loc="lower right", frameon=False);  ax.grid(True, alpha=0.3, which="both")
 
     plt.tight_layout()
     out_dir.mkdir(parents=True, exist_ok=True)
     out = out_dir / f"benchmark_all_backends_{model_name}.png"
     fig.savefig(out, dpi=150, bbox_inches="tight")
     print(f"\nPlot saved → {out}")
-    plt.show()
+    # plt.show()
