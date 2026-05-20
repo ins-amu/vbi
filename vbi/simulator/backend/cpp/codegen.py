@@ -17,8 +17,6 @@ import types
 from pathlib import Path
 
 import numpy as np
-from mako.lookup import TemplateLookup
-from mako.template import Template
 
 from vbi.simulator.spec.model import ModelSpec
 from vbi.simulator.spec.simulation import SimulationSpec
@@ -200,6 +198,13 @@ def _build_bounds(spec: ModelSpec) -> list[dict]:
 # ---------------------------------------------------------------------------
 
 def _render(template_path: Path, ctx: dict) -> str:
+    try:
+        from mako.lookup import TemplateLookup
+        from mako.template import Template
+    except ImportError as exc:
+        raise ImportError(
+            "VBI C++ simulator backend requires mako: pip install mako"
+        ) from exc
     lookup = TemplateLookup(directories=[str(template_path.parent)])
     tmpl = Template(
         template_path.read_text(encoding="utf-8"),

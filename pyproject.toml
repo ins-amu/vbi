@@ -1,142 +1,197 @@
 [build-system]
 requires = [
-    "hatchling",
-    "setuptools", 
+    "setuptools>=61",
     "wheel",
-    "swig>=4.0",
-    "setuptools>=45"
+    "setuptools-scm",
 ]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "vbi"
 dynamic = ["version"]
-description = "Virtual brain inference."
-requires-python = ">=3.8"
+description = "Virtual brain inference — fast simulation and parameter estimation."
+requires-python = ">=3.10"
 license = { text = "MIT" }
 authors = [
-    { name = "Abolfazl Ziaeemehr", email = "a.ziaeemehr@gmail.com" },
-    { name = "Meysam Hashemi", email = "meysam.hashemi@gmail.com" },
-    { name = "Marmaduke Woodman", email = "marmaduke.woodman@gmail.com" }
+    { name = "Abolfazl Ziaeemehr",  email = "a.ziaeemehr@gmail.com" },
+    { name = "Meysam Hashemi",      email = "meysam.hashemi@gmail.com" },
+    { name = "Marmaduke Woodman",   email = "marmaduke.woodman@gmail.com" },
 ]
 readme = "README.md"
-dependencies = [
-    "wheel",
-    "numpy",
-    "scipy",
-    "numba",
-    "h5py",
-    "pandas",
-    "networkx",
-    "nbconvert",
-    "matplotlib",
-    "setuptools-scm",
-    "tqdm",
-    "autograd",
-    "parameterized",
-    "scikit-learn",
-    "pytest",
-    "swig",
-    "rich",
-    "corner"
-]
 classifiers = [
     "Programming Language :: Python :: 3",
     "Topic :: Scientific/Engineering :: Information Analysis",
-    "License :: OSI Approved :: Apache Software License",
+    "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
 ]
 
+# ---------------------------------------------------------------------------
+# Core dependencies — always required (light, CPU-only simulation)
+# ---------------------------------------------------------------------------
+# Install:  pip install vbi
+#
+# Provides: NumPy + Numba backends (no C++, no GPU, no inference)
+# ---------------------------------------------------------------------------
+dependencies = [
+    "numpy>=1.23",
+    "scipy>=1.9",
+    "numba>=0.57",
+    "h5py",
+    "pandas",
+    "matplotlib",
+    "tqdm",
+    "scikit-learn",
+]
+
 [project.urls]
-homepage = "https://github.com/ins-amu/vbi"
+homepage   = "https://github.com/ins-amu/vbi"
 repository = "https://github.com/ins-amu/vbi"
+
+# ---------------------------------------------------------------------------
+# Optional dependency groups
+# ---------------------------------------------------------------------------
+
+[project.optional-dependencies]
+
+# ---- Backend accelerators (pick what you have) ----
+
+# C++ pybind11 simulator backend (auto-compiled at first use; requires g++/cmake)
+# Install:  pip install vbi[cpp]
+cpp = [
+    "mako>=1.2",
+    "pybind11>=2.10",
+]
+
+# JAX backend (CPU-only by default; for GPU: pip install jax[cuda12_pip] separately)
+# Install:  pip install vbi[jax]
+jax = [
+    "jax>=0.4",
+    "jaxlib>=0.4",
+]
+
+# CUDA / Numba-CUDA backend (numba[cuda] is the same package as numba)
+# No extra packages needed — numba ships CUDA support.
+# Requires NVIDIA GPU + CUDA toolkit installed on the system.
+# Install:  pip install vbi  (then ensure CUDA toolkit is on PATH)
+cuda = []
+
+# ---- Inference frameworks ----
+
+# Simulation-based inference with sbi + PyTorch (CPU)
+# Install:  pip install vbi[sbi]
+sbi = [
+    "sbi>=0.22",
+    "torch>=2.0",
+]
+
+# sbi + PyTorch with GPU support  (install CUDA-enabled torch separately if needed)
+# Install:  pip install vbi[sbi-gpu]
+sbi-gpu = [
+    "sbi>=0.22",
+    "torch>=2.0",
+    "cupy",
+]
+
+# ---- Convenience bundles ----
+
+# Everything a researcher needs on a CPU workstation
+# Install:  pip install vbi[full-cpu]
+full-cpu = [
+    "mako>=1.2",
+    "pybind11>=2.10",
+    "jax>=0.4",
+    "jaxlib>=0.4",
+    "sbi>=0.22",
+    "torch>=2.0",
+]
+
+# Full install including GPU libraries (assumes CUDA toolkit is present)
+# Install:  pip install vbi[full-gpu]
+full-gpu = [
+    "mako>=1.2",
+    "pybind11>=2.10",
+    "jax>=0.4",
+    "jaxlib>=0.4",
+    "sbi>=0.22",
+    "torch>=2.0",
+    "cupy",
+]
+
+# ---- Development and CI ----
+
+# Testing and development tools
+# Install:  pip install vbi[dev]
+dev = [
+    "pytest>=7",
+    "pytest-cov",
+    "mako>=1.2",
+    "pybind11>=2.10",
+]
+
+# CI fast checks (no C++ compilation, no GPU)
+# Install:  pip install vbi[ci]
+ci = [
+    "pytest>=7",
+    "pytest-cov",
+]
+
+# Documentation
+# Install:  pip install vbi[docs]
+docs = [
+    "sphinx>=7",
+    "numpydoc",
+    "nbformat",
+    "nbsphinx",
+    "furo",
+    "nbconvert",
+]
+
+# ---- Legacy aliases (kept for backward compatibility) ----
+light       = []
+light-gpu   = ["cupy"]
+inference   = ["sbi>=0.22", "torch>=2.0"]
+inference-gpu = ["sbi>=0.22", "torch>=2.0", "cupy"]
+cu          = ["cupy"]
+all         = ["mako>=1.2", "pybind11>=2.10", "jax>=0.4", "jaxlib>=0.4",
+               "sbi>=0.22", "torch>=2.0", "cupy",
+               "sphinx>=7", "numpydoc", "nbformat", "nbsphinx", "furo"]
+all-docker  = ["mako>=1.2", "pybind11>=2.10", "jax>=0.4", "jaxlib>=0.4",
+               "sbi>=0.22", "torch>=2.0",
+               "sphinx>=7", "numpydoc", "nbformat", "nbsphinx", "furo"]
+
+# ---------------------------------------------------------------------------
+# Packaging
+# ---------------------------------------------------------------------------
 
 [tool.hatch.version]
 path = "vbi/_version.py"
-include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["vbi*"]
 
 [tool.setuptools.package-data]
 vbi = [
-    "models/pytorch/data/*", 
-    "models/cpp/_src/*",
-]
-"vbi.tests" = ["*"]  # Include all files in tests/
-
-[project.optional-dependencies]
-# Light version - CPU simulation only (numba + C++ models)
-# No additional deps needed, uses core dependencies
-light = []
-
-# Light with GPU - adds CuPy for GPU acceleration 
-light-gpu = ["cupy"]
-
-# JAX version - lightweight alternative to torch/cupy
-# Default JAX install (CPU-only, works on all machines)
-# For GPU: manually install with `pip install jax[cuda12_pip]` after this
-# Excludes sbi, torch, and cupy dependencies
-jax = [
-    "jax",
-    "jaxlib",
+    "models/pytorch/data/*",
+    "models/cpp/_src/*.h",
+    "models/cpp/_src/*.i",
+    "models/cpp/_src/*.py",
+    "simulator/backend/cpp/_src/*.mako",
+    "simulator/backend/cpp/_src/*.hpp",
 ]
 
-# Inference CPU - adds PyTorch and SBI for parameter inference (CPU only)
-inference = [
-    "sbi",
-    "torch",
-]
-
-# Inference GPU - PyTorch with CUDA + SBI for GPU-accelerated inference
-inference-gpu = [
-    "sbi",
-    "torch",
-    "cupy",
-]
-
-# Development tools
-dev = []
-
-# Documentation building
-docs = [
-    "sphinx",
-    "numpydoc",
-    "nbformat",
-    "nbsphinx",
-    "furo",
-]
-
-# All dependencies (torch, cupy, sbi, features, dev tools, docs, notebooks)
-all = [
-    "sbi",
-    "torch",
-    "cupy",
-    "pycatch22",
-    "sphinx",
-    "numpydoc",
-    "nbformat",
-    "nbsphinx",
-    "furo",
-    # "ipywidgets",
-]
-
-# All dependencies without CuPy (for Docker builds where CuPy is installed separately)
-all-docker = [
-    "sbi",
-    "torch",
-    "sphinx",
-    "numpydoc",
-    "nbformat",
-    "nbsphinx",
-    "furo",
-    # "ipywidgets",
-]
-
-# Legacy compatibility
-cu = ["cupy"]
+# ---------------------------------------------------------------------------
+# pytest
+# ---------------------------------------------------------------------------
 
 [tool.pytest.ini_options]
+testpaths = ["vbi/tests"]
 markers = [
-    "short: marks tests as short/fast (deselect with '-m \"not short\"')",
-    "long: marks tests as long/slow (deselect with '-m \"not long\"')", 
-    "fast: alias for short tests",
-    "slow: alias for long tests"
+    "slow: tests with long runtimes (>3 s each); skipped in fast CI",
+    "fast: alias — explicitly fast tests (always run)",
+    "cuda_fast: deterministic CUDA tests; short duration; GPU required",
+    "cuda_slow: stochastic/large-N CUDA tests; GPU required",
+    # Legacy aliases
+    "short: alias for fast",
+    "long: alias for slow",
 ]
