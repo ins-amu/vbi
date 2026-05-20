@@ -5,14 +5,7 @@ from vbi.simulator.spec import (
 )
 
 
-# ---- Custom marks ----
-# cuda_fast : deterministic, short duration — select with  pytest -m cuda_fast
-# cuda_slow : stochastic, large N, pipeline, throughput benchmarks
-def pytest_configure(config):
-    config.addinivalue_line("markers",
-        "cuda_fast: deterministic CUDA tests with short duration; fast to run")
-    config.addinivalue_line("markers",
-        "cuda_slow: stochastic/large-N CUDA tests; excluded in fast CI runs")
+# Marks are registered in pyproject.toml [tool.pytest.ini_options].
 from vbi.simulator.models.mpr import mpr
 
 

@@ -24,6 +24,9 @@ from vbi.simulator.models.wilson_cowan import wilson_cowan
 from vbi.simulator.models.reduced_wong_wang import reduced_wong_wang
 from vbi.simulator.models.wong_wang_exc_inh import wong_wang_exc_inh
 
+pytestmark = pytest.mark.slow
+
+
 
 # ---------------------------------------------------------------------------
 # Helpers

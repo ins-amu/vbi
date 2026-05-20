@@ -13,6 +13,9 @@ from vbi.simulator import Simulator
 from vbi.simulator.spec import MonitorSpec, IntegratorSpec
 from .test_wilson_cowan_numpy import make_wc_spec
 
+pytestmark = pytest.mark.slow
+
+
 numba = pytest.importorskip("numba", reason="numba not installed")
 
 

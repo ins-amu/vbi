@@ -18,6 +18,9 @@ from vbi.simulator.spec.sweep import SweepSpec
 from vbi.simulator.models.mpr import mpr
 from .conftest import make_mpr_spec, make_weights
 
+pytestmark = pytest.mark.slow
+
+
 numba = pytest.importorskip("numba", reason="numba not installed")
 
 

@@ -13,6 +13,9 @@ from vbi.simulator import Simulator
 from vbi.simulator.spec import MonitorSpec, IntegratorSpec
 from .test_jansen_rit_numpy import make_jr_spec
 
+pytestmark = pytest.mark.slow
+
+
 numba = pytest.importorskip("numba", reason="numba not installed")
 
 

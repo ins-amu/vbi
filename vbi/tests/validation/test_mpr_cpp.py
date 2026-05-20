@@ -19,6 +19,9 @@ from vbi.simulator.spec.coupling import CouplingSpec
 from vbi.simulator.spec.monitor import MonitorSpec
 from vbi.simulator.backend.cpp.build import build_or_load
 
+pytestmark = pytest.mark.slow
+
+
 
 # ---------------------------------------------------------------------------
 # Shared spec builder

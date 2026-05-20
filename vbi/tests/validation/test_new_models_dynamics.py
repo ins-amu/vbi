@@ -29,6 +29,9 @@ from vbi.simulator.models.coombes_byrne_2d import coombes_byrne_2d
 from vbi.simulator.models.gast_sd import gast_sd
 from vbi.simulator.models.gast_sf import gast_sf
 
+pytestmark = pytest.mark.slow
+
+
 
 # ---------------------------------------------------------------------------
 # Helpers
