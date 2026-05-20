@@ -5,13 +5,15 @@ figure per model.
 Each model is benchmarked with the same network size and sweep ranges but
 its own coupling strength (as configured in MODELS).  The Numba JIT and C++
 compilation happen once per model; CUDA JIT is cached to disk after the first
-model.
+model.  JAX recompiles for each (model, n_samples) pair; the first call per
+model includes XLA compilation overhead.
 
 Usage
 -----
     python benchmark_all_models.py                      # all defaults
     python benchmark_all_models.py --n-nodes 40         # larger network
     python benchmark_all_models.py --no-cuda            # skip GPU
+    python benchmark_all_models.py --no-jax             # skip JAX
     python benchmark_all_models.py --models sup_hopf mpr  # subset
 
 Outputs
@@ -43,11 +45,13 @@ from benchmark_all_backends import (
     DEFAULT_DT,
     DEFAULT_CPU_SIZES,
     DEFAULT_CUDA_SIZES,
+    DEFAULT_JAX_SIZES,
     N_WORKERS,
     _make_spec,
     warmup,
     benchmark_cpu,
     benchmark_cuda,
+    benchmark_jax,
     throughput_comparison,
     save_json,
 )
@@ -66,9 +70,11 @@ def run_one_model(
     dt: float,
     cpu_sizes: list[int],
     cuda_sizes: list[int],
+    jax_sizes: list[int],
     n_workers: int,
     repeats: int,
     no_cuda: bool,
+    no_jax: bool,
     out_dir: Path,
 ) -> dict:
     """Benchmark a single model, save JSON + figure, return summary dict."""
@@ -96,8 +102,17 @@ def run_one_model(
         cuda_rows = benchmark_cuda(spec, model_name, cuda_sizes,
                                    duration, repeats)
 
+    # JAX
+    jax_rows: list[dict] = []
+    if not no_jax:
+        print(f"\n{'='*70}")
+        print("  JAX backend  (jax.vmap + jax.jit)")
+        print(f"{'='*70}")
+        jax_rows = benchmark_jax(spec, model_name, jax_sizes,
+                                 duration, repeats)
+
     # Summary table
-    throughput_comparison(cpu_rows, cuda_rows, n_workers)
+    throughput_comparison(cpu_rows, cuda_rows, jax_rows, n_workers)
 
     # Save JSON
     meta = dict(
@@ -105,7 +120,7 @@ def run_one_model(
         duration=duration, dt=dt,
         n_workers=n_workers, repeats=repeats,
     )
-    save_json(cpu_rows, cuda_rows, meta,
+    save_json(cpu_rows, cuda_rows, jax_rows, meta,
               out_dir / f"benchmark_all_backends_{model_name}.json")
 
     # Save figure
@@ -122,19 +137,23 @@ def run_one_model(
     )
 
     # Collect peak throughputs for the summary
-    cp_rates = [r["n"] / r["t_cp"] for r in cpu_rows] if cpu_rows else []
-    nb_rates = [r["n"] / r["t_nbN"] for r in cpu_rows] if cpu_rows else []
-    cuda_rates = [r["rate"] for r in cuda_rows] if cuda_rows else []
+    cp_rates   = [r["n"] / r["t_cp"]    for r in cpu_rows]  if cpu_rows  else []
+    nb_rates   = [r["n"] / r["t_nbN"]   for r in cpu_rows]  if cpu_rows  else []
+    cuda_rates = [r["rate"]              for r in cuda_rows] if cuda_rows else []
+    jax_rates  = [r["rate_jax"]         for r in jax_rows]  if jax_rows  else []
 
     return {
         "model":       model_name,
         "n_nodes":     n_nodes,
         "duration_ms": duration,
         "dt":          dt,
-        "peak_cpp_par_sam_s":  float(np.mean(cp_rates[-3:])) if cp_rates  else None,
-        "peak_numba_NT_sam_s": float(np.mean(nb_rates[-3:])) if nb_rates  else None,
-        "peak_cuda_sam_s":     float(max(cuda_rates))         if cuda_rates else None,
-        "cuda_max_n":          max(r["n"] for r in cuda_rows) if cuda_rows else None,
+        "peak_cpp_par_sam_s":  float(np.mean(cp_rates[-3:]))  if cp_rates   else None,
+        "peak_numba_NT_sam_s": float(np.mean(nb_rates[-3:]))  if nb_rates   else None,
+        "peak_cuda_sam_s":     float(max(cuda_rates))          if cuda_rates else None,
+        "peak_jax_sam_s":      float(max(jax_rates))           if jax_rates  else None,
+        "cuda_max_n":          max(r["n"] for r in cuda_rows)  if cuda_rows  else None,
+        "jax_max_n":           max(r["n"] for r in jax_rows)   if jax_rows   else None,
+        "jax_platform":        jax_rows[0]["platform"]          if jax_rows   else None,
     }
 
 
@@ -156,7 +175,9 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--n-workers",  type=int,   default=N_WORKERS)
     p.add_argument("--cpu-sizes",  type=int,   nargs="+", default=DEFAULT_CPU_SIZES)
     p.add_argument("--cuda-sizes", type=int,   nargs="+", default=DEFAULT_CUDA_SIZES)
+    p.add_argument("--jax-sizes",  type=int,   nargs="+", default=DEFAULT_JAX_SIZES)
     p.add_argument("--no-cuda",    action="store_true")
+    p.add_argument("--no-jax",     action="store_true")
     p.add_argument("--output-dir", type=Path,  default=OUTPUT_DIR)
     return p.parse_args()
 
@@ -173,6 +194,7 @@ def main() -> None:
     print(f"  duration  : {args.duration} ms  |  dt={args.dt} ms")
     print(f"  CPU sizes : {args.cpu_sizes}")
     print(f"  CUDA sizes: {args.cuda_sizes if not args.no_cuda else '(disabled)'}")
+    print(f"  JAX sizes : {args.jax_sizes  if not args.no_jax  else '(disabled)'}")
     print(f"  n_workers : {args.n_workers}")
     print(f"  repeats   : {args.repeats}  (best-of)")
     print()
@@ -187,9 +209,11 @@ def main() -> None:
             dt          = args.dt,
             cpu_sizes   = args.cpu_sizes,
             cuda_sizes  = args.cuda_sizes,
+            jax_sizes   = args.jax_sizes,
             n_workers   = args.n_workers,
             repeats     = args.repeats,
             no_cuda     = args.no_cuda,
+            no_jax      = args.no_jax,
             out_dir     = args.output_dir,
         )
         summary["wall_s"] = round(time.perf_counter() - t0, 1)
@@ -201,17 +225,19 @@ def main() -> None:
     print("  Cross-model summary")
     print("=" * 70)
     print(f"{'Model':<26}  {'Nb-NT':>10}  {'C++par':>10}  {'CUDA':>10}  "
-          f"{'CUDA@n':>8}  {'time(s)':>8}")
-    print("-" * 78)
+          f"{'JAX':>10}  {'platform':>8}  {'time(s)':>8}")
+    print("-" * 92)
     for s in summaries:
-        nb  = f"{s['peak_numba_NT_sam_s']:.0f}"   if s["peak_numba_NT_sam_s"] else "—"
-        cp  = f"{s['peak_cpp_par_sam_s']:.0f}"    if s["peak_cpp_par_sam_s"]  else "—"
-        cu  = f"{s['peak_cuda_sam_s']:.0f}"        if s["peak_cuda_sam_s"]     else "—"
-        cn  = f"{s['cuda_max_n']}"                 if s["cuda_max_n"]          else "—"
+        nb  = f"{s['peak_numba_NT_sam_s']:.0f}" if s["peak_numba_NT_sam_s"] else "—"
+        cp  = f"{s['peak_cpp_par_sam_s']:.0f}"  if s["peak_cpp_par_sam_s"]  else "—"
+        cu  = f"{s['peak_cuda_sam_s']:.0f}"      if s["peak_cuda_sam_s"]     else "—"
+        jx  = f"{s['peak_jax_sam_s']:.0f}"       if s["peak_jax_sam_s"]      else "—"
+        plt = s["jax_platform"] or "—"
         print(f"{s['model']:<26}  {nb:>10}  {cp:>10}  {cu:>10}  "
-              f"{cn:>8}  {s['wall_s']:>8.1f}")
-    print("-" * 78)
+              f"{jx:>10}  {plt:>8}  {s['wall_s']:>8.1f}")
+    print("-" * 92)
     print("  Throughput = samples/second (peak over measured range)")
+    print("  JAX platform: cpu or gpu (depends on installed jaxlib)")
     print(f"\n  Total wall time: {time.perf_counter() - t_all:.0f} s")
 
     # Save summary JSON

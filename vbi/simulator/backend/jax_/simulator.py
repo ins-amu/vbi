@@ -86,37 +86,50 @@ def _build_jax_params(spec: SimulationSpec) -> dict:
     return params
 
 
+def _resolve_dtype(spec: SimulationSpec):
+    """Return the numpy/jax dtype from IntegratorSpec.jax_dtype."""
+    jax_dtype = getattr(spec.integrator, "jax_dtype", "float32")
+    if jax_dtype == "float64":
+        import jax
+        jax.config.update("jax_enable_x64", True)
+        return np.float64
+    return np.float32
+
+
 def _build_initial_state(spec: SimulationSpec) -> jnp.ndarray:
+    dtype = _resolve_dtype(spec)
     n_nodes = spec.n_nodes
-    state = np.zeros((spec.model.n_sv, n_nodes), dtype=np.float32)
+    state = np.zeros((spec.model.n_sv, n_nodes), dtype=dtype)
     for i, sv in enumerate(spec.model.state_variables):
         state[i] = sv.default_init
     return jnp.array(state)
 
 
 def _build_bounds(spec: SimulationSpec) -> tuple[jnp.ndarray, jnp.ndarray]:
+    dtype = _resolve_dtype(spec)
     lo = np.array(
         [sv.lower_bound if sv.lower_bound is not None else -np.inf
          for sv in spec.model.state_variables],
-        dtype=np.float32,
+        dtype=dtype,
     )
     hi = np.array(
         [sv.upper_bound if sv.upper_bound is not None else np.inf
          for sv in spec.model.state_variables],
-        dtype=np.float32,
+        dtype=dtype,
     )
     return jnp.array(lo), jnp.array(hi)
 
 
 def _build_noise_amp(spec: SimulationSpec) -> jnp.ndarray:
     """(n_sv,) amplitude array — zero for non-noisy state vars."""
+    dtype = _resolve_dtype(spec)
     n_sv = spec.model.n_sv
-    amp = np.zeros(n_sv, dtype=np.float32)
+    amp = np.zeros(n_sv, dtype=dtype)
     ni = list(spec.model.noise_indices)
     nsig = spec.integrator.noise_nsig
     if nsig is None:
-        nsig = np.ones(len(ni), dtype=np.float32) * 1e-3
-    nsig = np.asarray(nsig, dtype=np.float32)
+        nsig = np.ones(len(ni), dtype=dtype) * 1e-3
+    nsig = np.asarray(nsig, dtype=dtype)
     style = getattr(spec.integrator, "noise_style", "amplitude")
     if style == "tvb":
         nsig = np.sqrt(2.0 * nsig)
@@ -339,8 +352,8 @@ def _run_monitor(
         # One output per integration step — simple scan
         _, all_states = jax.lax.scan(
             step_fn, init_carry, None, length=n_steps)
-        # all_states: (n_steps, n_sv, n_nodes)
-        times = jnp.arange(n_steps, dtype=jnp.float32) * dt
+        # all_states: (n_steps, n_sv, n_nodes) — dtype follows state0
+        times = jnp.arange(n_steps, dtype=all_states.dtype) * dt
         return times, all_states
 
     # subsample / tavg / gavg — outer scan, inner scan of istep steps
@@ -389,7 +402,8 @@ class JaxSimulator:
         self._lo, self._hi = _build_bounds(spec)
 
         G = float(self._params.get("G", 1.0))
-        self._weights = jnp.array(spec.weights, dtype=jnp.float32)
+        self._dtype = _resolve_dtype(spec)
+        self._weights = jnp.array(spec.weights, dtype=self._dtype)
         self._delay_steps = jnp.array(spec.delay_steps(dt), dtype=jnp.int32)
         self._horizon = spec.horizon(dt)
 
@@ -432,7 +446,7 @@ class JaxSimulator:
         cvar_idx = list(self.spec.model.cvar_indices)
         cvar_idx_jnp = jnp.array(cvar_idx, dtype=jnp.int32)
         buf = jnp.zeros(
-            (horizon, len(cvar_idx), self.spec.n_nodes), dtype=jnp.float32)
+            (horizon, len(cvar_idx), self.spec.n_nodes), dtype=self._dtype)
         buf = buf.at[:].set(self._state0[cvar_idx_jnp][None, :, :])
 
         carry = (self._state0, buf, jnp.int32(0), params)
@@ -482,7 +496,8 @@ class JaxSweeper:
         self._horizon = spec.horizon(dt)
 
         G = float(self._base_params.get("G", 1.0))
-        self._weights = jnp.array(spec.weights, dtype=jnp.float32)
+        self._dtype = _resolve_dtype(spec)
+        self._weights = jnp.array(spec.weights, dtype=self._dtype)
         self._delay_steps = jnp.array(spec.delay_steps(dt), dtype=jnp.int32)
 
         stochastic = spec.integrator.stochastic
@@ -519,31 +534,70 @@ class JaxSweeper:
 
         self._run_batch_jit = None  # built lazily on first .run() call
 
-    def _build_batch_runner(self, n_steps: int, mon_spec) -> Callable:
-        """Build jit+vmap runner for a specific (n_steps, monitor_kind)."""
-        step_fn = self._step_fn
+    def _build_batch_runner(self, n_steps: int, mon_spec,
+                            same_noise: bool) -> Callable:
+        """
+        Build jit+vmap runner for a specific (n_steps, monitor_kind, same_noise).
+
+        same_noise=True  : all runs share the same master_key (vmap broadcasts it)
+                           → identical stochastic forcing across sweep; parameter
+                             effects visible without noise variability.
+        same_noise=False : each run gets a unique key from split(master_key, N)
+                           → statistically independent noise realizations.
+        """
         dt = self._dt
         horizon = self._horizon
         state0 = self._state0
         base_params = self._base_params
         cvar_indices = list(self.spec.model.cvar_indices)
-
         cvar_idx_jnp = jnp.array(cvar_indices, dtype=jnp.int32)
 
-        def simulate_one(swept_params_one: dict) -> tuple[jnp.ndarray, jnp.ndarray]:
-            # Merge base params with swept values for this run
-            params = {**base_params, **swept_params_one}
+        # Capture all _make_step_fn kwargs except master_key (passed dynamically)
+        spec = self.spec
+        step_kwargs = dict(
+            dfun=build_jax_dfun(spec.model),
+            weights=self._weights,
+            delay_steps=self._delay_steps,
+            has_delays=spec.has_delays,
+            horizon=horizon,
+            n_nodes=self._n_nodes,
+            cvar_indices=spec.model.cvar_indices,
+            lo_bounds=self._lo,
+            hi_bounds=self._hi,
+            dt=dt,
+            G_default=float(base_params.get("G", 1.0)),
+            coup_a=float(spec.coupling.a),
+            coup_b=float(spec.coupling.b),
+            coup_kind=spec.coupling.kind,
+            coup_midpoint=float(getattr(spec.coupling, "midpoint", 0.0)),
+            coup_sigma=float(getattr(spec.coupling, "sigma", 1.0)),
+            use_heun=(spec.integrator.method == "heun"),
+            stochastic=spec.integrator.stochastic,
+            noise_amp=self._noise_amp,
+        )
 
+        def simulate_one(swept_params_one: dict,
+                         run_key) -> tuple[jnp.ndarray, jnp.ndarray]:
+            """One simulation run; run_key controls noise realization."""
+            params = {**base_params, **swept_params_one}
             buf = jnp.zeros(
-                (horizon, len(cvar_indices), self._n_nodes), dtype=jnp.float32)
+                (horizon, len(cvar_indices), self._n_nodes), dtype=self._dtype)
             buf = buf.at[:].set(state0[cvar_idx_jnp][None, :, :])
 
+            # Build step function with this run's key so noise is controlled
+            step_fn_i = _make_step_fn(**step_kwargs, master_key=run_key)
+
             carry = (state0, buf, jnp.int32(0), params)
-            times, data = _run_monitor(step_fn, carry, mon_spec, n_steps, dt)
+            times, data = _run_monitor(step_fn_i, carry, mon_spec, n_steps, dt)
             return times, data
 
-        # vmap over axis-0 of each value in swept_params_one dict
-        simulate_batch = jax.vmap(simulate_one, in_axes=(0,))
+        if same_noise:
+            # Broadcast single master_key to all runs (None = don't vmap)
+            simulate_batch = jax.vmap(simulate_one, in_axes=(0, None))
+        else:
+            # Each run gets its own key (0 = vmap over key axis)
+            simulate_batch = jax.vmap(simulate_one, in_axes=(0, 0))
+
         return jax.jit(simulate_batch)
 
     def run(self, duration: float) -> list[dict] | tuple:
@@ -564,14 +618,23 @@ class JaxSweeper:
 
         # Build batched swept-params dict: {name: shape-(n_samples,) array}
         swept_batch = {
-            name: jnp.array(param_sets[:, i], dtype=jnp.float32)
+            name: jnp.array(param_sets[:, i], dtype=self._dtype)
             for i, name in enumerate(self._param_names)
         }
 
+        same_noise = getattr(self.sweep, "same_noise", True)
+
+        # Prepare noise keys: same for all runs, or one per run
+        if same_noise:
+            run_keys = self._master_key          # broadcast via in_axes=(0, None)
+        else:
+            run_keys = jax.random.split(         # (n_samples, 2)
+                self._master_key, n_samples)
+
         all_results: list[dict] = []
         for mon_spec in self.spec.monitors:
-            runner = self._build_batch_runner(n_steps, mon_spec)
-            times_batch, data_batch = runner(swept_batch)
+            runner = self._build_batch_runner(n_steps, mon_spec, same_noise)
+            times_batch, data_batch = runner(swept_batch, run_keys)
             # times_batch: (n_samples, n_record)
             # data_batch:  (n_samples, n_record, n_sv, n_nodes)
             # Unpack per sample

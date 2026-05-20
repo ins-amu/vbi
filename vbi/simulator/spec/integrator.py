@@ -15,3 +15,6 @@ class IntegratorSpec:
     noise_nsig: np.ndarray | None = None
     noise_style: Literal["amplitude", "tvb"] = "amplitude"
     noise_seed: int = 42
+    # JAX-backend precision: "float32" (default, GPU-optimised) or "float64"
+    # (matches NumPy/Numba for validation; requires jax_enable_x64=True).
+    jax_dtype: Literal["float32", "float64"] = "float32"

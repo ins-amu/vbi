@@ -1,5 +1,5 @@
 """
-Backend sweep benchmark: NumPy · Numba (1T / NT) · C++ (serial / parallel) · CUDA.
+Backend sweep benchmark: NumPy · Numba (1T / NT) · C++ (serial / parallel) · CUDA · JAX.
 
 Strategy
 --------
@@ -7,11 +7,15 @@ Strategy
   their time scales linearly with n_samples.  Running them at thousands of
   samples would make the benchmark very slow.
 
-* CUDA is only launched for ≥ 64 samples where GPU scheduling overhead is
-  amortised; it shines at ≥ 1024 samples.
+* CUDA and JAX are only launched for ≥ 32 samples where GPU scheduling
+  overhead is amortised; they shine at ≥ 256 samples.
+
+* JAX uses jax.vmap to batch all samples into a single JIT-compiled XLA
+  program.  Performance improves with batch size (better XLA utilisation).
+  On GPU, JAX competes with CUDA; on CPU, it is comparable to Numba N-thread.
 
 * All CPU backends are timed at the same sweep sizes so speedups are
-  directly comparable on the same x-axis.  The CUDA curve continues to
+  directly comparable on the same x-axis.  The GPU curves continue to
   larger n_samples on a separate panel (or same log-scale axis).
 
 Model choice
@@ -24,6 +28,8 @@ Usage
     python benchmark_all_backends.py
     python benchmark_all_backends.py --model generic_2d_oscillator --n-nodes 40
     python benchmark_all_backends.py --no-cuda --no-plot
+    python benchmark_all_backends.py --no-jax           # skip JAX
+    python benchmark_all_backends.py --jax-sizes 16 32 64 128 256 512 1024
     python benchmark_all_backends.py --n-workers 8 --cpu-sizes 4 8 16 32 64 128
 """
 from __future__ import annotations
@@ -89,6 +95,8 @@ DEFAULT_DT       = 0.1     # dt=0.1 ms → fast on all backends
 DEFAULT_CPU_SIZES  = [4, 8, 16, 32, 64]
 # CUDA: starts at 32 (overlaps CPU), extends to 2048 where GPU starts winning
 DEFAULT_CUDA_SIZES = [32, 64, 128, 256, 512, 1024, 2048]
+# JAX: vmap batches compile per n_samples; warmup is included in first call
+DEFAULT_JAX_SIZES  = [16, 32, 64, 128, 256, 512, 1024]
 
 N_WORKERS = int(os.environ.get("VBI_BENCH_THREADS", str(max(2, (os.cpu_count() or 4) // 2))))
 N_REPEATS = 2
@@ -259,39 +267,94 @@ def benchmark_cuda(spec: SimulationSpec, model_name: str,
 
 
 # ---------------------------------------------------------------------------
-# Combined throughput table (CPU + CUDA at matching sizes)
+# JAX benchmark
+# ---------------------------------------------------------------------------
+
+def benchmark_jax(spec: SimulationSpec, model_name: str,
+                  jax_sizes: list[int], duration: float,
+                  repeats: int) -> list[dict]:
+    """Benchmark JAX vmap sweep. Each n_samples triggers a fresh JIT compile."""
+    try:
+        import jax
+        platform = jax.default_backend()
+    except ImportError:
+        print("  JAX not installed — skipping JAX benchmark.")
+        return []
+
+    print(f"\n{'n_samples':>10}  {'JAX(s)':>10}  {'sam/s':>10}  {'platform':>10}")
+    print("-" * 45)
+
+    # Use subsample monitor for JAX (avoids large raw output transfers)
+    dt = spec.integrator.dt
+    jax_spec = SimulationSpec(
+        model=spec.model,
+        integrator=spec.integrator,
+        coupling=spec.coupling,
+        monitors=(MonitorSpec("subsample", period=max(dt * 10, 1.0)),),
+        weights=spec.weights,
+    )
+
+    rows = []
+    for n in jax_sizes:
+        sw = _make_sweep(model_name, n)
+
+        # Warmup this batch size (JAX recompiles per unique n_samples)
+        _try(lambda: Sweeper(jax_spec, sw, backend="jax").run(duration),
+             f"JAX warmup n={n}")
+
+        def _run():
+            return Sweeper(jax_spec, sw, backend="jax").run(duration)
+
+        t = _best_of(_run, repeats)
+        rate = n / t
+        row = dict(n=n, t_jax=t, rate_jax=rate, platform=platform)
+        rows.append(row)
+        print(f"{n:>10}  {t:>10.3f}  {rate:>10.0f}  {platform:>10}")
+
+    print("-" * 45)
+    print(f"  sam/s = parameter sets per second  |  platform: {platform}")
+    return rows
+
+
+# ---------------------------------------------------------------------------
+# Combined throughput table (CPU + CUDA + JAX at matching sizes)
 # ---------------------------------------------------------------------------
 
 def throughput_comparison(cpu_rows: list[dict], cuda_rows: list[dict],
-                          n_workers: int) -> None:
-    if not cuda_rows:
+                          jax_rows: list[dict], n_workers: int) -> None:
+    gpu_rows = cuda_rows or jax_rows
+    if not gpu_rows:
         return
 
     print("\n--- Throughput comparison at matched sweep sizes (samples/second) ---")
     cuda_map = {r["n"]: r["rate"] for r in cuda_rows}
+    jax_map  = {r["n"]: r["rate_jax"] for r in jax_rows}
     cpu_map  = {r["n"]: r for r in cpu_rows}
 
-    common = sorted(set(cuda_map) & set(cpu_map))
+    all_gpu = set(cuda_map) | set(jax_map)
+    common  = sorted(all_gpu & set(cpu_map))
     if not common:
-        print("  (no overlapping sweep sizes between CPU and CUDA runs)")
+        print("  (no overlapping sweep sizes between CPU and GPU runs)")
         return
 
     print(f"{'n_samples':>10}  {'NumPy':>10}  {'Nb-NT':>10}  "
-          f"{'Cpp-par':>10}  {'CUDA':>10}  {'CUDA/Nb':>10}  {'CUDA/Cpp':>10}")
-    print("-" * 75)
+          f"{'Cpp-par':>10}  {'CUDA':>10}  {'JAX':>10}  {'JAX/Nb':>8}  {'JAX/Cpp':>8}")
+    print("-" * 90)
     for n in common:
-        r = cpu_map[n]
         def rate(t): return n / t if t and t > 0 else float("nan")
+        r   = cpu_map[n]
         rn  = rate(r["t_np"])
         rnb = rate(r["t_nbN"])
         rc  = rate(r["t_cp"])
-        rg  = cuda_map[n]
+        rg  = cuda_map.get(n, float("nan"))
+        rj  = jax_map.get(n, float("nan"))
+        def _sp(num, den): return f"{num/den:>7.1f}x" if den > 0 and den == den else "    N/A"
         print(
             f"{n:>10}  {rn:>10.0f}  {rnb:>10.0f}  {rc:>10.0f}  "
-            f"{rg:>10.0f}  {rg/rnb:>9.1f}x  {rg/rc:>9.1f}x"
+            f"{rg:>10.0f}  {rj:>10.0f}  {_sp(rj,rnb):>8}  {_sp(rj,rc):>8}"
         )
-    print("-" * 75)
-    print(f"  CUDA/Nb = CUDA speedup over Numba {n_workers}T  |  CUDA/Cpp = over C++ parallel")
+    print("-" * 90)
+    print(f"  JAX/Nb = JAX speedup over Numba {n_workers}T  |  JAX/Cpp = over C++ parallel")
 
 
 # ---------------------------------------------------------------------------
@@ -321,9 +384,9 @@ def plot_results(cpu_rows: list[dict], cuda_rows: list[dict],
 # ---------------------------------------------------------------------------
 
 def save_json(cpu_rows: list[dict], cuda_rows: list[dict],
-              meta: dict, path: Path) -> None:
+              jax_rows: list[dict], meta: dict, path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    data = {"meta": meta, "cpu": cpu_rows, "cuda": cuda_rows}
+    data = {"meta": meta, "cpu": cpu_rows, "cuda": cuda_rows, "jax": jax_rows}
     path.write_text(json.dumps(data, indent=2), encoding="utf-8")
     print(f"JSON saved   → {path}")
 
@@ -345,7 +408,9 @@ def parse_args() -> argparse.Namespace:
                    help="timing repetitions per cell (min is reported)")
     p.add_argument("--cpu-sizes",   type=int,   nargs="+", default=DEFAULT_CPU_SIZES)
     p.add_argument("--cuda-sizes",  type=int,   nargs="+", default=DEFAULT_CUDA_SIZES)
+    p.add_argument("--jax-sizes",   type=int,   nargs="+", default=DEFAULT_JAX_SIZES)
     p.add_argument("--no-cuda",     action="store_true")
+    p.add_argument("--no-jax",      action="store_true")
     p.add_argument("--no-numpy",    action="store_true",
                    help="skip NumPy (very slow at large n_samples)")
     p.add_argument("--no-plot",     action="store_true")
@@ -365,6 +430,7 @@ def main() -> None:
     print(f"  duration  : {args.duration} ms  |  dt={args.dt} ms")
     print(f"  CPU sizes : {args.cpu_sizes}")
     print(f"  CUDA sizes: {args.cuda_sizes if not args.no_cuda else '(disabled)'}")
+    print(f"  JAX sizes : {args.jax_sizes if not args.no_jax else '(disabled)'}")
     print(f"  n_workers : {args.n_workers}")
     print(f"  repeats   : {args.repeats}  (best-of)")
     print()
@@ -392,8 +458,19 @@ def main() -> None:
             args.duration, args.repeats,
         )
 
+    # ---- JAX benchmark ----
+    jax_rows: list[dict] = []
+    if not args.no_jax:
+        print(f"\n{'='*70}")
+        print("  JAX backend  (jax.vmap + jax.jit)")
+        print(f"{'='*70}")
+        jax_rows = benchmark_jax(
+            spec, args.model, args.jax_sizes,
+            args.duration, args.repeats,
+        )
+
     # ---- Summary ----
-    throughput_comparison(cpu_rows, cuda_rows, args.n_workers)
+    throughput_comparison(cpu_rows, cuda_rows, jax_rows, args.n_workers)
 
     # ---- Save ----
     meta = dict(
@@ -402,7 +479,7 @@ def main() -> None:
         n_workers=args.n_workers, repeats=args.repeats,
     )
     save_json(
-        cpu_rows, cuda_rows, meta,
+        cpu_rows, cuda_rows, jax_rows, meta,
         args.output_dir / f"benchmark_all_backends_{args.model}.json",
     )
 

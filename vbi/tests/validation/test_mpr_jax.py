@@ -355,6 +355,56 @@ class TestSweep:
         assert bold.shape[1] == n_nodes
         assert bold.shape[0] > 0
 
+    def test_same_noise_true_identical_first_step(self):
+        """same_noise=True: all runs should see identical noise at step 0."""
+        n_nodes, n_G = 4, 4
+        W, D = make_weights(n_nodes)
+        spec = SimulationSpec(
+            model=mpr,
+            integrator=IntegratorSpec(method="heun", dt=0.1, stochastic=True,
+                                      noise_nsig=np.array([1e-2, 1e-2])),
+            coupling=CouplingSpec("linear", a=0.0),   # no coupling → pure noise
+            monitors=(MonitorSpec("subsample", period=1.0),),
+            weights=W, tract_lengths=None,
+        )
+        sweep_spec = SweepSpec(
+            params={"G": np.linspace(1.0, 4.0, n_G)},
+            same_noise=True,
+        )
+        results = Sweeper(spec, sweep_spec, backend="jax").run(100.0)
+        # With same_noise=True and no coupling, first recorded state = after 10 steps
+        # — noise is the ONLY difference driver. With coupling=0, G has no effect.
+        # All runs must be numerically identical.
+        _, d0 = results[0]["subsample"]
+        for i in range(1, n_G):
+            _, di = results[i]["subsample"]
+            np.testing.assert_array_equal(
+                d0, di,
+                err_msg=f"same_noise=True: run {i} differs from run 0",
+            )
+
+    def test_same_noise_false_independent(self):
+        """same_noise=False: runs must differ (independent noise realizations)."""
+        n_nodes, n_G = 4, 4
+        W, _ = make_weights(n_nodes)
+        spec = SimulationSpec(
+            model=mpr,
+            integrator=IntegratorSpec(method="heun", dt=0.1, stochastic=True,
+                                      noise_nsig=np.array([1e-2, 1e-2])),
+            coupling=CouplingSpec("linear", a=0.0),   # no coupling → pure noise
+            monitors=(MonitorSpec("subsample", period=1.0),),
+            weights=W, tract_lengths=None,
+        )
+        sweep_spec = SweepSpec(
+            params={"G": np.linspace(1.0, 4.0, n_G)},
+            same_noise=False,
+        )
+        results = Sweeper(spec, sweep_spec, backend="jax").run(100.0)
+        _, d0 = results[0]["subsample"]
+        _, d1 = results[1]["subsample"]
+        assert not np.allclose(d0, d1), \
+            "same_noise=False: runs 0 and 1 should differ (independent noise)"
+
     def test_sweep_throughput(self):
         """Record throughput — not a pass/fail, but logs samples/s."""
         n_nodes = 10

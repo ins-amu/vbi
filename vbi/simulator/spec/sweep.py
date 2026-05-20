@@ -21,6 +21,14 @@ class SweepSpec:
         If set, sweeper.run() returns (labels, values); sweeper.run_df() returns
         a DataFrame. The object must expose ``extract(result) -> (labels, values)``.
         If None, sweeper returns the raw monitor output dict.
+    same_noise : bool
+        JAX backend only.  When True (default), all sweep runs share the same
+        noise realisation — each node still gets distinct noise in time, but two
+        runs at different parameter values are driven by identical stochastic
+        forcing.  This isolates the effect of the swept parameter from stochastic
+        variability, enabling variance-reduced sensitivity analysis.
+        When False, each run gets an independent noise seed derived from the
+        master key and the run index.
 
     Examples
     --------
@@ -29,11 +37,15 @@ class SweepSpec:
 
     # Latin-hypercube / arbitrary samples (5 000 runs, 3 params):
     SweepSpec(params=theta_array, param_names=("G", "eta", "noise_amp"))
+
+    # Independent noise per run (default for non-JAX backends):
+    SweepSpec(params={"G": np.linspace(1, 4, 50)}, same_noise=False)
     """
     params: dict[str, np.ndarray] | np.ndarray
     param_names: tuple[str, ...] | None = None
     t_cut: float = 500.0
     pipeline: object | None = None
+    same_noise: bool = True
 
     @property
     def _param_names_list(self) -> list[str]:

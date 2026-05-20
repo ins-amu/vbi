@@ -1,14 +1,15 @@
 """
 Cross-backend sweep validation.
 
-Checks that NumPy, Numba CPU, C++, and CUDA (if available) all produce
+Checks that NumPy, Numba CPU, C++, CUDA (if available), and JAX all produce
 numerically consistent sweep results for the same model and parameters.
 
 Usage
 -----
     python validate_sweep_backends.py
     python validate_sweep_backends.py --model sup_hopf --n-nodes 10 --n-samples 8
-    python validate_sweep_backends.py --rtol 1e-3   # CUDA float32 tolerance
+    python validate_sweep_backends.py --rtol 1e-3   # CPU tolerance
+    python validate_sweep_backends.py --rtol-jax 2e-2  # JAX float32 tolerance
 
 Each available backend is compared against the NumPy reference.
 Exit code 0 = all checks pass; non-zero = at least one mismatch.
@@ -118,6 +119,7 @@ def validate(
     duration: float,
     rtol_cpu: float,
     rtol_cuda: float,
+    rtol_jax: float,
 ) -> bool:
     model, sweep_param, values_all, dt, coup_a = MODELS[model_name]
     values = values_all[:n_samples] if n_samples < len(values_all) else values_all
@@ -132,18 +134,19 @@ def validate(
     print(f"Sweep param : {sweep_param}  ({len(values)} values)")
     print(f"n_nodes     : {n_nodes}")
     print(f"duration    : {duration} ms  |  dt={dt} ms")
-    print(f"tolerance   : CPU rtol={rtol_cpu:.0e},  CUDA rtol={rtol_cuda:.0e}")
+    print(f"tolerance   : CPU rtol={rtol_cpu:.0e},  CUDA rtol={rtol_cuda:.0e},  "
+          f"JAX rtol={rtol_jax:.0e}")
     print()
 
     # --- Reference: NumPy ---
-    print("  [1/4] Running NumPy sweep (reference)… ", end="", flush=True)
+    print("  [1/5] Running NumPy sweep (reference)… ", end="", flush=True)
     ref = _run_sweep(spec, sweep_spec, "numpy", duration)
     print("done.")
 
     all_ok = True
 
     # --- Numba ---
-    print("  [2/4] Running Numba CPU sweep… ", end="", flush=True)
+    print("  [2/5] Running Numba CPU sweep… ", end="", flush=True)
     try:
         nb = _run_sweep(spec, sweep_spec, "numba", duration)
         ok, msg = _check_match(ref, nb, "numba", rtol=rtol_cpu, atol=0.0)
@@ -154,7 +157,7 @@ def validate(
         print(f"SKIP  ({type(e).__name__}: {e})")
 
     # --- C++ ---
-    print("  [3/4] Running C++ sweep… ", end="", flush=True)
+    print("  [3/5] Running C++ sweep… ", end="", flush=True)
     try:
         cpp = _run_sweep(spec, sweep_spec, "cpp", duration)
         ok, msg = _check_match(ref, cpp, "cpp", rtol=rtol_cpu, atol=0.0)
@@ -165,7 +168,7 @@ def validate(
         print(f"SKIP  ({type(e).__name__}: {e})")
 
     # --- CUDA ---
-    print("  [4/4] Running CUDA sweep… ", end="", flush=True)
+    print("  [4/5] Running CUDA sweep… ", end="", flush=True)
     try:
         from vbi.simulator.backend.numba_cuda import CUDA_AVAILABLE
         if not CUDA_AVAILABLE:
@@ -174,6 +177,34 @@ def validate(
         ok, msg = _check_match(ref, cuda, "cuda", rtol=rtol_cuda, atol=1e-5)
         status = "✓" if ok else "✗"
         print(f"{status}  {msg}  [float32 GPU]")
+        all_ok = all_ok and ok
+    except Exception as e:
+        print(f"SKIP  ({type(e).__name__}: {e})")
+
+    # --- JAX ---
+    print("  [5/5] Running JAX sweep… ", end="", flush=True)
+    try:
+        import jax  # noqa: F401
+        # JAX uses raw monitor; use subsample to keep output size manageable
+        jax_spec = SimulationSpec(
+            model=model,
+            integrator=IntegratorSpec(method="heun", dt=dt, stochastic=False),
+            coupling=CouplingSpec("linear", a=coup_a),
+            monitors=(MonitorSpec("subsample", period=max(dt * 10, 1.0)),),
+            weights=spec.weights,
+        )
+        jax_sweep_results = Sweeper(jax_spec, sweep_spec, backend="jax").run(duration)
+        ref_sub = []
+        for res in jax_sweep_results:
+            _, d = res["subsample"]
+            ref_sub.append(d)
+        # Build numpy-backend reference on same spec for apples-to-apples comparison
+        np_sub_results = Sweeper(jax_spec, sweep_spec, backend="numpy").run(duration)
+        np_sub = [res["subsample"][1] for res in np_sub_results]
+        ok, msg = _check_match(np_sub, ref_sub, "jax", rtol=rtol_jax, atol=1e-5)
+        status = "✓" if ok else "✗"
+        platform = jax.default_backend()
+        print(f"{status}  {msg}  [float32 {platform.upper()}]")
         all_ok = all_ok and ok
     except Exception as e:
         print(f"SKIP  ({type(e).__name__}: {e})")
@@ -193,6 +224,8 @@ def main() -> int:
                         help="CPU backend tolerance (NumPy/Numba/C++)")
     parser.add_argument("--rtol-cuda",  type=float, default=5e-3,
                         help="CUDA tolerance (float32 vs float64)")
+    parser.add_argument("--rtol-jax",   type=float, default=1e-2,
+                        help="JAX tolerance (float32 vs float64)")
     parser.add_argument("--all-models", action="store_true",
                         help="Validate all four models sequentially")
     args = parser.parse_args()
@@ -212,6 +245,7 @@ def main() -> int:
             duration=args.duration,
             rtol_cpu=args.rtol,
             rtol_cuda=args.rtol_cuda,
+            rtol_jax=args.rtol_jax,
         )
         all_passed = all_passed and ok
 
