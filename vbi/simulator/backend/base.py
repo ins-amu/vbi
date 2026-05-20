@@ -28,9 +28,17 @@ def load_backend(name: str) -> type:
     if name == "cuda":
         from vbi.simulator.backend.numba_cuda.simulator import CudaSimulator
         return CudaSimulator
+    if name == "jax":
+        try:
+            from vbi.simulator.backend.jax_.simulator import JaxSimulator
+            return JaxSimulator
+        except ImportError as exc:
+            raise ImportError(
+                "JAX backend requires jax: pip install jax"
+            ) from exc
     raise ImportError(
         f"Backend {name!r} is not available. "
-        "Available: 'numpy', 'numba', 'cpp', 'cuda'. Coming: 'jax'."
+        "Available: 'numpy', 'numba', 'cpp', 'cuda', 'jax'."
     )
 
 
@@ -52,7 +60,15 @@ def load_sweep_backend(name: str) -> type:
     if name == "cuda":
         from vbi.simulator.backend.numba_cuda.sweeper import CudaSweeperGPU
         return CudaSweeperGPU
+    if name == "jax":
+        try:
+            from vbi.simulator.backend.jax_.simulator import JaxSweeper
+            return JaxSweeper
+        except ImportError as exc:
+            raise ImportError(
+                "JAX backend requires jax: pip install jax"
+            ) from exc
     raise ImportError(
         f"Sweep backend {name!r} is not available. "
-        "Available: 'numpy', 'numba', 'cpp', 'cuda'. Coming: 'jax'."
+        "Available: 'numpy', 'numba', 'cpp', 'cuda', 'jax'."
     )
