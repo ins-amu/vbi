@@ -35,4 +35,11 @@ gast_sf = ModelSpec(
         "in spiking neural networks with short-term adaptation. "
         "Neural Computation 32(9):1615-1634, 2020."
     ),
+    dfun_latex={
+        "r": r"\frac{1}{\tau}\!\left(\frac{\Delta}{\pi\tau} + 2Vr\right)",
+        "V": r"\frac{1}{\tau}\!\left(V^2 - (\pi\tau r)^2 + \eta + J\tau r - A + I"
+             r" + c_r\,c_r^{\rm net} + c_v\,c_V^{\rm net}\right)",
+        "A": r"\frac{B}{\tau_A}",
+        "B": r"\frac{1}{\tau_A}\!\left(-2B - A + \alpha r\right)",
+    },
 )

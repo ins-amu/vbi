@@ -32,4 +32,11 @@ reduced_wong_wang = ModelSpec(
     },
     noise_variables=("S",),
     reference="Deco G et al. J Neurosci. 2013;32(27):11239-11252. doi:10.1523/JNEUROSCI.1091-12.2013",
+    dfun_latex={
+        "S": r"-\frac{S}{\tau_s} + (1-S)\,\gamma\,H(x)",
+    },
+    latex_notes=(
+        r"Input: $x = wJ_N S + I_o + J_N c^{\rm net}$. "
+        r"Transfer function: $H(x) = \dfrac{ax - b}{1 - e^{-d(ax-b)}}$."
+    ),
 )

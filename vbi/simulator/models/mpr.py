@@ -30,4 +30,9 @@ mpr = ModelSpec(
     },
     noise_variables=("r", "V"),
     reference="Montbrio, Pazo, Roxin 2015 PLoS Comput Biol 11(12):e1004817",
+    dfun_latex={
+        "r": r"\frac{1}{\tau}\!\left(\frac{\Delta}{\pi\tau} + 2Vr\right)",
+        "V": r"\frac{1}{\tau}\!\left(V^2 - (\pi\tau r)^2 + \eta + J\tau r + I"
+             r" + c_r\,c_r^{\rm net} + c_v\,c_V^{\rm net}\right)",
+    },
 )

@@ -38,4 +38,8 @@ vep = ModelSpec(
         "Jirsa VK et al. On the nature of seizure dynamics. Brain 137(8):2210-2230, 2014. "
         "doi:10.1093/brain/awu133"
     ),
+    dfun_latex={
+        "x": r"1 - x^3 - 2x^2 - y + I_{\rm ext}",
+        "y": r"\frac{1}{\tau}\!\left(4(x - \eta) - y - c + G\,r_{\rm sum}\,x\right)",
+    },
 )

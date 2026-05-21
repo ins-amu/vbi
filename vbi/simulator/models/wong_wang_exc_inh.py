@@ -57,4 +57,14 @@ wong_wang_exc_inh = ModelSpec(
     },
     noise_variables=("S_e", "S_i"),
     reference="Deco G et al. J Neurosci. 2014;34(23):7886-7898. doi:10.1523/JNEUROSCI.5068-13.2014",
+    dfun_latex={
+        "S_e": r"-\frac{S_e}{\tau_e} + (1-S_e)\,\gamma_e\,H_e(u_e)",
+        "S_i": r"-\frac{S_i}{\tau_i} + \gamma_i\,H_i(u_i)",
+    },
+    latex_notes=(
+        r"Inputs: $u_e = a_e(w_p J_N S_e - J_i S_i + W_e I_o + J_N c + I_{\rm ext}) - b_e$, "
+        r"$\quad u_i = a_i(J_N S_e - S_i + W_i I_o + \lambda J_N c) - b_i$. "
+        r"Transfer function: $H(u) = \dfrac{u}{1 - e^{-d\,u}}$. "
+        r"$c = G\sum_j W_{ij} S_{e,j}$ (pre-scaled by simulator; do not multiply by $G$ again)."
+    ),
 )

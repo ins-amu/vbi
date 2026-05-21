@@ -55,4 +55,15 @@ wilson_cowan = ModelSpec(
     },
     noise_variables=("E", "I"),
     reference="Wilson HR, Cowan JD. Biophys J. 1972;12(1):1-24. doi:10.1016/S0006-3495(72)86068-5",
+    dfun_latex={
+        "E": r"\frac{1}{\tau_e}\!\left(-E + (k_e - r_e E)\,\mathcal{S}_e(x_e)\right)",
+        "I": r"\frac{1}{\tau_i}\!\left(-I + (k_i - r_i I)\,\mathcal{S}_i(x_i)\right)",
+    },
+    latex_notes=(
+        r"Inputs: $x_e = \alpha_e(c_{ee}E - c_{ei}I + P - \theta_e + c^{\rm net}) - b_e$, "
+        r"$\quad x_i = \alpha_i(c_{ie}E - c_{ii}I + Q - \theta_i) - b_i$. "
+        r"Sigmoid: $\mathcal{S}_*(x) = c_*\!\left[\dfrac{1}{1+e^{-a_* x}} "
+        r"- \dfrac{s_0}{1+e^{a_* b_*}}\right]$ where $s_0 = $ shift\_sigmoid "
+        r"(1 = TVB shifted, 0 = plain)."
+    ),
 )

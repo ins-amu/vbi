@@ -41,4 +41,18 @@ jansen_rit = ModelSpec(
     },
     noise_variables=("y4",),
     reference="Jansen BH, Rit VG. Biol Cybern. 1995;73(4):357-366. doi:10.1007/BF00199471",
+    dfun_latex={
+        "y0": r"y_3",
+        "y1": r"y_4",
+        "y2": r"y_5",
+        "y3": r"Aa\,S(y_1 - y_2) - 2a\,y_3 - a^2 y_0",
+        "y4": r"Aa\!\left(\mu + \alpha_2 J\,S(\alpha_1 J y_0) + c^{\rm net}\right) - 2a\,y_4 - a^2 y_1",
+        "y5": r"Bb\,\alpha_4 J\,S(\alpha_3 J y_0) - 2b\,y_5 - b^2 y_2",
+    },
+    latex_notes=(
+        r"Sigmoid: $S(v) = \dfrac{2\nu_{\max}}{1 + e^{r(v_0 - v)}}$. "
+        r"State variables: $y_0$ pyramidal soma, $y_1$ exc dendritic, $y_2$ inh dendritic; "
+        r"$y_3{=}\dot{y}_0,\; y_4{=}\dot{y}_1$ (noisy), $y_5{=}\dot{y}_2$. "
+        r"Long-range coupling $c^{\rm net}$ enters $\dot{y}_4$ only."
+    ),
 )

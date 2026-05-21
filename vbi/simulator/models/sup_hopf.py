@@ -22,4 +22,13 @@ sup_hopf = ModelSpec(
         "Deco G et al. The dynamics of resting fluctuations in the brain: "
         "metastability and its dynamical cortical core. Sci Rep 7:3095, 2017."
     ),
+    dfun_latex={
+        "x": r"(a - x^2 - y^2)\,x - \omega y + c_x^{\rm net}",
+        "y": r"(a - x^2 - y^2)\,y + \omega x + c_y^{\rm net}",
+    },
+    latex_notes=(
+        r"Linear coupling on both channels: $c_x = G\sum_j W_{ij} x_j$, "
+        r"$c_y = G\sum_j W_{ij} y_j$. "
+        r"For Laplacian coupling use `sl` or `ghb` instead."
+    ),
 )

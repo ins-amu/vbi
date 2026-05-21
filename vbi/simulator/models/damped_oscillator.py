@@ -26,4 +26,8 @@ damped_oscillator = ModelSpec(
         "Lotka AJ. Elements of Physical Biology. Williams & Wilkins, 1925. "
         "Volterra V. Fluctuations in the Abundance of a Species. Nature 118:558, 1926."
     ),
+    dfun_latex={
+        "x": r"x - xy - ax^2",
+        "y": r"xy - y - by^2",
+    },
 )

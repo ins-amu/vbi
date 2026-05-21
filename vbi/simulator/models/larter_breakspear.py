@@ -77,4 +77,22 @@ larter_breakspear = ModelSpec(
         "epileptic seizures. Chaos 9(3):795, 1999. "
         "Breakspear M et al. Network: Computation in Neural Systems 14:703-732, 2003."
     ),
+    dfun_latex={
+        "V": (
+            r"t_s\!\left["
+            r"-(g_{\rm Ca} + (1{-}C)\,r_{\rm NMDA}\,a_{ee}\,Q_V + C\,r_{\rm NMDA}\,a_{ee}\,c)\,m_{\rm Ca}(V-V_{\rm Ca})"
+            r" - g_K W(V-V_K) - g_L(V-V_L)"
+            r" - (g_{\rm Na}\,m_{\rm Na} + (1{-}C)\,a_{ee}\,Q_V + C\,a_{ee}\,c)(V-V_{\rm Na})"
+            r" - a_{ie}\,Z\,Q_Z + a_{ne}\,I_{\rm ext}"
+            r"\right]"
+        ),
+        "W": r"t_s\,\phi\,\frac{m_K - W}{\tau_K}",
+        "Z": r"t_s\,b\!\left(a_{ni}\,I_{\rm ext} + a_{ei}\,V\,Q_V\right)",
+    },
+    latex_notes=(
+        r"Gate variables: $m_X = \frac{1}{2}\!\left(1+\tanh\frac{V-T_X}{\delta_X}\right)$ for $X\in\{{\rm Ca,Na,K}\}$. "
+        r"Firing rates: $Q_V = \frac{1}{2}Q_V^{\max}\!\left(1+\tanh\frac{V-V_T}{\delta_V}\right)$, "
+        r"$Q_Z = \frac{1}{2}Q_Z^{\max}\!\left(1+\tanh\frac{Z-Z_T}{\delta_Z}\right)$. "
+        r"$C$ scales the long-range coupling $c^{\rm net}$; $C=0$ → no LRC."
+    ),
 )

@@ -38,4 +38,8 @@ ghb = ModelSpec(
         "metastability and its dynamical cortical core. Sci Rep 7:3095, 2017. "
         "doi:10.1038/s41598-017-03073-5"
     ),
+    dfun_latex={
+        "x": r"(\eta - x^2 - y^2)\,x - \omega y + c_x - G\,r_{\rm sum}\,x",
+        "y": r"(\eta - x^2 - y^2)\,y + \omega x + c_y - G\,r_{\rm sum}\,y",
+    },
 )

@@ -34,4 +34,9 @@ generic_2d_oscillator = ModelSpec(
         "Nagumo J et al. An active pulse transmission line simulating nerve axon. "
         "Proc IRE 50:2061, 1962."
     ),
+    dfun_latex={
+        "V": r"d\tau\!\left(\alpha W - fV^3 + eV^2 + gV + \gamma(I + c^{\rm net})\right)",
+        "W": r"\frac{d}{\tau}\!\left(a + bV + \kappa V^2 - \beta W\right)",
+    },
+    latex_notes=r"$\kappa$ = `c_coeff` (TVB parameter `c`, renamed to avoid collision with coupling alias).",
 )

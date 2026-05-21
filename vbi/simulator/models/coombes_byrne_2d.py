@@ -26,4 +26,9 @@ coombes_byrne_2d = ModelSpec(
         "Coombes S, Byrne A. Next generation neural mass models. "
         "In: Nonlinear Dynamics in Computational Neuroscience, Springer, 2019."
     ),
+    dfun_latex={
+        "r": r"\frac{\Delta}{\pi} + 2Vr - k\pi r^2",
+        "V": r"V^2 - \pi^2 r^2 + \eta + (v_{\rm syn} - V)\,k\pi r + c_r",
+    },
+    latex_notes=r"Intermediate $g = k\pi r$ is inlined. $c_r$ = long-range coupling on $r$.",
 )

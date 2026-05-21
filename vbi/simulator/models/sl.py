@@ -38,4 +38,8 @@ sl = ModelSpec(
         "Stuart A, Landau L. On the Problem of Turbulence. Dokl. Akad. Nauk USSR 44:311, 1944. "
         "Deco G et al. Sci Rep 7:3095, 2017. doi:10.1038/s41598-017-03073-5"
     ),
+    dfun_latex={
+        "x": r"(a - x^2 - y^2)\,x - \omega y + c_x - G\,r_{\rm sum}\,x",
+        "y": r"(a - x^2 - y^2)\,y + \omega x + c_y - G\,r_{\rm sum}\,y",
+    },
 )

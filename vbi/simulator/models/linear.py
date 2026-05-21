@@ -14,4 +14,8 @@ linear = ModelSpec(
     },
     noise_variables=("x",),
     reference="Linear relaxation model — baseline for stability analysis.",
+    dfun_latex={
+        "x": r"\gamma\,x + c^{\rm net}",
+    },
+    latex_notes=r"Stable when $\gamma < 0$. Coupling $c^{\rm net} = G\sum_j W_{ij} x_j$.",
 )
