@@ -26,9 +26,10 @@ class CppSimulator:
     """
 
     def build(self, spec: SimulationSpec, verbose: bool = False) -> None:
-        if spec.coupling.kind != "linear":
+        if spec.coupling.kind not in ("linear", "kuramoto"):
             raise NotImplementedError(
-                f"C++ backend supports 'linear' coupling; got {spec.coupling.kind!r}.")
+                f"C++ backend supports 'linear' and 'kuramoto' coupling; "
+                f"got {spec.coupling.kind!r}.")
 
         self.spec = spec
         self._mod  = build_or_load(spec, verbose=verbose)
@@ -36,14 +37,16 @@ class CppSimulator:
         dt      = spec.integrator.dt
         n_nodes = spec.n_nodes
 
-        # Flat (n_params * n_nodes,) C-contiguous params array
         self._params = np.ascontiguousarray(
             build_params_array(spec).ravel(), dtype=np.float64)
 
-        # Effective coupling scale:  G * CouplingSpec.a
         G = get_G(spec)
-        self._coup_a = float(spec.coupling.a * G)
-        self._coup_b = float(spec.coupling.b)
+        if spec.coupling.kind == "kuramoto":
+            self._coup_a = float(G / n_nodes)          # G/N
+            self._coup_b = float(spec.coupling.alpha)  # frustration angle
+        else:
+            self._coup_a = float(spec.coupling.a * G)
+            self._coup_b = float(spec.coupling.b)
 
         # Connectivity
         self._weights = np.ascontiguousarray(spec.weights, dtype=np.float64)

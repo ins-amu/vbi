@@ -52,18 +52,18 @@ def _coup_linear_instant(cvar_state, weights, G, a, b):
 # ---------------------------------------------------------------------------
 
 @njit(cache=True)
-def _coup_kuramoto_instant(cvar_state, weights, G, n_nodes):
+def _coup_kuramoto_instant(cvar_state, weights, G, n_nodes, alpha):
     """
-    c[tgt] = (G/N) * Σ_src W[tgt,src] * sin(theta[src] - theta[tgt])
-
-    cvar_state : (1, n_nodes)   cvar_state[0] = theta
+    c[tgt] = (G/N) Σ_src W[tgt,src] sin(theta[src] - theta[tgt] + alpha)
+    alpha=0 → standard Kuramoto; alpha≠0 → frustrated Kuramoto.
+    cvar_state : (1, n_nodes)
     """
     out = np.zeros((1, n_nodes))
     theta = cvar_state[0]
     for tgt in range(n_nodes):
         s = 0.0
         for src in range(n_nodes):
-            s += weights[tgt, src] * np.sin(theta[src] - theta[tgt])
+            s += weights[tgt, src] * np.sin(theta[src] - theta[tgt] + alpha)
         out[0, tgt] = (G / n_nodes) * s
     return out
 
@@ -74,12 +74,11 @@ def _coup_kuramoto_instant(cvar_state, weights, G, n_nodes):
 
 @njit(cache=True)
 def _coup_kuramoto_delayed(srcbuf, step, horizon, weights, delay_steps, G, n_nodes,
-                           current_theta):
+                           current_theta, alpha):
     """
-    c[tgt] = (G/N) * Σ_src W[tgt,src] * sin(theta_src(t-τ) - theta_tgt(t))
-
-    srcbuf        : (1, n_nodes, horizon)   ring buffer of theta values
-    current_theta : (n_nodes,)              current theta at target nodes
+    c[tgt] = (G/N) Σ_src W[tgt,src] sin(theta_src(t-τ) - theta_tgt(t) + alpha)
+    srcbuf        : (1, n_nodes, horizon)
+    current_theta : (n_nodes,)
     """
     out = np.zeros((1, n_nodes))
     t = step - 1
@@ -89,7 +88,7 @@ def _coup_kuramoto_delayed(srcbuf, step, horizon, weights, delay_steps, G, n_nod
             d = delay_steps[src, tgt]
             idx = (t - d + horizon) % horizon
             theta_src_delayed = srcbuf[0, src, idx]
-            s += weights[tgt, src] * np.sin(theta_src_delayed - current_theta[tgt])
+            s += weights[tgt, src] * np.sin(theta_src_delayed - current_theta[tgt] + alpha)
         out[0, tgt] = (G / n_nodes) * s
     return out
 
@@ -185,7 +184,7 @@ def nb_simulate_det(
     has_delays, cvar_indices,
     lower_bounds, has_lower, upper_bounds, has_upper,
     record_period, t_cut_step, n_voi, voi_indices,
-    use_heun, dfun_fn, use_kuramoto,
+    use_heun, dfun_fn, use_kuramoto, alpha,
 ):
     """
     Deterministic (no noise) simulation loop.
@@ -213,7 +212,7 @@ def nb_simulate_det(
             if use_kuramoto:
                 coupling = _coup_kuramoto_delayed(
                     srcbuf, step, horizon, weights, delay_steps, G, n_nodes,
-                    state[cvar_indices[0]])
+                    state[cvar_indices[0]], alpha)
             else:
                 coupling = _coup_linear_delayed(
                     srcbuf, step, horizon, weights, delay_steps, G, a, b)
@@ -222,7 +221,7 @@ def nb_simulate_det(
             for cv in range(n_cvar):
                 cvar_state[cv] = state[cvar_indices[cv]]
             if use_kuramoto:
-                coupling = _coup_kuramoto_instant(cvar_state, weights, G, n_nodes)
+                coupling = _coup_kuramoto_instant(cvar_state, weights, G, n_nodes, alpha)
             else:
                 coupling = _coup_linear_instant(cvar_state, weights, G, a, b)
 
@@ -267,7 +266,7 @@ def nb_simulate_stoch(
     lower_bounds, has_lower, upper_bounds, has_upper,
     eff_noise_amp, noise_mask,
     record_period, t_cut_step, n_voi, voi_indices,
-    use_heun, seed, dfun_fn, use_kuramoto,
+    use_heun, seed, dfun_fn, use_kuramoto, alpha,
 ):
     """
     Stochastic simulation loop.  Noise is generated inside the @njit function
@@ -299,7 +298,7 @@ def nb_simulate_stoch(
             if use_kuramoto:
                 coupling = _coup_kuramoto_delayed(
                     srcbuf, step, horizon, weights, delay_steps, G, n_nodes,
-                    state[cvar_indices[0]])
+                    state[cvar_indices[0]], alpha)
             else:
                 coupling = _coup_linear_delayed(
                     srcbuf, step, horizon, weights, delay_steps, G, a, b)
@@ -308,7 +307,7 @@ def nb_simulate_stoch(
             for cv in range(n_cvar):
                 cvar_state[cv] = state[cvar_indices[cv]]
             if use_kuramoto:
-                coupling = _coup_kuramoto_instant(cvar_state, weights, G, n_nodes)
+                coupling = _coup_kuramoto_instant(cvar_state, weights, G, n_nodes, alpha)
             else:
                 coupling = _coup_linear_instant(cvar_state, weights, G, a, b)
 
@@ -360,7 +359,7 @@ def nb_sweep_det(
     has_delays, cvar_indices,
     lower_bounds, has_lower, upper_bounds, has_upper,
     record_period, t_cut_step, n_voi, voi_indices,
-    use_heun, sweep_param_indices, dfun_fn, use_kuramoto,
+    use_heun, sweep_param_indices, dfun_fn, use_kuramoto, alpha,
 ):
     """
     Parallel sweep over param_sets rows — deterministic.
@@ -389,7 +388,7 @@ def nb_sweep_det(
             has_delays, cvar_indices,
             lower_bounds, has_lower, upper_bounds, has_upper,
             record_period, t_cut_step, n_voi, voi_indices,
-            use_heun, dfun_fn, use_kuramoto,
+            use_heun, dfun_fn, use_kuramoto, alpha,
         )
 
     return out
@@ -407,7 +406,7 @@ def nb_sweep_stoch(
     lower_bounds, has_lower, upper_bounds, has_upper,
     eff_noise_amp, noise_mask,
     record_period, t_cut_step, n_voi, voi_indices,
-    use_heun, sweep_param_indices, seeds, dfun_fn, use_kuramoto,
+    use_heun, sweep_param_indices, seeds, dfun_fn, use_kuramoto, alpha,
 ):
     """
     Parallel sweep over param_sets rows — stochastic.
@@ -489,7 +488,7 @@ def nb_sweep_det_feat(
             has_delays, cvar_indices,
             lower_bounds, has_lower, upper_bounds, has_upper,
             record_period, t_cut_step, n_voi, voi_indices,
-            use_heun, dfun_fn, use_kuramoto,
+            use_heun, dfun_fn, use_kuramoto, alpha,
         )
 
         # Extract features from voi=0  →  (n_record, n_nodes)

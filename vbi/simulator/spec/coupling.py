@@ -12,3 +12,5 @@ class CouplingSpec:
     # sigmoidal extras
     midpoint: float = 0.0
     sigma: float = 1.0
+    # kuramoto: frustration (phase offset) in sin(θ_j - θ_i + alpha)
+    alpha: float = 0.0

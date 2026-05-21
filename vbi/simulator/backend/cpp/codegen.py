@@ -226,6 +226,7 @@ def render_sim_module(spec: SimulationSpec, cache_key: str) -> str:
             "bounds":       _build_bounds(spec.model),
             "noise_indices": noise_indices,
             "cache_key":    cache_key,
+            "coup_kind":    spec.coupling.kind,
         },
     )
 

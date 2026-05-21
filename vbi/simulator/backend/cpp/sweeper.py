@@ -83,9 +83,10 @@ class CppSweeper:
 
     def __init__(self, spec: SimulationSpec, sweep_spec: SweepSpec,
                  n_workers: int | None = None):
-        if spec.coupling.kind != "linear":
+        if spec.coupling.kind not in ("linear", "kuramoto"):
             raise NotImplementedError(
-                f"C++ sweeper supports 'linear' coupling; got {spec.coupling.kind!r}.")
+                f"C++ sweeper supports 'linear' and 'kuramoto' coupling; "
+                f"got {spec.coupling.kind!r}.")
 
         self.spec       = spec
         self.sweep      = sweep_spec
@@ -101,8 +102,12 @@ class CppSweeper:
             build_params_array(spec).ravel(), dtype=np.float64)
 
         G = get_G(spec)
-        self._coup_a = float(spec.coupling.a * G)
-        self._coup_b = float(spec.coupling.b)
+        if spec.coupling.kind == "kuramoto":
+            self._coup_a = float(G / n_nodes)
+            self._coup_b = float(spec.coupling.alpha)
+        else:
+            self._coup_a = float(spec.coupling.a * G)
+            self._coup_b = float(spec.coupling.b)
 
         self._weights   = np.ascontiguousarray(spec.weights.ravel(), dtype=np.float64)
         self._idelays   = np.ascontiguousarray(spec.delay_steps(dt).ravel(), dtype=np.int32)

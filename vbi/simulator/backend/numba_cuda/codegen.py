@@ -77,7 +77,8 @@ def _cuda_expr(expr: str) -> str:
     return expr
 
 
-def _generate_source(spec: ModelSpec, sparse: bool = False) -> str:
+def _generate_source(spec: ModelSpec, sparse: bool = False,
+                     use_kuramoto: bool = False, alpha: float = 0.0) -> str:
     """
     Generate a complete Python module with:
       - _dfun_cuda        : @cuda.jit(device=True) scalar dfun
@@ -118,7 +119,7 @@ def _generate_source(spec: ModelSpec, sparse: bool = False) -> str:
     # ----------------------------------------------------------------
     # Kernel generator (shared structure for det / stoch)
     # ----------------------------------------------------------------
-    def _kernel(stochastic: bool) -> list[str]:
+    def _kernel(stochastic: bool) -> list[str]:  # noqa: C901
         kn = "cuda_sweep_stoch" if stochastic else "cuda_sweep_det"
         conn_args = (
             [
@@ -189,9 +190,12 @@ def _generate_source(spec: ModelSpec, sparse: bool = False) -> str:
         # Coupling
         K.append("")
         K.append("            # -- coupling --")
-        for cv_i, cv_name in enumerate(cvars):
-            ci = f"cvar_indices[{cv_i}]"
-            K.append(f"            _s{cv_i} = float32(0.0)")
+        if use_kuramoto:
+            # Kuramoto: c[node] = (G/N) Σ_src W[node,src] sin(θ_src − θ_node + alpha)
+            # coup_a = G/N, coup_b = alpha
+            cv0 = f"cvar_indices[0]"
+            K.append(f"            _theta_node = state[{cv0}, node, tid]")
+            K.append(f"            _s0 = float32(0.0)")
             if sparse:
                 K.append(f"            _rstart = w_indptr[node]")
                 K.append(f"            _rend   = w_indptr[node + 1]")
@@ -201,20 +205,47 @@ def _generate_source(spec: ModelSpec, sparse: bool = False) -> str:
                 K.append(f"                if has_delays:")
                 K.append(f"                    _d   = idelays_csr[_ptr]")
                 K.append(f"                    _idx = (step - 1 - _d + horizon) % horizon")
-                K.append(f"                    _s{cv_i} += _w * buf[{cv_i}, _src, _idx, tid]")
+                K.append(f"                    _s0 += _w * math.sin(buf[0, _src, _idx, tid] - _theta_node + coup_b)")
                 K.append(f"                else:")
-                K.append(f"                    _s{cv_i} += _w * state[{ci}, _src, tid]")
+                K.append(f"                    _s0 += _w * math.sin(state[{cv0}, _src, tid] - _theta_node + coup_b)")
             else:
                 K.append(f"            if has_delays:")
                 K.append(f"                _tl = step - 1")
                 K.append(f"                for _src in range(n_nodes):")
                 K.append(f"                    _d   = delay_steps[_src, node]")
                 K.append(f"                    _idx = (_tl - _d + horizon) % horizon")
-                K.append(f"                    _s{cv_i} += weights[node, _src] * buf[{cv_i}, _src, _idx, tid]")
+                K.append(f"                    _s0 += weights[node, _src] * math.sin(buf[0, _src, _idx, tid] - _theta_node + coup_b)")
                 K.append(f"            else:")
                 K.append(f"                for _src in range(n_nodes):")
-                K.append(f"                    _s{cv_i} += weights[node, _src] * state[{ci}, _src, tid]")
-            K.append(f"            coup[{cv_i}] = coup_a * _s{cv_i} + coup_b")
+                K.append(f"                    _s0 += weights[node, _src] * math.sin(state[{cv0}, _src, tid] - _theta_node + coup_b)")
+            K.append(f"            coup[0] = coup_a * _s0")
+        else:
+            for cv_i, cv_name in enumerate(cvars):
+                ci = f"cvar_indices[{cv_i}]"
+                K.append(f"            _s{cv_i} = float32(0.0)")
+                if sparse:
+                    K.append(f"            _rstart = w_indptr[node]")
+                    K.append(f"            _rend   = w_indptr[node + 1]")
+                    K.append(f"            for _ptr in range(_rstart, _rend):")
+                    K.append(f"                _src = w_indices[_ptr]")
+                    K.append(f"                _w   = w_data[_ptr]")
+                    K.append(f"                if has_delays:")
+                    K.append(f"                    _d   = idelays_csr[_ptr]")
+                    K.append(f"                    _idx = (step - 1 - _d + horizon) % horizon")
+                    K.append(f"                    _s{cv_i} += _w * buf[{cv_i}, _src, _idx, tid]")
+                    K.append(f"                else:")
+                    K.append(f"                    _s{cv_i} += _w * state[{ci}, _src, tid]")
+                else:
+                    K.append(f"            if has_delays:")
+                    K.append(f"                _tl = step - 1")
+                    K.append(f"                for _src in range(n_nodes):")
+                    K.append(f"                    _d   = delay_steps[_src, node]")
+                    K.append(f"                    _idx = (_tl - _d + horizon) % horizon")
+                    K.append(f"                    _s{cv_i} += weights[node, _src] * buf[{cv_i}, _src, _idx, tid]")
+                    K.append(f"            else:")
+                    K.append(f"                for _src in range(n_nodes):")
+                    K.append(f"                    _s{cv_i} += weights[node, _src] * state[{ci}, _src, tid]")
+                K.append(f"            coup[{cv_i}] = coup_a * _s{cv_i} + coup_b")
 
         # k1
         K.append("")
@@ -312,9 +343,11 @@ def _hash(src: str) -> str:
     return hashlib.sha256(src.encode()).hexdigest()[:24]
 
 
-def build_cuda_module(spec: ModelSpec, sparse: bool = False) -> types.ModuleType:
+def build_cuda_module(spec: ModelSpec, sparse: bool = False,
+                      use_kuramoto: bool = False,
+                      alpha: float = 0.0) -> types.ModuleType:
     """Generate, cache and exec() the complete CUDA module."""
-    src = _generate_source(spec, sparse=sparse)
+    src = _generate_source(spec, sparse=sparse, use_kuramoto=use_kuramoto, alpha=alpha)
     key = _hash(src)
     if key in _MODULE_CACHE:
         return _MODULE_CACHE[key]

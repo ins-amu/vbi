@@ -56,6 +56,7 @@ class NumbaSweeperCPU:
                 f"got {spec.coupling.kind!r}."
             )
         self._use_kuramoto = spec.coupling.kind == "kuramoto"
+        self._alpha = np.float64(spec.coupling.alpha)
 
         self._dfun   = build_numba_dfun(spec.model)
         self._params = build_params(spec)
@@ -143,7 +144,7 @@ class NumbaSweeperCPU:
                 self._eff_noise_amp, self._noise_mask,
                 record_period, t_cut_step, n_voi, voi_indices,
                 self._use_heun, self._sweep_param_indices, seeds,
-                self._dfun, self._use_kuramoto,
+                self._dfun, self._use_kuramoto, self._alpha,
             )
         else:
             raw = nb_sweep_det(
@@ -155,7 +156,7 @@ class NumbaSweeperCPU:
                 self._upper_bounds, self._has_upper,
                 record_period, t_cut_step, n_voi, voi_indices,
                 self._use_heun, self._sweep_param_indices, self._dfun,
-                self._use_kuramoto,
+                self._use_kuramoto, self._alpha,
             )
 
         return raw, record_period  # (n_samples, n_record, n_sv, n_nodes)
@@ -236,10 +237,10 @@ class NumbaSweeperCPU:
                     nb_spec.do_mean, nb_spec.do_std,
                     nb_spec.do_fc, nb_spec.do_fcd,
                     np.int64(nb_spec.fcd_window), np.int64(n_feat),
-                    self._dfun, self._use_kuramoto,
+                    self._dfun, self._use_kuramoto, self._alpha,
                 )
             else:
-                feat_vals = nb_sweep_det_feat(*common_args, self._use_kuramoto)
+                feat_vals = nb_sweep_det_feat(*common_args, self._use_kuramoto, self._alpha)
 
             values = np.concatenate([ps, feat_vals], axis=1)
             return param_names + feat_labels, values

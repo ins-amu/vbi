@@ -4,15 +4,18 @@ Kuramoto model: VBI simulator vs pure-NumPy reference.
 Verifies that the VBI KuramotoCoupling produces trajectories identical to a
 single self-contained NumPy implementation using the same Heun integrator.
 
-Both implementations solve:
+Both implementations solve the (frustrated) Kuramoto model:
 
-    dθ_i/dt = ω_i + (G/N) Σ_j W_{ij} sin(θ_j − θ_i)
+    dθ_i/dt = ω_i + (G/N) Σ_j W_{ij} sin(θ_j − θ_i + α)
+
+where α (--alpha) is the frustration angle. α=0 gives the standard model.
 
 Run
 ---
-    python kuramoto_demo.py                  # 5-node complete graph, 500 ms
+    python kuramoto_demo.py                        # 5-node complete graph
     python kuramoto_demo.py --n 10 --duration 1000
-    python kuramoto_demo.py --delayed        # add 5 ms axonal delay
+    python kuramoto_demo.py --delayed              # add 5 ms axonal delay
+    python kuramoto_demo.py --alpha 0.5236         # frustrated  (α = π/6)
 """
 
 from __future__ import annotations
@@ -52,16 +55,14 @@ def kuramoto_heun(
     dt: float,
     n_steps: int,
     delays: np.ndarray | None = None,
+    alpha: float = 0.0,
 ) -> tuple[np.ndarray, np.ndarray]:
     """
-    Integrate the Kuramoto model with Heun's method (frozen-coupling convention).
+    Integrate the (frustrated) Kuramoto model with Heun's method.
 
-    This matches the VBI / TVB simulator convention: the coupling term
-    c_i = (G/N) Σ_j W_{ij} sin(θ_j − θ_i)  is computed once at the start
-    of each step from the current (or delayed) phases and held fixed for
-    both stages of Heun.  Because the Kuramoto dfun is entirely the coupling
-    term (dθ/dt = ω + c, no additional state-dependent nonlinearity), the
-    frozen-coupling Heun reduces to a first-order Euler step.
+    Uses the frozen-coupling convention (VBI / TVB): coupling is computed once
+    per step and held fixed for both Heun stages.  For Kuramoto (dfun = ω + c)
+    this reduces to Euler.
 
     Parameters
     ----------
@@ -72,6 +73,7 @@ def kuramoto_heun(
     dt      : float           time step [ms]
     n_steps : int             number of integration steps
     delays  : (N, N) | None   axonal delays [ms]; None → zero delay
+    alpha   : float           frustration angle [rad]  (default 0)
 
     Returns
     -------
@@ -93,12 +95,10 @@ def kuramoto_heun(
         buf = None
 
     def compute_coupling(step: int, current_theta: np.ndarray) -> np.ndarray:
-        """c[tgt] = (G/N) Σ_src W[tgt,src] sin(θ_src − θ_tgt)"""
+        """c[tgt] = (G/N) Σ_src W[tgt,src] sin(θ_src − θ_tgt + alpha)"""
         if buf is None:
-            # zero delay: diff[src, tgt] = theta[src] - theta[tgt]
             diff = current_theta[:, np.newaxis] - current_theta[np.newaxis, :]
         else:
-            # delayed: θ_src(t−τ_{src→tgt}) − θ_tgt(t)
             diff = np.empty((N, N))   # diff[src, tgt]
             t_last = step - 1
             for src in range(N):
@@ -106,8 +106,7 @@ def kuramoto_heun(
                     d = delay_steps[src, tgt]
                     idx = (t_last - d + horizon) % horizon
                     diff[src, tgt] = buf[idx, src] - current_theta[tgt]
-        # c[tgt] = (G/N) * Σ_src W[tgt,src] * sin(diff[src,tgt])
-        return (G / N) * (weights * np.sin(diff.T)).sum(axis=1)
+        return (G / N) * (weights * np.sin(diff.T + alpha)).sum(axis=1)
 
     for step in range(1, n_steps):
         th = theta[step - 1]
@@ -142,17 +141,17 @@ def run_vbi(
     duration: float,
     tract_lengths: np.ndarray | None,
     speed: float,
+    alpha: float = 0.0,
 ) -> tuple[np.ndarray, np.ndarray]:
     import dataclasses
 
-    # Set per-node initial phases via StateVar.default_init (broadcast by _build_initial_state)
     sv_with_init = (dataclasses.replace(kuramoto.state_variables[0], default_init=theta0),)
     model_with_init = dataclasses.replace(kuramoto, state_variables=sv_with_init)
 
     spec = SimulationSpec(
         model=model_with_init,
         integrator=IntegratorSpec(method="heun", dt=dt),
-        coupling=CouplingSpec(kind="kuramoto"),
+        coupling=CouplingSpec(kind="kuramoto", alpha=alpha),
         monitors=(MonitorSpec(kind="raw"),),
         weights=weights,
         tract_lengths=tract_lengths,
@@ -179,11 +178,17 @@ def save_comparison_plot(
     ref_theta: np.ndarray,
     out_path: Path,
     delayed: bool,
+    alpha: float = 0.0,
 ) -> None:
     N = vbi_theta.shape[1]
     fig, axes = plt.subplots(4, 1, figsize=(11, 10), tight_layout=True)
     colors = plt.cm.tab10(np.linspace(0, 0.9, N))
-    subtitle = "  (delayed)" if delayed else ""
+    tags = []
+    if delayed:
+        tags.append("delayed")
+    if alpha != 0.0:
+        tags.append(f"α={alpha:.4g} rad")
+    subtitle = ("  (" + ", ".join(tags) + ")") if tags else ""
 
     # --- panel 1: sin(θ) per node ---
     ax = axes[0]
@@ -250,6 +255,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--duration", type=float, default=100.0,  help="simulation time [ms]")
     p.add_argument("--dt",       type=float, default=0.01,   help="time step [ms]")
     p.add_argument("--G",        type=float, default=0.5,    help="global coupling strength")
+    p.add_argument("--alpha",    type=float, default=0.0,    help="frustration angle [rad]")
     p.add_argument("--delayed",  action="store_true",        help="add 5 ms axonal delay")
     p.add_argument("--speed",    type=float, default=1.0,    help="axonal speed [mm/ms]")
     p.add_argument("--tract",    type=float, default=5.0,    help="tract length [mm]")
@@ -288,6 +294,7 @@ def main() -> None:
         dt=args.dt,
         n_steps=n_steps,
         delays=delays_ms,
+        alpha=args.alpha,
     )
 
     # --- VBI simulator ---
@@ -300,6 +307,7 @@ def main() -> None:
         duration=args.duration,
         tract_lengths=tract_lengths,
         speed=speed,
+        alpha=args.alpha,
     )
 
     # align lengths (VBI may produce one fewer sample depending on rounding)
@@ -310,12 +318,18 @@ def main() -> None:
     max_err = np.abs(theta_vbi - theta_ref).max()
     rms_err = np.sqrt(np.mean((theta_vbi - theta_ref) ** 2))
 
+    extras = []
+    if args.delayed:
+        extras.append(f"delayed={args.tract} mm")
+    if args.alpha != 0.0:
+        extras.append(f"alpha={args.alpha:.4g} rad")
     print(f"Kuramoto  N={N}  G={args.G}  dt={args.dt} ms"
-          f"{'  delayed=' + str(args.tract) + ' mm' if args.delayed else ''}")
+          + (("  " + "  ".join(extras)) if extras else ""))
     print(f"omega: {np.round(omega, 3)}")
     print(f"max |err|: {max_err:.3e}   rms |err|: {rms_err:.3e}")
 
-    save_comparison_plot(t_ref, theta_vbi, theta_ref, args.output, args.delayed)
+    save_comparison_plot(t_ref, theta_vbi, theta_ref, args.output,
+                         args.delayed, alpha=args.alpha)
 
 
 if __name__ == "__main__":

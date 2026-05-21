@@ -218,6 +218,95 @@ def test_heterogeneous_params_numba_matches_numpy(model, param, values, dt):
 
 
 # ---------------------------------------------------------------------------
+# Kuramoto sinusoidal coupling (kind='kuramoto') — Numba vs NumPy
+# ---------------------------------------------------------------------------
+
+class TestKuramotoCouplingNumba:
+    """Verify that the Numba backend reproduces NumPy for kind='kuramoto'."""
+
+    def _kuramoto_spec(self, n, theta0, omega, G, dt=0.01,
+                       tract_lengths=None, speed=1.0):
+        import dataclasses
+        W = _weights(n, seed=42)
+        sv  = (dataclasses.replace(kuramoto.state_variables[0], default_init=theta0),)
+        mdl = dataclasses.replace(kuramoto, state_variables=sv)
+        return SimulationSpec(
+            model=mdl,
+            integrator=IntegratorSpec(method="heun", dt=dt),
+            coupling=CouplingSpec("kuramoto"),
+            monitors=(MonitorSpec("raw"),),
+            weights=W,
+            tract_lengths=tract_lengths,
+            speed=speed,
+            node_params={"omega": omega, "G": G},
+        )
+
+    def test_deterministic_matches_numpy(self):
+        """Zero-delay sinusoidal Kuramoto: Numba must match NumPy to rtol=1e-4."""
+        n = 5
+        rng = np.random.default_rng(3)
+        theta0 = rng.uniform(-np.pi, np.pi, n)
+        omega  = rng.uniform(0.5, 2.0, n)
+        spec = self._kuramoto_spec(n, theta0, omega, G=0.5)
+        _, d_np = _np(spec, 50.0)
+        _, d_nb = _nb(spec, 50.0)
+        np.testing.assert_allclose(
+            d_nb, d_np, rtol=1e-4,
+            err_msg="Kuramoto sinusoidal: Numba diverges from NumPy")
+
+    def test_euler_matches_numpy(self):
+        """Euler integrator: Numba sinusoidal Kuramoto must also match NumPy."""
+        import dataclasses
+        n = 4
+        rng = np.random.default_rng(5)
+        theta0 = rng.uniform(-np.pi, np.pi, n)
+        omega  = rng.uniform(0.5, 2.0, n)
+        W = _weights(n, seed=42)
+        sv  = (dataclasses.replace(kuramoto.state_variables[0], default_init=theta0),)
+        mdl = dataclasses.replace(kuramoto, state_variables=sv)
+        spec = SimulationSpec(
+            model=mdl,
+            integrator=IntegratorSpec(method="euler", dt=0.01),
+            coupling=CouplingSpec("kuramoto"),
+            monitors=(MonitorSpec("raw"),),
+            weights=W,
+            node_params={"omega": omega, "G": 0.5},
+        )
+        _, d_np = _np(spec, 30.0)
+        _, d_nb = _nb(spec, 30.0)
+        np.testing.assert_allclose(
+            d_nb, d_np, rtol=1e-4,
+            err_msg="Kuramoto sinusoidal Euler: Numba diverges from NumPy")
+
+    def test_delayed_matches_numpy(self):
+        """Delayed sinusoidal Kuramoto: ring-buffer handling must match NumPy."""
+        import dataclasses
+        n = 4
+        rng = np.random.default_rng(11)
+        theta0 = rng.uniform(-np.pi, np.pi, n)
+        omega  = rng.uniform(0.5, 2.0, n)
+        W = _weights(n, seed=42)
+        tract = np.abs(rng.standard_normal((n, n))) * 10.0
+        np.fill_diagonal(tract, 0.0)
+        sv  = (dataclasses.replace(kuramoto.state_variables[0], default_init=theta0),)
+        mdl = dataclasses.replace(kuramoto, state_variables=sv)
+        spec = SimulationSpec(
+            model=mdl,
+            integrator=IntegratorSpec(method="heun", dt=0.01),
+            coupling=CouplingSpec("kuramoto"),
+            monitors=(MonitorSpec("raw"),),
+            weights=W,
+            tract_lengths=tract,
+            speed=1.0,
+            node_params={"omega": omega, "G": 0.5},
+        )
+        _, d_np = _np(spec, 30.0)
+        _, d_nb = _nb(spec, 30.0)
+        np.testing.assert_allclose(
+            d_nb, d_np, rtol=1e-4,
+            err_msg="Delayed Kuramoto sinusoidal: Numba diverges from NumPy")
+
+# ---------------------------------------------------------------------------
 # Sweep: Numba sweep must match NumPy sweep for new models
 # ---------------------------------------------------------------------------
 

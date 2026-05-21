@@ -189,6 +189,33 @@ def _sigmoidal_coupling(
     return G * a * jnp.einsum("ts,cs->ct", weights, sig) + b
 
 
+def _kuramoto_coupling_instant(
+        cvar_state: jnp.ndarray, weights: jnp.ndarray,
+        G: float, n_nodes: int, alpha: float = 0.0) -> jnp.ndarray:
+    """c[tgt] = (G/N) Σ_src W[tgt,src] sin(θ_src − θ_tgt + alpha)."""
+    theta = cvar_state[0]
+    diff  = theta[:, None] - theta[None, :] + alpha
+    c = (G / n_nodes) * jnp.einsum("ts,st->t", weights, jnp.sin(diff))
+    return c[None, :]
+
+
+def _read_delayed_kuramoto_coupling(
+        buf, step, delay_steps, weights, G, horizon, n_nodes,
+        current_state, alpha: float = 0.0) -> jnp.ndarray:
+    """Delayed Kuramoto: c[tgt] = (G/N) Σ_src W[tgt,src] sin(θ_src(t-τ) − θ_tgt(t) + alpha)."""
+    idx_time = (step - delay_steps) % horizon
+    src_idx  = jnp.arange(n_nodes, dtype=jnp.int32)
+    flat_idx = idx_time * n_nodes + src_idx[None, :]
+
+    buf_theta = buf[:, 0, :]
+    theta_src_delayed = buf_theta.reshape(-1)[flat_idx]
+
+    theta_tgt = current_state[0]
+    diff = theta_src_delayed - theta_tgt[:, None] + alpha
+    c = (G / n_nodes) * jnp.einsum("ts,ts->t", weights, jnp.sin(diff))
+    return c[None, :]
+
+
 # ---------------------------------------------------------------------------
 # Integrators (pure JAX, traceable)
 # ---------------------------------------------------------------------------
@@ -235,6 +262,7 @@ def _make_step_fn(
         coup_kind: str,
         coup_midpoint: float,
         coup_sigma: float,
+        coup_alpha: float,
         use_heun: bool,
         stochastic: bool,
         noise_amp: jnp.ndarray,
@@ -254,6 +282,12 @@ def _make_step_fn(
     def _coupling(buf, step, state, params):
         # G from params so that swept G (vmap) and grad both work correctly
         G = params.get("G", G_default)
+        if coup_kind == "kuramoto":
+            if has_delays:
+                return _read_delayed_kuramoto_coupling(
+                    buf, step, delay_steps, weights,
+                    G, horizon, n_nodes, state, coup_alpha)
+            return _kuramoto_coupling_instant(state[cvar_idx], weights, G, n_nodes, coup_alpha)
         if has_delays:
             return _read_delayed_coupling(
                 buf, step, delay_steps, weights,
@@ -427,6 +461,7 @@ class JaxSimulator:
             coup_kind=spec.coupling.kind,
             coup_midpoint=float(getattr(spec.coupling, "midpoint", 0.0)),
             coup_sigma=float(getattr(spec.coupling, "sigma", 1.0)),
+            coup_alpha=float(getattr(spec.coupling, "alpha", 0.0)),
             use_heun=(spec.integrator.method == "heun"),
             stochastic=stochastic,
             noise_amp=self._noise_amp,

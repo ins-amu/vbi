@@ -76,38 +76,30 @@ class SigmoidalCoupling:
 
 class KuramotoCoupling:
     """
-    c[tgt] = (G / N) * Σ_src  W[tgt, src] * sin(θ_src(t-τ) - θ_tgt(t))
+    c[tgt] = (G/N) Σ_src W[tgt,src] sin(θ_src(t-τ) − θ_tgt(t) + alpha)
 
-    Standard sinusoidal Kuramoto coupling.  N = number of nodes.
-    With zero delay θ_src(t-τ) = θ_src(t), so all phases come from the
-    current state and the full sin(θ_j - θ_i) form is exact.
+    alpha=0 gives the standard Kuramoto coupling; alpha≠0 adds frustration.
     """
 
-    def __init__(self, weights: np.ndarray, G: float):
+    def __init__(self, weights: np.ndarray, G: float, alpha: float = 0.0):
         self.weights = weights
         self.G = G
         self.N = weights.shape[0]
+        self.alpha = alpha
 
     def compute(self, delayed_state: np.ndarray,
                 current_state: np.ndarray) -> np.ndarray:
-        """
-        delayed_state : (1, n_src, n_tgt)  — θ_src delayed per (src→tgt) pair
-        current_state : (n_sv, n_nodes)    — current state; row 0 = θ_tgt
-        """
-        theta_src = delayed_state[0]           # (n_src, n_tgt)
-        theta_tgt = current_state[0]           # (n_nodes,)
-        diff = theta_src - theta_tgt[np.newaxis, :]  # (n_src, n_tgt)
-        # c[tgt] = G/N * Σ_src W[tgt,src] * sin(diff[src,tgt])
+        theta_src = delayed_state[0]
+        theta_tgt = current_state[0]
+        diff = theta_src - theta_tgt[np.newaxis, :] + self.alpha
         c = (self.G / self.N) * np.einsum('ts,st->t', self.weights, np.sin(diff))
-        return c[np.newaxis, :]  # (1, n_nodes)
+        return c[np.newaxis, :]
 
     def compute_instant(self, cvar_state: np.ndarray) -> np.ndarray:
-        """Zero-delay path — all phases are current so diff = θ_src - θ_tgt exactly."""
-        theta = cvar_state[0]                          # (n_nodes,)
-        # diff[src, tgt] = theta[src] - theta[tgt]
-        diff = theta[:, np.newaxis] - theta[np.newaxis, :]  # (n_src, n_tgt)
+        theta = cvar_state[0]
+        diff = theta[:, np.newaxis] - theta[np.newaxis, :] + self.alpha
         c = (self.G / self.N) * np.einsum('ts,st->t', self.weights, np.sin(diff))
-        return c[np.newaxis, :]  # (1, n_nodes)
+        return c[np.newaxis, :]
 
 
 def build_coupling(spec: CouplingSpec, weights: np.ndarray,
@@ -117,5 +109,5 @@ def build_coupling(spec: CouplingSpec, weights: np.ndarray,
     if spec.kind == "sigmoidal":
         return SigmoidalCoupling(spec, weights, G)
     if spec.kind == "kuramoto":
-        return KuramotoCoupling(weights, G)
+        return KuramotoCoupling(weights, G, alpha=spec.alpha)
     raise ValueError(f"Unknown coupling kind: {spec.kind!r}")

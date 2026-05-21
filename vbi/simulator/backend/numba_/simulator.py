@@ -111,6 +111,7 @@ class NumbaSimulator:
                 f"got {spec.coupling.kind!r}."
             )
         self._use_kuramoto = spec.coupling.kind == "kuramoto"
+        self._alpha = np.float64(spec.coupling.alpha)
 
         self._dfun  = build_numba_dfun(spec.model)
         self._params = build_params(spec)
@@ -172,7 +173,7 @@ class NumbaSimulator:
                 self._eff_noise_amp, self._noise_mask,
                 record_period, t_cut_step, n_sv, voi_indices,
                 self._use_heun, np.int64(spec.integrator.noise_seed),
-                self._dfun, self._use_kuramoto,
+                self._dfun, self._use_kuramoto, self._alpha,
             )
         else:
             raw_data = nb_simulate_det(
@@ -184,7 +185,7 @@ class NumbaSimulator:
                 self._lower_bounds, self._has_lower,
                 self._upper_bounds, self._has_upper,
                 record_period, t_cut_step, n_sv, voi_indices,
-                self._use_heun, self._dfun, self._use_kuramoto,
+                self._use_heun, self._dfun, self._use_kuramoto, self._alpha,
             )
 
         # raw_data: (n_record, n_sv, n_nodes)

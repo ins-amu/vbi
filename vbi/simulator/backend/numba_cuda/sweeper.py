@@ -85,10 +85,13 @@ class CudaSweeperGPU:
     def __init__(self, spec: SimulationSpec, sweep_spec: SweepSpec,
                  connectivity: str = "auto"):
         _require_cuda()
-        if spec.coupling.kind != "linear":
+        if spec.coupling.kind not in ("linear", "kuramoto"):
             raise NotImplementedError(
-                f"CUDA backend supports 'linear' coupling; got {spec.coupling.kind!r}."
+                f"CUDA backend supports 'linear' and 'kuramoto' coupling; "
+                f"got {spec.coupling.kind!r}."
             )
+        _use_kuramoto = spec.coupling.kind == "kuramoto"
+        _alpha        = float(spec.coupling.alpha)
 
         self.spec  = spec
         self.sweep = sweep_spec
@@ -106,7 +109,8 @@ class CudaSweeperGPU:
             self._sparse = False
 
         # Compile CUDA module (kernel source depends on sparse flag)
-        self._mod = build_cuda_module(model, sparse=self._sparse)
+        self._mod = build_cuda_module(model, sparse=self._sparse,
+                                      use_kuramoto=_use_kuramoto, alpha=_alpha)
 
         # Connectivity arrays
         self._weights_f32  = np.ascontiguousarray(spec.weights, dtype=np.float32)
@@ -129,8 +133,12 @@ class CudaSweeperGPU:
         G = float(np.asarray(
             spec.node_params.get("G", model.default_params.get("G", 1.0))
         ).mean())
-        self._coup_a = np.float32(spec.coupling.a * G)
-        self._coup_b = np.float32(spec.coupling.b)
+        if _use_kuramoto:
+            self._coup_a = np.float32(G / n_nodes)
+            self._coup_b = np.float32(_alpha)
+        else:
+            self._coup_a = np.float32(spec.coupling.a * G)
+            self._coup_b = np.float32(spec.coupling.b)
 
         # State / bounds
         self._lo, self._hlo, self._hi, self._hhi = get_bounds_arrays(model)

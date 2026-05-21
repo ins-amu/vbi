@@ -184,6 +184,134 @@ class TestKuramotoDynamics:
 
 
 # ---------------------------------------------------------------------------
+# Kuramoto — sinusoidal coupling (kind='kuramoto')
+# ---------------------------------------------------------------------------
+
+class TestKuramotoCoupling:
+    """Physics tests for the proper sinusoidal Kuramoto coupling."""
+
+    def _spec(self, n, omega, G, theta0=None, dt=0.01,
+              tract_lengths=None, speed=1.0):
+        W = np.ones((n, n), dtype=float)
+        np.fill_diagonal(W, 0.0)
+        import dataclasses
+        if theta0 is not None:
+            sv = (dataclasses.replace(kuramoto.state_variables[0],
+                                      default_init=theta0),)
+            model = dataclasses.replace(kuramoto, state_variables=sv)
+        else:
+            model = kuramoto
+        return SimulationSpec(
+            model=model,
+            integrator=IntegratorSpec(method="heun", dt=dt),
+            coupling=CouplingSpec("kuramoto"),
+            monitors=(MonitorSpec("raw"),),
+            weights=W,
+            tract_lengths=tract_lengths,
+            speed=speed,
+            node_params={"omega": np.full(n, float(omega)), "G": G},
+        )
+
+    def _run(self, spec, duration):
+        return Simulator(spec, backend="numpy").run(duration)["raw"]
+
+    def test_synchronization_identical_omega(self):
+        """Identical-frequency nodes with strong coupling must phase-lock (R → 1)."""
+        n = 6
+        theta0 = np.random.default_rng(0).uniform(-np.pi, np.pi, n)
+        spec = self._spec(n, omega=1.0, G=5.0, theta0=theta0)
+        t, d = self._run(spec, 500.0)
+        R = np.abs(np.exp(1j * d[-1, 0, :]).mean())
+        assert R > 0.99, f"Identical-omega Kuramoto did not synchronize: R={R:.4f}"
+
+    def test_zero_G_equals_uncoupled(self):
+        """G=0 sinusoidal coupling must give the same trajectory as linear a=0."""
+        import dataclasses
+        n, dt, duration = 3, 0.01, 5.0
+        theta0 = np.random.default_rng(1).uniform(-np.pi, np.pi, n)
+        omega  = np.array([1.0, 1.5, 2.0])
+        W = np.ones((n, n), dtype=float); np.fill_diagonal(W, 0.0)
+        sv  = (dataclasses.replace(kuramoto.state_variables[0], default_init=theta0),)
+        mdl = dataclasses.replace(kuramoto, state_variables=sv)
+
+        def _run(kind, G, a=0.0):
+            coup = CouplingSpec(kind, a=a) if kind == "linear" else CouplingSpec(kind)
+            spec = SimulationSpec(
+                model=mdl,
+                integrator=IntegratorSpec(method="heun", dt=dt),
+                coupling=coup,
+                monitors=(MonitorSpec("raw"),),
+                weights=W,
+                node_params={"omega": omega, "G": G},
+            )
+            return Simulator(spec, backend="numpy").run(duration)["raw"][1]
+
+        np.testing.assert_allclose(
+            _run("kuramoto", G=0.0), _run("linear", G=0.0, a=0.0),
+            rtol=1e-12, err_msg="G=0 Kuramoto must equal uncoupled linear")
+
+    def test_coupling_pulls_lagging_node(self):
+        """A node that lags behind all others must increase its rate (positive c_i)."""
+        import dataclasses
+        n = 4
+        # Node 0 lags by π/2; others are ahead
+        theta0 = np.array([0.0, np.pi / 2, np.pi / 2, np.pi / 2])
+        sv  = (dataclasses.replace(kuramoto.state_variables[0], default_init=theta0),)
+        mdl = dataclasses.replace(kuramoto, state_variables=sv)
+        spec = SimulationSpec(
+            model=mdl,
+            integrator=IntegratorSpec(method="heun", dt=0.01),
+            coupling=CouplingSpec("kuramoto"),
+            monitors=(MonitorSpec("raw"),),
+            weights=np.ones((n, n), dtype=float) - np.eye(n),
+            node_params={"omega": np.ones(n), "G": 1.0},
+        )
+        t, d = self._run(spec, 0.1)
+        # In first step, coupling for node 0 should be positive (pulled forward)
+        theta_step1 = d[0, 0, :]
+        phase_advance_node0  = theta_step1[0] - theta0[0]
+        phase_advance_others = (theta_step1[1:] - theta0[1:]).mean()
+        assert phase_advance_node0 > phase_advance_others, \
+            "Lagging node should advance faster than leading nodes"
+
+    def test_numpy_numba_match(self):
+        """NumPy and Numba backends must produce identical results."""
+        pytest.importorskip("numba")
+        n = 5
+        theta0 = np.random.default_rng(7).uniform(-np.pi, np.pi, n)
+        spec = self._spec(n, omega=1.0, G=0.5, theta0=theta0)
+        _, d_np = Simulator(spec, backend="numpy").run(50.0)["raw"]
+        _, d_nb = Simulator(spec, backend="numba").run(50.0)["raw"]
+        np.testing.assert_allclose(
+            d_nb, d_np, rtol=1e-4,
+            err_msg="Numba Kuramoto (sinusoidal) diverges from NumPy")
+
+    def test_delayed_numpy_numba_match(self):
+        """Delayed sinusoidal Kuramoto: NumPy and Numba must agree."""
+        pytest.importorskip("numba")
+        import dataclasses
+        n = 3
+        theta0 = np.random.default_rng(9).uniform(-np.pi, np.pi, n)
+        W = np.ones((n, n), dtype=float); np.fill_diagonal(W, 0.0)
+        tract = np.full((n, n), 5.0); np.fill_diagonal(tract, 0.0)
+        sv  = (dataclasses.replace(kuramoto.state_variables[0], default_init=theta0),)
+        mdl = dataclasses.replace(kuramoto, state_variables=sv)
+        spec = SimulationSpec(
+            model=mdl,
+            integrator=IntegratorSpec(method="heun", dt=0.01),
+            coupling=CouplingSpec("kuramoto"),
+            monitors=(MonitorSpec("raw"),),
+            weights=W, tract_lengths=tract, speed=1.0,
+            node_params={"omega": np.ones(n), "G": 0.5},
+        )
+        _, d_np = Simulator(spec, backend="numpy").run(30.0)["raw"]
+        _, d_nb = Simulator(spec, backend="numba").run(30.0)["raw"]
+        np.testing.assert_allclose(
+            d_nb, d_np, rtol=1e-4,
+            err_msg="Delayed Numba Kuramoto diverges from NumPy")
+
+
+# ---------------------------------------------------------------------------
 # SupHopf — fixed point vs. limit cycle
 # ---------------------------------------------------------------------------
 

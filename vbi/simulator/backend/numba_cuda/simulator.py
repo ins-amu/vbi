@@ -41,10 +41,13 @@ class CudaSimulator:
               connectivity: str = "auto",
               verbose: bool = False) -> None:
         _require_cuda()
-        if spec.coupling.kind != "linear":
+        if spec.coupling.kind not in ("linear", "kuramoto"):
             raise NotImplementedError(
-                f"CUDA backend supports 'linear' coupling; got {spec.coupling.kind!r}."
+                f"CUDA backend supports 'linear' and 'kuramoto' coupling; "
+                f"got {spec.coupling.kind!r}."
             )
+        _use_kuramoto = spec.coupling.kind == "kuramoto"
+        _alpha        = float(spec.coupling.alpha)
         self.spec = spec
 
         if connectivity == "auto":
@@ -52,7 +55,8 @@ class CudaSimulator:
         else:
             self._sparse = (connectivity == "sparse")
 
-        self._mod = build_cuda_module(spec.model, sparse=self._sparse)
+        self._mod = build_cuda_module(spec.model, sparse=self._sparse,
+                                      use_kuramoto=_use_kuramoto, alpha=_alpha)
 
         dt      = spec.integrator.dt
         model   = spec.model
@@ -73,8 +77,12 @@ class CudaSimulator:
         G = float(np.asarray(
             spec.node_params.get("G", model.default_params.get("G", 1.0))
         ).mean())
-        self._coup_a = np.float32(spec.coupling.a * G)
-        self._coup_b = np.float32(spec.coupling.b)
+        if _use_kuramoto:
+            self._coup_a = np.float32(G / n_nodes)
+            self._coup_b = np.float32(_alpha)
+        else:
+            self._coup_a = np.float32(spec.coupling.a * G)
+            self._coup_b = np.float32(spec.coupling.b)
 
         self._lo, self._hlo, self._hi, self._hhi = get_bounds_arrays(model)
         self._use_heun   = (spec.integrator.method == "heun")
