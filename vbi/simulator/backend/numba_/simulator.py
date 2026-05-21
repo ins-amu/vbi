@@ -11,6 +11,7 @@ from __future__ import annotations
 import numpy as np
 
 from vbi.simulator.spec.simulation import SimulationSpec
+from vbi.simulator.spec.stimulus import StimSpec
 from vbi.simulator.backend.numpy_.monitors import _resolve_voi, _bw_init, _bw_step, _bw_bold, _BW_DEFAULTS
 
 from .codegen import (
@@ -29,6 +30,36 @@ def _count_records(n_steps: int, t_cut_step: int, record_period: int) -> int:
     if n_steps <= t_cut_step:
         return 0
     return (n_steps - t_cut_step + record_period - 1) // record_period
+
+
+def _build_stim_data(
+        spec: SimulationSpec, n_steps: int, dt: float
+) -> tuple[np.ndarray, bool]:
+    """Pre-sample all stimuli into a (n_steps, n_cvar, n_nodes) float64 array.
+
+    Returns (stim_data, has_stimulus).  When there are no stimuli, returns a
+    minimal placeholder array and False so the @njit loops skip the injection.
+    """
+    n_cvar  = len(spec.model.cvar)
+    n_nodes = spec.n_nodes
+
+    if not spec.stimuli:
+        return np.zeros((1, n_cvar, n_nodes), dtype=np.float64), False
+
+    data = np.zeros((n_steps, n_cvar, n_nodes), dtype=np.float64)
+    cvar_list = list(spec.model.cvar)
+    for stim in spec.stimuli:
+        ci        = cvar_list.index(stim.sv_name)
+        amplitude = np.broadcast_to(
+            np.asarray(stim.amplitude, dtype=np.float64), (n_nodes,)
+        ).copy()
+        for step in range(n_steps):
+            t_ms = step * dt
+            val  = stim.evaluate(step, t_ms)
+            if val != 0.0:
+                data[step, ci, :] += val * amplitude
+
+    return np.ascontiguousarray(data), True
 
 
 def _apply_monitor(kind, m_spec, raw_data, raw_times, model):
@@ -161,6 +192,9 @@ class NumbaSimulator:
         voi_indices   = np.arange(n_sv, dtype=np.int64)
         n_record      = _count_records(n_steps, t_cut_step, record_period)
 
+        # Pre-sample stimuli for this run duration
+        stim_data, has_stimulus = _build_stim_data(spec, n_steps, dt)
+
         if self._stochastic:
             raw_data = nb_simulate_stoch(
                 self._state0, self._srcbuf0,
@@ -174,6 +208,7 @@ class NumbaSimulator:
                 record_period, t_cut_step, n_sv, voi_indices,
                 self._use_heun, np.int64(spec.integrator.noise_seed),
                 self._dfun, self._use_kuramoto, self._alpha,
+                stim_data, has_stimulus,
             )
         else:
             raw_data = nb_simulate_det(
@@ -186,6 +221,7 @@ class NumbaSimulator:
                 self._upper_bounds, self._has_upper,
                 record_period, t_cut_step, n_sv, voi_indices,
                 self._use_heun, self._dfun, self._use_kuramoto, self._alpha,
+                stim_data, has_stimulus,
             )
 
         # raw_data: (n_record, n_sv, n_nodes)

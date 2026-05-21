@@ -184,7 +184,7 @@ def nb_simulate_det(
     has_delays, cvar_indices,
     lower_bounds, has_lower, upper_bounds, has_upper,
     record_period, t_cut_step, n_voi, voi_indices,
-    use_heun, dfun_fn, use_kuramoto, alpha,
+    use_heun, dfun_fn, use_kuramoto, alpha, stim_data, has_stimulus,
 ):
     """
     Deterministic (no noise) simulation loop.
@@ -224,6 +224,12 @@ def nb_simulate_det(
                 coupling = _coup_kuramoto_instant(cvar_state, weights, G, n_nodes, alpha)
             else:
                 coupling = _coup_linear_instant(cvar_state, weights, G, a, b)
+
+        # --- Stimulus injection ---
+        if has_stimulus:
+            for _cv in range(n_cvar):
+                for _nd in range(n_nodes):
+                    coupling[_cv, _nd] += stim_data[step, _cv, _nd]
 
         # --- Integrate ---
         if use_heun:
@@ -266,7 +272,7 @@ def nb_simulate_stoch(
     lower_bounds, has_lower, upper_bounds, has_upper,
     eff_noise_amp, noise_mask,
     record_period, t_cut_step, n_voi, voi_indices,
-    use_heun, seed, dfun_fn, use_kuramoto, alpha,
+    use_heun, seed, dfun_fn, use_kuramoto, alpha, stim_data, has_stimulus,
 ):
     """
     Stochastic simulation loop.  Noise is generated inside the @njit function
@@ -310,6 +316,12 @@ def nb_simulate_stoch(
                 coupling = _coup_kuramoto_instant(cvar_state, weights, G, n_nodes, alpha)
             else:
                 coupling = _coup_linear_instant(cvar_state, weights, G, a, b)
+
+        # --- Stimulus injection ---
+        if has_stimulus:
+            for _cv in range(n_cvar):
+                for _nd in range(n_nodes):
+                    coupling[_cv, _nd] += stim_data[step, _cv, _nd]
 
         # --- Noise for this step ---
         dW = np.zeros((n_sv, n_nodes))
@@ -359,7 +371,7 @@ def nb_sweep_det(
     has_delays, cvar_indices,
     lower_bounds, has_lower, upper_bounds, has_upper,
     record_period, t_cut_step, n_voi, voi_indices,
-    use_heun, sweep_param_indices, dfun_fn, use_kuramoto, alpha,
+    use_heun, sweep_param_indices, dfun_fn, use_kuramoto, alpha, stim_data, has_stimulus,
 ):
     """
     Parallel sweep over param_sets rows — deterministic.
@@ -388,7 +400,7 @@ def nb_sweep_det(
             has_delays, cvar_indices,
             lower_bounds, has_lower, upper_bounds, has_upper,
             record_period, t_cut_step, n_voi, voi_indices,
-            use_heun, dfun_fn, use_kuramoto, alpha,
+            use_heun, dfun_fn, use_kuramoto, alpha, stim_data, has_stimulus,
         )
 
     return out
@@ -406,7 +418,7 @@ def nb_sweep_stoch(
     lower_bounds, has_lower, upper_bounds, has_upper,
     eff_noise_amp, noise_mask,
     record_period, t_cut_step, n_voi, voi_indices,
-    use_heun, sweep_param_indices, seeds, dfun_fn, use_kuramoto, alpha,
+    use_heun, sweep_param_indices, seeds, dfun_fn, use_kuramoto, alpha, stim_data, has_stimulus,
 ):
     """
     Parallel sweep over param_sets rows — stochastic.
@@ -488,7 +500,7 @@ def nb_sweep_det_feat(
             has_delays, cvar_indices,
             lower_bounds, has_lower, upper_bounds, has_upper,
             record_period, t_cut_step, n_voi, voi_indices,
-            use_heun, dfun_fn, use_kuramoto, alpha,
+            use_heun, dfun_fn, use_kuramoto, alpha, stim_data, has_stimulus,
         )
 
         # Extract features from voi=0  →  (n_record, n_nodes)

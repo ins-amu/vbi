@@ -26,6 +26,7 @@ from ._nb_sim import (
     nb_sweep_det, nb_sweep_stoch,
     nb_sweep_det_feat, nb_sweep_stoch_feat,
 )
+from .simulator import _build_stim_data
 
 
 def _count_records(n_steps: int, t_cut_step: int, record_period: int) -> int:
@@ -131,6 +132,9 @@ class NumbaSweeperCPU:
 
         param_sets = self.sweep.param_sets.astype(np.float64)
 
+        # Stimulus is identical for every sample in the sweep
+        stim_data, has_stimulus = _build_stim_data(spec, n_steps, dt)
+
         if self._stochastic:
             base_seed = spec.integrator.noise_seed
             seeds = np.arange(param_sets.shape[0], dtype=np.int64) + base_seed
@@ -145,6 +149,7 @@ class NumbaSweeperCPU:
                 record_period, t_cut_step, n_voi, voi_indices,
                 self._use_heun, self._sweep_param_indices, seeds,
                 self._dfun, self._use_kuramoto, self._alpha,
+                stim_data, has_stimulus,
             )
         else:
             raw = nb_sweep_det(
@@ -157,6 +162,7 @@ class NumbaSweeperCPU:
                 record_period, t_cut_step, n_voi, voi_indices,
                 self._use_heun, self._sweep_param_indices, self._dfun,
                 self._use_kuramoto, self._alpha,
+                stim_data, has_stimulus,
             )
 
         return raw, record_period  # (n_samples, n_record, n_sv, n_nodes)
@@ -204,6 +210,8 @@ class NumbaSweeperCPU:
             feat_labels = nb_spec.labels(n_nodes)
             ps          = param_sets.astype(np.float64)
 
+            stim_data, has_stimulus = _build_stim_data(self.spec, n_steps, dt)
+
             common_args = (
                 ps, self._params, self._state0, self._srcbuf0,
                 self._weights, self._delay_steps, self._horizon,
@@ -238,9 +246,13 @@ class NumbaSweeperCPU:
                     nb_spec.do_fc, nb_spec.do_fcd,
                     np.int64(nb_spec.fcd_window), np.int64(n_feat),
                     self._dfun, self._use_kuramoto, self._alpha,
+                    stim_data, has_stimulus,
                 )
             else:
-                feat_vals = nb_sweep_det_feat(*common_args, self._use_kuramoto, self._alpha)
+                feat_vals = nb_sweep_det_feat(
+                    *common_args, self._use_kuramoto, self._alpha,
+                    stim_data, has_stimulus,
+                )
 
             values = np.concatenate([ps, feat_vals], axis=1)
             return param_names + feat_labels, values

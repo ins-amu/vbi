@@ -37,6 +37,7 @@ with quiet_optional_imports():
 N_NODES = 5
 DT = 0.1
 DURATION = 200.0
+backend = "numpy"
 
 
 def build_spec(stimulus: StimSpec | None = None) -> SimulationSpec:
@@ -70,10 +71,10 @@ def main() -> None:
         waveform=pulse_train,
     )
 
-    t_stim, y_stim = Simulator(build_spec(stimulus), backend="numpy").run(DURATION)["raw"]
-    t_ctrl, y_ctrl = Simulator(build_spec(), backend="numpy").run(DURATION)["raw"]
+    t_stim, y_stim = Simulator(build_spec(stimulus), backend=backend).run(DURATION)["raw"]
+    t_ctrl, y_ctrl = Simulator(build_spec(), backend=backend).run(DURATION)["raw"]
 
-    out_path = Path(__file__).with_name("outputs") / "stimulation_demo.png"
+    out_path = Path(__file__).with_name("outputs") / f"stimulation_demo_{backend}.png"
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
     stim_waveform = np.array([pulse_train(t) for t in t_stim])
@@ -85,14 +86,14 @@ def main() -> None:
     ax.plot(t_stim, y_stim[:, 0, 4], color="tab:blue", label="node 4, unstimulated", alpha=0.5)
     ax.set_xlabel("time [ms]")
     ax.set_ylabel("V")
-    ax.set_title("Pulse-train stimulation with VBI NumPy backend")
+    ax.set_title(f"Pulse-train stimulation with VBI {backend} backend")
     ax.legend(frameon=False)
     ax.grid(True, alpha=0.25)
     fig.tight_layout()
     fig.savefig(out_path, dpi=160)
     plt.close(fig)
 
-    print("VBI NumPy stimulation demo")
+    print(f"VBI {backend} stimulation demo")
     print(f"raw shape: {y_stim.shape}  # (time, variable, node)")
     print(f"saved figure: {out_path}")
 
