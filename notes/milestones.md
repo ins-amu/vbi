@@ -2210,3 +2210,24 @@ Option B is the legacy path and remains fully supported for compatibility.
    output at a lower rate, or does it see sub-sampled `r`? Decision: follow TVB
    — BOLD balloon model integrates at every step using its own Euler step
    driven by `r`.
+
+## What Remains
+
+**M4 (JAX) — minor gap**:
+
+No dedicated jax_/sweeper.py — JaxSweeper lives inside jax_/simulator.py. The milestone called for a separate file; this is a structural cleanup, not a missing feature.
+
+**M5 — missing models:**
+
+Epileptor / VEP — in vbi/models/cpp/vep.py (old backend) but no vbi/simulator/models/vep.py spec
+GHB — in vbi/models/numba/ but no simulator spec
+Stuart-Landau (SL) — in vbi/models/numba/ but no simulator spec
+DampedOscillator — in vbi/models/numba/ but no simulator spec
+MF — missing:
+
+features_utils_cuda.py — CUDA device functions for fc/fcd_ks inside the CUDA kernel (called for in M3/MF.3)
+
+**M6 — Deprecation & Release:**
+
+Not started — no DeprecationWarning in vbi/models/pytorch/, vbi/models/cupy/, vbi/models/tvbk/ __init__ files yet (only scattered warnings in a few individual model files)
+Migration guide not written

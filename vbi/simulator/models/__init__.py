@@ -11,3 +11,7 @@ from .larter_breakspear import larter_breakspear
 from .coombes_byrne_2d import coombes_byrne_2d
 from .gast_sd import gast_sd
 from .gast_sf import gast_sf
+from .vep import vep
+from .ghb import ghb
+from .sl import sl
+from .damped_oscillator import damped_oscillator

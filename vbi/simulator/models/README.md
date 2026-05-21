@@ -22,6 +22,10 @@ execute these equations automatically.
 | `coombes_byrne_2d` | CoombesByrne2D | r, V | 2 | r, V | r, V | r ≥ 0 | Coombes & Byrne 2019 |
 | `gast_sd` | GastSchmidtKnosche\_SD | r, V, A, B | 4 | r, V | r, V | r ≥ 0 | Gast et al. 2020 |
 | `gast_sf` | GastSchmidtKnosche\_SF | r, V, A, B | 4 | r, V | r, V | r ≥ 0 | Gast et al. 2020 |
+| `vep` | VEP | x, y | 2 | x | x, y | — | Jirsa et al. 2014 |
+| `ghb` | GHB | x, y | 2 | x, y | x, y | x,y ∈ [−5,5] | Deco et al. 2017 |
+| `sl` | StuartLandau | x, y | 2 | x, y | x, y | x,y ∈ [−5,5] | Stuart & Landau 1944 |
+| `damped_oscillator` | DampedOscillator | x, y | 2 | x | — | x,y ≥ 0 | Lotka 1925 |
 
 ---
 
@@ -343,6 +347,116 @@ $$\dot{V} = \frac{1}{\tau}\!\left(V^2 - \pi^2\tau^2 r^2 + \eta + J\tau r - A + I
 
 ---
 
+### VEP (`vep`)
+
+**Import:** `from vbi.simulator.models.vep import vep`
+
+Seizure-permittivity 2D model — a simplified Epileptor for virtual epileptic
+patient (VEP) whole-brain simulations. `x` is the fast seizure-activity variable;
+`y` is the slow permittivity variable.
+
+**Equations:**
+
+$$\dot{x} = 1 - x^3 - 2x^2 - y + I_{\rm ext}$$
+
+$$\dot{y} = \frac{1}{\tau}\!\left(4(x - \eta) - y - G\!\sum_j W_{ij}(x_j - x_i)\right)$$
+
+**Key parameters:** `tau` (slow time constant), `eta` (node excitability),
+`iext` (external forcing), `G` (coupling strength).
+
+**Notes:**
+- Coupling is **Laplacian**: $G\sum_j W_{ij}(x_j - x_i)$.
+  The coupling layer computes $c = G \cdot W x$, so the Laplacian becomes
+  $c - G \cdot \text{row\_sum} \cdot x$ in `dfun_str`.
+- **`row_sum` must be set** via `node_params`:
+  ```python
+  node_params={"row_sum": weights.sum(axis=1)}
+  ```
+- `eta` and `iext` are per-node heterogeneous parameters — pass via `node_params`.
+- Reference: Jirsa VK et al. *Brain* 137(8):2210-2230, 2014.
+
+---
+
+### GHB (`ghb`)
+
+**Import:** `from vbi.simulator.models.ghb import ghb`
+
+Generic Hopf Bifurcation (Stuart-Landau) oscillator in Cartesian coordinates with
+per-node bifurcation parameter `eta` and frequency `omega`. This is the neural
+part of `GHB_sde`; BOLD output is obtained via `MonitorSpec(kind="bold")`.
+
+**Equations:**
+
+$$\dot{x} = (\eta - x^2 - y^2)\,x - \omega y + G\!\sum_j W_{ij}(x_j - x_i)$$
+
+$$\dot{y} = (\eta - x^2 - y^2)\,y + \omega x + G\!\sum_j W_{ij}(y_j - y_i)$$
+
+**Key parameters:** `eta` (bifurcation parameter per node), `omega` (angular
+frequency per node, rad/ms), `G` (global coupling strength).
+
+**Notes:**
+- Coupling is **Laplacian** on both `x` and `y`.
+  Uses two coupling channels: `c_x = G·Wx`, `c_y = G·Wy`.
+  In `dfun_str`: `c_x - G*row_sum*x` and `c_y - G*row_sum*y`.
+- **`row_sum` must be set** via `node_params`.
+- `eta` and `omega` are per-node — pass via `node_params` for heterogeneous networks.
+- Default `omega` ≈ 0.2513 rad/ms (40 Hz).
+- Reference: Deco G et al. *Sci Rep* 7:3095, 2017.
+
+---
+
+### StuartLandau (`sl`)
+
+**Import:** `from vbi.simulator.models.sl import sl`
+
+Stuart-Landau oscillator in Cartesian form — mathematically identical to `ghb`
+but with scalar (global) bifurcation parameter `a` and frequency `omega`.
+Use `sl` when all nodes share the same intrinsic dynamics; use `ghb` for
+heterogeneous networks.
+
+**Equations:**
+
+$$\dot{x} = (a - x^2 - y^2)\,x - \omega y + G\!\sum_j W_{ij}(x_j - x_i)$$
+
+$$\dot{y} = (a - x^2 - y^2)\,y + \omega x + G\!\sum_j W_{ij}(y_j - y_i)$$
+
+**Key parameters:** `a` (global bifurcation parameter), `omega` (global angular
+frequency, rad/ms), `G` (global coupling strength).
+
+**Notes:**
+- Same Laplacian coupling pattern as `ghb`; `row_sum` must be set via `node_params`.
+- `sup_hopf` uses the same equations but with **linear** (non-Laplacian) coupling.
+  Choose `sl` when the reference model uses difference coupling; choose `sup_hopf`
+  when the weights are already row-normalised or linear coupling is preferred.
+- Default `omega` ≈ 0.2513 rad/ms (40 Hz); default `G` = 0.
+- Reference: Stuart A & Landau L, 1944; Deco G et al. *Sci Rep* 7:3095, 2017.
+
+---
+
+### DampedOscillator (`damped_oscillator`)
+
+**Import:** `from vbi.simulator.models.damped_oscillator import damped_oscillator`
+
+Nonlinear 2D damped oscillator (Lotka-Volterra type). Exhibits fixed points,
+limit cycles, and heteroclinic orbits depending on `a` and `b`. A single-node
+model with no network coupling.
+
+**Equations:**
+
+$$\dot{x} = x - xy - ax^2$$
+
+$$\dot{y} = xy - y - by^2$$
+
+**Key parameters:** `a` (x-damping), `b` (y-damping).
+
+**Notes:**
+- No noise variables — deterministic only.
+- Network coupling is not used; set `weights=np.zeros((N, N))` or run with `N=1`.
+- `x, y ≥ 0` enforced by lower bounds.
+- Reference: Lotka AJ, 1925; Volterra V, 1926.
+
+---
+
 ## Usage
 
 ```python
@@ -443,3 +557,24 @@ any parameter that would collide.
 Intermediate variables are **not** supported — inline them directly in the
 expression string (see `larter_breakspear.py` for an example with five inlined
 intermediates).
+
+### Laplacian coupling
+
+Several models (VEP, GHB, SL) use difference coupling
+$G \sum_j W_{ij}(x_j - x_i)$ rather than the default linear sum.
+The framework coupling layer computes $c = G \cdot W x$, so the Laplacian
+expands to $c - G \cdot \text{row\_sum}_i \cdot x_i$ inside `dfun_str`.
+Implement this pattern by:
+
+1. Adding a `row_sum` parameter to the `ModelSpec`:
+   ```python
+   Parameter("row_sum", 1.0, "per-node incoming weight sum")
+   ```
+2. Writing the corrected coupling term in `dfun_str`:
+   ```python
+   "x": "... + c - G*row_sum*x"
+   ```
+3. Setting `node_params` at simulation time:
+   ```python
+   node_params={"row_sum": weights.sum(axis=1)}
+   ```
