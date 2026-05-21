@@ -1,0 +1,217 @@
+"""
+Benchmark: NumPy vs Numba backend for parameter sweeps with feature extraction.
+
+NumPy sweeps serially (one simulation at a time).
+Numba sweeps in parallel via prange — each sweep point runs on a separate
+thread, so runtime scales with n_samples / n_threads rather than n_samples.
+
+Sweep sizes are kept small (≤20) so NumPy finishes in reasonable time.
+Increase --n-nodes or --duration to widen the gap.
+
+Run:
+    python benchmark_numba_vs_numpy.py
+    python benchmark_numba_vs_numpy.py --n-nodes 80 --duration 300
+    python benchmark_numba_vs_numpy.py --no-plot
+"""
+
+from __future__ import annotations
+
+import argparse
+import time
+from pathlib import Path
+import sys
+
+sys.dont_write_bytecode = True
+
+import numpy as np
+
+from helpers import (
+    complete_graph_weights,
+    constant_tract_lengths,
+    ensure_repo_on_path,
+    homogeneous_node_params,
+    quiet_optional_imports,
+)
+
+ensure_repo_on_path(__file__)
+
+with quiet_optional_imports():
+    from vbi.simulator import Sweeper
+    from vbi.simulator.models.mpr import mpr
+    from vbi.simulator.spec import (
+        CouplingSpec,
+        IntegratorSpec,
+        MonitorSpec,
+        SimulationSpec,
+    )
+    from vbi.simulator.spec.sweep import SweepSpec
+    from vbi.feature_extraction import (
+        FeaturePipeline,
+        get_features_by_domain,
+        get_features_by_given_names,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Configuration
+# ---------------------------------------------------------------------------
+
+SWEEP_SIZES  = [4, 8, 12, 16, 20]   # small enough for NumPy to finish quickly
+CR_RANGE     = (0.1, 0.9)           # safe coupling range (avoids divergence)
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def make_spec(n_nodes: int) -> SimulationSpec:
+    weights       = complete_graph_weights(n_nodes)
+    tract_lengths = constant_tract_lengths(weights, 4.0)
+    node_params   = homogeneous_node_params(
+        n_nodes=n_nodes,
+        params={
+            "tau": 1.0, "I": 2.0, "Delta": 0.7, "J": 14.5,
+            "eta": -4.6, "Gamma": 0.0, "cr": 1.0, "cv": 0.0,
+        },
+        scalar_names=(),
+    )
+    return SimulationSpec(
+        model=mpr,
+        integrator=IntegratorSpec(method="heun", dt=0.01),
+        coupling=CouplingSpec(kind="linear", a=0.2, b=0.0),
+        monitors=(MonitorSpec(kind="tavg", period=1.0),),
+        weights=weights,
+        tract_lengths=tract_lengths,
+        speed=4.0,
+        node_params=node_params,
+    )
+
+
+def make_pipeline(t_cut: float) -> FeaturePipeline:
+    cfg = get_features_by_domain("statistical")
+    cfg = get_features_by_given_names(cfg, ["calc_mean", "calc_std"])
+    return FeaturePipeline(cfg, signal="tavg", t_cut=t_cut)
+
+
+def time_sweep(spec, n_samples, duration, pipeline, backend) -> float:
+    """Return wall-clock seconds for one sweep."""
+    cr_vals    = np.linspace(*CR_RANGE, n_samples)
+    sweep_spec = SweepSpec(params={"cr": cr_vals}, pipeline=pipeline)
+    sweeper    = Sweeper(spec, sweep_spec, backend=backend)
+    t0 = time.perf_counter()
+    sweeper.run(duration)
+    return time.perf_counter() - t0
+
+
+# ---------------------------------------------------------------------------
+# Main benchmark
+# ---------------------------------------------------------------------------
+
+def run_benchmark(n_nodes: int, duration: float, output: Path | None) -> None:
+    import numba
+    spec     = make_spec(n_nodes)
+    t_cut    = min(500.0, duration * 0.25)
+    pipeline = make_pipeline(t_cut)
+
+    n_threads = numba.get_num_threads()
+    print(f"\nBenchmark: MPR  n_nodes={n_nodes}  duration={duration} ms  "
+          f"t_cut={t_cut} ms")
+    print(f"NumPy  : sequential  (1 thread, 1 simulation at a time)")
+    print(f"Numba  : parallel    ({n_threads} threads via prange, "
+          f"{numba.threading_layer()})  — each sweep point runs on its own thread")
+    print(f"Feature tier: "
+          f"{'Tier-2 JIT (nb_extract inside prange)' if pipeline.nb_extractor else 'Tier-1 Python'}")
+    print()
+
+    # ------------------------------------------------------------------
+    # Warmup: compile Numba JIT kernels (not timed)
+    # ------------------------------------------------------------------
+    print("Warming up Numba JIT (excluded from timing)...", end=" ", flush=True)
+    time_sweep(spec, n_threads, duration, pipeline, "numba")
+    print("done")
+    print()
+
+    # ------------------------------------------------------------------
+    # Timed runs
+    # ------------------------------------------------------------------
+    header = f"{'n_samples':>10}  {'numpy (s)':>10}  {'numba (s)':>10}  {'speedup':>8}  {'numpy samples/s':>16}  {'numba samples/s':>16}"
+    print(header)
+    print("-" * len(header))
+
+    np_times  = []
+    nb_times  = []
+    speedups  = []
+
+    for n in SWEEP_SIZES:
+        t_np = time_sweep(spec, n, duration, pipeline, "numpy")
+        t_nb = time_sweep(spec, n, duration, pipeline, "numba")
+        sp   = t_np / t_nb if t_nb > 0 else float("inf")
+
+        np_times.append(t_np)
+        nb_times.append(t_nb)
+        speedups.append(sp)
+
+        active = min(n, n_threads)
+        print(f"{n:>10}  {t_np:>10.3f}  {t_nb:>10.3f}  {sp:>7.1f}x"
+              f"  {n/t_np:>16.1f}  {n/t_nb:>16.1f}"
+              f"  (numba active threads: {active}/{n_threads})")
+
+    if output is not None:
+        _save_plot(SWEEP_SIZES, np_times, nb_times, speedups,
+                   n_nodes, duration, output)
+        print(f"\nsaved figure: {output}")
+
+
+def _save_plot(
+    sizes, np_times, nb_times, speedups,
+    n_nodes, duration, out_path: Path,
+) -> None:
+    import matplotlib.pyplot as plt
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 4))
+
+    ax1.plot(sizes, np_times, "o-", label="NumPy")
+    ax1.plot(sizes, nb_times, "s-", label="Numba")
+    ax1.set_xlabel("sweep size (n_samples)")
+    ax1.set_ylabel("wall-clock time (s)")
+    ax1.set_title(f"MPR sweep time  (n_nodes={n_nodes}, dur={duration} ms)")
+    ax1.legend(frameon=False)
+    ax1.grid(True, alpha=0.3)
+
+    ax2.plot(sizes, speedups, "D-", color="C2")
+    ax2.axhline(1.0, color="k", lw=0.8, ls="--")
+    ax2.set_xlabel("sweep size (n_samples)")
+    ax2.set_ylabel("speedup  (numpy / numba)")
+    ax2.set_title("Numba speedup over NumPy")
+    ax2.grid(True, alpha=0.3)
+
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=160)
+    plt.close(fig)
+
+
+# ---------------------------------------------------------------------------
+# CLI
+# ---------------------------------------------------------------------------
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--n-nodes",  type=int,   default=8,
+                        help="number of network nodes (default: 8)")
+    parser.add_argument("--duration", type=float, default=200.0,
+                        help="simulation duration in ms (default: 200)")
+    parser.add_argument("--no-plot",  action="store_true",
+                        help="skip saving the figure")
+    parser.add_argument("--output",   type=Path,
+                        default=Path(__file__).with_name("outputs") / "benchmark_numba_vs_numpy.png")
+    return parser.parse_args()
+
+
+if __name__ == "__main__":
+    args = parse_args()
+    run_benchmark(
+        n_nodes=args.n_nodes,
+        duration=args.duration,
+        output=None if args.no_plot else args.output,
+    )
