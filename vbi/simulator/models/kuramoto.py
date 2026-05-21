@@ -7,6 +7,7 @@ kuramoto = ModelSpec(
     ),
     parameters=(
         Parameter("omega", 1.0, "natural angular frequency (rad/ms)"),
+        Parameter("G",     1.0, "global coupling strength"),
     ),
     cvar=("theta",),
     dfun_str={
