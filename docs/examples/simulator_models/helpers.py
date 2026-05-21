@@ -162,35 +162,50 @@ def plot_sweep_benchmark(
     n_workers: int,
     repeats: int,
     out_dir: Path,
+    jax_rows: list[dict] | None = None,
+    all_cpu_rows: list[dict] | None = None,
 ) -> None:
     """
     Three-panel benchmark figure.
 
     Panel 1 — Wall time (log-log):
-        Measured CPU lines + dotted extrapolation to the CUDA x-range.
-        CUDA measured points.
+        Measured CPU lines + dotted extrapolation to the GPU x-range.
+        CUDA and JAX measured points.
 
     Panel 2 — CPU speedup vs NumPy (linear scale).
 
     Panel 3 — Throughput in samples/s (log-log):
         CPU plateau extrapolated with dotted lines.
-        CUDA measured; crossover vs C++ parallel annotated.
+        CUDA and JAX measured; crossover vs C++ parallel annotated.
 
     Parameters
     ----------
-    cpu_rows  : list of dicts with keys n, t_np, t_nb1, t_nbN, t_cs, t_cp
-    cuda_rows : list of dicts with keys n, t_cuda, rate
+    cpu_rows     : rows with t_np present — used for panels 1 and 2
+    cuda_rows    : list of dicts with keys n, t_cuda, rate
+    jax_rows     : list of dicts with keys n, t_jax, rate_jax, platform (optional)
+    all_cpu_rows : full CPU rows including extended sizes without t_np —
+                   used for panel 3 throughput.  Falls back to cpu_rows if None.
     """
+    jax_rows    = jax_rows    or []
+    # Panel 3 uses all_cpu_rows (may include large-n rows missing t_np)
+    thru_rows   = all_cpu_rows if all_cpu_rows is not None else cpu_rows
     try:
         import matplotlib.pyplot as plt
     except ImportError:
         print("matplotlib not available — skipping plot.")
         return
 
-    cpu_max_n  = max(r["n"] for r in cpu_rows)  if cpu_rows  else 64
-    cuda_max_n = max(r["n"] for r in cuda_rows) if cuda_rows else cpu_max_n
+    cpu_max_n  = max(r["n"] for r in cpu_rows)   if cpu_rows  else 64
+    gpu_max_n  = max(
+        (max(r["n"] for r in cuda_rows) if cuda_rows else 0),
+        (max(r["n"] for r in jax_rows)  if jax_rows  else 0),
+    ) or cpu_max_n
     extrap_ns  = sorted({n for n in [128, 256, 512, 1024, 2048, 4096, 8192]
-                          if cpu_max_n < n <= cuda_max_n * 2})
+                          if cpu_max_n < n <= gpu_max_n * 2})
+
+    # JAX platform label for legend
+    jax_platform = jax_rows[0].get("platform", "GPU") if jax_rows else "GPU"
+    jax_label    = f"JAX float32 ({jax_platform.upper()})"
 
     STYLES = [
         # (row_key, label, color, linestyle, marker, markerfacecolor)
@@ -225,6 +240,10 @@ def plot_sweep_benchmark(
         gn = [r["n"] for r in cuda_rows]
         ax.plot(gn, [r["t_cuda"] for r in cuda_rows], "P-",
                 label="CUDA (float32)", color="tab:red", lw=2, zorder=4)
+    if jax_rows:
+        jn = [r["n"] for r in jax_rows]
+        ax.plot(jn, [r["t_jax"] for r in jax_rows], "h-",
+                label=jax_label, color="tab:purple", lw=2, zorder=4)
     if extrap_ns:
         ax.text(0.97, 0.03, "··· = CPU extrapolation (linear fit)",
                 transform=ax.transAxes, ha="right", va="bottom",
@@ -247,27 +266,30 @@ def plot_sweep_benchmark(
     ax.set_title("CPU speedup")
     ax.legend(fontsize=8, loc="best");  ax.grid(True, alpha=0.3)
 
-    # ---- Panel 3: throughput (log-log + CPU plateau + CUDA crossover) ----
+    # ---- Panel 3: throughput (log-log) — uses thru_rows (may extend cpu_rows) ----
     ax = axes[2]
-    if cpu_rows:
-        ns = [r["n"] for r in cpu_rows]
+    if thru_rows:
         for key, label, color, ls, marker, mfc in STYLES:
-            rates = [r["n"] / r[key] for r in cpu_rows]
+            # Only plot rows where this key has a real value
+            valid = [r for r in thru_rows if r.get(key) is not None]
+            if not valid:
+                continue
+            ns    = [r["n"]        for r in valid]
+            rates = [r["n"] / r[key] for r in valid]
             ax.plot(ns, rates, marker=marker, linestyle=ls, label=label,
                     color=color, markerfacecolor=mfc or color, zorder=3)
-            if extrap_ns:
-                plateau = float(np.mean(rates[-3:]))
-                ax.plot(extrap_ns, [plateau] * len(extrap_ns),
-                        linestyle=":", color=color, alpha=0.45, lw=1.4)
+    # C++ parallel plateau from the last 3 full-range rows with t_cp
+    cp_plateau = None
+    valid_cp = [r for r in thru_rows if r.get("t_cp") is not None]
+    if valid_cp:
+        cp_plateau = float(np.mean([r["n"] / r["t_cp"] for r in valid_cp[-3:]]))
+
     if cuda_rows:
         gn    = [r["n"] for r in cuda_rows]
         rates = [r["rate"] for r in cuda_rows]
         ax.plot(gn, rates, "P-", label="CUDA (float32)",
                 color="tab:red", lw=2, markersize=8, zorder=4)
-        if cpu_rows:
-            cp_plateau = float(np.mean(
-                [r["n"] / r["t_cp"] for r in cpu_rows[-3:]]
-            ))
+        if cp_plateau:
             for r in sorted(cuda_rows, key=lambda x: x["n"]):
                 if r["rate"] >= cp_plateau:
                     ax.axvline(r["n"], color="tab:red", ls=":", alpha=0.6, lw=1.2)
@@ -275,6 +297,21 @@ def plot_sweep_benchmark(
                             f'CUDA > C++\n@ n≈{r["n"]}',
                             color="tab:red", fontsize=7)
                     break
+
+    if jax_rows:
+        jn    = [r["n"] for r in jax_rows]
+        rates = [r["rate_jax"] for r in jax_rows]
+        ax.plot(jn, rates, "h-", label=jax_label,
+                color="tab:purple", lw=2, markersize=8, zorder=4)
+        if cp_plateau:
+            for r in sorted(jax_rows, key=lambda x: x["n"]):
+                if r["rate_jax"] >= cp_plateau:
+                    ax.axvline(r["n"], color="tab:purple", ls=":", alpha=0.6, lw=1.2)
+                    ax.text(r["n"] * 1.05, cp_plateau * 1.4,
+                            f'JAX > C++\n@ n≈{r["n"]}',
+                            color="tab:purple", fontsize=7)
+                    break
+
     if extrap_ns:
         ax.text(0.97, 0.03, "··· = CPU plateau (avg last 3 pts)",
                 transform=ax.transAxes, ha="right", va="bottom",

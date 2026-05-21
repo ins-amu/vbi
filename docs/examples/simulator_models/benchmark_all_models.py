@@ -134,6 +134,7 @@ def run_one_model(
         n_workers=n_workers,
         repeats=repeats,
         out_dir=out_dir,
+        jax_rows=jax_rows,
     )
 
     # Collect peak throughputs for the summary

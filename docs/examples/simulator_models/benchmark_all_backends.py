@@ -364,7 +364,8 @@ def throughput_comparison(cpu_rows: list[dict], cuda_rows: list[dict],
 def plot_results(cpu_rows: list[dict], cuda_rows: list[dict],
                  model_name: str, n_nodes: int, duration: float,
                  n_workers: int, repeats: int, dt: float,
-                 out_dir: Path) -> None:
+                 out_dir: Path,
+                 jax_rows: list[dict] | None = None) -> None:
     """Delegate to helpers.plot_sweep_benchmark."""
     plot_sweep_benchmark(
         cpu_rows=cpu_rows,
@@ -376,6 +377,7 @@ def plot_results(cpu_rows: list[dict], cuda_rows: list[dict],
         n_workers=n_workers,
         repeats=repeats,
         out_dir=out_dir,
+        jax_rows=jax_rows or [],
     )
 
 
@@ -489,6 +491,7 @@ def main() -> None:
             args.model, args.n_nodes, args.duration,
             args.n_workers, args.repeats, args.dt,
             args.output_dir,
+            jax_rows=jax_rows,
         )
 
 
