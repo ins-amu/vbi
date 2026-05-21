@@ -21,6 +21,7 @@ from __future__ import annotations
 import numpy as np
 
 from vbi.simulator.spec.simulation import SimulationSpec
+from vbi.simulator.spec.stimulus import build_stim_data
 from vbi.simulator.spec.sweep import SweepSpec
 from vbi.simulator.backend.numba_.simulator import _apply_monitor
 
@@ -242,6 +243,11 @@ class CudaSweeperGPU:
 
         blocks = (n_samples + _TPB - 1) // _TPB
 
+        # Pre-sample stimuli (same for all sweep samples) and transfer to device
+        stim_np, has_stimulus = build_stim_data(spec, n_steps, float(dt))
+        stim_flat = np.ascontiguousarray(stim_np.ravel(), dtype=np.float32)
+        stim_d    = cuda.to_device(stim_flat)
+
         # ---- Common kernel args (order matches kernel signature) ----
         common = [
             state_d, buf_d,
@@ -263,6 +269,7 @@ class CudaSweeperGPU:
             self._coup_a, self._coup_b,
             self._has_delays,
             self._use_heun,
+            stim_d, has_stimulus,
         ]
 
         if self._stochastic:

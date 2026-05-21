@@ -190,7 +190,7 @@ class TestStimPhysics:
 
 class TestBackendConsistency:
 
-    def _compare(self, spec, duration, backends, rtol=1e-4):
+    def _compare(self, spec, duration, backends, rtol=1e-4, atol=0.0):
         results = {}
         for b in backends:
             try:
@@ -200,7 +200,7 @@ class TestBackendConsistency:
         ref = results[list(results.keys())[0]]
         for b, d in list(results.items())[1:]:
             np.testing.assert_allclose(
-                d, ref, rtol=rtol,
+                d, ref, rtol=rtol, atol=atol,
                 err_msg=f"Backend {b!r} diverges from {list(results.keys())[0]!r}")
 
     def test_numpy_numba_kuramoto_stim(self):
@@ -261,6 +261,58 @@ class TestBackendConsistency:
                         waveform=lambda t: 0.01)
         spec = _mpr_spec(n, stim=(stim,))
         self._compare(spec, 5.0, ["numpy", "cpp"])
+
+    def test_numpy_cuda_mpr_stim(self):
+        """CUDA must agree with numpy on MPR with stimulus (float32 tolerance)."""
+        try:
+            from numba import cuda as _cuda
+            if not _cuda.is_available():
+                pytest.skip("CUDA not available")
+        except Exception:
+            pytest.skip("CUDA not available")
+
+        n = 4
+        stim = StimSpec(sv_name="r",
+                        amplitude=np.array([1.0, 0.0, 0.0, 0.0]),
+                        waveform=lambda t: 0.01)
+        spec = _mpr_spec(n, stim=(stim,), dt=0.01)
+        self._compare(spec, 5.0, ["numpy", "cuda"], rtol=1e-3)
+
+    def test_numpy_cuda_kuramoto_stim(self):
+        """CUDA must agree with numpy on Kuramoto with stimulus.
+
+        CUDA uses float32 internally; float32 vs float64 accumulation gives
+        ~few-ms absolute error over short runs.  We verify the stimulus IS
+        applied (output changes vs no-stimulus) and that absolute deviation
+        stays within float32 tolerance.
+        """
+        try:
+            from numba import cuda as _cuda
+            if not _cuda.is_available():
+                pytest.skip("CUDA not available")
+        except Exception:
+            pytest.skip("CUDA not available")
+
+        n = 4
+        theta0 = np.random.default_rng(17).uniform(-np.pi, np.pi, n)
+        stim = StimSpec(sv_name="theta",
+                        amplitude=np.array([1.0, 0.5, 0.0, 0.0]),
+                        waveform=lambda t: 0.05, onset=0.0, offset=1.0)
+        spec_stim = _kuramoto_spec(n, theta0, omega=1.0, G=0.5, stim=(stim,), dt=0.01)
+        spec_base = _kuramoto_spec(n, theta0, omega=1.0, G=0.5,               dt=0.01)
+
+        d_np_stim = np.array(_run(spec_stim, 2.0, backend="numpy"))
+        d_cu_stim = np.array(_run(spec_stim, 2.0, backend="cuda"))
+        d_cu_base = np.array(_run(spec_base, 2.0, backend="cuda"))
+
+        # Stimulus must change the CUDA output
+        assert not np.allclose(d_cu_stim, d_cu_base), \
+            "CUDA stimulus must change output vs no-stimulus baseline"
+
+        # numpy and CUDA with stimulus must agree within float32 tolerance
+        np.testing.assert_allclose(
+            d_cu_stim, d_np_stim, atol=1e-2,
+            err_msg="CUDA Kuramoto+stim deviates from numpy beyond float32 tolerance")
 
 
 # ---------------------------------------------------------------------------

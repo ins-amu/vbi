@@ -6,6 +6,7 @@ from __future__ import annotations
 import numpy as np
 
 from vbi.simulator.spec.simulation import SimulationSpec
+from vbi.simulator.spec.stimulus import build_stim_data
 from vbi.simulator.backend.numba_.simulator import _apply_monitor
 
 from .codegen import (
@@ -131,6 +132,11 @@ class CudaSimulator:
             conn = [cuda.to_device(self._weights_f32),
                     cuda.to_device(self._delay_steps)]
 
+        # Pre-sample stimuli and transfer to device
+        stim_np, has_stimulus = build_stim_data(spec, n_steps, float(dt))
+        stim_flat = np.ascontiguousarray(stim_np.ravel(), dtype=np.float32)
+        stim_d    = cuda.to_device(stim_flat)
+
         common = [state_d, buf_d] + conn + [
             params_d, cvar_idx_d,
             lo_d, hlo_d, hi_d, hhi_d,
@@ -139,6 +145,7 @@ class CudaSimulator:
             np.int32(t_cut), np.int32(period),
             self._coup_a, self._coup_b,
             self._has_delays, self._use_heun,
+            stim_d, has_stimulus,
         ]
 
         if self._stochastic:

@@ -161,6 +161,8 @@ def _generate_source(spec: ModelSpec, sparse: bool = False,
             "    coup_b,        # float32",
             "    has_delays,    # bool",
             "    use_heun,      # bool",
+            "    stim_data,     # (n_steps * n_cvar * n_nodes,) float32  flat pre-sampled",
+            "    has_stimulus,  # bool",
         ] + noise_arg + [
             "    ts_out,        # (n_record, n_sv, n_nodes, n_samples) float32",
             "):",
@@ -246,6 +248,15 @@ def _generate_source(spec: ModelSpec, sparse: bool = False,
                     K.append(f"                for _src in range(n_nodes):")
                     K.append(f"                    _s{cv_i} += weights[node, _src] * state[{ci}, _src, tid]")
                 K.append(f"            coup[{cv_i}] = coup_a * _s{cv_i} + coup_b")
+
+        # Stimulus injection — same point as all other backends
+        # stim_data layout: stim_data[step * n_cvar * n_nodes + cv * n_nodes + node]
+        K.append("")
+        K.append("            # -- stimulus injection --")
+        K.append("            if has_stimulus:")
+        for cv_i in range(n_cvar):
+            K.append(f"                _sb{cv_i} = step * {n_cvar} * n_nodes + {cv_i} * n_nodes + node")
+            K.append(f"                coup[{cv_i}] += stim_data[_sb{cv_i}]")
 
         # k1
         K.append("")
