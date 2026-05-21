@@ -96,7 +96,14 @@ def build_or_load(spec: SimulationSpec, verbose: bool = False) -> types.ModuleTy
     """
     check_prerequisites()
 
-    key = spec.cache_key()
+    # Mix a hash of the Mako templates into the key so that any change to the
+    # C++ or bindings templates automatically invalidates cached binaries.
+    import hashlib as _hl
+    _tmpl_hash = _hl.sha256(
+        ((_TEMPLATES_DIR / "sim_module.cpp.mako").read_bytes() +
+         (_TEMPLATES_DIR / "bindings.cpp.mako").read_bytes())
+    ).hexdigest()[:12]
+    key = spec.cache_key() + "_" + _tmpl_hash
 
     if key in _MODULE_CACHE:
         return _MODULE_CACHE[key]
