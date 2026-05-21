@@ -13,6 +13,7 @@ from vbi.simulator.backend.numba_.simulator import _apply_monitor  # reuse post-
 
 from .build import build_or_load
 from .codegen import build_params_array, get_G, get_noise_data
+from vbi.simulator.spec.stimulus import build_stim_data
 
 
 class CppSimulator:
@@ -74,6 +75,9 @@ class CppSimulator:
             noise_flat   = np.empty(0, dtype=np.float64)
             noise_sv_idx = np.empty(0, dtype=np.int32)
 
+        # Pre-sample stimuli for this run duration
+        stim_flat, has_stimulus = build_stim_data(spec, n_steps, dt)
+
         # Call C++
         raw_data = self._mod.run_simulation(
             self._state0,
@@ -89,6 +93,8 @@ class CppSimulator:
             n_steps,
             record_every=1,
             t_cut_steps=0,
+            stim_data=np.ascontiguousarray(stim_flat.ravel(), dtype=np.float64),
+            has_stimulus=has_stimulus,
         )
         # raw_data: (n_record, n_sv, n_nodes)
         raw_times = np.arange(raw_data.shape[0], dtype=np.float64) * dt

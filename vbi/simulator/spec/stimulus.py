@@ -1,7 +1,10 @@
 from __future__ import annotations
 from dataclasses import dataclass
-from typing import Callable
+from typing import TYPE_CHECKING, Callable
 import numpy as np
+
+if TYPE_CHECKING:
+    from .simulation import SimulationSpec
 
 
 @dataclass(frozen=True)
@@ -69,3 +72,34 @@ class StimSpec:
         if step < len(self.waveform):
             return float(self.waveform[step])
         return 0.0
+
+
+def build_stim_data(
+        spec: "SimulationSpec", n_steps: int, dt: float
+) -> tuple[np.ndarray, bool]:
+    """Pre-sample all stimuli into a (n_steps, n_cvar, n_nodes) float64 array.
+
+    Returns ``(stim_data, has_stimulus)``.  When there are no stimuli returns a
+    minimal placeholder array and ``False`` so backends can skip injection.
+    The array layout is C-contiguous: ``stim_data[step, cvar, node]``.
+    """
+    n_cvar  = len(spec.model.cvar)
+    n_nodes = spec.n_nodes
+
+    if not spec.stimuli:
+        return np.zeros((1, n_cvar, n_nodes), dtype=np.float64), False
+
+    data      = np.zeros((n_steps, n_cvar, n_nodes), dtype=np.float64)
+    cvar_list = list(spec.model.cvar)
+    for stim in spec.stimuli:
+        ci        = cvar_list.index(stim.sv_name)
+        amplitude = np.broadcast_to(
+            np.asarray(stim.amplitude, dtype=np.float64), (n_nodes,)
+        ).copy()
+        for step in range(n_steps):
+            t_ms = step * dt
+            val  = stim.evaluate(step, t_ms)
+            if val != 0.0:
+                data[step, ci, :] += val * amplitude
+
+    return np.ascontiguousarray(data), True

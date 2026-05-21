@@ -6,7 +6,6 @@ from typing import Union
 from copy import deepcopy
 import scipy.stats as stats
 from numpy import linalg as LA
-from sklearn.decomposition import PCA
 
 # Optional torch import
 try:
@@ -1006,6 +1005,7 @@ def matrix_stat(
 
     if pca_num_components:
         try: 
+            from sklearn.decomposition import PCA
             pca = PCA(n_components=pca_num_components)
             pca_a = pca.fit_transform(A)
         except:

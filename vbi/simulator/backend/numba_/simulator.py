@@ -11,7 +11,7 @@ from __future__ import annotations
 import numpy as np
 
 from vbi.simulator.spec.simulation import SimulationSpec
-from vbi.simulator.spec.stimulus import StimSpec
+from vbi.simulator.spec.stimulus import build_stim_data
 from vbi.simulator.backend.numpy_.monitors import _resolve_voi, _bw_init, _bw_step, _bw_bold, _BW_DEFAULTS
 
 from .codegen import (
@@ -30,36 +30,6 @@ def _count_records(n_steps: int, t_cut_step: int, record_period: int) -> int:
     if n_steps <= t_cut_step:
         return 0
     return (n_steps - t_cut_step + record_period - 1) // record_period
-
-
-def _build_stim_data(
-        spec: SimulationSpec, n_steps: int, dt: float
-) -> tuple[np.ndarray, bool]:
-    """Pre-sample all stimuli into a (n_steps, n_cvar, n_nodes) float64 array.
-
-    Returns (stim_data, has_stimulus).  When there are no stimuli, returns a
-    minimal placeholder array and False so the @njit loops skip the injection.
-    """
-    n_cvar  = len(spec.model.cvar)
-    n_nodes = spec.n_nodes
-
-    if not spec.stimuli:
-        return np.zeros((1, n_cvar, n_nodes), dtype=np.float64), False
-
-    data = np.zeros((n_steps, n_cvar, n_nodes), dtype=np.float64)
-    cvar_list = list(spec.model.cvar)
-    for stim in spec.stimuli:
-        ci        = cvar_list.index(stim.sv_name)
-        amplitude = np.broadcast_to(
-            np.asarray(stim.amplitude, dtype=np.float64), (n_nodes,)
-        ).copy()
-        for step in range(n_steps):
-            t_ms = step * dt
-            val  = stim.evaluate(step, t_ms)
-            if val != 0.0:
-                data[step, ci, :] += val * amplitude
-
-    return np.ascontiguousarray(data), True
 
 
 def _apply_monitor(kind, m_spec, raw_data, raw_times, model):
@@ -149,7 +119,14 @@ class NumbaSimulator:
         self._G_idx  = get_G_idx(spec.model)
         if self._G_idx < 0:
             # No G in model — inject a constant row at the end
-            extra = np.ones((1, n_nodes), dtype=np.float64)
+            G = np.asarray(spec.node_params.get("G", 1.0), dtype=np.float64)
+            extra = np.empty((1, n_nodes), dtype=np.float64)
+            if G.ndim == 0:
+                extra[0, :] = float(G)
+            elif G.shape == (n_nodes,):
+                extra[0, :] = G
+            else:
+                extra[0, :] = float(G.flat[0])
             self._params = np.vstack([self._params, extra])
             self._G_idx  = self._params.shape[0] - 1
 
@@ -193,7 +170,7 @@ class NumbaSimulator:
         n_record      = _count_records(n_steps, t_cut_step, record_period)
 
         # Pre-sample stimuli for this run duration
-        stim_data, has_stimulus = _build_stim_data(spec, n_steps, dt)
+        stim_data, has_stimulus = build_stim_data(spec, n_steps, dt)
 
         if self._stochastic:
             raw_data = nb_simulate_stoch(

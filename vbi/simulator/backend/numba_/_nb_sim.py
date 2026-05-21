@@ -448,6 +448,7 @@ def nb_sweep_stoch(
             eff_noise_amp, noise_mask,
             record_period, t_cut_step, n_voi, voi_indices,
             use_heun, seeds[i], dfun_fn, use_kuramoto,
+            alpha, stim_data, has_stimulus,
         )
 
     return out
@@ -466,7 +467,7 @@ def nb_sweep_det_feat(
     record_period, t_cut_step, n_voi, voi_indices,
     use_heun, sweep_param_indices,
     do_mean, do_std, do_fc, do_fcd, fcd_window, n_features,
-    dfun_fn, use_kuramoto,
+    dfun_fn, use_kuramoto, alpha, stim_data, has_stimulus,
 ):
     """
     Parallel deterministic sweep with inline feature extraction.
@@ -526,7 +527,7 @@ def nb_sweep_stoch_feat(
     record_period, t_cut_step, n_voi, voi_indices,
     use_heun, sweep_param_indices, seeds,
     do_mean, do_std, do_fc, do_fcd, fcd_window, n_features,
-    dfun_fn, use_kuramoto,
+    dfun_fn, use_kuramoto, alpha, stim_data, has_stimulus,
 ):
     """
     Parallel stochastic sweep with inline feature extraction.
@@ -557,6 +558,7 @@ def nb_sweep_stoch_feat(
             eff_noise_amp, noise_mask,
             record_period, t_cut_step, n_voi, voi_indices,
             use_heun, seeds[i], dfun_fn, use_kuramoto,
+            alpha, stim_data, has_stimulus,
         )
 
         ts_2d = ts_i[:, 0, :]

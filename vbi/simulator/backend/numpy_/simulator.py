@@ -4,7 +4,7 @@ import numpy as np
 
 from vbi.simulator.spec.simulation import SimulationSpec
 from vbi.simulator.spec.model import ModelSpec
-from vbi.simulator.spec.stimulus import StimSpec
+from vbi.simulator.spec.stimulus import StimSpec, build_stim_data
 from .history import History
 from .coupling import build_coupling
 from .integrators import build_integrator

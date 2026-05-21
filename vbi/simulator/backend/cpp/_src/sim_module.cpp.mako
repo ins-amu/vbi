@@ -202,7 +202,9 @@ std::vector<double> run_simulation(
     int            n_noise_sv,
     int            n_steps,
     int            record_every,
-    int            t_cut_steps)
+    int            t_cut_steps,
+    const double*  stim_data,   // (n_steps, n_cvar, n_nodes) flat; nullptr when no stimulus
+    bool           has_stimulus)
 {
     // Working buffers
     std::vector<double> state(initial_state, initial_state + kNumSv * kNumNodes);
@@ -240,6 +242,14 @@ std::vector<double> run_simulation(
             coupling_delayed(buf, state.data(), weights, idelays, coup_a, coup_b, coupling.data());
         } else {
             coupling_instant(state.data(), weights, coup_a, coup_b, coupling.data());
+        }
+
+        // --- Stimulus injection (same point as TVB hybrid / NumPy backend) ---
+        if (has_stimulus) {
+            std::size_t base = static_cast<std::size_t>(step) * kNumCvar * nn;
+            for (std::size_t cv = 0; cv < kNumCvar; ++cv)
+                for (std::size_t nd = 0; nd < nn; ++nd)
+                    coupling[cv * nn + nd] += stim_data[base + cv * nn + nd];
         }
 
 % if use_heun:

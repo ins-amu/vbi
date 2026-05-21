@@ -31,12 +31,15 @@ PYBIND11_MODULE(${module_name}, m) {
            py::array_t<int32_t, py::array::c_style | py::array::forcecast> noise_sv_indices,
            int            n_steps,
            int            record_every,
-           int            t_cut_steps)
+           int            t_cut_steps,
+           py::array_t<double,  py::array::c_style | py::array::forcecast> stim_data,
+           bool           has_stimulus)
         -> py::array_t<double>
         {
             const double*  noise_ptr = (noise_data.size() > 0) ? noise_data.data() : nullptr;
             const int*     nidx_ptr  = reinterpret_cast<const int*>(noise_sv_indices.data());
             int            n_noise   = static_cast<int>(noise_sv_indices.size());
+            const double*  stim_ptr  = has_stimulus ? stim_data.data() : nullptr;
 
             std::vector<double> raw;
             {
@@ -50,7 +53,8 @@ PYBIND11_MODULE(${module_name}, m) {
                     coup_a, coup_b,
                     has_delays,
                     noise_ptr, nidx_ptr, n_noise,
-                    n_steps, record_every, t_cut_steps);
+                    n_steps, record_every, t_cut_steps,
+                    stim_ptr, has_stimulus);
             }
 
             // Reshape to (n_record, n_sv, n_nodes)
@@ -76,6 +80,8 @@ PYBIND11_MODULE(${module_name}, m) {
         py::arg("noise_data"),
         py::arg("noise_sv_indices"),
         py::arg("n_steps"),
-        py::arg("record_every") = 1,
-        py::arg("t_cut_steps")  = 0);
+        py::arg("record_every")   = 1,
+        py::arg("t_cut_steps")    = 0,
+        py::arg("stim_data")      = py::array_t<double>(),
+        py::arg("has_stimulus")   = false);
 }

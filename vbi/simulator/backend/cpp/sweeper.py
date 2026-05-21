@@ -21,6 +21,7 @@ from vbi.simulator.backend.numba_.simulator import _apply_monitor
 
 from .build import build_or_load
 from .codegen import build_params_array, get_G, get_noise_data
+from vbi.simulator.spec.stimulus import build_stim_data
 
 
 # ---------------------------------------------------------------------------
@@ -55,6 +56,8 @@ def _run_one(
     n_steps: int,
     record_every: int,
     t_cut_steps: int,
+    stim_flat: np.ndarray,
+    has_stimulus: bool,
 ) -> np.ndarray:
     """Run one simulation point and return raw_data (n_record, n_sv, n_nodes)."""
     return mod.run_simulation(
@@ -62,6 +65,7 @@ def _run_one(
         params_flat, coup_a, coup_b, has_delays,
         noise_flat, noise_sv_idx,
         n_steps, record_every, t_cut_steps,
+        stim_data=stim_flat, has_stimulus=has_stimulus,
     )
 
 
@@ -172,11 +176,16 @@ class CppSweeper:
             noise_flat   = np.empty(0, dtype=np.float64)
             noise_sv_idx = np.empty(0, dtype=np.int32)
 
+        # Pre-sample stimuli (same for all sweep points)
+        stim_data, has_stimulus = build_stim_data(spec, n_steps, dt)
+        stim_flat = np.ascontiguousarray(stim_data.ravel(), dtype=np.float64)
+
         return (
             self._mod, params_flat, self._state0, self._weights,
             self._idelays, self._horizon, self._coup_a, self._coup_b,
             self._has_delays, noise_flat, noise_sv_idx,
             n_steps, record_every, t_cut_steps,
+            stim_flat, has_stimulus,
         )
 
     def _raw_to_monitor(self, raw: np.ndarray) -> dict:

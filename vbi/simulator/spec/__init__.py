@@ -3,7 +3,7 @@ from .integrator import IntegratorSpec
 from .coupling import CouplingSpec
 from .monitor import MonitorSpec
 from .simulation import SimulationSpec
-from .stimulus import StimSpec
+from .stimulus import StimSpec, build_stim_data
 from .sweep import SweepSpec
 
 __all__ = [
@@ -13,5 +13,6 @@ __all__ = [
     "MonitorSpec",
     "SimulationSpec",
     "StimSpec",
+    "build_stim_data",
     "SweepSpec",
 ]

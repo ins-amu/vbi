@@ -26,7 +26,7 @@ from ._nb_sim import (
     nb_sweep_det, nb_sweep_stoch,
     nb_sweep_det_feat, nb_sweep_stoch_feat,
 )
-from .simulator import _build_stim_data
+from vbi.simulator.spec.stimulus import build_stim_data as _build_stim_data
 
 
 def _count_records(n_steps: int, t_cut_step: int, record_period: int) -> int:
@@ -63,7 +63,14 @@ class NumbaSweeperCPU:
         self._params = build_params(spec)
         self._G_idx  = get_G_idx(spec.model)
         if self._G_idx < 0:
-            extra = np.ones((1, n_nodes), dtype=np.float64)
+            G = np.asarray(spec.node_params.get("G", 1.0), dtype=np.float64)
+            extra = np.empty((1, n_nodes), dtype=np.float64)
+            if G.ndim == 0:
+                extra[0, :] = float(G)
+            elif G.shape == (n_nodes,):
+                extra[0, :] = G
+            else:
+                extra[0, :] = float(G.flat[0])
             self._params = np.vstack([self._params, extra])
             self._G_idx  = self._params.shape[0] - 1
 
