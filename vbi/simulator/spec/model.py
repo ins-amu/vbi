@@ -107,7 +107,9 @@ class ModelSpec:
             except ImportError:
                 return False
 
-        if _in_notebook():
+        in_nb = _in_notebook()
+
+        if in_nb:
             from IPython.display import display, Markdown
             def _render(md: str) -> None:
                 display(Markdown(md))
@@ -130,14 +132,28 @@ class ModelSpec:
         # --- Equations ---
         lines += ["---", "**Equations**", ""]
         has_latex = bool(self.dfun_latex)
-        for sv_name in self.sv_names:
-            if has_latex and sv_name in self.dfun_latex:
-                rhs = self.dfun_latex[sv_name]
-                lines.append(f"$$\\dot{{{sv_name}}} = {rhs}$$")
-            else:
-                rhs = self.dfun_str[sv_name]
-                lines.append(f"**d{sv_name}/dt** = `{rhs}`")
-            lines.append("")
+        if has_latex and in_nb:
+            # Group all equations into a left-aligned aligned block
+            eq_rows = []
+            for sv_name in self.sv_names:
+                rhs = self.dfun_latex.get(sv_name, self.dfun_str[sv_name])
+                eq_rows.append(f"\\dot{{{sv_name}}} &= {rhs}")
+            eq_body = " \\\\\n".join(eq_rows)
+            eq_block = (
+                '<div style="text-align: left; padding: 0.4em 0">\n\n'
+                f"$$\n\\begin{{aligned}}\n{eq_body}\n\\end{{aligned}}\n$$\n\n"
+                "</div>"
+            )
+            lines += [eq_block, ""]
+        else:
+            for sv_name in self.sv_names:
+                if has_latex and sv_name in self.dfun_latex:
+                    rhs = self.dfun_latex[sv_name]
+                    lines.append(f"$$\\dot{{{sv_name}}} = {rhs}$$")
+                else:
+                    rhs = self.dfun_str[sv_name]
+                    lines.append(f"**d{sv_name}/dt** = `{rhs}`")
+                lines.append("")
 
         # --- Where-clause / supplementary notes ---
         if self.latex_notes:
