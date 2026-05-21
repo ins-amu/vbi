@@ -62,7 +62,7 @@ def load_sweep_backend(name: str) -> type:
         return CudaSweeperGPU
     if name == "jax":
         try:
-            from vbi.simulator.backend.jax_.simulator import JaxSweeper
+            from vbi.simulator.backend.jax_.sweeper import JaxSweeper
             return JaxSweeper
         except ImportError as exc:
             raise ImportError(
