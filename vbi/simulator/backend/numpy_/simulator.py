@@ -4,6 +4,7 @@ import numpy as np
 
 from vbi.simulator.spec.simulation import SimulationSpec
 from vbi.simulator.spec.model import ModelSpec
+from vbi.simulator.spec.stimulus import StimSpec
 from .history import History
 from .coupling import build_coupling
 from .integrators import build_integrator
@@ -127,6 +128,21 @@ class NumpySimulator:
         self._state = _build_initial_state(spec)
         self._history.initialize(self._state[list(spec.model.cvar_indices)])
 
+        # Stimuli: resolve sv_name → cvar index, broadcast amplitude to (n_nodes,)
+        self._stimuli: list[tuple[int, np.ndarray, StimSpec]] = []
+        for stim in spec.stimuli:
+            if stim.sv_name not in spec.model.cvar:
+                raise ValueError(
+                    f"StimSpec.sv_name {stim.sv_name!r} is not a coupling variable "
+                    f"(model.cvar = {spec.model.cvar}).  Stimulus is injected via "
+                    "the coupling array; only coupling variables are supported."
+                )
+            cvar_idx = spec.model.cvar.index(stim.sv_name)
+            amplitude = np.broadcast_to(
+                np.asarray(stim.amplitude, dtype=np.float64), (n_nodes,)
+            ).copy()
+            self._stimuli.append((cvar_idx, amplitude, stim))
+
         # Noise setup
         if spec.integrator.stochastic:
             ni = spec.model.noise_indices
@@ -164,6 +180,14 @@ class NumpySimulator:
                 coupling = self._coupling.compute(delayed, current_state=self._state)
             else:
                 coupling = self._coupling.compute_instant(self._state[cvar_idx])
+
+            # 1b. Stimulus — additive injection into coupling (same as TVB hybrid)
+            if self._stimuli:
+                t_ms = step * dt
+                for ci, amplitude, stim in self._stimuli:
+                    val = stim.evaluate(step, t_ms)
+                    if val != 0.0:
+                        coupling[ci] += val * amplitude
 
             # 2. Integrate
             if stochastic:

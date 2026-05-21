@@ -8,6 +8,7 @@ from .model import ModelSpec
 from .integrator import IntegratorSpec
 from .coupling import CouplingSpec
 from .monitor import MonitorSpec
+from .stimulus import StimSpec
 
 
 @dataclass
@@ -39,6 +40,7 @@ class SimulationSpec:
     tract_lengths: np.ndarray | None = None  # None → zero delays (pure ODE/SDE)
     speed: float = 4.0
     node_params: dict[str, np.ndarray] = field(default_factory=dict)
+    stimuli: tuple[StimSpec, ...] = field(default_factory=tuple)
 
     def __post_init__(self):
         if self.tract_lengths is None:
