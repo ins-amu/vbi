@@ -161,7 +161,7 @@ class NumpySimulator:
             # 1. Coupling — fast instant path when all delays are zero
             if has_delays:
                 delayed = self._history.read_delayed(self._delay_steps)
-                coupling = self._coupling.compute(delayed)
+                coupling = self._coupling.compute(delayed, current_state=self._state)
             else:
                 coupling = self._coupling.compute_instant(self._state[cvar_idx])
 

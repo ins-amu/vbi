@@ -105,11 +105,12 @@ class NumbaSimulator:
         dt      = spec.integrator.dt
         n_nodes = spec.n_nodes
 
-        if spec.coupling.kind not in ("linear",):
+        if spec.coupling.kind not in ("linear", "kuramoto"):
             raise NotImplementedError(
-                f"Numba backend supports 'linear' coupling; got {spec.coupling.kind!r}. "
-                "Sigmoidal will be added in a later milestone."
+                f"Numba backend supports 'linear' and 'kuramoto' coupling; "
+                f"got {spec.coupling.kind!r}."
             )
+        self._use_kuramoto = spec.coupling.kind == "kuramoto"
 
         self._dfun  = build_numba_dfun(spec.model)
         self._params = build_params(spec)
@@ -171,7 +172,7 @@ class NumbaSimulator:
                 self._eff_noise_amp, self._noise_mask,
                 record_period, t_cut_step, n_sv, voi_indices,
                 self._use_heun, np.int64(spec.integrator.noise_seed),
-                self._dfun,
+                self._dfun, self._use_kuramoto,
             )
         else:
             raw_data = nb_simulate_det(
@@ -183,7 +184,7 @@ class NumbaSimulator:
                 self._lower_bounds, self._has_lower,
                 self._upper_bounds, self._has_upper,
                 record_period, t_cut_step, n_sv, voi_indices,
-                self._use_heun, self._dfun,
+                self._use_heun, self._dfun, self._use_kuramoto,
             )
 
         # raw_data: (n_record, n_sv, n_nodes)

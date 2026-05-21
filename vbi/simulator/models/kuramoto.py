@@ -19,13 +19,16 @@ kuramoto = ModelSpec(
     ),
     dfun_latex={
         "theta": (
-            r"\omega_i + \frac{G}{N}\sum_j W_{ij}\,\sin(\theta_j - \theta_i)"
+            r"\omega_i + \underbrace{\frac{G}{N}\sum_j W_{ij}\,\sin(\theta_j - \theta_i)}_{c_i}"
         ),
     },
     latex_notes=(
-        r"In code `c` represents the pre-computed coupling term. "
-        r"For correct sinusoidal coupling use `CouplingSpec(kind='kuramoto')`, "
-        r"which computes $c_i = \frac{G}{N}\sum_j W_{ij}\sin(\theta_j - \theta_i)$. "
-        r"With `kind='linear'`, $c_i = G\sum_j W_{ij}\theta_j$ (linear approximation)."
+        r"$c_i$ is computed by `CouplingSpec(kind='kuramoto')`: "
+        r"$c_i = \dfrac{G}{N}\sum_j W_{ij}\sin(\theta_j - \theta_i)$, "
+        r"where $W_{ij}$ is the weight **from** source $j$ **to** target $i$ "
+        r"(convention: `weights[tgt, src]`), $N$ is the number of nodes, "
+        r"and $G$ is the global coupling strength. "
+        r"Delayed coupling ($\tau_{ij} > 0$) substitutes $\theta_j(t-\tau_{ij})$ "
+        r"for $\theta_j(t)$."
     ),
 )

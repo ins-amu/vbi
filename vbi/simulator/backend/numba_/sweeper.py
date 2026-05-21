@@ -50,10 +50,12 @@ class NumbaSweeperCPU:
         dt      = spec.integrator.dt
         n_nodes = spec.n_nodes
 
-        if spec.coupling.kind not in ("linear",):
+        if spec.coupling.kind not in ("linear", "kuramoto"):
             raise NotImplementedError(
-                f"Numba backend supports 'linear' coupling; got {spec.coupling.kind!r}."
+                f"Numba backend supports 'linear' and 'kuramoto' coupling; "
+                f"got {spec.coupling.kind!r}."
             )
+        self._use_kuramoto = spec.coupling.kind == "kuramoto"
 
         self._dfun   = build_numba_dfun(spec.model)
         self._params = build_params(spec)
@@ -141,7 +143,7 @@ class NumbaSweeperCPU:
                 self._eff_noise_amp, self._noise_mask,
                 record_period, t_cut_step, n_voi, voi_indices,
                 self._use_heun, self._sweep_param_indices, seeds,
-                self._dfun,
+                self._dfun, self._use_kuramoto,
             )
         else:
             raw = nb_sweep_det(
@@ -153,6 +155,7 @@ class NumbaSweeperCPU:
                 self._upper_bounds, self._has_upper,
                 record_period, t_cut_step, n_voi, voi_indices,
                 self._use_heun, self._sweep_param_indices, self._dfun,
+                self._use_kuramoto,
             )
 
         return raw, record_period  # (n_samples, n_record, n_sv, n_nodes)
@@ -233,10 +236,10 @@ class NumbaSweeperCPU:
                     nb_spec.do_mean, nb_spec.do_std,
                     nb_spec.do_fc, nb_spec.do_fcd,
                     np.int64(nb_spec.fcd_window), np.int64(n_feat),
-                    self._dfun,
+                    self._dfun, self._use_kuramoto,
                 )
             else:
-                feat_vals = nb_sweep_det_feat(*common_args)
+                feat_vals = nb_sweep_det_feat(*common_args, self._use_kuramoto)
 
             values = np.concatenate([ps, feat_vals], axis=1)
             return param_names + feat_labels, values

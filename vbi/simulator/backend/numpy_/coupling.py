@@ -20,7 +20,8 @@ class LinearCoupling:
         self.weights = weights
         self.G = G
 
-    def compute(self, delayed_state: np.ndarray) -> np.ndarray:
+    def compute(self, delayed_state: np.ndarray,
+                current_state: np.ndarray | None = None) -> np.ndarray:
         """
         Parameters
         ----------
@@ -60,7 +61,8 @@ class SigmoidalCoupling:
         self.weights = weights
         self.G = G
 
-    def compute(self, delayed_state: np.ndarray) -> np.ndarray:
+    def compute(self, delayed_state: np.ndarray,
+                current_state: np.ndarray | None = None) -> np.ndarray:
         sigm = 1.0 / (1.0 + np.exp(-(delayed_state - self.midpoint) / self.sigma))
         result = np.einsum('ts,cst->ct', self.weights, sigm)
         return self.G * self.a * result + self.b
@@ -72,10 +74,48 @@ class SigmoidalCoupling:
         return self.G * self.a * result + self.b
 
 
+class KuramotoCoupling:
+    """
+    c[tgt] = (G / N) * Σ_src  W[tgt, src] * sin(θ_src(t-τ) - θ_tgt(t))
+
+    Standard sinusoidal Kuramoto coupling.  N = number of nodes.
+    With zero delay θ_src(t-τ) = θ_src(t), so all phases come from the
+    current state and the full sin(θ_j - θ_i) form is exact.
+    """
+
+    def __init__(self, weights: np.ndarray, G: float):
+        self.weights = weights
+        self.G = G
+        self.N = weights.shape[0]
+
+    def compute(self, delayed_state: np.ndarray,
+                current_state: np.ndarray) -> np.ndarray:
+        """
+        delayed_state : (1, n_src, n_tgt)  — θ_src delayed per (src→tgt) pair
+        current_state : (n_sv, n_nodes)    — current state; row 0 = θ_tgt
+        """
+        theta_src = delayed_state[0]           # (n_src, n_tgt)
+        theta_tgt = current_state[0]           # (n_nodes,)
+        diff = theta_src - theta_tgt[np.newaxis, :]  # (n_src, n_tgt)
+        # c[tgt] = G/N * Σ_src W[tgt,src] * sin(diff[src,tgt])
+        c = (self.G / self.N) * np.einsum('ts,st->t', self.weights, np.sin(diff))
+        return c[np.newaxis, :]  # (1, n_nodes)
+
+    def compute_instant(self, cvar_state: np.ndarray) -> np.ndarray:
+        """Zero-delay path — all phases are current so diff = θ_src - θ_tgt exactly."""
+        theta = cvar_state[0]                          # (n_nodes,)
+        # diff[src, tgt] = theta[src] - theta[tgt]
+        diff = theta[:, np.newaxis] - theta[np.newaxis, :]  # (n_src, n_tgt)
+        c = (self.G / self.N) * np.einsum('ts,st->t', self.weights, np.sin(diff))
+        return c[np.newaxis, :]  # (1, n_nodes)
+
+
 def build_coupling(spec: CouplingSpec, weights: np.ndarray,
-                   G: float) -> LinearCoupling | SigmoidalCoupling:
+                   G: float) -> LinearCoupling | SigmoidalCoupling | KuramotoCoupling:
     if spec.kind == "linear":
         return LinearCoupling(spec, weights, G)
     if spec.kind == "sigmoidal":
         return SigmoidalCoupling(spec, weights, G)
+    if spec.kind == "kuramoto":
+        return KuramotoCoupling(weights, G)
     raise ValueError(f"Unknown coupling kind: {spec.kind!r}")
