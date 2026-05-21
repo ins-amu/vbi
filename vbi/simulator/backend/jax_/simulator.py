@@ -36,6 +36,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 from vbi.simulator.spec.simulation import SimulationSpec
+from vbi.simulator.spec.stimulus import build_stim_data
 from .codegen import build_jax_dfun
 
 
@@ -300,8 +301,9 @@ def _make_step_fn(
         return _instant_coupling(cvar_state, weights, G, coup_a, coup_b)
 
     def step(carry, _):
-        state, buf, t, params = carry
+        state, buf, t, params, stim_data = carry
         coup = _coupling(buf, t, state, params)
+        coup = coup + stim_data[t]   # stim_data[t]: dynamic JAX gather, zero when no stimulus
 
         if stochastic:
             step_key = jax.random.fold_in(master_key, t.astype(jnp.uint32))
@@ -320,7 +322,7 @@ def _make_step_fn(
         else:
             new_buf = buf  # no-op: buf unused without delays
 
-        return (new_state, new_buf, t + 1, params), new_state
+        return (new_state, new_buf, t + 1, params, stim_data), new_state
 
     return step
 
@@ -370,7 +372,7 @@ def _run_monitor(
                 inner_bold, (neural_carry, bw), None, length=tr_steps)
 
             bold_signal = _bw_bold_jax(new_bw, p)   # (n_nodes,)
-            _, _, t, _ = new_nc
+            _, _, t, _, _ = new_nc
             t_out = jnp.float32(t) * dt
             return (new_nc, new_bw), (t_out, bold_signal)
 
@@ -404,7 +406,7 @@ def _run_monitor(
             recorded = recorded.mean(axis=-1, keepdims=True)  # (n_sv, 1)
 
         # Time: step counter is in carry after inner scan
-        _, _, t, _ = inner_carry
+        _, _, t, _, _ = inner_carry
         t_out = jnp.float32(t - istep + 1) * dt
         return inner_carry, (t_out, recorded)
 
@@ -471,7 +473,12 @@ class JaxSimulator:
         # static_argnums=(1,): n_steps is a Python int → concrete in lax.scan
         self._run_jit = jax.jit(self._run_core, static_argnums=(1,))
 
-    def _run_core(self, params: dict, n_steps: int) -> dict:
+    def _run_core(self, params: dict, n_steps: int,
+                  stim_data: jnp.ndarray | None = None) -> dict:
+        if stim_data is None:
+            n_cvar  = len(self.spec.model.cvar)
+            stim_data = jnp.zeros(
+                (n_steps, n_cvar, self.spec.n_nodes), dtype=self._dtype)
         horizon = self._horizon
 
         # Initialise ring buffer
@@ -481,7 +488,7 @@ class JaxSimulator:
             (horizon, len(cvar_idx), self.spec.n_nodes), dtype=self._dtype)
         buf = buf.at[:].set(self._state0[cvar_idx_jnp][None, :, :])
 
-        carry = (self._state0, buf, jnp.int32(0), params)
+        carry = (self._state0, buf, jnp.int32(0), params, stim_data)
 
         results = {}
         for mon_spec in self.spec.monitors:
@@ -495,7 +502,9 @@ class JaxSimulator:
 
     def run(self, duration: float) -> dict[str, tuple[np.ndarray, np.ndarray]]:
         n_steps = round(duration / self._dt)
-        jax_results = self._run_jit(self._params, n_steps)
+        stim_np, _ = build_stim_data(self.spec, n_steps, self._dt)
+        stim_jax = jnp.array(stim_np, dtype=self._dtype)   # (n_steps, n_cvar, n_nodes)
+        jax_results = self._run_jit(self._params, n_steps, stim_jax)
         # Convert JAX arrays to numpy after JIT boundary
         return {kind: (np.array(t), np.array(d))
                 for kind, (t, d) in jax_results.items()}

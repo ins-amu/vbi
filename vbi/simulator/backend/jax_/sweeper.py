@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 
 from vbi.simulator.spec.simulation import SimulationSpec
+from vbi.simulator.spec.stimulus import build_stim_data
 from vbi.simulator.spec.sweep import SweepSpec
 from .codegen import build_jax_dfun
 from .simulator import (
@@ -125,6 +126,10 @@ class JaxSweeper:
             noise_amp=self._noise_amp,
         )
 
+        # Pre-sample stimulus — same for all sweep samples
+        stim_np, _ = build_stim_data(spec, n_steps, dt)
+        stim_jax = jnp.array(stim_np, dtype=self._dtype)   # (n_steps, n_cvar, n_nodes)
+
         def simulate_one(swept_params_one: dict,
                          run_key) -> tuple[jnp.ndarray, jnp.ndarray]:
             """One simulation run; run_key controls noise realization."""
@@ -135,7 +140,7 @@ class JaxSweeper:
 
             step_fn_i = _make_step_fn(**step_kwargs, master_key=run_key)
 
-            carry = (state0, buf, jnp.int32(0), params)
+            carry = (state0, buf, jnp.int32(0), params, stim_jax)
             times, data = _run_monitor(step_fn_i, carry, mon_spec, n_steps, dt)
             return times, data
 
