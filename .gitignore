@@ -47,3 +47,5 @@ dist/
 
 vbi/models/cupy/_mpr.py
 .coverage
+*.log
+*.lock
