@@ -14,6 +14,7 @@ import sys
 
 import numpy as np
 import pytest
+import scipy.stats as sp_stats
 
 pytest.importorskip("autograd", reason="autograd not installed")
 
@@ -179,6 +180,15 @@ class TestMultivariateNormal:
             mvn.log_prob(theta), gau.log_prob(theta), rtol=1e-5
         )
 
+    def test_log_prob_matches_scipy(self):
+        mean = np.array([0.5, -1.0])
+        cov  = np.array([[1.5, 0.3], [0.3, 0.8]])
+        theta = np.array([[0.5, -1.0], [1.0, -0.2], [-0.5, -1.5]])
+        p = MultivariateNormal(mean=mean, cov=cov)
+
+        expected = sp_stats.multivariate_normal(mean=mean, cov=cov).logpdf(theta)
+        np.testing.assert_allclose(p.log_prob(theta), expected, rtol=1e-10)
+
     def test_non_posdef_cov_raises(self):
         with pytest.raises(np.linalg.LinAlgError):
             MultivariateNormal(mean=np.zeros(2), cov=-np.eye(2))
@@ -202,6 +212,18 @@ class TestLogNormal:
         p  = LogNormal(mean=np.zeros(2), std=np.ones(2))
         lp = p.log_prob(np.array([[-1.0, 1.0]]))
         assert lp[0] == -np.inf
+
+    def test_log_prob_matches_scipy(self):
+        mean = np.array([0.1, -0.2])
+        std  = np.array([0.5, 1.2])
+        theta = np.array([[1.0, 0.5], [2.0, 3.0], [0.2, 1.5]])
+        p = LogNormal(mean=mean, std=std)
+
+        expected = np.sum(
+            sp_stats.lognorm(s=std, scale=np.exp(mean)).logpdf(theta),
+            axis=1,
+        )
+        np.testing.assert_allclose(p.log_prob(theta), expected, rtol=1e-10)
 
 
 class TestGamma:
@@ -227,6 +249,18 @@ class TestGamma:
         with pytest.raises(ValueError):
             Gamma(concentration=np.array([-1.0]), rate=np.array([1.0]))
 
+    def test_log_prob_matches_scipy(self):
+        concentration = np.array([2.0, 3.5])
+        rate = np.array([1.0, 0.5])
+        theta = np.array([[1.0, 2.0], [0.5, 4.0], [3.0, 1.5]])
+        p = Gamma(concentration=concentration, rate=rate)
+
+        expected = np.sum(
+            sp_stats.gamma(a=concentration, scale=1.0 / rate).logpdf(theta),
+            axis=1,
+        )
+        np.testing.assert_allclose(p.log_prob(theta), expected, rtol=1e-10)
+
 
 class TestBeta:
 
@@ -251,6 +285,15 @@ class TestBeta:
     def test_invalid_params_raise(self):
         with pytest.raises(ValueError):
             Beta(alpha=np.array([0.0]), beta=np.array([1.0]))
+
+    def test_log_prob_matches_scipy(self):
+        alpha = np.array([2.0, 0.8])
+        beta = np.array([3.0, 4.0])
+        theta = np.array([[0.3, 0.2], [0.5, 0.7], [0.8, 0.4]])
+        p = Beta(alpha=alpha, beta=beta)
+
+        expected = np.sum(sp_stats.beta(a=alpha, b=beta).logpdf(theta), axis=1)
+        np.testing.assert_allclose(p.log_prob(theta), expected, rtol=1e-10)
 
 
 class TestMultipleIndependent:
@@ -287,6 +330,20 @@ class TestMultipleIndependent:
         with pytest.raises(ValueError):
             MultipleIndependent([])
 
+    def test_log_prob_is_sum_of_component_log_probs(self):
+        box = BoxUniform(low=np.array([0.0]), high=np.array([2.0]))
+        gamma = Gamma(concentration=np.array([2.0]), rate=np.array([0.5]))
+        beta = Beta(alpha=np.array([2.0]), beta=np.array([3.0]))
+        p = MultipleIndependent([box, gamma, beta])
+        theta = np.array([[1.0, 2.0, 0.25], [0.5, 4.0, 0.75]])
+
+        expected = (
+            box.log_prob(theta[:, 0:1])
+            + gamma.log_prob(theta[:, 1:2])
+            + beta.log_prob(theta[:, 2:3])
+        )
+        np.testing.assert_allclose(p.log_prob(theta), expected, rtol=1e-10)
+
 
 class TestRestrictedPrior:
 
@@ -309,6 +366,17 @@ class TestRestrictedPrior:
         prior = RestrictedPrior(base, lambda t: np.sum(t ** 2, axis=1) <= 1.0)
         lp    = prior.log_prob(np.array([[0.3, 0.3]]))
         assert np.isfinite(lp[0])
+
+    def test_log_prob_matches_base_inside_constraint(self):
+        base  = Gaussian(mean=np.zeros(2), std=np.array([1.0, 2.0]))
+        prior = RestrictedPrior(base, lambda t: np.sum(t ** 2, axis=1) <= 1.0)
+        theta = np.array([[0.3, 0.3], [0.5, 0.0]])
+
+        np.testing.assert_allclose(
+            prior.log_prob(theta),
+            base.log_prob(theta),
+            rtol=1e-10,
+        )
 
 
 class TestPriorsWithSNPE:
