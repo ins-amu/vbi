@@ -68,12 +68,12 @@ class ConditionalDensityEstimator(abc.ABC):
     @abc.abstractmethod
     def sample(self, features, n_samples: int, rng) -> anp.ndarray:
         if self.weights is None:
-            raise RuntimeError("Model not trained yet. Call train() first.")
+            raise RuntimeError("Model has not been trained yet. Call train() first.")
 
     @abc.abstractmethod
     def log_prob(self, features, params) -> anp.ndarray:
         if self.weights is None:
-            raise RuntimeError("Model not trained yet. Call train() first.")
+            raise RuntimeError("Model has not been trained yet. Call train() first.")
 
     # ------------------------------------------------------------------
     # Dimension inference
