@@ -459,6 +459,49 @@ autograd implementation before adding new backends.
 
 ---
 
+## MI0-collapse — Training stability: posterior collapse prevention
+
+**Problem observed:** MAF training with too many epochs produces `std ≈ 0.04`
+when the true posterior std is `0.30`.  The flow sharpens the distribution
+indefinitely because the NLL loss keeps decreasing even as the posterior
+becomes unphysically narrow.  Standard early-stopping (plateau detection)
+does not catch this because the validation NLL never plateaus — it just keeps
+going down as the distribution collapses.
+
+**How sbi handles it (PyTorch):**
+1. **`log_scale` clamping** — the MAF/NSF scale is clamped: `log_scale > -7`
+   so `std > exp(-7) ≈ 0.001`.  Prevents total collapse but not gradual over-sharpening.
+2. **Posterior std monitoring** — during training, `sbi` evaluates `posterior.sample`
+   on a fixed held-out observation every N epochs and stops if the empirical std
+   falls below a fraction of the prior std.
+3. **Learning-rate decay** — cosine or step LR schedule means late-stage updates
+   are small, limiting the amount of over-sharpening.
+4. **`max_num_epochs` is intentionally set conservatively** — sbi sets
+   `max_num_epochs=2**31-1` (infinite) but relies on early stopping;
+   in practice, 50–200 epochs is typical.  The user is not expected to tune this.
+
+**Tasks:**
+
+- [ ] **LR schedule**: add `lr_schedule='cosine'|'step'|None` to `MAFEstimator.train()`;
+      cosine annealing from `learning_rate` to `learning_rate * 0.01` over training
+- [ ] **`log_scale` clamp**: in `_made_forward`, `log_sig = clip(out, -7, 7)` already
+      exists — verify it is effective and add a `min_log_scale` constructor kwarg
+- [ ] **Posterior std monitoring**: add `monitor_collapse=True` to `train()`;
+      every `check_every=10` epochs, draw `n_check=200` samples at a fixed
+      `x_check` observation; if `samples.std() < prior_std * collapse_threshold`
+      (default 0.05), restore best weights and stop
+- [ ] **Auto `max_num_epochs`**: when `monitor_collapse=True`, the user does not
+      need to set `max_num_epochs` — the collapse monitor + plateau early-stopping
+      handle termination automatically
+- [ ] **`SNPE.train()` kwarg**: expose `monitor_collapse=True` and `x_check=None`
+      (auto-selected from training data if not provided)
+- [ ] **Tests**: verify that with `monitor_collapse=True`, std error on the
+      1-D Gaussian demo stays < 0.15 regardless of `max_num_epochs`
+
+**Effort:** Small, 1-2 days.
+
+---
+
 ## MI0-NSF — Neural Spline Flow density estimator
 
 **Goal:** Add NSF, which is sbi's best-performing density estimator.

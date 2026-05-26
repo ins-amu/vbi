@@ -22,6 +22,12 @@ N_ROUND1    = 1500
 N_ROUND2    = 500
 N_POST      = 1000
 SEED        = 0
+# NOTE: do NOT increase max_num_epochs much beyond 300 here.
+# MAF can suffer posterior collapse — the flow keeps sharpening the distribution
+# (NLL still decreasing) while the posterior std becomes unphysically small.
+# The early-stopping patience detects *plateaus*, not collapse.
+# Fix in MI0-NSF: learning-rate schedule + min_std constraint.
+max_num_epochs = 300
 
 rng = np.random.default_rng(SEED)
 prior  = Gaussian(mean=np.array([0.0]), std=np.array([SIGMA_PRIOR]))
@@ -55,7 +61,7 @@ inf1 = SNPE(prior=prior, density_estimator="maf")
 inf1.append_simulations(theta1, x1)
 est1 = inf1.train(
     training_batch_size=256, learning_rate=5e-4,
-    stop_after_epochs=20, max_num_epochs=300, verbose=False,
+    stop_after_epochs=20, max_num_epochs=max_num_epochs, verbose=False,
 )
 post1   = inf1.build_posterior(est1)
 samp1   = post1.sample((N_POST,), x=x_obs, seed=0)
@@ -89,7 +95,7 @@ inf2 = SNPE(prior=prior, density_estimator="maf")
 inf2.append_simulations(theta2, x2)    # round 2 — focused near posterior
 est2 = inf2.train(
     training_batch_size=256, learning_rate=5e-4,
-    stop_after_epochs=20, max_num_epochs=300, verbose=False,
+    stop_after_epochs=20, max_num_epochs=max_num_epochs, verbose=False,
 )
 post2   = inf2.build_posterior(est2)
 samp2   = post2.sample((N_POST,), x=x_obs, seed=0)
