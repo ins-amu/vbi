@@ -27,8 +27,8 @@ import warnings
 import numpy as np
 
 os.environ.setdefault("MPLCONFIGDIR", "/tmp/matplotlib-vbi")
-# Demo runs on CPU; avoids cuDNN/XLA GPU init failures on machines where CUDA
-# is present but cuDNN is missing or mismatched.  Override with JAX_PLATFORMS=gpu.
+# JAX_PLATFORMS defaults to "cpu" inside vbi.inference._backends — set it here
+# before any vbi import so the demo works even when this file is run first.
 os.environ.setdefault("JAX_PLATFORMS", "cpu")
 
 # ── Problem definition ────────────────────────────────────────────────────────

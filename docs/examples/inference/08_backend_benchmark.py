@@ -123,13 +123,33 @@ def bench_vbi(backend: str):
         compile_s = 0.0
         train_s   = compile_and_train
 
+    # Actual gradient steps = epochs × batches_per_epoch
+    n_train_vbi = int(N_TRAIN * 0.9)
+    batches_vbi = max(1, -(-n_train_vbi // BATCH_SIZE))
+    actual_steps = N_STEPS * batches_vbi
+
     mean_err, std_err = _posterior_accuracy(samples)
     return dict(name=name, compile_s=compile_s, train_s=train_s,
                 sample_s=sample_s, mean_err=mean_err, std_err=std_err,
-                steps=N_STEPS)
+                steps=actual_steps)
 
 
 # ── sbi (torch) ───────────────────────────────────────────────────────────────
+def _run_sbi(inf_obj, theta_t, x_t):
+    """Train sbi SNPE, fully suppressing stdout/stderr progress output."""
+    import io, contextlib
+    buf = io.StringIO()
+    with warnings.catch_warnings(), contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
+        warnings.simplefilter("ignore")
+        return inf_obj.train(
+            training_batch_size=BATCH_SIZE,
+            learning_rate=5e-4,
+            stop_after_epochs=N_STEPS,
+            max_num_epochs=N_STEPS,
+            show_train_summary=False,
+        )
+
+
 def bench_sbi():
     try:
         import torch
@@ -151,46 +171,38 @@ def bench_sbi():
     inf_sbi = sbiSNPE(prior=prior_sbi, density_estimator="maf")
     inf_sbi.append_simulations(theta_t, x_t)
     t0 = time.perf_counter()
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        est_sbi = inf_sbi.train(
-            training_batch_size=BATCH_SIZE,
-            learning_rate=5e-4,
-            stop_after_epochs=N_STEPS,
-            max_num_epochs=N_STEPS,
-            show_train_summary=False,
-        )
+    est_sbi = _run_sbi(inf_sbi, theta_t, x_t)
     compile_and_train = time.perf_counter() - t0
     post_sbi = inf_sbi.build_posterior(est_sbi)
 
-    # Sample timing
+    # Sample timing — suppress sbi sampler tqdm (writes to stderr)
+    import io, contextlib
     x_obs_cond = x_obs_t.squeeze(0)
     t0 = time.perf_counter()
     for _ in range(N_SAMPLE_REPS):
-        samples_t = post_sbi.sample((N_SAMPLES,), x=x_obs_cond)
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
+            samples_t = post_sbi.sample((N_SAMPLES,), x=x_obs_cond)
     sample_s = (time.perf_counter() - t0) / N_SAMPLE_REPS
 
     # Second run (warm)
     inf2 = sbiSNPE(prior=prior_sbi, density_estimator="maf")
     inf2.append_simulations(theta_t, x_t)
     t1 = time.perf_counter()
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        inf2.train(
-            training_batch_size=BATCH_SIZE,
-            learning_rate=5e-4,
-            stop_after_epochs=N_STEPS,
-            max_num_epochs=N_STEPS,
-            show_train_summary=False,
-        )
+    _run_sbi(inf2, theta_t, x_t)
     train_s   = time.perf_counter() - t1
     compile_s = max(0.0, compile_and_train - train_s)
+
+    # sbi uses epochs; compute actual gradient steps for fair comparison
+    n_train_sbi = int(N_TRAIN * 0.9)   # sbi uses 10% val by default
+    batches_sbi = max(1, -(-n_train_sbi // BATCH_SIZE))   # ceiling div
+    actual_steps = N_STEPS * batches_sbi
 
     samples_np = samples_t.numpy()
     mean_err, std_err = _posterior_accuracy(samples_np)
     return dict(name="sbi/torch", compile_s=compile_s, train_s=train_s,
                 sample_s=sample_s, mean_err=mean_err, std_err=std_err,
-                steps=N_STEPS)
+                steps=actual_steps)
 
 
 # ── Run ────────────────────────────────────────────────────────────────────────
@@ -224,9 +236,12 @@ if r_sbi:
 
 print()
 print("  Notes:")
-print("  • compile: one-time JIT/trace cost (not paid on subsequent runs)")
-print("  • train: steady-state cost for all gradient steps (after warmup)")
-print("  • sample: time for 1000 posterior samples (averaged over 5 runs)")
+print("  • compile: one-time JIT/trace cost (amortised over repeated runs)")
+print("  • train:   steady-state wall-clock for all gradient steps (warmup excluded)")
+print("  • steps/s: actual gradient steps / second (epochs × batches_per_epoch)")
+print("  • sample:  time for 1000 posterior samples, averaged over 5 repetitions")
+print("  • JAX advantage grows with model size and N; on GPU, JAX typically beats torch.")
+print("    On CPU with tiny models the per-step overhead dominates.")
 print()
 
 # ── Speedup summary ────────────────────────────────────────────────────────────

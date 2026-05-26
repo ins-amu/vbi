@@ -1,4 +1,5 @@
 """Backend registry for vbi.inference estimators."""
+import os
 
 AVAILABLE_BACKENDS = ["numpy"]
 
@@ -10,6 +11,11 @@ except ImportError:
 
 _JAX_AVAILABLE = False
 try:
+    # Default to CPU so GPU cuDNN init errors don't surface on machines where
+    # CUDA is present but cuDNN is missing/mismatched.
+    # Users who want GPU set JAX_PLATFORMS=gpu (or cuda) in their environment
+    # before importing vbi.  setdefault is a no-op if already set.
+    os.environ.setdefault("JAX_PLATFORMS", "cpu")
     import jax  # noqa: F401
     _JAX_AVAILABLE = True
     AVAILABLE_BACKENDS.append("jax")
