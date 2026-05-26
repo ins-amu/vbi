@@ -10,7 +10,7 @@ run_tarp         : Test of Accuracy with Random Points
 check_tarp       : Expected coverage probability error
 plot_tarp        : Coverage plot (ECP vs alpha)
 c2st             : Classifier Two-Sample Test accuracy
-pairplot         : Triangle scatter/KDE plot of samples
+pairplot         : Wrapper around vbi.plot.pairplot
 conditional_pairplot : Pairplot conditioned on observed data
 plot_loss        : Training (and optional validation) loss curve
 """
@@ -352,99 +352,42 @@ def c2st(samples_p: np.ndarray, samples_q: np.ndarray,
 
 
 # ---------------------------------------------------------------------------
-# Visualisation — pairplot
+# Visualisation — pairplot (delegates to vbi.plot.pairplot)
 # ---------------------------------------------------------------------------
 
 def pairplot(samples: np.ndarray, points=None, limits=None, labels=None,
-             fig=None, kde: bool = False, alpha: float = 0.4,
-             point_color: str = "red"):
+             fig=None, axes=None, **kwargs):
     """
-    Triangle (lower-triangle) scatter / KDE plot of posterior samples.
+    Triangle scatter / KDE plot of posterior samples.
+
+    Thin wrapper around :func:`vbi.plot.pairplot`.  All keyword arguments
+    are forwarded verbatim, giving access to the full interface
+    (``upper``, ``lower``, ``diag``, ``subset``, ``diag_kwargs``, …).
 
     Parameters
     ----------
     samples : ndarray (N, D)
-    points  : ndarray (M, D) | None  — highlight specific parameter values
-    limits  : list[(lo, hi)] | None  — axis limits per dimension
+    points  : ndarray | list | None  — highlight specific parameter values
+    limits  : list[(lo, hi)] | None
     labels  : list[str] | None
-    fig     : matplotlib Figure | None
-    kde     : bool  — overlay kernel-density estimate on diagonal
-    alpha   : float — scatter point transparency
-    point_color : str
+    fig, axes : existing figure / axes to draw into (optional)
+    **kwargs  : forwarded to :func:`vbi.plot.pairplot`
 
     Returns
     -------
     matplotlib.figure.Figure
     """
-    import matplotlib.pyplot as plt
+    from vbi.plot import pairplot as _pairplot
 
-    samples = np.asarray(samples)
-    if samples.ndim == 1:
-        samples = samples[:, None]
-
-    D = samples.shape[1]
-    if labels is None:
-        labels = [f"θ[{d}]" for d in range(D)]
-
-    if fig is None:
-        fig, axes = plt.subplots(D, D, figsize=(2.5 * D, 2.5 * D))
-    else:
-        axes = np.array(fig.axes).reshape(D, D)
-
-    if D == 1:
-        axes = np.array([[axes]])
-
-    for row in range(D):
-        for col in range(D):
-            ax = axes[row, col]
-            if col > row:
-                ax.set_visible(False)
-                continue
-
-            if row == col:
-                # Diagonal: 1D histogram (+ optional KDE)
-                ax.hist(samples[:, row], bins=30, density=True,
-                        color="steelblue", alpha=0.6, edgecolor="white")
-                if kde:
-                    from scipy.stats import gaussian_kde
-                    kde_fn = gaussian_kde(samples[:, row])
-                    xs = np.linspace(samples[:, row].min(),
-                                     samples[:, row].max(), 200)
-                    ax.plot(xs, kde_fn(xs), color="navy", linewidth=1.5)
-                if points is not None:
-                    pts = np.atleast_2d(points)
-                    for pt in pts:
-                        ax.axvline(pt[row], color=point_color,
-                                   linewidth=1.5, linestyle="--")
-            else:
-                # Lower triangle: 2D scatter
-                ax.scatter(samples[:, col], samples[:, row],
-                           s=3, alpha=alpha, color="steelblue",
-                           rasterized=True)
-                if points is not None:
-                    pts = np.atleast_2d(points)
-                    ax.scatter(pts[:, col], pts[:, row],
-                               color=point_color, s=40, zorder=5,
-                               marker="x", linewidths=2)
-
-            if limits is not None:
-                ax.set_xlim(limits[col])
-                if row != col:
-                    ax.set_ylim(limits[row])
-
-            # Labels only on outer edges
-            if row == D - 1:
-                ax.set_xlabel(labels[col], fontsize=9)
-            else:
-                ax.set_xticklabels([])
-            if col == 0 and row != col:
-                ax.set_ylabel(labels[row], fontsize=9)
-            elif col == 0 and row == 0:
-                ax.set_ylabel("density", fontsize=9)
-            else:
-                ax.set_yticklabels([])
-
-    fig.tight_layout()
+    fig, _ = _pairplot(
+        samples,
+        points=points,
+        limits=limits,
+        labels=labels,
+        fig=fig,
+        axes=axes,
+        **kwargs,
+    )
     return fig
 
 
