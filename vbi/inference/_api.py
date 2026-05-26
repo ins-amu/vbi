@@ -151,15 +151,16 @@ class SNPE:
         show_train_summary: bool        = False,
         verbose: bool | None            = None,   # overrides show_progress_bars + show_train_summary
         # Collapse-prevention (not in sbi; vbi.inference extension)
+        early_stopping_delta: float | None = None,
         lr_schedule: str | None         = "cosine",
         lr_min: float                   = 1e-5,
         lr_period: int                  = 500,
-        monitor_collapse: bool          = True,
+        monitor_collapse: bool          = False,
         x_check                         = None,
         collapse_threshold: float       = 0.05,
         check_every: int                = 10,
         n_check: int                    = 200,
-        # Extra kwargs forwarded to the estimator
+        # Extra kwargs forwarded to the estimator (e.g. seed, batch_size)
         **kwargs,
     ) -> ConditionalDensityEstimator:
         """
@@ -186,20 +187,25 @@ class SNPE:
             SNPE-C atoms; accepted for API compatibility, used in MI3.
         show_train_summary : bool
             Alias for verbose tqdm output.
+        early_stopping_delta : float | None
+            Minimum validation-loss improvement to reset patience counter.
+            None → auto: 1e-4 when lr_schedule='cosine', else 0.0.
+            With cosine LR, tiny late-epoch improvements (< lr_min × grad)
+            would otherwise keep patience at 0 forever.
         lr_schedule : 'cosine' | None
-            Cosine-anneal ``learning_rate`` → ``lr_min`` over training.
-            Prevents late-epoch over-sharpening.
+            Cosine-anneal ``learning_rate`` → ``lr_min`` over the first
+            ``lr_period`` epochs, then stay at lr_min.  None keeps lr fixed.
         lr_min : float
             Floor for cosine LR schedule.
+        lr_period : int
+            Epochs over which cosine annealing runs (default 500).
         monitor_collapse : bool
-            Stop early if the posterior std collapses below
-            ``collapse_threshold × data_std``.  Eliminates the need to
-            hand-tune ``max_num_epochs``.
-        x_check : array | None
-            Observation used for collapse monitoring.  Defaults to the first
-            training sample.
+            **Opt-in vbi extension (default False, not in sbi-compatible path).**
+            If True, periodically samples the posterior and restores the
+            last-healthy checkpoint when std drops below threshold.
+            Use with care — may stop training earlier than desired.
         collapse_threshold : float
-            Collapse is declared if ``posterior_std < collapse_threshold × data_std``.
+            Collapse declared when std < threshold × max_seen_std.
         check_every : int
             Epochs between collapse checks.
 
@@ -226,15 +232,17 @@ class SNPE:
 
         # Dispatch to estimator.train() with mapped kwargs
         common = dict(
-            params              = theta_all,
-            features            = x_all,
-            n_iter              = max_num_epochs,
-            learning_rate       = learning_rate,
-            batch_size          = training_batch_size,
-            verbose             = verbose,
-            validation_fraction = validation_fraction,
-            stop_after_epochs   = stop_after_epochs,
-            clip_max_norm       = clip_max_norm,
+            params                = theta_all,
+            features              = x_all,
+            n_iter                = max_num_epochs,
+            learning_rate         = learning_rate,
+            batch_size            = training_batch_size,
+            verbose               = verbose,
+            validation_fraction   = validation_fraction,
+            stop_after_epochs     = stop_after_epochs,
+            early_stopping_delta  = early_stopping_delta,
+            clip_max_norm         = clip_max_norm,
+            **kwargs,              # forward seed, etc.
         )
 
         if isinstance(self._estimator, MAFEstimator):

@@ -271,8 +271,8 @@ class MAFEstimator(ConditionalDensityEstimator):
         lr_schedule: str | None = "cosine",
         lr_min: float = 1e-5,
         lr_period: int = 500,
-        # ── Posterior collapse prevention ─────────────────────────────────
-        monitor_collapse: bool = True,
+        # ── Posterior collapse prevention (opt-in; not in sbi-compatible default)
+        monitor_collapse: bool = False,
         x_check=None,
         collapse_threshold: float = 0.05,
         check_every: int = 10,
@@ -289,24 +289,26 @@ class MAFEstimator(ConditionalDensityEstimator):
         verbose : bool
             Show tqdm progress bar.
         lr_schedule : 'cosine' | None
-            Learning-rate schedule.  'cosine' anneals from ``learning_rate``
-            down to ``lr_min`` over ``n_iter`` epochs.  None keeps lr fixed.
+            'cosine' anneals learning_rate → lr_min over the first
+            ``lr_period`` epochs, then stays at lr_min.  None keeps lr fixed.
         lr_min : float
-            Floor for cosine schedule.
+            Floor learning rate for the cosine schedule.
+        lr_period : int
+            Number of epochs over which the cosine anneal runs (default 500).
+            After this many epochs the LR stays at lr_min.
         monitor_collapse : bool
+            **Opt-in vbi extension, not part of sbi-compatible default.**
             If True, sample from the posterior every ``check_every`` epochs
-            and stop training if the posterior std collapses below
-            ``collapse_threshold * data_std``.  Eliminates the need to tune
-            ``n_iter`` manually.
+            and restore the last-healthy checkpoint when std collapses.
         x_check : array (1, feature_dim) | None
-            Observation used for collapse monitoring.  Defaults to the first
+            Observation for collapse monitoring.  Defaults to the first
             training feature sample.
         collapse_threshold : float
-            Stop if posterior_std < collapse_threshold * data_std on any dim.
+            Collapse is declared when std < threshold × max_seen_std.
         check_every : int
             Epochs between collapse checks.
         n_check : int
-            Posterior samples drawn per collapse check.
+            Posterior samples per collapse check.
 
         All other parameters mirror sbi's ``SNPE.train()`` kwarg names.
         """
@@ -381,16 +383,16 @@ class MAFEstimator(ConditionalDensityEstimator):
         # When collapse is detected we restore last_healthy_weights, which
         # avoids restoring an already-collapsed best_val checkpoint.
         _data_std = p_tr.std(axis=0) + 1e-8   # (param_dim,)
+        _stopped_for_collapse = False   # track which exit path was taken
         if monitor_collapse:
             _x_chk = (anp.atleast_2d(anp.asarray(x_check, dtype="f"))
                       if x_check is not None else f_tr[0:1].copy())
             _rng_chk = anp.random.RandomState(seed + 999)
-            # Initialised to the starting weights (guaranteed healthy pre-training)
+            # Separate "last healthy" checkpoint — distinct from best_val_weights.
+            # best_val_weights tracks best NLL (may already be collapsed);
+            # _last_healthy_weights tracks latest state where std was still OK.
             _last_healthy_weights = {k: w.copy() for k, w in self.weights.items()}
-            # Adaptive reference: max std observed across all healthy checks.
-            # Using max_seen instead of prior_std avoids the mismatch between
-            # prior std and posterior std on well-specified problems.
-            _max_seen_std = None
+            _max_seen_std = None   # adaptive reference (max std seen in checks)
 
         for epoch in iterator:
             # ── LR schedule ──────────────────────────────────────────────────
@@ -493,6 +495,7 @@ class MAFEstimator(ConditionalDensityEstimator):
                             collapse_threshold * 100,
                             anp.round(ref, 4),
                         )
+                        _stopped_for_collapse = True
                         self.weights = _last_healthy_weights
                         break
                     else:
@@ -503,7 +506,10 @@ class MAFEstimator(ConditionalDensityEstimator):
                 except Exception as exc:
                     log.debug("Collapse monitor skipped at epoch %d: %s", epoch, exc)
 
-        if n_val > 0:
+        # Restore best validation checkpoint — but NOT if collapse monitoring
+        # already restored a "last healthy" checkpoint (which is the correct
+        # weights to use; best_val_weights may be from a collapsed state).
+        if n_val > 0 and not _stopped_for_collapse:
             self.weights = best_weights
 
     def reinitialize(self, rng=None):
