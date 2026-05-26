@@ -894,7 +894,7 @@ samples = posterior.sample(5000)
 |-----------|---------|----------------|-----------|
 | **MI-API** | numpy/autograd | sbi-compatible API, full workflow | `numpy`, `autograd` |
 | **MI0** | numpy/autograd | mini-batch, save/load, logging | same |
-| **MI-numba** | Numba JIT | 5–10× faster training on CPU, no GPU needed | `numba` |
+| ~~MI-numba~~ | ~~Numba JIT~~ | ~~skipped — dead end without autograd~~ | — |
 | **MI1** | JAX | GPU, vmap, jit, gradient through posterior | `jax` |
 | **MI2** | all | prior integration, Posterior object (part of MI-API) | MI-API |
 | **MI3** | all | sequential rounds, multi-round SNPE | MI-API + MI2 |
@@ -904,88 +904,94 @@ samples = posterior.sample(5000)
 
 ## Priority order
 
-**Current focus: pure Python/NumPy — get feature parity with common sbi usage
-before moving to performance backends.**
+**Current focus: finish numpy-backend feature parity, then move to JAX.**
 
 ```
-★ DONE:  MI-API  sbi-compatible interface, MAF, MDN, BoxUniform, Gaussian,
-                  Posterior (sample/log_prob/map), mini-batch, save/load
+★ DONE:  MI-API        sbi-compatible interface, MAF, MDN, BoxUniform, Gaussian,
+                        Posterior (sample/log_prob/map), mini-batch, save/load
+         MI0-collapse  cosine LR, log_scale clamp, posterior-collapse monitor
+         MI0-rejection reject_outside_prior, leakage_correction, sample_with='rejection'
+         MI0-embed     EmbeddingNet (jointly trained MLP summary network)
+         MI0-utils     simulate_for_vbi, get_simulations, resume_training, process_prior
 
-  NEXT:   MI0-NSF        NSF density estimator (best model in sbi)
-          MI0-embed      Embedding/summary network
-          MI0-rejection  Rejection sampling + reject_outside_prior
-          MI0-priors     MultivariateNormal, MultipleIndependent, Beta, Gamma, ...
-          MI0-utils      simulate_for_sbi, get_simulations, resume_training
-          MI-diag        SBC, TARP, C2ST, pairplot
+  NEXT (numpy, remaining):
+          MI0-priors   MultivariateNormal, MultipleIndependent, Beta, Gamma, RestrictedPrior
+          MI-diag      SBC, TARP, C2ST, pairplot, plot_loss
+          MI0-NSF      NSF density estimator (optional — harder in autograd; may defer to MI1)
 
-  THEN:   MI3  Sequential rounds with APT weights (num_atoms properly)
-          MI4  MCMC posterior (MH first, NUTS after JAX)
-          MI6  End-to-end VBIInference API
+  THEN (after numpy is complete):
+          MI1   JAX backend (GPU, vmap, jit, PRNG refactor) — translate autograd → JAX
+          MI3   Sequential rounds with APT importance weights (num_atoms)
+          MI4   MCMC posterior (MH on numpy; NUTS requires JAX)
+          MI6   End-to-end VBIInference API
 
-  LATER:  MI-numba  Numba JIT backend
-          MI1       JAX backend (GPU, vmap, grad through posterior)
-          MI5       Torch backend (optional)
-          SNLE, SNRE, FMPE, MNPE (deferred)
+  SKIPPED / DEFERRED:
+          MI-numba  Numba JIT — no autograd, finite-diff gradients are impractical
+          MI5       Torch backend (optional, post-JAX)
+          SNLE, SNRE, FMPE, MNPE
 ```
 
 ### Dependency graph
 
 ```
-MI-API+MI0
-  │
-  ├──→ MI-numba  (fast CPU, independent of JAX)
+MI-API + MI0-*
   │
   ├──→ MI1 (JAX) ──→ MI4 (MCMC/NUTS)
   │                        │
-  ├──→ MI2 (prior) ────────┤
+  ├──→ MI3 (sequential) ───┤
   │                        │
-  └──→ MI3 (sequential) ───┴──→ MI6 (end-to-end)
+  └──→ MI6 (end-to-end) ───┘
 
-           MI5 (torch, optional) ─────────────────┘
+  MI5 (torch, optional, post-JAX)
 ```
 
 ---
 
 ## Comparison with `sbi`
 
-| Feature | `sbi` | `vbi.cde` (target) |
-|---------|-------|--------------------|
-| MDN | ✅ | ✅ (done) |
-| MAF | ✅ | ✅ (done) |
-| NSF (neural spline flow) | ✅ | ❌ MI1+ |
-| Sequential rounds (SNPE-C) | ✅ | ❌ MI3 |
-| Prior support | ✅ | ❌ MI2 |
-| MCMC refinement | ✅ (NUTS) | ❌ MI4 |
-| GPU training | ✅ (torch.cuda) | ❌ MI1 (JAX) |
+| Feature | `sbi` | `vbi.inference` |
+|---------|-------|----------------|
+| MDN | ✅ | ✅ done |
+| MAF | ✅ | ✅ done |
+| Embedding / summary network | ✅ | ✅ done (EmbeddingNet) |
+| Mini-batch training | ✅ | ✅ done |
+| Save / load | ✅ | ✅ done |
+| Rejection sampling posterior | ✅ | ✅ done |
+| simulate_for_sbi helper | ✅ | ✅ done (simulate_for_vbi) |
+| get_simulations | ✅ | ✅ done |
+| resume_training (warm start) | ✅ | ✅ done |
+| BoxUniform, Gaussian, CustomPrior | ✅ | ✅ done |
+| MultivariateNormal, Beta, Gamma | ✅ | ❌ MI0-priors |
+| MultipleIndependent, RestrictedPrior | ✅ | ❌ MI0-priors |
+| NSF (neural spline flow) | ✅ | ❌ MI0-NSF (may defer to MI1/JAX) |
+| SBC, TARP, C2ST diagnostics | ✅ | ❌ MI-diag |
+| pairplot, plot_loss | ✅ | ❌ MI-diag |
+| Sequential rounds (SNPE-C / APT) | ✅ | ❌ MI3 |
+| MCMC refinement (NUTS) | ✅ | ❌ MI4 (NUTS needs JAX) |
+| GPU training | ✅ (torch.cuda) | ❌ MI1 (JAX/XLA) |
 | vmap batch eval | ✅ | ❌ MI1 |
-| Gradient through posterior | Limited | ✅ MI1 (JAX, full) |
-| Mini-batch training | ✅ | ❌ MI0 |
-| Save / load | ✅ | ❌ MI0 |
-| Dependency size | ~2 GB | ~50 MB (numpy+jax) |
-| Installation | `pip install sbi` | `pip install vbi` |
-| Integration with VBI sim | ❌ manual | ✅ MI6 (native) |
-| Numpy CDE speed (small N) | Slower | ✅ already faster |
+| Gradient through posterior | Limited | ❌ MI1 (JAX, full) |
+| Dependency size | ~2 GB | ~50 MB (numpy+autograd) |
+| Integration with VBI sim | ❌ manual | ❌ MI6 |
+| Numpy speed (small N) | Slower | ✅ already faster |
 
 ---
 
 ## Open design questions
 
 1. **Autograd vs JAX as default**: After MI1, should JAX replace autograd as
-   the default backend? Autograd is pure Python (easier to debug); JAX is
-   faster. Proposal: keep autograd as `backend='autograd'` fallback, JAX as
-   default when installed.
+   the default backend? Proposal: keep `backend='autograd'` as always-available
+   fallback; JAX becomes default when installed (`backend='auto'`).
 
-2. **NSF (Neural Spline Flow)**: sbi's best-performing estimator. Requires
-   rational-quadratic spline transforms. Doable in JAX, harder in autograd.
-   Should this be MI1.5 or a separate milestone?
+2. **NSF in autograd vs JAX**: RQ-spline transforms are doable in autograd but
+   tedious; in JAX they're cleaner and faster.  Current decision: defer MI0-NSF
+   and implement NSF as part of MI1 (JAX backend first, autograd fallback later).
 
 3. **`MAFEstimator0` deprecation**: The original simpler MAF should be
-   deprecated in MI0 and removed in MI1. Confirm with user.
+   deprecated at the start of MI1 and removed one release cycle after.
 
-4. **Embedding network**: sbi supports a learned summary network
-   `embedding_net` that maps raw data to features before conditioning.
-   `MAFEstimator` already has PCA; should a learned MLP embedding be added?
+4. ~~**Embedding network**~~: resolved — EmbeddingNet implemented in MI0-embed.
 
 5. **Amortized vs sequential**: the current CDE is fully amortized
-   (one network for all conditions). Sequential SBI breaks amortization.
-   Keep both paths or focus on amortized?
+   (one network for all conditions). Sequential SBI (MI3) breaks amortization.
+   Decision: keep both paths; amortized remains the default.
