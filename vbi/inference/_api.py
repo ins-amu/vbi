@@ -147,8 +147,17 @@ class SNPE:
         stop_after_epochs: int          = 20,
         max_num_epochs: int             = 2000,
         clip_max_norm: float | None     = 5.0,
-        num_atoms: int                  = 10,   # SNPE-C specific; stored, ignored until MI3
+        num_atoms: int                  = 10,   # SNPE-C; stored, ignored until MI3
         show_train_summary: bool        = False,
+        # Collapse-prevention (not in sbi; vbi.inference extension)
+        lr_schedule: str | None         = "cosine",
+        lr_min: float                   = 1e-5,
+        lr_period: int                  = 500,
+        monitor_collapse: bool          = True,
+        x_check                         = None,
+        collapse_threshold: float       = 0.05,
+        check_every: int                = 10,
+        n_check: int                    = 200,
         # Extra kwargs forwarded to the estimator
         **kwargs,
     ) -> ConditionalDensityEstimator:
@@ -167,13 +176,31 @@ class SNPE:
         stop_after_epochs : int
             Stop if validation loss does not improve for this many epochs.
         max_num_epochs : int
-            Hard cap on training epochs (mapped to n_iter internally).
+            Hard cap on training epochs.  With ``monitor_collapse=True`` the
+            training will stop automatically before this limit when the
+            posterior collapses, so you rarely need to tune this manually.
         clip_max_norm : float | None
             Global gradient norm clip.  None disables clipping.
         num_atoms : int
             SNPE-C atoms; accepted for API compatibility, used in MI3.
         show_train_summary : bool
             Alias for verbose tqdm output.
+        lr_schedule : 'cosine' | None
+            Cosine-anneal ``learning_rate`` → ``lr_min`` over training.
+            Prevents late-epoch over-sharpening.
+        lr_min : float
+            Floor for cosine LR schedule.
+        monitor_collapse : bool
+            Stop early if the posterior std collapses below
+            ``collapse_threshold × data_std``.  Eliminates the need to
+            hand-tune ``max_num_epochs``.
+        x_check : array | None
+            Observation used for collapse monitoring.  Defaults to the first
+            training sample.
+        collapse_threshold : float
+            Collapse is declared if ``posterior_std < collapse_threshold × data_std``.
+        check_every : int
+            Epochs between collapse checks.
 
         Returns
         -------
@@ -196,18 +223,28 @@ class SNPE:
 
         # Dispatch to estimator.train() with mapped kwargs
         common = dict(
-            params             = theta_all,
-            features           = x_all,
-            n_iter             = max_num_epochs,
-            learning_rate      = learning_rate,
-            batch_size         = training_batch_size,
-            verbose            = verbose,
-            validation_fraction= validation_fraction,
-            stop_after_epochs  = stop_after_epochs,
-            clip_max_norm      = clip_max_norm,
+            params              = theta_all,
+            features            = x_all,
+            n_iter              = max_num_epochs,
+            learning_rate       = learning_rate,
+            batch_size          = training_batch_size,
+            verbose             = verbose,
+            validation_fraction = validation_fraction,
+            stop_after_epochs   = stop_after_epochs,
+            clip_max_norm       = clip_max_norm,
         )
 
         if isinstance(self._estimator, MAFEstimator):
+            common.update(dict(
+                lr_schedule         = lr_schedule,
+                lr_min              = lr_min,
+                lr_period           = lr_period,
+                monitor_collapse    = monitor_collapse,
+                x_check             = x_check,
+                collapse_threshold  = collapse_threshold,
+                check_every         = check_every,
+                n_check             = n_check,
+            ))
             self._estimator.train(**common)
         else:
             # MDNEstimator uses base train() — subset of kwargs

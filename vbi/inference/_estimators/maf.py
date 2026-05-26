@@ -1,6 +1,8 @@
 """Masked Autoregressive Flow conditional density estimator."""
 from __future__ import annotations
 from dataclasses import dataclass, field
+import logging
+import math
 from typing import Optional
 
 import autograd.numpy as anp
@@ -8,6 +10,17 @@ from autograd import grad
 from tqdm.auto import trange
 
 from .base import ConditionalDensityEstimator
+
+log = logging.getLogger(__name__)
+
+
+def _cosine_lr(lr_max: float, lr_min: float, epoch: int, period: int) -> float:
+    """Cosine annealing: lr_max → lr_min over ``period`` epochs, then stays at lr_min."""
+    if epoch >= period:
+        return lr_min
+    return lr_min + 0.5 * (lr_max - lr_min) * (
+        1.0 + math.cos(math.pi * epoch / max(period - 1, 1))
+    )
 
 
 @dataclass
@@ -254,10 +267,20 @@ class MAFEstimator(ConditionalDensityEstimator):
         stop_after_epochs: int = 20,
         early_stopping_delta: float = 0.0,
         clip_max_norm: float | None = 5.0,
+        # ── LR schedule ──────────────────────────────────────────────────
+        lr_schedule: str | None = "cosine",
+        lr_min: float = 1e-5,
+        lr_period: int = 500,
+        # ── Posterior collapse prevention ─────────────────────────────────
+        monitor_collapse: bool = True,
+        x_check=None,
+        collapse_threshold: float = 0.05,
+        check_every: int = 10,
+        n_check: int = 200,
     ):
         """
-        Train with Adam, optional mini-batches, train/val split, and
-        early stopping.
+        Train with Adam, optional mini-batches, train/val split, early stopping,
+        cosine LR annealing, and posterior-collapse monitoring.
 
         Parameters
         ----------
@@ -265,6 +288,26 @@ class MAFEstimator(ConditionalDensityEstimator):
             Mini-batch size per gradient step.  None → full training set.
         verbose : bool
             Show tqdm progress bar.
+        lr_schedule : 'cosine' | None
+            Learning-rate schedule.  'cosine' anneals from ``learning_rate``
+            down to ``lr_min`` over ``n_iter`` epochs.  None keeps lr fixed.
+        lr_min : float
+            Floor for cosine schedule.
+        monitor_collapse : bool
+            If True, sample from the posterior every ``check_every`` epochs
+            and stop training if the posterior std collapses below
+            ``collapse_threshold * data_std``.  Eliminates the need to tune
+            ``n_iter`` manually.
+        x_check : array (1, feature_dim) | None
+            Observation used for collapse monitoring.  Defaults to the first
+            training feature sample.
+        collapse_threshold : float
+            Stop if posterior_std < collapse_threshold * data_std on any dim.
+        check_every : int
+            Epochs between collapse checks.
+        n_check : int
+            Posterior samples drawn per collapse check.
+
         All other parameters mirror sbi's ``SNPE.train()`` kwarg names.
         """
         params   = anp.asarray(params)
@@ -324,8 +367,30 @@ class MAFEstimator(ConditionalDensityEstimator):
         self.best_epoch    = -1
         self.best_val_loss = None
 
+        # ── Collapse monitoring setup ─────────────────────────────────────────
+        # Two-checkpoint strategy:
+        #   best_val_weights    — best NLL on validation (may be collapsed)
+        #   last_healthy_weights — latest weights where posterior_std was OK
+        # When collapse is detected we restore last_healthy_weights, which
+        # avoids restoring an already-collapsed best_val checkpoint.
+        _data_std = p_tr.std(axis=0) + 1e-8   # (param_dim,)
+        if monitor_collapse:
+            _x_chk = (anp.atleast_2d(anp.asarray(x_check, dtype="f"))
+                      if x_check is not None else f_tr[0:1].copy())
+            _rng_chk = anp.random.RandomState(seed + 999)
+            # Initialised to the starting weights (guaranteed healthy pre-training)
+            _last_healthy_weights = {k: w.copy() for k, w in self.weights.items()}
+            # Adaptive reference: max std observed across all healthy checks.
+            # Using max_seen instead of prior_std avoids the mismatch between
+            # prior std and posterior std on well-specified problems.
+            _max_seen_std = None
+
         for epoch in iterator:
-            # Mini-batch selection on training set
+            # ── LR schedule ──────────────────────────────────────────────────
+            lr_t = (_cosine_lr(learning_rate, lr_min, epoch, lr_period)
+                    if lr_schedule == "cosine" else learning_rate)
+
+            # ── Mini-batch selection ──────────────────────────────────────────
             if batch_size is not None and batch_size < len(p_tr):
                 idx    = rng_np.choice(len(p_tr), size=batch_size, replace=False)
                 f_b, p_b = f_tr[idx], p_tr[idx]
@@ -336,7 +401,7 @@ class MAFEstimator(ConditionalDensityEstimator):
             train_loss = self._loss_function(self.weights, f_b, p_b)
             self.loss_history.append(float(train_loss))
 
-            # Gradient clipping
+            # ── Gradient clipping ─────────────────────────────────────────────
             if clip_max_norm is not None:
                 total_sq = sum(anp.sum(g[k] ** 2) for k in g)
                 norm     = anp.sqrt(total_sq + 1e-12)
@@ -344,7 +409,7 @@ class MAFEstimator(ConditionalDensityEstimator):
                     scale = clip_max_norm / (norm + 1e-12)
                     g = {k: g[k] * scale for k in g}
 
-            # Adam update
+            # ── Adam update (with scheduled lr) ──────────────────────────────
             for key in self.weights:
                 if not anp.all(anp.isfinite(g[key])):
                     self.weights = best_weights
@@ -353,9 +418,9 @@ class MAFEstimator(ConditionalDensityEstimator):
                 v[key] = beta2 * v[key] + (1 - beta2) * g[key] ** 2
                 m_hat  = m[key] / (1 - beta1 ** (epoch + 1))
                 v_hat  = v[key] / (1 - beta2 ** (epoch + 1))
-                self.weights[key] -= learning_rate * m_hat / (anp.sqrt(v_hat) + eps)
+                self.weights[key] -= lr_t * m_hat / (anp.sqrt(v_hat) + eps)
 
-            # Validation + early stopping
+            # ── Validation loss + plateau early stopping ──────────────────────
             if n_val > 0:
                 val_loss = self._loss_function(self.weights, f_val, p_val)
                 self.val_loss_history.append(float(val_loss))
@@ -374,6 +439,7 @@ class MAFEstimator(ConditionalDensityEstimator):
                         iterator.set_postfix(
                             train=f"{train_loss:.4f}",
                             val=f"{val_loss:.4f}",
+                            lr=f"{lr_t:.2e}",
                             patience=f"{epochs_no_improv}/{stop_after_epochs}",
                         )
                     except Exception:
@@ -385,9 +451,50 @@ class MAFEstimator(ConditionalDensityEstimator):
             else:
                 if verbose:
                     try:
-                        iterator.set_postfix(train=f"{train_loss:.4f}")
+                        iterator.set_postfix(
+                            train=f"{train_loss:.4f}", lr=f"{lr_t:.2e}")
                     except Exception:
                         pass
+
+            # ── Posterior collapse monitor ────────────────────────────────────
+            # Every check_every epochs, sample from the posterior at x_check.
+            # - If std is healthy  → update last_healthy_weights checkpoint.
+            # - If std has collapsed → restore last_healthy_weights and stop.
+            # Using last_healthy_weights (not best_val_weights) avoids
+            # restoring a checkpoint that was already slightly collapsed.
+            if monitor_collapse and (epoch + 1) % check_every == 0:
+                try:
+                    chk = self.sample(_x_chk, n_check, _rng_chk)  # (1, n, d)
+                    chk_std = chk[0].std(axis=0)                   # (param_dim,)
+
+                    # Update the adaptive reference on first check or when std grows
+                    if _max_seen_std is None:
+                        _max_seen_std = chk_std.copy()
+                    else:
+                        _max_seen_std = anp.maximum(_max_seen_std, chk_std)
+
+                    # Collapse = std dropped to < threshold × max ever seen
+                    ref = _max_seen_std if _max_seen_std is not None else _data_std
+                    if anp.any(chk_std < collapse_threshold * ref):
+                        log.info(
+                            "Collapse detected at epoch %d: "
+                            "posterior_std=%s  threshold=%s (%.0f%% of max_seen=%s). "
+                            "Restoring last healthy weights.",
+                            epoch,
+                            anp.round(chk_std, 4),
+                            anp.round(collapse_threshold * ref, 4),
+                            collapse_threshold * 100,
+                            anp.round(ref, 4),
+                        )
+                        self.weights = _last_healthy_weights
+                        break
+                    else:
+                        # Still healthy — save as the last known-good checkpoint
+                        _last_healthy_weights = {
+                            k: w.copy() for k, w in self.weights.items()
+                        }
+                except Exception as exc:
+                    log.debug("Collapse monitor skipped at epoch %d: %s", epoch, exc)
 
         if n_val > 0:
             self.weights = best_weights

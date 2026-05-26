@@ -22,12 +22,11 @@ N_ROUND1    = 1500
 N_ROUND2    = 500
 N_POST      = 1000
 SEED        = 0
-# NOTE: do NOT increase max_num_epochs much beyond 300 here.
-# MAF can suffer posterior collapse — the flow keeps sharpening the distribution
-# (NLL still decreasing) while the posterior std becomes unphysically small.
-# The early-stopping patience detects *plateaus*, not collapse.
-# Fix in MI0-NSF: learning-rate schedule + min_std constraint.
-max_num_epochs = 300
+# monitor_collapse=True (default) stops training automatically when the
+# posterior std drops below collapse_threshold * data_std.
+# This means max_num_epochs is just a safety cap — training stops
+# long before it from either early stopping OR collapse prevention.
+max_num_epochs = 2000
 
 rng = np.random.default_rng(SEED)
 prior  = Gaussian(mean=np.array([0.0]), std=np.array([SIGMA_PRIOR]))
