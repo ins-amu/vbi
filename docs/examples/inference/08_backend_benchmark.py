@@ -18,6 +18,8 @@ Run with:
     python docs/examples/inference/08_backend_benchmark.py
 """
 
+import contextlib
+import io
 import os
 import time
 import warnings
@@ -48,7 +50,9 @@ TRUE_MEAN = float(TRUE_STD ** 2 * _prec_l * X_OBS_VAL)
 # ── Shared data ────────────────────────────────────────────────────────────────
 rng_np = np.random.default_rng(SEED)
 
-from vbi.inference import SNPE as vbiSNPE, Gaussian as vbiGaussian  # noqa: E402
+_stderr = io.StringIO()
+with contextlib.redirect_stderr(_stderr):
+    from vbi.inference import SNPE as vbiSNPE, Gaussian as vbiGaussian  # noqa: E402
 
 prior_vbi = vbiGaussian(mean=np.array([0.0]), std=np.array([SIGMA_PRIOR]))
 theta_tr  = prior_vbi.sample((N_TRAIN,), seed=SEED).astype("f")
@@ -73,12 +77,17 @@ def _posterior_accuracy(samples):
     return abs(s.mean() - TRUE_MEAN), abs(s.std() - TRUE_STD)
 
 
-def _print_result(name, compile_s, train_s, sample_s, mean_err, std_err, steps):
+def _result_row(name, compile_s, train_s, sample_s, mean_err, std_err, steps):
     throughput = steps / train_s if train_s > 0 else float("nan")
-    print(f"  {name:<22}  compile={compile_s:6.2f}s  train={train_s:6.2f}s  "
-          f"({throughput:6.0f} steps/s)  "
-          f"sample={sample_s*1000:6.1f}ms  "
-          f"mean_err={mean_err:.3f}  std_err={std_err:.3f}")
+    return (
+        f"  {name:<14}"
+        f"{compile_s:>11.2f}"
+        f"{train_s:>10.2f}"
+        f"{throughput:>10.1f}"
+        f"{sample_s * 1000:>12.1f}"
+        f"{mean_err:>10.3f}"
+        f"{std_err:>9.3f}"
+    )
 
 
 results = []
@@ -209,49 +218,66 @@ def bench_sbi():
 print("=" * 76)
 print("Demo 8 — Backend benchmark: sbi/torch vs vbi/numpy vs vbi/jax")
 print("=" * 76)
-print(f"  Problem: 1-D Gaussian  N_train={N_TRAIN}  steps={N_STEPS}  "
-      f"batch={BATCH_SIZE}  MAF(flows=4,h=32)")
-print(f"  True posterior @ x_obs={X_OBS_VAL}: mean={TRUE_MEAN:.3f}  std={TRUE_STD:.3f}")
+print("  Problem")
+print(f"    simulator    : 1-D Gaussian")
+print(f"    N_train      : {N_TRAIN}")
+print(f"    train budget : {N_STEPS} epochs, batch={BATCH_SIZE}")
+print(f"    estimator    : MAF(flows=4, hidden_units=32)")
+print(f"    x_obs={X_OBS_VAL}: true mean={TRUE_MEAN:.3f}, true std={TRUE_STD:.3f}")
 print()
-print(f"  {'Backend':<22}  {'Compile':>8}  {'Train':>7}  {'Steps/s':>8}  "
-      f"{'Sample':>9}  {'Mean err':>8}  {'Std err':>7}")
-print("  " + "-" * 74)
 
-for backend in ("numpy", "jax"):
-    print(f"  running vbi/{backend} ...", flush=True)
+print("  Running")
+failures = []
+jobs = [("vbi/numpy", lambda: bench_vbi("numpy")),
+        ("vbi/jax",   lambda: bench_vbi("jax")),
+        ("sbi/torch", bench_sbi)]
+
+for i, (name, fn) in enumerate(jobs, start=1):
+    print(f"    [{i}/{len(jobs)}] {name:<9} ... ", end="", flush=True)
     try:
-        r = bench_vbi(backend)
-        results.append(r)
-        _print_result(**{k: r[k] for k in
-                         ("name","compile_s","train_s","sample_s","mean_err","std_err","steps")})
+        r = fn()
+        if r is None:
+            print("skipped")
+        else:
+            results.append(r)
+            print("done")
     except Exception as e:
-        print(f"  vbi/{backend} failed: {e}")
-
-print(f"  running sbi/torch ...", flush=True)
-r_sbi = bench_sbi()
-if r_sbi:
-    results.append(r_sbi)
-    _print_result(**{k: r_sbi[k] for k in
-                     ("name","compile_s","train_s","sample_s","mean_err","std_err","steps")})
+        failures.append((name, str(e).splitlines()[0]))
+        print("failed")
 
 print()
-print("  Notes:")
-print("  • compile: one-time JIT/trace cost (amortised over repeated runs)")
-print("  • train:   steady-state wall-clock for all gradient steps (warmup excluded)")
-print("  • steps/s: actual gradient steps / second (epochs × batches_per_epoch)")
-print("  • sample:  time for 1000 posterior samples, averaged over 5 repetitions")
-print("  • JAX advantage grows with model size and N; on GPU, JAX typically beats torch.")
-print("    On CPU with tiny models the per-step overhead dominates.")
+if failures:
+    print("  Failures")
+    for name, message in failures:
+        print(f"    {name:<9}: {message}")
+    print()
+
+print("  Results")
+print(f"  {'Backend':<14}{'Compile s':>11}{'Train s':>10}{'Steps/s':>10}"
+      f"{'Sample ms':>12}{'Mean err':>10}{'Std err':>9}")
+print("  " + "-" * 76)
+for r in results:
+    print(_result_row(**{k: r[k] for k in
+                         ("name", "compile_s", "train_s", "sample_s",
+                          "mean_err", "std_err", "steps")}))
 print()
 
 # ── Speedup summary ────────────────────────────────────────────────────────────
 if len(results) >= 2:
     baseline = next((r for r in results if r["name"] == "vbi/numpy"), None)
     if baseline:
-        print("  Speedup vs vbi/numpy (training, excluding compilation):")
+        print("  Training speed vs vbi/numpy")
         for r in results:
             if r["name"] == baseline["name"]:
                 continue
             ratio = baseline["train_s"] / r["train_s"] if r["train_s"] > 0 else float("nan")
-            print(f"    {r['name']:<22}  {ratio:+.2f}x")
+            label = "faster" if ratio >= 1.0 else "slower"
+            print(f"    {r['name']:<9}: {ratio:.2f}x ({label})")
         print()
+
+print("  Timing definitions")
+print("    compile   : first-run JIT/trace overhead, separated by a warm rerun")
+print("    train     : warm training time for all gradient steps")
+print("    steps/s   : actual optimizer steps per second")
+print(f"    sample    : milliseconds for {N_SAMPLES} posterior samples, "
+      f"averaged over {N_SAMPLE_REPS} runs")
