@@ -29,7 +29,11 @@ With::
 """
 
 from ._api        import SNPE, SNLE
-from ._prior      import BoxUniform, Gaussian, CustomPrior
+from ._prior      import (
+    BoxUniform, Gaussian, CustomPrior,
+    MultivariateNormal, LogNormal, Gamma, Beta,
+    MultipleIndependent, RestrictedPrior,
+)
 from ._posterior  import Posterior
 from ._embedding  import EmbeddingNet
 from ._utils      import simulate_for_vbi, simulate_for_sbi, process_prior
@@ -48,6 +52,12 @@ __all__ = [
     "BoxUniform",
     "Gaussian",
     "CustomPrior",
+    "MultivariateNormal",
+    "LogNormal",
+    "Gamma",
+    "Beta",
+    "MultipleIndependent",
+    "RestrictedPrior",
     # Posterior
     "Posterior",
     # Embedding

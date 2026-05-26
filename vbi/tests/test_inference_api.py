@@ -14,20 +14,14 @@ import warnings
 import numpy as np
 import pytest
 
-try:
-    import autograd  # noqa: F401
-    AUTOGRAD_AVAILABLE = True
-except ImportError:
-    AUTOGRAD_AVAILABLE = False
-
-pytestmark = pytest.mark.skipif(
-    not AUTOGRAD_AVAILABLE, reason="autograd not installed"
-)
+pytest.importorskip("autograd", reason="autograd not installed")
 
 from vbi.inference import (
     SNPE, BoxUniform, Gaussian, CustomPrior,
     Posterior, MDNEstimator, MAFEstimator,
     EmbeddingNet, simulate_for_sbi, process_prior,
+    MultivariateNormal, LogNormal, Gamma, Beta,
+    MultipleIndependent, RestrictedPrior,
 )
 
 
@@ -100,6 +94,249 @@ class TestCustomPrior:
         lp = p.log_prob(s)
         assert s.shape == (10, 2)
         assert lp.shape == (10,)
+
+
+class TestSBICompatibility:
+    """Compare vbi prior behavior with sbi where matching sbi priors exist."""
+
+    @pytest.fixture
+    def sbi_boxuniform(self):
+        try:
+            from sbi.utils import BoxUniform as SBIBoxUniform
+        except Exception as exc:
+            pytest.skip(f"sbi BoxUniform not available: {exc}")
+        torch = pytest.importorskip("torch", reason="torch not installed")
+        return SBIBoxUniform, torch
+
+    def test_boxuniform_log_prob_matches_sbi(self, sbi_boxuniform):
+        SBIBoxUniform, torch = sbi_boxuniform
+        low  = np.array([-1.0, 0.0])
+        high = np.array([2.0, 4.0])
+        theta = np.array([
+            [0.0, 1.0],
+            [1.5, 3.5],
+            [-1.5, 1.0],
+            [0.0, 5.0],
+        ])
+
+        vbi_prior = BoxUniform(low=low, high=high)
+        sbi_prior = SBIBoxUniform(
+            low=torch.as_tensor(low, dtype=torch.float64),
+            high=torch.as_tensor(high, dtype=torch.float64),
+        )
+
+        got = vbi_prior.log_prob(theta)
+        expected = sbi_prior.log_prob(
+            torch.as_tensor(theta, dtype=torch.float64)
+        ).detach().cpu().numpy()
+        np.testing.assert_allclose(got, expected, rtol=1e-12, atol=0.0)
+
+    def test_boxuniform_sample_contract_matches_sbi(self, sbi_boxuniform):
+        SBIBoxUniform, torch = sbi_boxuniform
+        low  = np.array([-2.0, 0.5, 10.0])
+        high = np.array([2.0, 1.5, 20.0])
+
+        vbi_samples = BoxUniform(low=low, high=high).sample((64,), seed=0)
+        sbi_samples = SBIBoxUniform(
+            low=torch.as_tensor(low, dtype=torch.float64),
+            high=torch.as_tensor(high, dtype=torch.float64),
+        ).sample((64,)).detach().cpu().numpy()
+
+        assert vbi_samples.shape == sbi_samples.shape == (64, 3)
+        assert np.all(vbi_samples >= low)
+        assert np.all(vbi_samples <= high)
+        assert np.all(sbi_samples >= low)
+        assert np.all(sbi_samples <= high)
+
+
+# ---------------------------------------------------------------------------
+# MI0-priors: extended prior distributions
+# ---------------------------------------------------------------------------
+
+class TestMultivariateNormal:
+
+    def test_sample_shape(self):
+        p    = MultivariateNormal(mean=np.zeros(3), cov=np.eye(3))
+        samp = p.sample((100,))
+        assert samp.shape == (100, 3)
+
+    def test_log_prob_finite_inside(self):
+        p  = MultivariateNormal(mean=np.zeros(2), cov=np.eye(2))
+        lp = p.log_prob(np.zeros((5, 2)))
+        assert lp.shape == (5,)
+        assert np.all(np.isfinite(lp))
+
+    def test_log_prob_matches_gaussian(self):
+        """Diagonal MVN should equal independent Gaussian at the mode."""
+        mean = np.array([1.0, 2.0])
+        std  = np.array([0.5, 1.5])
+        cov  = np.diag(std ** 2)
+        mvn  = MultivariateNormal(mean=mean, cov=cov)
+        gau  = Gaussian(mean=mean, std=std)
+        theta = np.array([[1.0, 2.0], [0.5, 1.0]])
+        np.testing.assert_allclose(
+            mvn.log_prob(theta), gau.log_prob(theta), rtol=1e-5
+        )
+
+    def test_non_posdef_cov_raises(self):
+        with pytest.raises(np.linalg.LinAlgError):
+            MultivariateNormal(mean=np.zeros(2), cov=-np.eye(2))
+
+
+class TestLogNormal:
+
+    def test_sample_positive(self):
+        p    = LogNormal(mean=np.zeros(2), std=np.ones(2))
+        samp = p.sample((200,))
+        assert samp.shape == (200, 2)
+        assert np.all(samp > 0)
+
+    def test_log_prob_finite_inside(self):
+        p  = LogNormal(mean=np.zeros(2), std=np.ones(2))
+        lp = p.log_prob(np.ones((10, 2)))
+        assert lp.shape == (10,)
+        assert np.all(np.isfinite(lp))
+
+    def test_log_prob_neginf_for_nonpositive(self):
+        p  = LogNormal(mean=np.zeros(2), std=np.ones(2))
+        lp = p.log_prob(np.array([[-1.0, 1.0]]))
+        assert lp[0] == -np.inf
+
+
+class TestGamma:
+
+    def test_sample_positive(self):
+        p    = Gamma(concentration=np.array([2.0, 3.0]), rate=np.array([1.0, 0.5]))
+        samp = p.sample((100,))
+        assert samp.shape == (100, 2)
+        assert np.all(samp > 0)
+
+    def test_log_prob_finite_inside(self):
+        p  = Gamma(concentration=np.array([2.0]), rate=np.array([1.0]))
+        lp = p.log_prob(np.array([[1.0], [2.0], [0.5]]))
+        assert lp.shape == (3,)
+        assert np.all(np.isfinite(lp))
+
+    def test_log_prob_neginf_for_nonpositive(self):
+        p  = Gamma(concentration=np.array([2.0]), rate=np.array([1.0]))
+        lp = p.log_prob(np.array([[0.0]]))
+        assert lp[0] == -np.inf
+
+    def test_invalid_params_raise(self):
+        with pytest.raises(ValueError):
+            Gamma(concentration=np.array([-1.0]), rate=np.array([1.0]))
+
+
+class TestBeta:
+
+    def test_sample_in_unit_interval(self):
+        p    = Beta(alpha=np.array([2.0, 0.5]), beta=np.array([3.0, 0.5]))
+        samp = p.sample((200,))
+        assert samp.shape == (200, 2)
+        assert np.all(samp > 0) and np.all(samp < 1)
+
+    def test_log_prob_finite_inside(self):
+        p  = Beta(alpha=np.array([2.0]), beta=np.array([3.0]))
+        lp = p.log_prob(np.array([[0.3], [0.5], [0.7]]))
+        assert lp.shape == (3,)
+        assert np.all(np.isfinite(lp))
+
+    def test_log_prob_neginf_outside(self):
+        p = Beta(alpha=np.array([2.0]), beta=np.array([3.0]))
+        assert p.log_prob(np.array([[0.0]]))[0] == -np.inf
+        assert p.log_prob(np.array([[1.0]]))[0] == -np.inf
+        assert p.log_prob(np.array([[-0.1]]))[0] == -np.inf
+
+    def test_invalid_params_raise(self):
+        with pytest.raises(ValueError):
+            Beta(alpha=np.array([0.0]), beta=np.array([1.0]))
+
+
+class TestMultipleIndependent:
+
+    def test_sample_shape(self):
+        p = MultipleIndependent([
+            BoxUniform(low=np.zeros(2), high=np.ones(2)),
+            Gamma(concentration=np.ones(1), rate=np.ones(1)),
+        ])
+        assert p.dim == 3
+        samp = p.sample((50,))
+        assert samp.shape == (50, 3)
+
+    def test_log_prob_shape(self):
+        p = MultipleIndependent([
+            BoxUniform(low=np.zeros(2), high=np.ones(2)),
+            Gamma(concentration=np.ones(1), rate=np.ones(1)),
+        ])
+        theta = p.sample((20,))
+        lp    = p.log_prob(theta)
+        assert lp.shape == (20,)
+        assert np.all(np.isfinite(lp))
+
+    def test_out_of_support_neginf(self):
+        """First block is BoxUniform [0,1]; point outside → -inf."""
+        p     = MultipleIndependent([
+            BoxUniform(low=np.zeros(1), high=np.ones(1)),
+            Gaussian(mean=np.zeros(1), std=np.ones(1)),
+        ])
+        theta = np.array([[2.0, 0.0]])   # first dim outside [0,1]
+        assert p.log_prob(theta)[0] == -np.inf
+
+    def test_empty_raises(self):
+        with pytest.raises(ValueError):
+            MultipleIndependent([])
+
+
+class TestRestrictedPrior:
+
+    def test_samples_satisfy_constraint(self):
+        """All samples should be inside the unit ball."""
+        base  = Gaussian(mean=np.zeros(2), std=2.0 * np.ones(2))
+        prior = RestrictedPrior(base, lambda t: np.sum(t ** 2, axis=1) <= 1.0)
+        samp  = prior.sample((200,))
+        assert samp.shape == (200, 2)
+        assert np.all(np.sum(samp ** 2, axis=1) <= 1.0 + 1e-10)
+
+    def test_log_prob_neginf_outside_constraint(self):
+        base  = Gaussian(mean=np.zeros(2), std=np.ones(2))
+        prior = RestrictedPrior(base, lambda t: np.sum(t ** 2, axis=1) <= 1.0)
+        lp    = prior.log_prob(np.array([[5.0, 0.0]]))
+        assert lp[0] == -np.inf
+
+    def test_log_prob_finite_inside_constraint(self):
+        base  = Gaussian(mean=np.zeros(2), std=np.ones(2))
+        prior = RestrictedPrior(base, lambda t: np.sum(t ** 2, axis=1) <= 1.0)
+        lp    = prior.log_prob(np.array([[0.3, 0.3]]))
+        assert np.isfinite(lp[0])
+
+
+class TestPriorsWithSNPE:
+    """Smoke test: each new prior type works end-to-end with SNPE."""
+
+    @pytest.mark.parametrize("prior,x_obs", [
+        (
+            MultivariateNormal(mean=np.zeros(2), cov=np.eye(2)),
+            np.array([[0.0, 0.0]]),
+        ),
+        (
+            MultipleIndependent([
+                BoxUniform(low=np.zeros(1), high=np.ones(1)),
+                Gaussian(mean=np.zeros(1), std=np.ones(1)),
+            ]),
+            np.array([[0.5, 0.0]]),
+        ),
+    ])
+    def test_snpe_end_to_end(self, prior, x_obs):
+        rng   = np.random.default_rng(42)
+        theta = prior.sample((150,), seed=42)
+        x     = theta + rng.normal(0, 0.1, theta.shape)
+        inf   = SNPE(prior=prior, density_estimator='mdn')
+        inf.append_simulations(theta, x)
+        est  = inf.train(max_num_epochs=5, verbose=False)
+        post = inf.build_posterior(est)
+        samp = post.sample((50,), x=x_obs)
+        assert samp.shape == (50, prior.dim)
+        assert np.all(np.isfinite(samp))
 
 
 # ---------------------------------------------------------------------------
