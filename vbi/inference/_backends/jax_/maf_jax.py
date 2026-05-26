@@ -198,12 +198,51 @@ class JaxMAFEstimator(JaxConditionalDensityEstimator):
         return mu, log_sig
 
     def _apply_actnorm(self, u, k, weights):
-        """ActNorm (no data-dependent init — act_s/act_b are learned parameters)."""
+        """ActNorm forward: v = (u + b) * s, log|s| contribution to log_det."""
         if not self.use_actnorm:
             return u, 0.0
         s = weights[f"act_s_{k}"]
         b = weights[f"act_b_{k}"]
         return (u + b) * s, jnp.sum(jnp.log(jnp.abs(s) + 1e-12))
+
+    def _init_actnorm_data_dependent(self, weights_np: dict, features, params) -> dict:
+        """
+        One-shot data-dependent ActNorm init, run once before the training loop.
+
+        For each flow step k, sets act_b_k = -mean(u_k) and act_s_k = 1/std(u_k)
+        so that the pre-ActNorm latent has zero mean and unit std.  This mirrors
+        the autograd MAF's lazy first-forward init and prevents the exp(-2) log_sig
+        bias from collapsing samples to the prior mean before training starts.
+        """
+        if not self.use_actnorm:
+            return weights_np
+
+        N = min(500, len(params))
+        f = jnp.array(features[:N], dtype="f")
+        p = jnp.array(params[:N],   dtype="f")
+        w = {k: jnp.array(v) for k, v in weights_np.items()}
+
+        if self._emb is not None:
+            f = self._emb.forward(w, f)
+        x = self._z_x(f).astype("f") if self._ctx_dim() > 0 else f.astype("f")
+        u = self._z_theta(p).astype("f")
+
+        new_w = dict(weights_np)
+
+        for k, lc in enumerate(self.model_constants["layers"]):
+            u_perm = u[:, lc["perm"]]
+            mean_u = np.array(jnp.mean(u_perm, axis=0))
+            std_u  = np.array(jnp.std(u_perm,  axis=0)) + self.actnorm_eps
+            new_w[f"act_b_{k}"] = (-mean_u).astype("f")
+            new_w[f"act_s_{k}"] = (1.0 / std_u).astype("f")
+
+            w[f"act_b_{k}"] = jnp.array(new_w[f"act_b_{k}"])
+            w[f"act_s_{k}"] = jnp.array(new_w[f"act_s_{k}"])
+            v_k, _ = self._apply_actnorm(u_perm, k, w)
+            mu, log_sig = self._made_forward(v_k, x, lc, k, w)
+            u = (v_k - mu) * jnp.exp(-log_sig)
+
+        return new_w
 
     # ------------------------------------------------------------------
     # Log-probability
@@ -354,6 +393,7 @@ class JaxMAFEstimator(JaxConditionalDensityEstimator):
             weights_np = {k: np.array(v) for k, v in self.weights.items()}
         else:
             weights_np = self._initialize_weights(seed)
+            weights_np = self._init_actnorm_data_dependent(weights_np, f_tr, p_tr)
         self.loss_history     = []
         self.val_loss_history = []
 
