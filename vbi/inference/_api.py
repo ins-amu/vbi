@@ -22,7 +22,7 @@ from typing import Literal
 
 import numpy as np
 
-from ._estimators import MAFEstimator, MDNEstimator, ConditionalDensityEstimator
+from ._estimators import MAFEstimator, MDNEstimator, NSFEstimator, ConditionalDensityEstimator
 from ._posterior   import Posterior
 from ._backends    import resolve_backend
 
@@ -30,9 +30,9 @@ log = logging.getLogger(__name__)
 
 # Map sbi density_estimator strings to internal classes
 _DE_MAP = {
-    "maf": MAFEstimator,
-    "mdn": MDNEstimator,
-    # "nsf": NSFEstimator,   # TODO: MI1+
+    "maf":  MAFEstimator,
+    "mdn":  MDNEstimator,
+    "nsf":  NSFEstimator,
     # "made": MADEEstimator, # TODO: future
 }
 

@@ -42,6 +42,7 @@ from ._estimators import (
     MDNEstimator,
     MAFEstimator,
     MAFEstimator0,
+    NSFEstimator,
 )
 from ._diagnostics import (
     run_sbc,
@@ -83,6 +84,7 @@ __all__ = [
     "MDNEstimator",
     "MAFEstimator",
     "MAFEstimator0",
+    "NSFEstimator",
     # Diagnostics
     "run_sbc",
     "check_sbc",

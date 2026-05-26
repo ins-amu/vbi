@@ -163,6 +163,64 @@ class Posterior:
 
         return np.array(theta[0])
 
+    def sample_batched(
+        self,
+        sample_shape,
+        x,
+        max_sampling_batch_size: int = 10_000,
+        seed: int | None = None,
+        **kwargs,
+    ) -> np.ndarray:
+        """
+        Draw samples for a batch of observations.
+
+        Parameters
+        ----------
+        sample_shape : tuple[int, ...]  e.g. (1000,)
+        x : array (batch_size, feature_dim)
+        max_sampling_batch_size : int
+            Accepted for sbi compatibility; ignored (numpy loops directly).
+        seed : int | None
+
+        Returns
+        -------
+        ndarray  (batch_size, n_samples, param_dim)
+        """
+        x   = np.atleast_2d(np.asarray(x, dtype="f"))
+        n   = int(np.prod(sample_shape))
+        rng = np.random.RandomState(seed)
+
+        raw = self._estimator.sample(x, n_samples=n, rng=rng)
+        # raw: (batch_size, n_samples, param_dim)
+        return np.array(raw)
+
+    def log_prob_batched(
+        self,
+        theta,
+        x,
+        leading_is_sample: bool = True,
+        **kwargs,
+    ) -> np.ndarray:
+        """
+        Log prob for matched batches of theta and x.
+
+        Both theta and x share the same leading batch dimension; row i uses
+        ``(theta[i], x[i])``.  This is the natural use-case for SBC and
+        coverage tests.
+
+        Parameters
+        ----------
+        theta : array (batch_size, param_dim)
+        x     : array (batch_size, feature_dim)
+        leading_is_sample : bool
+            Accepted for sbi compatibility; ignored.
+
+        Returns
+        -------
+        ndarray  (batch_size,)
+        """
+        return self.log_prob(theta, x=x, **kwargs)
+
     def leakage_correction(
         self,
         x=None,
