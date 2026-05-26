@@ -24,7 +24,7 @@ import numpy as np
 
 from ._estimators import MAFEstimator, MDNEstimator, NSFEstimator, ConditionalDensityEstimator
 from ._posterior   import Posterior
-from ._backends    import resolve_backend, get_estimator_map
+from ._backends    import resolve_backend, get_estimator_map, set_jax_device
 
 log = logging.getLogger(__name__)
 
@@ -69,6 +69,7 @@ class SNPE:
         prior=None,
         density_estimator: Literal["maf", "mdn"] = "maf",
         backend: str = "auto",
+        device: str | None = None,
         show_progress_bars: bool = True,
         embedding_net=None,
         **kwargs,
@@ -79,6 +80,8 @@ class SNPE:
                 f"density_estimator={density_estimator!r} not supported. "
                 f"Choose from: {list(_valid)}."
             )
+        if device is not None:
+            set_jax_device(device)
         self._prior_obj        = prior
         self._de_type          = density_estimator
         self._backend          = resolve_backend(backend)

@@ -1,4 +1,5 @@
 """Backend registry for vbi.inference estimators."""
+import importlib.util
 import os
 
 AVAILABLE_BACKENDS = ["numpy"]
@@ -9,18 +10,48 @@ try:
 except ImportError:
     pass
 
-_JAX_AVAILABLE = False
-try:
-    # Default to CPU so GPU cuDNN init errors don't surface on machines where
-    # CUDA is present but cuDNN is missing/mismatched.
-    # Users who want GPU set JAX_PLATFORMS=gpu (or cuda) in their environment
-    # before importing vbi.  setdefault is a no-op if already set.
-    os.environ.setdefault("JAX_PLATFORMS", "cpu")
-    import jax  # noqa: F401
-    _JAX_AVAILABLE = True
+# Detect JAX without importing it — import is deferred until first actual use
+# so that set_jax_device() can still influence JAX_PLATFORMS.
+_JAX_AVAILABLE = importlib.util.find_spec("jax") is not None
+if _JAX_AVAILABLE:
     AVAILABLE_BACKENDS.append("jax")
-except ImportError:
-    pass
+
+# The JAX platform to use.  Initialised from the environment (if the user
+# already set JAX_PLATFORMS) or defaults to "cpu" (safe on machines where
+# CUDA is present but cuDNN is absent or version-mismatched).
+_jax_device: str = os.environ.get("JAX_PLATFORMS", "cpu")
+
+
+def set_jax_device(device: str) -> None:
+    """
+    Select the JAX compute device.
+
+    Call this **before** the first JAX estimator is created.  Once JAX has
+    been imported (which happens the first time you call ``SNPE.train()`` or
+    ``get_estimator_map('jax')``) the platform is fixed and this call has no
+    effect.
+
+    Parameters
+    ----------
+    device : str
+        ``'cpu'``  — default; safe on any machine.
+        ``'gpu'`` / ``'cuda'`` — requires a CUDA-capable GPU with cuDNN.
+        ``'tpu'``  — requires a TPU runtime.
+
+    Examples
+    --------
+    >>> from vbi.inference import set_jax_device, SNPE
+    >>> set_jax_device('gpu')          # must come before SNPE.train()
+    >>> inf = SNPE(prior=prior, density_estimator='maf', backend='jax')
+    """
+    global _jax_device
+    _jax_device = device
+    os.environ["JAX_PLATFORMS"] = device
+
+
+def _apply_jax_platform() -> None:
+    """Set JAX_PLATFORMS right before the first real JAX import."""
+    os.environ.setdefault("JAX_PLATFORMS", _jax_device)
 
 
 def resolve_backend(requested: str) -> str:
@@ -44,6 +75,7 @@ def get_estimator_map(backend: str) -> dict:
     ('maf', 'mdn', 'nsf').  Values are the corresponding classes.
     """
     if backend == "jax":
+        _apply_jax_platform()     # must run before 'import jax' in jax_ modules
         from .jax_ import JaxMAFEstimator, JaxMDNEstimator, JaxNSFEstimator
         return {
             "maf": JaxMAFEstimator,

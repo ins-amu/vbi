@@ -28,7 +28,7 @@ With::
     theta = theta_np   # plain numpy — nothing else changes
 """
 
-from ._api        import SNPE, SNLE
+from ._api        import SNPE, SNLE, set_jax_device
 from ._prior      import (
     BoxUniform, Gaussian, CustomPrior,
     MultivariateNormal, LogNormal, Gamma, Beta,
@@ -61,6 +61,7 @@ __all__ = [
     # High-level sbi-compatible API
     "SNPE",
     "SNLE",
+    "set_jax_device",
     # Priors
     "BoxUniform",
     "Gaussian",
