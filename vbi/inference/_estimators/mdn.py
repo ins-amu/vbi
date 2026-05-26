@@ -104,6 +104,16 @@ class MDNEstimator(ConditionalDensityEstimator):
         total      = logsumexp(anp.log(alpha + 1e-9) + log_prob_k, axis=1)
         return -anp.mean(total)
 
+    def _log_prob_preembedded(self, features, params) -> anp.ndarray:
+        """Compute log_prob assuming features are already embedded (no re-embedding)."""
+        alpha, mu, L_prec, L_log_diag = self._forward_pass(self.weights, features)
+        delta      = params[:, anp.newaxis, :] - mu
+        z          = anp.einsum("nkij,nkj->nki", L_prec, delta)
+        quad       = -0.5 * anp.sum(z ** 2, axis=2)
+        log_det    = anp.sum(L_log_diag, axis=2)
+        log_prob_k = quad + log_det - 0.5 * self.param_dim * anp.log(2 * math.pi)
+        return logsumexp(anp.log(alpha + 1e-9) + log_prob_k, axis=1)
+
     def log_prob(self, features, params) -> anp.ndarray:
         super().log_prob(features, params)
         if self._emb is not None:
@@ -156,7 +166,8 @@ class MDNEstimator(ConditionalDensityEstimator):
         if log_prob_threshold is not None:
             flat_f  = anp.tile(features[:, anp.newaxis, :], (1, n_cand, 1)).reshape(-1, self.feature_dim)
             flat_s  = samples.reshape(-1, self.param_dim)
-            lp      = self.log_prob(flat_f, flat_s)
+            # features already embedded above; skip re-embedding
+            lp      = self._log_prob_preembedded(flat_f, flat_s)
             out     = []
             for i in range(n_cond):
                 mask  = lp[i * n_cand:(i + 1) * n_cand] > log_prob_threshold

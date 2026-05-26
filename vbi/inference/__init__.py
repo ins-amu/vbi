@@ -32,7 +32,7 @@ from ._api        import SNPE, SNLE
 from ._prior      import BoxUniform, Gaussian, CustomPrior
 from ._posterior  import Posterior
 from ._embedding  import EmbeddingNet
-from ._utils      import simulate_for_vbi, simulate_for_sbi
+from ._utils      import simulate_for_vbi, simulate_for_sbi, process_prior
 from ._estimators import (
     ConditionalDensityEstimator,
     MDNEstimator,
@@ -55,6 +55,7 @@ __all__ = [
     # Utilities
     "simulate_for_vbi",
     "simulate_for_sbi",
+    "process_prior",
     # Low-level estimators (for direct use / subclassing)
     "ConditionalDensityEstimator",
     "MDNEstimator",
