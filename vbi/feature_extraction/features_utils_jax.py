@@ -1,6 +1,6 @@
 import jax
 import jax.numpy as jnp
-from functools import partial
+import math
 
 
 def get_fcd(
@@ -58,22 +58,29 @@ def get_fcd(
     if overlap is None:
         overlap = 1.0
     
-    # Calculate window length in samples
-    win_len_samples = jnp.floor(win_len / tr).astype(jnp.int32)
     n_regions, n_samples = ts.shape
+    win_len_samples = int(math.floor(win_len / tr))
+    if win_len_samples <= 0:
+        raise ValueError("win_len / tr must be at least one sample.")
+    if n_samples < win_len_samples:
+        raise ValueError(
+            f"Time series is shorter than win_len: n_samples={n_samples}, "
+            f"win_len_samples={win_len_samples}."
+        )
 
     # Determine stride based on overlap (fraction-based)
     # overlap=0 → stride=win_len (no overlap)
     # overlap=1 → stride=1 (maximum overlap)
     # overlap=0.5 → stride=win_len/2 (50% overlap)
-    stride = jnp.maximum(1, jnp.floor(win_len_samples * (1.0 - overlap)).astype(jnp.int32))
+    if not 0.0 <= overlap <= 1.0:
+        raise ValueError(f"overlap must be between 0.0 and 1.0, got {overlap}.")
+    stride = max(1, int(math.floor(win_len_samples * (1.0 - overlap))))
     
     # Calculate number of windows
-    n_windows = jnp.floor((n_samples - win_len_samples) / stride + 1).astype(jnp.int32)
+    n_windows = int(math.floor((n_samples - win_len_samples) / stride + 1))
 
     # upper triangle indices
     triu_indices = jnp.triu_indices(n_regions, k=1)
-    n_connections = len(triu_indices[0])
 
     # Compute FC for each window using vmap for efficiency
     def compute_window_fc(i):
@@ -90,7 +97,8 @@ def get_fcd(
         fc_window = jnp.nan_to_num(fc_window, nan=0.0)
         
         # Apply positive filter if requested (JAX-compatible way)
-        fc_window = jnp.where(positive, jnp.maximum(fc_window, 0.0), fc_window)
+        if positive:
+            fc_window = jnp.maximum(fc_window, 0.0)
 
         # Extract upper triangle
         return fc_window[triu_indices]
