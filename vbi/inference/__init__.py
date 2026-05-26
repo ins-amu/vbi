@@ -43,6 +43,18 @@ from ._estimators import (
     MAFEstimator,
     MAFEstimator0,
 )
+from ._diagnostics import (
+    run_sbc,
+    check_sbc,
+    sbc_rank_plot,
+    run_tarp,
+    check_tarp,
+    plot_tarp,
+    c2st,
+    pairplot,
+    conditional_pairplot,
+    plot_loss,
+)
 
 __all__ = [
     # High-level sbi-compatible API
@@ -71,4 +83,15 @@ __all__ = [
     "MDNEstimator",
     "MAFEstimator",
     "MAFEstimator0",
+    # Diagnostics
+    "run_sbc",
+    "check_sbc",
+    "sbc_rank_plot",
+    "run_tarp",
+    "check_tarp",
+    "plot_tarp",
+    "c2st",
+    "pairplot",
+    "conditional_pairplot",
+    "plot_loss",
 ]
