@@ -24,17 +24,9 @@ import numpy as np
 
 from ._estimators import MAFEstimator, MDNEstimator, NSFEstimator, ConditionalDensityEstimator
 from ._posterior   import Posterior
-from ._backends    import resolve_backend
+from ._backends    import resolve_backend, get_estimator_map
 
 log = logging.getLogger(__name__)
-
-# Map sbi density_estimator strings to internal classes
-_DE_MAP = {
-    "maf":  MAFEstimator,
-    "mdn":  MDNEstimator,
-    "nsf":  NSFEstimator,
-    # "made": MADEEstimator, # TODO: future
-}
 
 
 class SNPE:
@@ -81,10 +73,11 @@ class SNPE:
         embedding_net=None,
         **kwargs,
     ):
-        if density_estimator not in _DE_MAP:
+        _valid = ("maf", "mdn", "nsf")
+        if density_estimator not in _valid:
             raise ValueError(
                 f"density_estimator={density_estimator!r} not supported. "
-                f"Choose from: {list(_DE_MAP)}."
+                f"Choose from: {list(_valid)}."
             )
         self._prior_obj        = prior
         self._de_type          = density_estimator
@@ -228,7 +221,8 @@ class SNPE:
 
         # Build fresh estimator (or reuse existing on warm start)
         if not resume_training or self._estimator is None:
-            self._estimator = _DE_MAP[self._de_type]()
+            de_map = get_estimator_map(self._backend)
+            self._estimator = de_map[self._de_type]()
         if self._embedding_net is not None:
             self._estimator.set_embedding(self._embedding_net)
 
@@ -263,7 +257,10 @@ class SNPE:
             **kwargs,              # forward seed, etc.
         )
 
-        if isinstance(self._estimator, MAFEstimator):
+        # MAF/NSF (both autograd and JAX variants) use the full train() signature
+        from ._backends.jax_.maf_jax import JaxMAFEstimator
+        _is_maf = isinstance(self._estimator, (MAFEstimator, JaxMAFEstimator))
+        if _is_maf:
             common.update(dict(
                 lr_schedule         = lr_schedule,
                 lr_min              = lr_min,

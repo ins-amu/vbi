@@ -25,6 +25,7 @@ done
 | `03_two_moons.py` | Classic 2-D SBI benchmark (no analytical posterior) | Samples inside prior, more concentrated than prior, log_prob finite |
 | `04_mdn_vs_maf.py` | Same 1-D Gaussian, MDN vs MAF | Side-by-side error + training time comparison |
 | `05_sequential_rounds.py` | 2-round sequential inference | Round-2 focused sims improve or match round-1 accuracy |
+| `07_jax_vs_numpy.py` | Same 1-D Gaussian, NumPy vs JAX backends | Backend/estimator side-by-side accuracy + training time |
 
 ## Pass/fail thresholds
 
@@ -39,7 +40,7 @@ increase those parameters and tighten the `assert` thresholds accordingly.
 
 | Feature | Demo to add |
 |---------|------------|
-| NSF density estimator | `04_mdn_vs_maf_nsf.py` — add NSF column |
+| NSF density estimator | Covered in `07_jax_vs_numpy.py`; optionally add NSF to `04_mdn_vs_maf.py` |
 | Rejection sampling | `01_gaussian_1d.py` — add `reject_outside_prior=True` check |
 | SBC | `06_sbc_coverage.py` — rank uniformity test |
 | TARP | `07_tarp_coverage.py` — expected coverage plot |
