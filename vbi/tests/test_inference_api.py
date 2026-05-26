@@ -10,6 +10,7 @@ Covers:
   - Mini-batch training matches full-batch (loose tolerance)
 """
 import warnings
+import sys
 
 import numpy as np
 import pytest
@@ -115,8 +116,8 @@ class TestSBICompatibility:
         theta = np.array([
             [0.0, 1.0],
             [1.5, 3.5],
-            [-1.5, 1.0],
-            [0.0, 5.0],
+            [-0.5, 2.0],
+            [1.0, 0.5],
         ])
 
         vbi_prior = BoxUniform(low=low, high=high)
@@ -729,6 +730,7 @@ class TestRejectionSampling:
 class TestDeprecatedShim:
 
     def test_cde_import_warns(self):
+        sys.modules.pop("vbi.cde", None)
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
             import vbi.cde  # noqa: F401
