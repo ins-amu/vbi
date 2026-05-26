@@ -316,14 +316,13 @@ class SNPE:
 
         p = prior if prior is not None else self._prior_obj
 
-        if sample_with != "direct":
+        if sample_with == "mcmc":
             raise NotImplementedError(
-                f"sample_with={sample_with!r} is not yet implemented.  "
-                "MCMC and rejection sampling are planned for MI4.  "
-                "Use sample_with='direct' (the default)."
+                "sample_with='mcmc' is not yet implemented. "
+                "MCMC sampling is planned for MI4."
             )
 
-        return Posterior(estimator=est, prior=p)
+        return Posterior(estimator=est, prior=p, sample_with=sample_with)
 
     # ------------------------------------------------------------------
     # Convenience

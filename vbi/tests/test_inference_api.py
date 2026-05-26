@@ -243,6 +243,91 @@ class TestMiniBatch:
 
 
 # ---------------------------------------------------------------------------
+# Rejection sampling tests
+# ---------------------------------------------------------------------------
+
+class TestRejectionSampling:
+    """MI0-rejection: samples stay within prior support; leakage_correction works."""
+
+    @pytest.fixture
+    def posterior_with_prior(self):
+        """Train a small MAF posterior on a BoxUniform [0,1]^2 prior."""
+        prior, theta, x = _linear_gaussian(n=300, d=2)
+        inf = SNPE(prior=prior, density_estimator='maf')
+        inf.append_simulations(theta, x)
+        est = inf.train(
+            training_batch_size=64,
+            max_num_epochs=15,
+            verbose=False,
+        )
+        return inf.build_posterior(est), prior
+
+    def test_direct_samples_may_leak(self, posterior_with_prior):
+        """Baseline: direct sampling does NOT enforce prior bounds (expected)."""
+        posterior, prior = posterior_with_prior
+        # Just verify the call works and returns the right shape.
+        x_obs   = np.array([[0.5, 0.5]])
+        samples = posterior.sample((200,), x=x_obs)
+        assert samples.shape == (200, 2)
+
+    def test_reject_outside_prior_samples_in_bounds(self, posterior_with_prior):
+        """With reject_outside_prior=True, all samples are within [0,1]^2."""
+        posterior, prior = posterior_with_prior
+        x_obs   = np.array([[0.5, 0.5]])
+        samples = posterior.sample((200,), x=x_obs, reject_outside_prior=True)
+        assert samples.shape == (200, 2)
+        assert np.all(samples >= 0.0), "samples below prior lower bound"
+        assert np.all(samples <= 1.0), "samples above prior upper bound"
+
+    def test_build_posterior_rejection_mode(self):
+        """build_posterior(sample_with='rejection') auto-applies rejection."""
+        prior, theta, x = _linear_gaussian(n=300, d=2)
+        inf = SNPE(prior=prior, density_estimator='maf')
+        inf.append_simulations(theta, x)
+        est  = inf.train(max_num_epochs=10, verbose=False)
+        post = inf.build_posterior(est, sample_with='rejection')
+        x_obs   = np.array([[0.5, 0.5]])
+        samples = post.sample((150,), x=x_obs)
+        assert samples.shape == (150, 2)
+        assert np.all(samples >= 0.0)
+        assert np.all(samples <= 1.0)
+
+    def test_leakage_correction_returns_float_in_range(self, posterior_with_prior):
+        """leakage_correction returns a float in (0, 1]."""
+        posterior, prior = posterior_with_prior
+        x_obs = np.array([[0.5, 0.5]])
+        frac  = posterior.leakage_correction(x_obs, num_rejection_samples=500)
+        assert isinstance(frac, float)
+        assert 0.0 < frac <= 1.0
+
+    def test_reject_without_prior_raises(self):
+        """Rejection sampling without a prior raises a clear error."""
+        prior, theta, x = _linear_gaussian(n=100, d=1)
+        inf  = SNPE(prior=None, density_estimator='mdn')
+        inf.append_simulations(theta, x)
+        est  = inf.train(max_num_epochs=5, verbose=False)
+        post = inf.build_posterior(est, prior=None)
+        with pytest.raises(ValueError, match="prior"):
+            post.sample((10,), x=np.array([[0.5]]), reject_outside_prior=True)
+
+    def test_leakage_correction_without_prior_raises(self, posterior_with_prior):
+        """leakage_correction without a prior raises ValueError."""
+        posterior, _ = posterior_with_prior
+        post_no_prior = Posterior(estimator=posterior._estimator, prior=None)
+        with pytest.raises(ValueError, match="prior"):
+            post_no_prior.leakage_correction(x=np.array([[0.5, 0.5]]))
+
+    def test_build_posterior_mcmc_still_raises(self):
+        """sample_with='mcmc' still raises NotImplementedError (MI4)."""
+        prior, theta, x = _linear_gaussian(n=100, d=1)
+        inf = SNPE(prior=prior)
+        inf.append_simulations(theta, x)
+        inf.train(max_num_epochs=3, verbose=False)
+        with pytest.raises(NotImplementedError, match="mcmc"):
+            inf.build_posterior(sample_with='mcmc')
+
+
+# ---------------------------------------------------------------------------
 # Deprecated shim test
 # ---------------------------------------------------------------------------
 

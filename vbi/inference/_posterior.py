@@ -22,10 +22,13 @@ class Posterior:
     >>> log_probs = posterior.log_prob(theta, x=x_obs)
     """
 
-    def __init__(self, estimator, prior=None, default_x=None):
+    def __init__(self, estimator, prior=None, default_x=None, sample_with: str = "direct"):
         self._estimator  = estimator
         self._prior      = prior
         self._default_x  = None if default_x is None else np.asarray(default_x)
+        if sample_with not in ("direct", "rejection"):
+            raise ValueError(f"sample_with={sample_with!r} not supported. Choose 'direct' or 'rejection'.")
+        self._sample_with = sample_with
 
     # ------------------------------------------------------------------
     # sbi-compatible public API
@@ -41,6 +44,7 @@ class Posterior:
         sample_shape,
         x=None,
         seed: int | None = None,
+        reject_outside_prior: bool = False,
         **kwargs,
     ) -> np.ndarray:
         """
@@ -52,6 +56,11 @@ class Posterior:
         x : array-like | None
             Observation to condition on.  Falls back to ``default_x``.
         seed : int | None
+        reject_outside_prior : bool
+            If True, discard samples whose prior log_prob is -inf (i.e. outside
+            the prior support) and redraw until ``n`` valid samples are collected.
+            Requires a prior to have been passed at construction time.
+            Automatically enabled when ``sample_with='rejection'``.
 
         Returns
         -------
@@ -63,7 +72,12 @@ class Posterior:
         n   = int(np.prod(sample_shape))
         rng = np.random.RandomState(seed)
 
-        x_2d    = np.atleast_2d(np.asarray(x, dtype="f"))
+        x_2d = np.atleast_2d(np.asarray(x, dtype="f"))
+
+        use_rejection = reject_outside_prior or (self._sample_with == "rejection")
+        if use_rejection:
+            return self._sample_with_rejection(n, x_2d, rng)
+
         samples = self._estimator.sample(x_2d, n_samples=n, rng=rng)
         # samples: (n_conditions, n_samples, param_dim)
         # Squeeze n_conditions=1 to match sbi's (n_samples, param_dim)
@@ -149,9 +163,82 @@ class Posterior:
 
         return np.array(theta[0])
 
+    def leakage_correction(
+        self,
+        x=None,
+        num_rejection_samples: int = 10_000,
+        seed: int | None = None,
+    ) -> float:
+        """
+        Estimate the fraction of posterior mass inside the prior support.
+
+        A value of 1.0 means no leakage; 0.5 means half the flow's mass falls
+        outside the prior.
+
+        Parameters
+        ----------
+        x : array-like | None
+            Observation. Falls back to default_x.
+        num_rejection_samples : int
+            Direct samples used to estimate acceptance fraction.
+
+        Returns
+        -------
+        float   acceptance_fraction ∈ (0, 1]
+        """
+        if self._prior is None:
+            raise ValueError("leakage_correction requires a prior.")
+        x    = self._resolve_x(x)
+        rng  = np.random.RandomState(seed)
+        x_2d = np.atleast_2d(np.asarray(x, dtype="f"))
+        raw  = self._estimator.sample(x_2d, n_samples=num_rejection_samples, rng=rng)
+        if raw.shape[0] == 1:
+            raw = raw[0]
+        log_p             = self._prior.log_prob(raw.astype(np.float64))
+        acceptance_frac   = float(np.mean(np.isfinite(log_p)))
+        return acceptance_frac
+
     # ------------------------------------------------------------------
     # Internals
     # ------------------------------------------------------------------
+
+    def _sample_with_rejection(
+        self, n: int, x_2d: np.ndarray, rng
+    ) -> np.ndarray:
+        """Oversample-and-filter rejection sampling against prior support."""
+        if self._prior is None:
+            raise ValueError(
+                "reject_outside_prior=True requires a prior. "
+                "Pass prior= to SNPE() or Posterior()."
+            )
+        collected: list[np.ndarray] = []
+        total_accepted = 0
+        total_drawn    = 0
+        oversample     = 4
+
+        while total_accepted < n:
+            n_draw = max((n - total_accepted) * oversample, 128)
+            raw    = self._estimator.sample(x_2d, n_samples=int(n_draw), rng=rng)
+            if raw.shape[0] == 1:
+                raw = raw[0]  # (n_draw, param_dim)
+            log_p  = self._prior.log_prob(raw.astype(np.float64))
+            inside = raw[np.isfinite(log_p)]
+            collected.append(inside)
+            total_accepted += len(inside)
+            total_drawn    += int(n_draw)
+
+            if total_drawn > n * 10_000:
+                raise RuntimeError(
+                    f"Rejection sampling failed: drew {total_drawn} samples but "
+                    f"only accepted {total_accepted} / {n} within the prior support. "
+                    "Check that the prior and estimator are compatible, or use "
+                    "sample_with='direct'."
+                )
+            if total_accepted > 0:
+                accept_rate = total_accepted / total_drawn
+                oversample  = max(4, int(2.0 / max(accept_rate, 1e-6)))
+
+        return np.concatenate(collected, axis=0)[:n]
 
     def _resolve_x(self, x):
         if x is not None:
