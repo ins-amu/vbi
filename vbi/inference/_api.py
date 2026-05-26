@@ -78,6 +78,7 @@ class SNPE:
         density_estimator: Literal["maf", "mdn"] = "maf",
         backend: str = "auto",
         show_progress_bars: bool = True,
+        embedding_net=None,
         **kwargs,
     ):
         if density_estimator not in _DE_MAP:
@@ -89,6 +90,7 @@ class SNPE:
         self._de_type          = density_estimator
         self._backend          = resolve_backend(backend)
         self._show_progress    = show_progress_bars
+        self._embedding_net    = embedding_net
         self._rounds: list[tuple[np.ndarray, np.ndarray, object]] = []
         self._estimator: ConditionalDensityEstimator | None = None
 
@@ -149,6 +151,7 @@ class SNPE:
         clip_max_norm: float | None     = 5.0,
         num_atoms: int                  = 10,   # SNPE-C; stored, ignored until MI3
         show_train_summary: bool        = False,
+        resume_training: bool           = False,
         verbose: bool | None            = None,   # overrides show_progress_bars + show_train_summary
         # Collapse-prevention (not in sbi; vbi.inference extension)
         early_stopping_delta: float | None = None,
@@ -223,8 +226,11 @@ class SNPE:
         theta_all = np.concatenate([r[0] for r in self._rounds], axis=0)
         x_all     = np.concatenate([r[1] for r in self._rounds], axis=0)
 
-        # Build fresh estimator
-        self._estimator = _DE_MAP[self._de_type]()
+        # Build fresh estimator (or reuse existing on warm start)
+        if not resume_training or self._estimator is None:
+            self._estimator = _DE_MAP[self._de_type]()
+        if self._embedding_net is not None:
+            self._estimator.set_embedding(self._embedding_net)
 
         # verbose kwarg overrides the constructor-level show_progress_bars
         if verbose is None:
@@ -253,6 +259,7 @@ class SNPE:
             stop_after_epochs     = stop_after_epochs_steps,
             early_stopping_delta  = early_stopping_delta,
             clip_max_norm         = clip_max_norm,
+            resume_training       = resume_training,
             **kwargs,              # forward seed, etc.
         )
 
@@ -327,6 +334,28 @@ class SNPE:
     # ------------------------------------------------------------------
     # Convenience
     # ------------------------------------------------------------------
+
+    def get_simulations(self, starting_round: int = 0):
+        """
+        Return all stored simulation data from ``starting_round`` onward.
+
+        Parameters
+        ----------
+        starting_round : int  First round index to include (0-based).
+
+        Returns
+        -------
+        theta     : ndarray (N, d_theta)
+        x         : ndarray (N, d_x)
+        proposals : list    One entry per round (None when not set).
+        """
+        rounds = self._rounds[starting_round:]
+        if not rounds:
+            return np.empty((0, 0), dtype=np.float32), np.empty((0, 0), dtype=np.float32), []
+        theta     = np.concatenate([r[0] for r in rounds], axis=0)
+        x         = np.concatenate([r[1] for r in rounds], axis=0)
+        proposals = [r[2] for r in rounds]
+        return theta, x, proposals
 
     @property
     def n_rounds(self) -> int:

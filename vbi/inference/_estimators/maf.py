@@ -166,6 +166,8 @@ class MAFEstimator(ConditionalDensityEstimator):
                 weights[f"act_b_{k}"] = anp.zeros(D, "f")
 
         self.model_constants = {"layers": layers}
+        if self._emb is not None:
+            weights.update(self._emb.init_weights(rng))
         return weights
 
     # ------------------------------------------------------------------
@@ -208,6 +210,8 @@ class MAFEstimator(ConditionalDensityEstimator):
     # ------------------------------------------------------------------
 
     def _get_log_prob(self, weights, features, params):
+        if self._emb is not None:
+            features = self._emb.forward(weights, features)
         x = self._z_x(features).astype("f") if self._ctx_dim() > 0 else features.astype("f")
         u = self._z_theta(params).astype("f")
         log_det = anp.zeros(u.shape[0], "f")
@@ -240,6 +244,8 @@ class MAFEstimator(ConditionalDensityEstimator):
         features = anp.asarray(features, dtype="f")
         if features.ndim == 1 and self.feature_dim > 0:
             features = features.reshape(1, -1)
+        if self._emb is not None:
+            features = self._emb.forward(self.weights, features)
         n_cond = 1 if self.feature_dim == 0 else features.shape[0]
 
         x   = self._z_x(features).astype("f") if self._ctx_dim() > 0 else anp.zeros((n_cond, 0), "f")
@@ -278,6 +284,7 @@ class MAFEstimator(ConditionalDensityEstimator):
         stop_after_epochs: int = 20,
         early_stopping_delta: float | None = None,
         clip_max_norm: float | None = 5.0,
+        resume_training: bool = False,
         # ── LR schedule ──────────────────────────────────────────────────
         lr_schedule: str | None = "cosine",
         lr_min: float = 1e-5,
@@ -328,6 +335,8 @@ class MAFEstimator(ConditionalDensityEstimator):
 
         if not self._dims_inferred:
             self._infer_dimensions(params, features)
+        if self._emb is not None:
+            self.feature_dim = self._emb.output_dim
 
         if params.shape[0] != features.shape[0]:
             raise ValueError("params and features must have the same number of rows.")
@@ -361,15 +370,25 @@ class MAFEstimator(ConditionalDensityEstimator):
         if early_stopping_delta is None:
             early_stopping_delta = 1e-4 if lr_schedule == "cosine" else 0.0
 
-        self.prepare_normalizers(f_tr, p_tr)
+        # Compute normalizers on embedding output (use initial random weights for statistics)
+        if self._emb is not None:
+            _rng_norm = anp.random.RandomState(seed)
+            _init_emb_w = self._emb.init_weights(_rng_norm)
+            f_tr_norm = self._emb.forward(_init_emb_w, f_tr)
+        else:
+            f_tr_norm = f_tr
+        self.prepare_normalizers(f_tr_norm, p_tr)
 
         rng_w = anp.random.RandomState(seed)
-        self.weights = self._initialize_weights(rng_w)
+        if resume_training and self.weights is not None:
+            pass  # warm start: keep existing weights and Adam state
+        else:
+            self.weights = self._initialize_weights(rng_w)
         self.loss_history     = []
         self.val_loss_history = []
         self._actnorm_initialized = [False] * self.n_flows
 
-        # ActNorm warmup
+        # ActNorm warmup (embedding applied inside _get_log_prob)
         if self.use_actnorm:
             k = min(512, len(p_tr))
             _ = self._get_log_prob(self.weights, f_tr[:k], p_tr[:k])
@@ -378,6 +397,8 @@ class MAFEstimator(ConditionalDensityEstimator):
         v = {k: anp.zeros_like(v) for k, v in self.weights.items()}
         beta1, beta2, eps = 0.9, 0.999, 1e-8
 
+        # Embedding is applied inside _get_log_prob (called by _loss_function),
+        # so we differentiate through _loss_function directly — no wrapper needed.
         gradient_func = grad(self._loss_function)
         iterator      = trange(n_iter, desc="Training", disable=not verbose)
 

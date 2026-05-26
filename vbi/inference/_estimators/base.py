@@ -37,6 +37,21 @@ class ConditionalDensityEstimator(abc.ABC):
         self._dims_inferred = False
         self.weights = None
         self.loss_history: list[float] = []
+        self._emb = None  # optional EmbeddingNet, set via set_embedding()
+
+    # ------------------------------------------------------------------
+    # Embedding support
+    # ------------------------------------------------------------------
+
+    def set_embedding(self, emb) -> None:
+        """Attach a learned EmbeddingNet trained jointly with this estimator."""
+        self._emb = emb
+
+    def _wrapped_loss(self, weights, features, params) -> float:
+        """Apply embedding (if any) then delegate to _loss_function."""
+        if self._emb is not None:
+            features = self._emb.forward(weights, features)
+        return self._loss_function(weights, features, params)
 
     # ------------------------------------------------------------------
     # Abstract interface
@@ -96,6 +111,7 @@ class ConditionalDensityEstimator(abc.ABC):
         patience: int | None = None,
         min_delta: float = 0.0,
         window_size: int = 1,
+        resume_training: bool = False,
     ):
         """
         Train with Adam.  Mini-batch training is enabled when ``batch_size``
@@ -139,7 +155,17 @@ class ConditionalDensityEstimator(abc.ABC):
             raise ValueError("All data points were non-finite.")
 
         rng = anp.random.RandomState(seed)
-        self.weights = self._initialize_weights(rng)
+
+        if self._emb is not None:
+            self.feature_dim = self._emb.output_dim
+
+        if resume_training and self.weights is not None:
+            pass  # warm start: keep existing weights
+        else:
+            self.weights = self._initialize_weights(rng)
+            if self._emb is not None:
+                self.weights.update(self._emb.init_weights(rng))
+
         self.loss_history = []
 
         m = {k: anp.zeros_like(v) for k, v in self.weights.items()}
@@ -150,7 +176,7 @@ class ConditionalDensityEstimator(abc.ABC):
         counter      = 0
         loss_window: list[float] = []
 
-        gradient_func = grad(self._loss_function)
+        gradient_func = grad(self._wrapped_loss)
         iterator = trange(n_iter, desc="Training", disable=not verbose)
 
         for i in iterator:
@@ -162,7 +188,7 @@ class ConditionalDensityEstimator(abc.ABC):
                 f_batch, p_batch = features, params
 
             g    = gradient_func(self.weights, f_batch, p_batch)
-            loss = self._loss_function(self.weights, f_batch, p_batch)
+            loss = self._wrapped_loss(self.weights, f_batch, p_batch)
             self.loss_history.append(float(loss))
 
             if not anp.isfinite(loss):

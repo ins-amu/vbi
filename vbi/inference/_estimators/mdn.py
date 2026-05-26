@@ -106,6 +106,8 @@ class MDNEstimator(ConditionalDensityEstimator):
 
     def log_prob(self, features, params) -> anp.ndarray:
         super().log_prob(features, params)
+        if self._emb is not None:
+            features = self._emb.forward(self.weights, anp.asarray(features, dtype="f"))
         alpha, mu, L_prec, L_log_diag = self._forward_pass(self.weights, features)
         delta      = params[:, anp.newaxis, :] - mu
         z          = anp.einsum("nkij,nkj->nki", L_prec, delta)
@@ -127,6 +129,8 @@ class MDNEstimator(ConditionalDensityEstimator):
         features = anp.asarray(features, dtype="f")
         if features.ndim == 1:
             features = features.reshape(1, -1)
+        if self._emb is not None:
+            features = self._emb.forward(self.weights, features)
         n_cond = features.shape[0]
         n_cand = n_samples * oversample_factor
 

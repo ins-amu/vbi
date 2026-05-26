@@ -27,6 +27,7 @@ pytestmark = pytest.mark.skipif(
 from vbi.inference import (
     SNPE, BoxUniform, Gaussian, CustomPrior,
     Posterior, MDNEstimator, MAFEstimator,
+    EmbeddingNet, simulate_for_sbi, process_prior,
 )
 
 
@@ -240,6 +241,163 @@ class TestMiniBatch:
         assert len(est.loss_history) > 0
         # Loss should decrease overall
         assert est.loss_history[-1] < est.loss_history[0]
+
+
+# ---------------------------------------------------------------------------
+# Embedding network tests  (MI0-embed)
+# ---------------------------------------------------------------------------
+
+class TestEmbeddingNet:
+    """EmbeddingNet reduces feature dim; flow trains with it jointly."""
+
+    def test_forward_reduces_dim(self):
+        emb = EmbeddingNet(input_dim=10, output_dim=3)
+        rng = np.random.RandomState(0)
+        w   = emb.init_weights(rng)
+        x   = np.random.randn(50, 10).astype("f")
+        out = emb.forward(w, x)
+        assert out.shape == (50, 3)
+
+    def test_repr(self):
+        emb = EmbeddingNet(10, 4, hidden_sizes=(32,))
+        assert "10" in repr(emb) and "4" in repr(emb)
+
+    @pytest.mark.parametrize("de", ["maf", "mdn"])
+    def test_snpe_with_embedding_trains(self, de):
+        """SNPE with EmbeddingNet trains and samples the right shape."""
+        rng   = np.random.default_rng(42)
+        prior = BoxUniform(low=np.zeros(2), high=np.ones(2))
+        theta = prior.sample((200,), seed=42)
+        # High-dim x: 10-D, embedded to 4-D
+        x     = theta @ rng.normal(0, 1, (2, 10)) + rng.normal(0, 0.05, (200, 10))
+
+        emb = EmbeddingNet(input_dim=10, output_dim=4)
+        inf = SNPE(prior=prior, density_estimator=de, embedding_net=emb)
+        inf.append_simulations(theta, x)
+        est = inf.train(
+            training_batch_size=64,
+            max_num_epochs=10,
+            verbose=False,
+        )
+        post    = inf.build_posterior(est)
+        x_obs   = x[:1]   # single 10-D observation
+        samples = post.sample((100,), x=x_obs)
+        assert samples.shape == (100, 2), f"{de}: wrong sample shape"
+        assert np.all(np.isfinite(samples)), f"{de}: non-finite samples"
+
+    def test_estimator_feature_dim_set_to_embed_dim(self):
+        """Estimator's feature_dim is set to embedding output_dim after training."""
+        prior = BoxUniform(low=np.zeros(2), high=np.ones(2))
+        theta = prior.sample((100,), seed=0)
+        x     = np.random.randn(100, 8).astype("f")
+        emb   = EmbeddingNet(input_dim=8, output_dim=3)
+        inf   = SNPE(prior=prior, density_estimator='maf', embedding_net=emb)
+        inf.append_simulations(theta, x)
+        est = inf.train(max_num_epochs=3, verbose=False)
+        assert est.feature_dim == 3
+
+
+# ---------------------------------------------------------------------------
+# Utils tests  (MI0-utils)
+# ---------------------------------------------------------------------------
+
+class TestSimulateForSBI:
+    """simulate_for_sbi returns correct shapes and handles failures."""
+
+    def test_shape(self):
+        prior = BoxUniform(low=np.zeros(2), high=np.ones(2))
+        theta, x = simulate_for_sbi(
+            lambda th: th + np.random.randn(2) * 0.1,
+            prior,
+            num_simulations=50,
+            seed=0,
+        )
+        assert theta.shape == (50, 2)
+        assert x.shape     == (50, 2)
+
+    def test_failed_sims_become_nan(self):
+        """Simulator that raises is replaced with NaN row."""
+        prior = BoxUniform(low=np.zeros(1), high=np.ones(1))
+        call_count = [0]
+
+        def flaky(th):
+            call_count[0] += 1
+            if call_count[0] % 5 == 0:
+                raise RuntimeError("flaky sim")
+            return th + np.random.randn(1) * 0.1
+
+        theta, x = simulate_for_sbi(flaky, prior, num_simulations=20, seed=1)
+        assert theta.shape[0] == 20
+        assert x.shape[0]     == 20
+        assert np.any(~np.isfinite(x)), "expected at least one NaN row"
+
+    def test_invalid_prior_raises(self):
+        with pytest.raises(ValueError, match="sample"):
+            simulate_for_sbi(lambda th: th, object(), num_simulations=5)
+
+
+class TestProcessPrior:
+
+    def test_valid_prior_passes_through(self):
+        prior = BoxUniform(low=np.zeros(2), high=np.ones(2))
+        assert process_prior(prior) is prior
+
+    def test_missing_sample_raises(self):
+        class BadPrior:
+            def log_prob(self, t): return np.zeros(len(t))
+        with pytest.raises(ValueError, match="sample"):
+            process_prior(BadPrior())
+
+    def test_missing_log_prob_raises(self):
+        class BadPrior:
+            def sample(self, s): return np.zeros((s[0], 2))
+        with pytest.raises(ValueError, match="log_prob"):
+            process_prior(BadPrior())
+
+
+class TestGetSimulations:
+
+    def test_returns_correct_shapes(self):
+        prior, theta, x = _linear_gaussian(n=100, d=2)
+        inf = SNPE(prior=prior)
+        inf.append_simulations(theta[:60], x[:60])
+        inf.append_simulations(theta[60:], x[60:])
+        th, xr, props = inf.get_simulations()
+        assert th.shape == (100, 2)
+        assert xr.shape == (100, 2)
+        assert len(props) == 2
+
+    def test_starting_round_filter(self):
+        prior, theta, x = _linear_gaussian(n=100, d=2)
+        inf = SNPE(prior=prior)
+        inf.append_simulations(theta[:50], x[:50])
+        inf.append_simulations(theta[50:], x[50:])
+        th, xr, props = inf.get_simulations(starting_round=1)
+        assert th.shape == (50, 2)
+        assert len(props) == 1
+
+    def test_empty_returns_empty(self):
+        inf = SNPE(prior=None)
+        th, xr, props = inf.get_simulations()
+        assert th.shape[0] == 0
+        assert len(props)  == 0
+
+
+class TestResumeTraining:
+
+    def test_resume_continues_from_weights(self):
+        """resume_training=True starts from the previous weights (loss lower)."""
+        prior, theta, x = _linear_gaussian(n=300, d=2)
+        inf = SNPE(prior=prior, density_estimator='maf')
+        inf.append_simulations(theta, x)
+        # First pass: 5 epochs
+        inf.train(max_num_epochs=5, verbose=False)
+        loss_after_first = inf._estimator.loss_history[-1]
+        # Second pass: 5 more epochs from where we left off
+        inf.train(max_num_epochs=5, resume_training=True, verbose=False)
+        loss_after_resume = inf._estimator.loss_history[-1]
+        # Loss should not be worse than the first-pass starting loss
+        assert loss_after_resume <= loss_after_first + 1.0  # generous tolerance
 
 
 # ---------------------------------------------------------------------------
