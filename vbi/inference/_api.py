@@ -149,6 +149,7 @@ class SNPE:
         clip_max_norm: float | None     = 5.0,
         num_atoms: int                  = 10,   # SNPE-C; stored, ignored until MI3
         show_train_summary: bool        = False,
+        verbose: bool | None            = None,   # overrides show_progress_bars + show_train_summary
         # Collapse-prevention (not in sbi; vbi.inference extension)
         lr_schedule: str | None         = "cosine",
         lr_min: float                   = 1e-5,
@@ -219,7 +220,9 @@ class SNPE:
         # Build fresh estimator
         self._estimator = _DE_MAP[self._de_type]()
 
-        verbose = self._show_progress or show_train_summary
+        # verbose kwarg overrides the constructor-level show_progress_bars
+        if verbose is None:
+            verbose = self._show_progress or show_train_summary
 
         # Dispatch to estimator.train() with mapped kwargs
         common = dict(

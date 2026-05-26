@@ -265,7 +265,7 @@ class MAFEstimator(ConditionalDensityEstimator):
         verbose: bool = True,
         validation_fraction: float = 0.1,
         stop_after_epochs: int = 20,
-        early_stopping_delta: float = 0.0,
+        early_stopping_delta: float | None = None,
         clip_max_norm: float | None = 5.0,
         # ── LR schedule ──────────────────────────────────────────────────
         lr_schedule: str | None = "cosine",
@@ -340,6 +340,13 @@ class MAFEstimator(ConditionalDensityEstimator):
         p_tr, f_tr = params[train_idx], features[train_idx]
         p_val, f_val = ((params[val_idx], features[val_idx])
                         if n_val > 0 else (None, None))
+
+        # With cosine LR, late-epoch updates are tiny (lr ≈ lr_min = 1e-5).
+        # A plain delta=0 means even a 1e-5 improvement resets patience,
+        # so early stopping never fires.  Auto-set a sensible floor when
+        # cosine is active so the patience counter works correctly.
+        if early_stopping_delta is None:
+            early_stopping_delta = 1e-4 if lr_schedule == "cosine" else 0.0
 
         self.prepare_normalizers(f_tr, p_tr)
 
