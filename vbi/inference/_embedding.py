@@ -4,6 +4,22 @@ from __future__ import annotations
 import autograd.numpy as anp
 
 
+def _tanh(z):
+    """
+    tanh dispatched to the right backend based on the array type.
+
+    Inside jax.jit/jax.grad the intermediate arrays are JAX tracers
+    (type.__module__ starts with 'jax').  autograd.grad produces autograd
+    Boxes (type.__module__ == 'autograd.tracer').  Everything else is plain
+    numpy and uses autograd.numpy.tanh (= numpy.tanh outside grad).
+    """
+    mod = type(z).__module__
+    if mod.startswith("jax"):
+        import jax.numpy as jnp
+        return jnp.tanh(z)
+    return anp.tanh(z)
+
+
 class EmbeddingNet:
     """
     Learnable MLP that compresses high-dimensional observations to a
@@ -49,7 +65,7 @@ class EmbeddingNet:
         w["emb_bout"] = anp.zeros(self.output_dim, "f")
         return w
 
-    def forward(self, weights: dict, x) -> anp.ndarray:
+    def forward(self, weights: dict, x):
         """
         Apply the embedding MLP.
 
@@ -62,10 +78,15 @@ class EmbeddingNet:
         -------
         ndarray  (n, output_dim)
         """
-        h = anp.asarray(x, dtype="f")
+        mod = type(x).__module__
+        if mod.startswith("jax"):
+            import jax.numpy as jnp
+            h = jnp.asarray(x, dtype="f")
+        else:
+            h = anp.asarray(x, dtype="f")
         for i in range(len(self.hidden_sizes)):
-            h = anp.tanh(anp.dot(h, weights[f"emb_W{i}"]) + weights[f"emb_b{i}"])
-        return anp.dot(h, weights["emb_Wout"]) + weights["emb_bout"]
+            h = _tanh(h @ weights[f"emb_W{i}"] + weights[f"emb_b{i}"])
+        return h @ weights["emb_Wout"] + weights["emb_bout"]
 
     def __repr__(self):
         return (f"EmbeddingNet(input_dim={self.input_dim}, "
