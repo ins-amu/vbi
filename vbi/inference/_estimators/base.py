@@ -95,6 +95,7 @@ class ConditionalDensityEstimator(abc.ABC):
         verbose: bool = True,
         patience: int | None = None,
         min_delta: float = 0.0,
+        window_size: int = 1,
     ):
         """
         Train with Adam.  Mini-batch training is enabled when ``batch_size``
@@ -105,7 +106,7 @@ class ConditionalDensityEstimator(abc.ABC):
         params : array (N, param_dim)
         features : array (N, feature_dim)
         n_iter : int
-            Maximum number of gradient steps (epochs when mini-batching).
+            Maximum number of gradient steps.
         learning_rate : float
         seed : int
         batch_size : int | None
@@ -113,9 +114,13 @@ class ConditionalDensityEstimator(abc.ABC):
         verbose : bool
             Show tqdm progress bar.
         patience : int | None
-            Early-stopping patience in epochs.  None → disabled.
+            Early-stopping patience counted in windows (epochs).  None → disabled.
         min_delta : float
             Minimum loss improvement to count as progress.
+        window_size : int
+            Number of consecutive gradient steps averaged together before
+            checking patience.  Set to ceil(N / batch_size) so that one window
+            = one epoch and patience counts epochs, not raw steps.
         """
         params   = anp.asarray(params)
         features = anp.asarray(features)
@@ -141,8 +146,9 @@ class ConditionalDensityEstimator(abc.ABC):
         v = {k: anp.zeros_like(v) for k, v in self.weights.items()}
         beta1, beta2, eps = 0.9, 0.999, 1e-8
 
-        best_loss = anp.inf
-        counter   = 0
+        best_loss    = anp.inf
+        counter      = 0
+        loss_window: list[float] = []
 
         gradient_func = grad(self._loss_function)
         iterator = trange(n_iter, desc="Training", disable=not verbose)
@@ -163,17 +169,21 @@ class ConditionalDensityEstimator(abc.ABC):
                 log.warning("Non-finite loss at iteration %d — stopping.", i)
                 break
 
+            # Accumulate into rolling window; check patience only at window boundaries
+            loss_window.append(float(loss))
+            if len(loss_window) >= window_size:
+                avg_loss = sum(loss_window) / len(loss_window)
+                loss_window = []
+                if avg_loss < best_loss - min_delta:
+                    best_loss, counter = avg_loss, 0
+                else:
+                    counter += 1
+                    if patience is not None and counter >= patience:
+                        log.info("Early stopping at iteration %d.", i)
+                        break
+
             if verbose:
                 iterator.set_postfix(loss=f"{loss:.4f}")
-
-            # Early stopping
-            if loss < best_loss - min_delta:
-                best_loss, counter = loss, 0
-            else:
-                counter += 1
-                if patience is not None and counter >= patience:
-                    log.info("Early stopping at iteration %d.", i)
-                    break
 
             # Adam update
             for key in self.weights:

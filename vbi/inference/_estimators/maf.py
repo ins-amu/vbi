@@ -38,6 +38,9 @@ class MAFEstimator(ConditionalDensityEstimator):
         Number of MADE blocks (autoregressive transforms).
     hidden_units : int
         Hidden units per MADE block.
+    num_blocks : int
+        Hidden layers per MADE conditioner (depth).  1 = single hidden layer;
+        2 matches sbi's default and gives noticeably better posteriors.
     activation : 'tanh' | 'relu' | 'elu'
     z_score_theta, z_score_x : bool
         Standardise parameters / features internally.
@@ -51,6 +54,7 @@ class MAFEstimator(ConditionalDensityEstimator):
     feature_dim:   int | None = None
     n_flows:       int        = 4
     hidden_units:  int        = 64
+    num_blocks:    int        = 2
     activation:    str        = "tanh"
     z_score_theta: bool       = True
     z_score_x:     bool       = True
@@ -138,15 +142,20 @@ class MAFEstimator(ConditionalDensityEstimator):
             m_hidden = rng.randint(1, D + 1, size=H)
             M1       = (m_in[None, :] <= m_hidden[:, None]).astype("f")
             M2       = (m_hidden[None, :] < m_in[:, None]).astype("f")
+            # hidden-to-hidden mask: M[j,i] = (m_h[i] <= m_h[j])
+            Mm       = (m_hidden[None, :] <= m_hidden[:, None]).astype("f")
             perm     = rng.permutation(D)
             inv_perm = anp.empty(D, dtype=int)
             inv_perm[perm] = anp.arange(D)
-            layers.append({"M1": M1, "M2": M2, "perm": perm, "inv_perm": inv_perm})
+            layers.append({"M1": M1, "M2": M2, "Mm": Mm, "perm": perm, "inv_perm": inv_perm})
 
             w = 0.01
             weights[f"W1y_{k}"] = (rng.randn(H, D) * w).astype("f")
             weights[f"W1c_{k}"] = (rng.randn(H, C) * w).astype("f") if C > 0 else anp.zeros((H, C), "f")
             weights[f"b1_{k}"]  = anp.zeros(H, "f")
+            for i in range(self.num_blocks - 1):
+                weights[f"Wm_{k}_{i}"] = (rng.randn(H, H) * w).astype("f")
+                weights[f"bm_{k}_{i}"] = anp.zeros(H, "f")
             weights[f"W2_{k}"]  = anp.zeros((2 * D, H), "f")
             weights[f"W2c_{k}"] = anp.zeros((2 * D, C), "f")
             b2 = anp.zeros(2 * D, "f"); b2[D:] = -2.0
@@ -164,20 +173,22 @@ class MAFEstimator(ConditionalDensityEstimator):
     # ------------------------------------------------------------------
 
     def _made_forward(self, y, ctx, lc, k, weights):
-        M1, M2   = lc["M1"], lc["M2"]
-        W1y, W1c = weights[f"W1y_{k}"], weights[f"W1c_{k}"]
-        b1       = weights[f"b1_{k}"]
-        W2, W2c  = weights[f"W2_{k}"],  weights[f"W2c_{k}"]
-        b2       = weights[f"b2_{k}"]
+        M1, M2, Mm = lc["M1"], lc["M2"], lc["Mm"]
+        W1y, W1c   = weights[f"W1y_{k}"], weights[f"W1c_{k}"]
+        b1         = weights[f"b1_{k}"]
+        W2, W2c    = weights[f"W2_{k}"],  weights[f"W2c_{k}"]
+        b2         = weights[f"b2_{k}"]
 
-        h   = self._act(anp.dot(y, (W1y * M1).T) +
-                        (anp.dot(ctx, W1c.T) if self._ctx_dim() > 0 else 0.0) + b1)
+        h = self._act(anp.dot(y, (W1y * M1).T) +
+                      (anp.dot(ctx, W1c.T) if self._ctx_dim() > 0 else 0.0) + b1)
+        for i in range(self.num_blocks - 1):
+            h = self._act(anp.dot(h, (weights[f"Wm_{k}_{i}"] * Mm).T) + weights[f"bm_{k}_{i}"])
         M2t = anp.concatenate([M2, M2], axis=0)
         out = anp.dot(h, (W2 * M2t).T)
         if self._ctx_dim() > 0: out = out + anp.dot(ctx, W2c.T)
         out = out + b2
-        mu       = out[:, :self.param_dim]
-        log_sig  = anp.clip(out[:, self.param_dim:], -7.0, 7.0)
+        mu      = out[:, :self.param_dim]
+        log_sig = anp.clip(out[:, self.param_dim:], -7.0, 7.0)
         return mu, log_sig
 
     def _apply_actnorm(self, u, k, weights, maybe_init=None):

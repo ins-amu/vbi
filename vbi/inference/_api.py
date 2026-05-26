@@ -230,16 +230,27 @@ class SNPE:
         if verbose is None:
             verbose = self._show_progress or show_train_summary
 
+        # max_num_epochs is epochs (full data passes); convert to gradient steps
+        # so that training budget matches sbi's semantics.
+        n_train = max(1, int(len(theta_all) * (1.0 - validation_fraction)))
+        if training_batch_size is not None and training_batch_size < n_train:
+            import math
+            batches_per_epoch = math.ceil(n_train / training_batch_size)
+        else:
+            batches_per_epoch = 1
+        n_iter_steps          = max_num_epochs * batches_per_epoch
+        stop_after_epochs_steps = stop_after_epochs * batches_per_epoch
+
         # Dispatch to estimator.train() with mapped kwargs
         common = dict(
             params                = theta_all,
             features              = x_all,
-            n_iter                = max_num_epochs,
+            n_iter                = n_iter_steps,
             learning_rate         = learning_rate,
             batch_size            = training_batch_size,
             verbose               = verbose,
             validation_fraction   = validation_fraction,
-            stop_after_epochs     = stop_after_epochs,
+            stop_after_epochs     = stop_after_epochs_steps,
             early_stopping_delta  = early_stopping_delta,
             clip_max_norm         = clip_max_norm,
             **kwargs,              # forward seed, etc.
@@ -249,21 +260,23 @@ class SNPE:
             common.update(dict(
                 lr_schedule         = lr_schedule,
                 lr_min              = lr_min,
-                lr_period           = lr_period,
+                lr_period           = lr_period * batches_per_epoch,
                 monitor_collapse    = monitor_collapse,
                 x_check             = x_check,
                 collapse_threshold  = collapse_threshold,
-                check_every         = check_every,
+                check_every         = check_every * batches_per_epoch,
                 n_check             = n_check,
             ))
             self._estimator.train(**common)
         else:
-            # MDNEstimator uses base train() — subset of kwargs
+            # MDNEstimator uses base train() — subset of kwargs.
+            # patience counts windows (epochs), window_size converts steps→epochs.
             base_kwargs = {k: v for k, v in common.items()
                            if k in ("params", "features", "n_iter",
                                     "learning_rate", "batch_size",
-                                    "verbose", "patience")}
-            base_kwargs["patience"] = stop_after_epochs
+                                    "verbose")}
+            base_kwargs["patience"]    = stop_after_epochs   # epoch count (unscaled)
+            base_kwargs["window_size"] = batches_per_epoch
             self._estimator.train(**base_kwargs)
 
         return self._estimator
