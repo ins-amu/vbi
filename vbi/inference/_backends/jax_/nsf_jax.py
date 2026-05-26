@@ -246,6 +246,20 @@ class JaxNSFEstimator(JaxMAFEstimator):
             out = out + jnp.dot(ctx, W2c.T)
         return out + b2
 
+    def _forward_one_step(self, v, x, lc, k, w):
+        """Propagate v through one NSF step (spline) for ActNorm data-dep init."""
+        K, D, B = self.num_bins, self.param_dim, self.tail_bound
+        out      = self._made_nsf_forward(v, x, lc, k, w)
+        unnorm_w = out[:, 0:K*D].reshape(-1, D, K)
+        unnorm_h = out[:, K*D:2*K*D].reshape(-1, D, K)
+        unnorm_d = out[:, 2*K*D:].reshape(-1, D, K - 1)
+        u_parts  = []
+        for d in range(D):
+            y_d, _ = _rq_forward_1d_jax(
+                v[:, d], unnorm_w[:, d, :], unnorm_h[:, d, :], unnorm_d[:, d, :], B, K)
+            u_parts.append(y_d)
+        return jnp.stack(u_parts, axis=1)
+
     # ------------------------------------------------------------------
     # Log-probability (forward: theta → z)
     # ------------------------------------------------------------------

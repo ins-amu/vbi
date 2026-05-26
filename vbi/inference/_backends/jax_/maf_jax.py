@@ -205,6 +205,11 @@ class JaxMAFEstimator(JaxConditionalDensityEstimator):
         b = weights[f"act_b_{k}"]
         return (u + b) * s, jnp.sum(jnp.log(jnp.abs(s) + 1e-12))
 
+    def _forward_one_step(self, v, x, lc, k, w):
+        """Propagate v through one flow step (affine); subclasses override for spline."""
+        mu, log_sig = self._made_forward(v, x, lc, k, w)
+        return (v - mu) * jnp.exp(-log_sig)
+
     def _init_actnorm_data_dependent(self, weights_np: dict, features, params) -> dict:
         """
         One-shot data-dependent ActNorm init, run once before the training loop.
@@ -213,6 +218,7 @@ class JaxMAFEstimator(JaxConditionalDensityEstimator):
         so that the pre-ActNorm latent has zero mean and unit std.  This mirrors
         the autograd MAF's lazy first-forward init and prevents the exp(-2) log_sig
         bias from collapsing samples to the prior mean before training starts.
+        Subclasses override _forward_one_step to plug in the correct transform.
         """
         if not self.use_actnorm:
             return weights_np
@@ -239,8 +245,7 @@ class JaxMAFEstimator(JaxConditionalDensityEstimator):
             w[f"act_b_{k}"] = jnp.array(new_w[f"act_b_{k}"])
             w[f"act_s_{k}"] = jnp.array(new_w[f"act_s_{k}"])
             v_k, _ = self._apply_actnorm(u_perm, k, w)
-            mu, log_sig = self._made_forward(v_k, x, lc, k, w)
-            u = (v_k - mu) * jnp.exp(-log_sig)
+            u = self._forward_one_step(v_k, x, lc, k, w)
 
         return new_w
 
