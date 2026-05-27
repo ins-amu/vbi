@@ -93,7 +93,10 @@ class _CppExprGen(_ast.NodeVisitor):
             return f"params[{idx} * {self._N} + {self._nd}]"
         if name in _BARE_TO_STD:
             return _BARE_TO_STD[name]
-        return name  # unknown — let C++ catch it
+        raise ValueError(
+            f"Unknown name {name!r} in model expression — not a state variable, "
+            f"parameter, coupling term, or supported math function."
+        )
 
     def visit_BinOp(self, node: _ast.BinOp) -> str:
         left  = self.visit(node.left)
@@ -129,7 +132,10 @@ class _CppExprGen(_ast.NodeVisitor):
             fn = node.func.id
             if fn in _BARE_TO_STD:
                 return f"{_BARE_TO_STD[fn]}({', '.join(args)})"
-            return f"{fn}({', '.join(args)})"
+            raise ValueError(
+                f"Unknown function {fn!r} in model expression — "
+                f"not a supported math function."
+            )
         raise ValueError(f"Unsupported call: {_ast.dump(node.func)}")
 
     def visit_IfExp(self, node: _ast.IfExp) -> str:
@@ -268,12 +274,17 @@ def build_params_array(spec: SimulationSpec) -> np.ndarray:
     overrides = spec.node_params
     for i, p in enumerate(spec.model.parameters):
         val = np.asarray(overrides.get(p.name, defaults[p.name]), dtype=np.float64)
-        if val.ndim == 0 or val.shape == (1,):
-            arr[i, :] = float(val.flat[0])
+        if val.ndim == 0:
+            arr[i, :] = val.item()
+        elif val.shape == (1,):
+            arr[i, :] = val.item()
         elif val.shape == (n_nodes,):
             arr[i, :] = val
         else:
-            arr[i, :] = float(val.flat[0])
+            raise ValueError(
+                f"Parameter {p.name!r} has shape {val.shape!r}; "
+                f"expected scalar, (1,), or ({n_nodes},)."
+            )
     return arr  # (n_params, n_nodes), C-contiguous
 
 
@@ -281,8 +292,12 @@ def get_G(spec: SimulationSpec) -> float:
     """Return scalar G from model params (default 1.0 if absent)."""
     defaults  = spec.model.default_params
     overrides = spec.node_params
-    val = overrides.get("G", defaults.get("G", 1.0))
-    return float(np.asarray(val).flat[0])
+    val = np.asarray(overrides.get("G", defaults.get("G", 1.0)), dtype=np.float64)
+    if val.ndim == 0 or val.shape == (1,):
+        return float(val.flat[0])
+    raise ValueError(
+        f"G must be a scalar; got shape {val.shape!r}."
+    )
 
 
 def get_noise_data(spec: SimulationSpec, n_steps: int) -> tuple[np.ndarray, np.ndarray]:
@@ -296,7 +311,19 @@ def get_noise_data(spec: SimulationSpec, n_steps: int) -> tuple[np.ndarray, np.n
     nsig = spec.integrator.noise_nsig
     if nsig is None:
         nsig = np.ones(len(ni), dtype=np.float64) * 1e-3
-    nsig = np.asarray(nsig, dtype=np.float64)
+    nsig = np.atleast_1d(np.asarray(nsig, dtype=np.float64))
+    if nsig.ndim != 1:
+        raise ValueError(
+            f"noise_nsig must be a 1-D array; got shape {nsig.shape}."
+        )
+    if nsig.shape[0] == 1 and len(ni) > 1:
+        nsig = np.broadcast_to(nsig, (len(ni),)).copy()
+    if nsig.shape[0] != len(ni):
+        raise ValueError(
+            f"noise_nsig length ({nsig.shape[0]}) does not match "
+            f"the number of noise variables ({len(ni)}) in model "
+            f"{spec.model.name!r}."
+        )
 
     style = getattr(spec.integrator, "noise_style", "amplitude")
     amp = np.sqrt(2.0 * nsig) if style == "tvb" else nsig

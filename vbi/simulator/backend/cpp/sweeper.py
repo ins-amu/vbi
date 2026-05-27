@@ -28,14 +28,23 @@ from vbi.simulator.spec.stimulus import build_stim_data
 # Helpers
 # ---------------------------------------------------------------------------
 
+_FULL_RES_MONITORS = frozenset({"tavg", "bold"})
+
+
 def _patch_params(base_params: np.ndarray,
                   param_names: list[str],
                   model_param_names: list[str],
                   theta: np.ndarray,
                   n_nodes: int) -> np.ndarray:
-    """Return a copy of base_params with swept parameters overridden."""
+    """Return a copy of base_params with swept parameters overridden.
+
+    Names absent from model_param_names (e.g. G as coupling scalar) are skipped
+    here and handled separately as per-run coup_a.
+    """
     p = base_params.copy()
     for name, val in zip(param_names, theta):
+        if name not in model_param_names:
+            continue
         idx = model_param_names.index(name)
         p[idx * n_nodes: idx * n_nodes + n_nodes] = float(val)
     return p
@@ -127,6 +136,23 @@ class CppSweeper:
         self._model_param_names = list(spec.model.param_names)
         self._n_nodes = n_nodes
 
+        # Validate that all sweep param names are resolvable
+        sweep_names = self.sweep._param_names_list
+        for name in sweep_names:
+            if name not in self._model_param_names and name != "G":
+                raise ValueError(
+                    f"Sweep parameter {name!r} not found in model param_names "
+                    f"{self._model_param_names!r}."
+                )
+
+    def _record_every(self, dt: float) -> int:
+        """record_every=1 when any monitor needs per-step data; else use first monitor period."""
+        if any(m.kind in _FULL_RES_MONITORS for m in self.spec.monitors):
+            return 1
+        if self.spec.monitors and self.spec.monitors[0].period:
+            return max(1, round(self.spec.monitors[0].period / dt))
+        return 1
+
     def _build_run_args(self, duration: float, param_set: np.ndarray,
                         param_names: list[str], seed_offset: int):
         """Build all arguments needed to call _run_one for one sweep point."""
@@ -134,19 +160,26 @@ class CppSweeper:
         dt     = spec.integrator.dt
         n_steps = round(duration / dt)
 
-        # record_every from first monitor period
-        if spec.monitors and spec.monitors[0].period:
-            record_every = max(1, round(spec.monitors[0].period / dt))
-        else:
-            record_every = 1
+        record_every = self._record_every(dt)
 
         pipeline   = self.sweep.pipeline
         t_cut_steps = round(pipeline.t_cut / dt) if pipeline is not None else 0
 
-        # Patched params for this sweep point
+        # Patched params for this sweep point (G as coupling scalar is skipped here)
         params_flat = _patch_params(
             self._base_params, param_names, self._model_param_names,
             param_set, self._n_nodes)
+
+        # Per-run coup_a: recalculate if G is being swept as a coupling scalar
+        coup_a = self._coup_a
+        for name, val in zip(param_names, param_set):
+            if name == "G" and name not in self._model_param_names:
+                g_val = float(val)
+                if spec.coupling.kind == "kuramoto":
+                    coup_a = g_val / spec.n_nodes
+                else:
+                    coup_a = spec.coupling.a * g_val
+                break
 
         # Noise: use seed_offset to give each run an independent sequence
         if spec.integrator.stochastic:
@@ -182,7 +215,7 @@ class CppSweeper:
 
         return (
             self._mod, params_flat, self._state0, self._weights,
-            self._idelays, self._horizon, self._coup_a, self._coup_b,
+            self._idelays, self._horizon, coup_a, self._coup_b,
             self._has_delays, noise_flat, noise_sv_idx,
             n_steps, record_every, t_cut_steps,
             stim_flat, has_stimulus,
@@ -191,8 +224,7 @@ class CppSweeper:
     def _raw_to_monitor(self, raw: np.ndarray) -> dict:
         spec = self.spec
         dt   = spec.integrator.dt
-        record_every = 1 if not (spec.monitors and spec.monitors[0].period) else \
-            max(1, round(spec.monitors[0].period / dt))
+        record_every = self._record_every(dt)
         raw_times = np.arange(raw.shape[0], dtype=np.float64) * record_every * dt
         return {m.kind: _apply_monitor(m.kind, m, raw, raw_times, spec.model)
                 for m in spec.monitors}
@@ -245,18 +277,24 @@ class CppSweeper:
         # --- execute in batches ---
         raw_list: list[np.ndarray] = []
 
+        # Seed offsets: same_noise=True → all runs share base_seed; False → sequential
+        def _seed_offset(i: int) -> int:
+            return 0 if self.sweep.same_noise else i
+
         if use_parallel:
             with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
                 for start in range(0, n_samples, effective_batch):
                     batch_args = [
-                        self._build_run_args(duration, param_sets[i], param_names, i)
+                        self._build_run_args(duration, param_sets[i], param_names,
+                                             _seed_offset(i))
                         for i in range(start, min(start + effective_batch, n_samples))
                     ]
                     raw_list.extend(pool.map(lambda args: _run_one(*args), batch_args))
         else:
             for start in range(0, n_samples, effective_batch):
                 batch_args = [
-                    self._build_run_args(duration, param_sets[i], param_names, i)
+                    self._build_run_args(duration, param_sets[i], param_names,
+                                         _seed_offset(i))
                     for i in range(start, min(start + effective_batch, n_samples))
                 ]
                 raw_list.extend(_run_one(*args) for args in batch_args)
@@ -264,8 +302,7 @@ class CppSweeper:
         # --- post-process ---
         spec = self.spec
         dt   = spec.integrator.dt
-        record_every = 1 if not (spec.monitors and spec.monitors[0].period) else \
-            max(1, round(spec.monitors[0].period / dt))
+        record_every = self._record_every(dt)
 
         if pipeline is None:
             results = []
@@ -276,7 +313,16 @@ class CppSweeper:
                 results.append(res)
             return results
 
-        # Pipeline mode
+        # Pipeline mode: resolve monitor spec then apply post-processing before extract
+        m_spec = next(
+            (m for m in spec.monitors if m.kind == pipeline.signal), None
+        )
+        if m_spec is None:
+            raise ValueError(
+                f"pipeline.signal={pipeline.signal!r} has no matching monitor in "
+                f"spec.monitors. Available: {[m.kind for m in spec.monitors]}"
+            )
+
         labels_set = False
         all_labels: list[str] = []
         rows: list[np.ndarray] = []
@@ -285,7 +331,10 @@ class CppSweeper:
             pipeline_t_cut = round(pipeline.t_cut / dt)
             t0 = pipeline_t_cut * dt
             raw_times = t0 + np.arange(raw.shape[0], dtype=np.float64) * record_every * dt
-            monitor_result = {pipeline.signal: (raw_times, raw)}
+            t_proc, data_proc = _apply_monitor(
+                pipeline.signal, m_spec, raw, raw_times, spec.model
+            )
+            monitor_result = {pipeline.signal: (t_proc, data_proc)}
             feat_labels, feat_vals = pipeline.extract(monitor_result)
             if not labels_set:
                 all_labels = param_names + feat_labels

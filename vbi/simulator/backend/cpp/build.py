@@ -96,12 +96,13 @@ def build_or_load(spec: SimulationSpec, verbose: bool = False) -> types.ModuleTy
     """
     check_prerequisites()
 
-    # Mix a hash of the Mako templates into the key so that any change to the
-    # C++ or bindings templates automatically invalidates cached binaries.
+    # Hash all build-affecting files so any change invalidates cached binaries.
     import hashlib as _hl
     _tmpl_hash = _hl.sha256(
-        ((_TEMPLATES_DIR / "sim_module.cpp.mako").read_bytes() +
-         (_TEMPLATES_DIR / "bindings.cpp.mako").read_bytes())
+        (_TEMPLATES_DIR / "sim_module.cpp.mako").read_bytes() +
+        (_TEMPLATES_DIR / "bindings.cpp.mako").read_bytes() +
+        (_TEMPLATES_DIR / "cmake_template.mako").read_bytes() +
+        (_TEMPLATES_DIR / "runtime.hpp").read_bytes()
     ).hexdigest()[:12]
     key = spec.cache_key() + "_" + _tmpl_hash
 
@@ -229,8 +230,10 @@ def _direct_build(build_dir: Path, key: str, verbose: bool = False) -> Path:
     include_flags = _include_flags()
     ld_flags      = _ld_flags()
 
+    _env_flags = os.environ.get("VBI_CPP_CXXFLAGS", "")
+    opt_flags = _env_flags.split() if _env_flags else ["-O3", "-march=native", "-ffast-math"]
     cmd = [
-        "c++", "-O3", "-march=native", "-ffast-math",
+        "c++", *opt_flags,
         "-shared", "-fPIC", "-std=c++17",
         *include_flags,
         str(build_dir / bindings_filename),

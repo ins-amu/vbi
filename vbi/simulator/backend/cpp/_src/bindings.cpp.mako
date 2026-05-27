@@ -36,6 +36,35 @@ PYBIND11_MODULE(${module_name}, m) {
            bool           has_stimulus)
         -> py::array_t<double>
         {
+            // Validate input sizes
+            auto _sz_err = [](const char* name, size_t got, size_t expected) {
+                throw py::value_error(
+                    std::string(name) + ": expected " + std::to_string(expected) +
+                    " elements, got " + std::to_string(got));
+            };
+            if (initial_state.size() != vbi_gen::kNumSv * vbi_gen::kNumNodes)
+                _sz_err("initial_state", initial_state.size(),
+                        vbi_gen::kNumSv * vbi_gen::kNumNodes);
+            if (weights.size() != vbi_gen::kNumNodes * vbi_gen::kNumNodes)
+                _sz_err("weights", weights.size(),
+                        vbi_gen::kNumNodes * vbi_gen::kNumNodes);
+            if (idelays.size() != vbi_gen::kNumNodes * vbi_gen::kNumNodes)
+                _sz_err("idelays", idelays.size(),
+                        vbi_gen::kNumNodes * vbi_gen::kNumNodes);
+            if (params.size() != vbi_gen::kNumParams * vbi_gen::kNumNodes)
+                _sz_err("params", params.size(),
+                        vbi_gen::kNumParams * vbi_gen::kNumNodes);
+            if (noise_data.size() > 0 &&
+                noise_data.size() != static_cast<size_t>(n_steps) *
+                                     vbi_gen::kNumSv * vbi_gen::kNumNodes)
+                _sz_err("noise_data", noise_data.size(),
+                        static_cast<size_t>(n_steps) * vbi_gen::kNumSv * vbi_gen::kNumNodes);
+            if (has_stimulus &&
+                stim_data.size() != static_cast<size_t>(n_steps) *
+                                    vbi_gen::kNumCvar * vbi_gen::kNumNodes)
+                _sz_err("stim_data", stim_data.size(),
+                        static_cast<size_t>(n_steps) * vbi_gen::kNumCvar * vbi_gen::kNumNodes);
+
             const double*  noise_ptr = (noise_data.size() > 0) ? noise_data.data() : nullptr;
             const int*     nidx_ptr  = reinterpret_cast<const int*>(noise_sv_indices.data());
             int            n_noise   = static_cast<int>(noise_sv_indices.size());
