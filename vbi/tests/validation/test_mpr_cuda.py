@@ -417,3 +417,139 @@ def test_cuda_sweep_throughput(n_nodes, n_samples, duration, capsys):
     with capsys.disabled():
         print(f"\nCUDA sweep: {rate:.1f} samples/s  "
               f"(n_nodes={n_nodes}, duration={duration}ms, n_samples={n_samples})")
+
+
+# ---------------------------------------------------------------------------
+# same_noise semantics
+# ---------------------------------------------------------------------------
+
+@cuda_only
+@cuda_fast
+def test_cuda_same_noise_true_identical_trajectories():
+    """same_noise=True: duplicate parameter entries must produce identical output."""
+    n_noise = len(mpr.noise_indices)
+    spec = SimulationSpec(
+        model=mpr,
+        integrator=IntegratorSpec(method="heun", dt=0.1, stochastic=True,
+                                  noise_nsig=np.full(n_noise, 1e-4),
+                                  noise_seed=42),
+        coupling=CouplingSpec("linear", a=0.1),
+        monitors=(MonitorSpec("raw"),),
+        weights=_weights(6),
+    )
+    # Two samples with the same parameter — shared noise must make them identical.
+    sweep_spec = SweepSpec(params={"eta": np.array([-4.6, -4.6])}, same_noise=True)
+    results = Sweeper(spec, sweep_spec, backend="cuda").run(20.0)
+    _, d0 = results[0]["raw"]
+    _, d1 = results[1]["raw"]
+    np.testing.assert_array_equal(
+        d0, d1,
+        err_msg="same_noise=True: identical param entries produced different trajectories",
+    )
+
+
+@cuda_only
+@cuda_fast
+def test_cuda_same_noise_false_independent_trajectories():
+    """same_noise=False: identical parameter entries must produce different output."""
+    n_noise = len(mpr.noise_indices)
+    spec = SimulationSpec(
+        model=mpr,
+        integrator=IntegratorSpec(method="heun", dt=0.1, stochastic=True,
+                                  noise_nsig=np.full(n_noise, 1e-4),
+                                  noise_seed=42),
+        coupling=CouplingSpec("linear", a=0.1),
+        monitors=(MonitorSpec("raw"),),
+        weights=_weights(6),
+    )
+    sweep_spec = SweepSpec(params={"eta": np.array([-4.6, -4.6])}, same_noise=False)
+    results = Sweeper(spec, sweep_spec, backend="cuda").run(20.0)
+    _, d0 = results[0]["raw"]
+    _, d1 = results[1]["raw"]
+    assert not np.array_equal(d0, d1), \
+        "same_noise=False: identical param entries produced identical trajectories"
+
+
+# ---------------------------------------------------------------------------
+# G sweep
+# ---------------------------------------------------------------------------
+
+@cuda_only
+@cuda_fast
+def test_cuda_sweep_G_outputs_differ():
+    """Sweeping G must produce different deterministic outputs for each value."""
+    G_values = np.array([0.0, 0.05, 0.1, 0.2])
+    spec = SimulationSpec(
+        model=mpr,
+        integrator=IntegratorSpec(method="heun", dt=0.1),
+        coupling=CouplingSpec("linear", a=1.0),
+        monitors=(MonitorSpec("raw"),),
+        weights=_weights(6, seed=7),
+    )
+    sweep_spec = SweepSpec(params={"G": G_values})
+    results = Sweeper(spec, sweep_spec, backend="cuda").run(20.0)
+
+    for i, res in enumerate(results):
+        _, d = res["raw"]
+        assert np.isfinite(d).all(), f"G={G_values[i]:.3f}: non-finite output"
+
+    # At least one pair of outputs must differ (non-trivial coupling effect).
+    _, d0 = results[0]["raw"]
+    _, d1 = results[-1]["raw"]
+    assert not np.allclose(d0, d1, rtol=1e-4), \
+        "G sweep: outputs identical across G=0 and G=0.2 — sweep had no effect"
+
+
+@cuda_only
+@cuda_fast
+def test_cuda_sweep_G_matches_fixed_spec():
+    """CUDA G sweep for a single value must match a spec with G set directly."""
+    G_fixed = 0.1
+    W = _weights(6, seed=3)
+    spec_fixed = SimulationSpec(
+        model=mpr,
+        integrator=IntegratorSpec(method="heun", dt=0.1),
+        coupling=CouplingSpec("linear", a=G_fixed),
+        monitors=(MonitorSpec("raw"),),
+        weights=W,
+    )
+    spec_sweep = SimulationSpec(
+        model=mpr,
+        integrator=IntegratorSpec(method="heun", dt=0.1),
+        coupling=CouplingSpec("linear", a=1.0),
+        monitors=(MonitorSpec("raw"),),
+        weights=W,
+    )
+    sweep_spec = SweepSpec(params={"G": np.array([G_fixed])})
+
+    _, d_fixed = Sweeper(spec_fixed,
+                         SweepSpec(params={"eta": np.array([-4.6])}),
+                         backend="cuda").run(20.0)[0]["raw"]
+    _, d_sweep = Sweeper(spec_sweep, sweep_spec, backend="cuda").run(20.0)[0]["raw"]
+    np.testing.assert_allclose(
+        d_sweep, d_fixed, rtol=5e-4, atol=1e-6,
+        err_msg="G sweep single value does not match spec with same G baked in",
+    )
+
+
+# ---------------------------------------------------------------------------
+# Input validation
+# ---------------------------------------------------------------------------
+
+@cuda_only
+def test_cuda_invalid_connectivity_raises():
+    """Invalid connectivity string must raise ValueError before any GPU work."""
+    spec = _spec(mpr, n_nodes=4)
+    sweep_spec = SweepSpec(params={"eta": np.array([-4.6])})
+    with pytest.raises(ValueError, match="connectivity"):
+        from vbi.simulator.backend.numba_cuda.sweeper import CudaSweeperGPU
+        CudaSweeperGPU(spec, sweep_spec, connectivity="spares")
+
+
+@cuda_only
+def test_cuda_unknown_sweep_param_raises():
+    """Typo'd sweep parameter must raise ValueError before launching CUDA."""
+    spec = _spec(mpr, n_nodes=4)
+    sweep_spec = SweepSpec(params={"etta": np.array([-4.6, -4.0])})
+    with pytest.raises(ValueError, match="etta"):
+        Sweeper(spec, sweep_spec, backend="cuda").run(10.0)
