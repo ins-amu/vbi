@@ -159,8 +159,7 @@ all         = ["mako>=1.2", "pybind11>=2.10", "jax>=0.4", "jaxlib>=0.4",
                "sbi>=0.22", "torch>=2.0", "cupy",
                "sphinx>=7", "numpydoc", "nbformat", "nbsphinx", "furo"]
 all-docker  = ["mako>=1.2", "pybind11>=2.10", "jax>=0.4", "jaxlib>=0.4",
-               "sbi>=0.22", "torch>=2.0",
-               "sphinx>=7", "numpydoc", "nbformat", "nbsphinx", "furo"]
+               "sbi>=0.22", "torch>=2.0"]
 
 # ---------------------------------------------------------------------------
 # Packaging

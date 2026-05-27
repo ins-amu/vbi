@@ -19,14 +19,13 @@ nosetests.xml
 coverage.xml
 *.cover
 *.log
-.git
 .mypy_cache
 .pytest_cache
 .hypothesis
 
-# Documentation builds
-docs/_build/
-docs/_static/
+# Documentation source and outputs (not needed in image)
+docs/
+notes/
 *.egg-info/
 
 # IDEs
@@ -45,10 +44,7 @@ docs/_static/
 ehthumbs.db
 Thumbs.db
 
-# Examples and test outputs
-docs/examples/output/
-docs/examples/sbi-logs/
-docs/examples/_e/
+# Test outputs
 vbi/tests/output/
 
 # Large data files
