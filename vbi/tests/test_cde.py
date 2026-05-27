@@ -21,7 +21,7 @@ except ImportError:
 
 # Try to import the module we're testing
 try:
-    import vbi.cde as cde
+    from vbi.inference import cde
     CDE_AVAILABLE = True
 except ImportError:
     CDE_AVAILABLE = False
