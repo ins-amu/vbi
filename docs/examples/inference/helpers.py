@@ -108,6 +108,7 @@ def posterior_1d(
     x_obs_val: float | None = None,
     label_est: str = "estimated posterior",
     title: str = "",
+    xlim: tuple[float, float] | None = None,
     out_path: str | Path | None = None,
 ) -> plt.Figure:
     """
@@ -117,10 +118,13 @@ def posterior_1d(
     fig, ax = plt.subplots(figsize=(6, 3.5))
 
     ax.hist(samples, bins=50, density=True, alpha=0.6,
-            color="steelblue", label=label_est)
+            color="steelblue", label=label_est, range=xlim)
 
     if true_mean is not None and true_std is not None:
-        xg = np.linspace(samples.min() - true_std, samples.max() + true_std, 300)
+        if xlim is None:
+            xg = np.linspace(samples.min() - true_std, samples.max() + true_std, 300)
+        else:
+            xg = np.linspace(xlim[0], xlim[1], 300)
         from scipy.stats import norm
         ax.plot(xg, norm.pdf(xg, true_mean, true_std),
                 "k--", lw=2, label="analytical posterior")
@@ -130,6 +134,8 @@ def posterior_1d(
         ax.axvline(x_obs_val, color="tomato", lw=1.5, ls="--", label=f"x_obs={x_obs_val:.2f}")
 
     ax.set_xlabel("θ");  ax.set_ylabel("density")
+    if xlim is not None:
+        ax.set_xlim(*xlim)
     ax.legend(fontsize=8)
     if title: ax.set_title(title, fontsize=10)
     fig.tight_layout()
