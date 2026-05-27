@@ -1,7 +1,7 @@
 # Inference Engine Milestones — `vbi/inference/`
 
 > **Goal:** A torch-free, high-performance SBI engine with a sbi-compatible
-> API.  Backends progress: numpy/autograd → numba → JAX.  The existing
+> API.  Backends progress: numpy/autograd → JAX.  The existing
 > `vbi/cde.py` is wrapped and gradually replaced; users never need to change
 > their code.
 
@@ -30,10 +30,10 @@
 |---------|-----|---------------|----------|-----------|
 | MAF | ✅ | ✅ | — | done |
 | MDN | ✅ | ✅ | — | done |
-| NSF (neural spline flow) | ✅ | ❌ | 🔴 | MI0-NSF |
+| NSF (neural spline flow) | ✅ | ✅ | — | done |
 | MADE (standalone) | ✅ | ❌ | 🟡 | future |
 | Custom nn via callable | ✅ | ❌ | 🟡 | MI-custom-net |
-| Embedding / summary network | ✅ | ❌ | 🔴 | MI0-embed |
+| Embedding / summary network | ✅ | ✅ (EmbeddingNet) | — | done |
 | z-score theta | ✅ | ✅ (MAF) | — | done |
 | z-score x | ✅ | ✅ (MAF) | — | done |
 | structured z-scoring | ✅ | ❌ | 🟢 | future |
@@ -48,8 +48,8 @@
 | Gradient clipping | ✅ | ✅ | — | done |
 | Sequential rounds: append_simulations | ✅ | ✅ (data only) | ⚠️ | done |
 | APT importance weights (num_atoms) | ✅ | ❌ stored, ignored | 🔴 | MI3 |
-| Warm start (resume_training) | ✅ | ❌ | 🟡 | MI0-warm |
-| get_simulations() | ✅ | ❌ | 🟡 | MI0-warm |
+| Warm start (resume_training) | ✅ | ✅ | — | done |
+| get_simulations() | ✅ | ✅ | — | done |
 | Custom DataLoader kwargs | ✅ | ❌ | 🟢 | future |
 | Discard prior samples (round weighting) | ✅ | ❌ | 🟡 | MI3 |
 
@@ -58,9 +58,9 @@
 | Feature | sbi | vbi.inference | Priority | Milestone |
 |---------|-----|---------------|----------|-----------|
 | Direct / ancestral sampling | ✅ | ✅ | — | done |
-| sample_batched (vectorised over x) | ✅ | ❌ | 🟡 | MI0-batch |
-| Rejection sampling (against prior) | ✅ | ❌ | 🔴 | MI0-rejection |
-| reject_outside_prior in sample() | ✅ | ❌ | 🔴 | MI0-rejection |
+| sample_batched (vectorised over x) | ✅ | ✅ | — | done |
+| Rejection sampling (against prior) | ✅ | ✅ | — | done |
+| reject_outside_prior in sample() | ✅ | ✅ | — | done |
 | MCMC: Metropolis-Hastings | ✅ | ❌ | 🔴 | MI4 |
 | MCMC: NUTS (pyro / pymc) | ✅ | ❌ | 🟡 | MI4-JAX |
 | MCMC: slice sampling | ✅ | ❌ | 🟢 | MI4 |
@@ -73,10 +73,10 @@
 |---------|-----|---------------|----------|-----------|
 | sample((n,), x=x_obs) | ✅ | ✅ | — | done |
 | log_prob(theta, x=x_obs) | ✅ | ✅ | — | done |
-| log_prob_batched | ✅ | ❌ | 🟡 | MI0-batch |
+| log_prob_batched | ✅ | ✅ | — | done |
 | map(x=x_obs) | ✅ | ✅ (gradient ascent) | ⚠️ | done |
 | set_default_x | ✅ | ✅ | — | done |
-| leakage_correction | ✅ | ❌ | 🟡 | MI0-rejection |
+| leakage_correction | ✅ | ✅ | — | done |
 | potential / potential_fn | ✅ | ❌ | 🟡 | MI4 |
 | Posterior ensemble | ✅ | ❌ | 🟢 | future |
 
@@ -87,62 +87,55 @@
 | BoxUniform | ✅ | ✅ | — | done |
 | Gaussian (diagonal) | ✅ | ✅ | — | done |
 | CustomPrior | ✅ | ✅ | — | done |
-| MultivariateNormal (full cov) | ✅ | ❌ | 🔴 | MI0-priors |
-| MultipleIndependent (mixed) | ✅ | ❌ | 🟡 | MI0-priors |
-| RestrictedPrior (truncated) | ✅ | ❌ | 🟡 | MI0-priors |
-| LogNormal, Gamma, Beta, etc. | ✅ | ❌ | 🟡 | MI0-priors |
+| MultivariateNormal (full cov) | ✅ | ✅ | — | done |
+| MultipleIndependent (mixed) | ✅ | ✅ | — | done |
+| RestrictedPrior (truncated) | ✅ | ✅ | — | done |
+| LogNormal, Gamma, Beta, etc. | ✅ | ✅ | — | done |
 | KDE wrapper | ✅ | ❌ | 🟢 | future |
 
 ### Diagnostics
 
 | Feature | sbi | vbi.inference | Priority | Milestone |
 |---------|-----|---------------|----------|-----------|
-| SBC (simulation-based calibration) | ✅ | ❌ | 🔴 | MI-diag |
-| TARP (expected coverage test) | ✅ | ❌ | 🔴 | MI-diag |
-| C2ST (classifier 2-sample test) | ✅ | ❌ | 🔴 | MI-diag |
+| SBC (simulation-based calibration) | ✅ | ✅ | — | done |
+| TARP (expected coverage test) | ✅ | ✅ | — | done |
+| C2ST (classifier 2-sample test) | ✅ | ✅ | — | done |
 | LC2ST (local C2ST) | ✅ | ❌ | 🟡 | MI-diag |
-| SBC rank plot | ✅ | ❌ | 🟡 | MI-diag |
+| SBC rank plot | ✅ | ✅ | — | done |
 | PP plot | ✅ | ❌ | 🟡 | MI-diag |
-| pairplot | ✅ | ❌ | 🔴 | MI-diag |
-| conditional pairplot | ✅ | ❌ | 🟡 | MI-diag |
-| plot_summary (loss curves) | ✅ | ❌ | 🟡 | MI-diag |
+| pairplot | ✅ | ✅ | — | done |
+| conditional pairplot | ✅ | ✅ | — | done |
+| plot_summary (loss curves) | ✅ | ✅ (plot_loss) | — | done |
 | sensitivity_analysis | ✅ | ❌ | 🟢 | future |
 
 ### Utilities
 
 | Feature | sbi | vbi.inference | Priority | Milestone |
 |---------|-----|---------------|----------|-----------|
-| simulate_for_sbi helper | ✅ | ❌ | 🔴 | MI0-utils |
-| process_prior (validation) | ✅ | ❌ | 🟡 | MI0-utils |
-| get_simulations() | ✅ | ❌ | 🟡 | MI0-utils |
+| simulate_for_sbi helper | ✅ | ✅ | — | done |
+| process_prior (validation) | ✅ | ✅ | — | done |
+| get_simulations() | ✅ | ✅ | — | done |
 | save / load model | ❌ (torch state_dict) | ✅ (.npz) | — | done |
 
 ---
 
 ### Gap summary
 
-**Blocking for real use (🔴 — implement before backends):**
-1. NSF density estimator — strongest model in sbi
-2. Embedding / summary network — needed for raw time series
-3. Rejection sampling posterior + `reject_outside_prior`
-4. APT importance weighting (multi-round `num_atoms`)
-5. MultivariateNormal prior + more distributions
-6. SBC, TARP, C2ST diagnostics + pairplot
-7. `simulate_for_sbi` equivalent helper
+**Blocking for real use (🔴):**
+1. APT importance weighting (multi-round `num_atoms`)
+2. MCMC posterior refinement (MI4)
 
-**Important but not blocking (🟡 — second pass):**
-8. `sample_batched` and `log_prob_batched`
-9. `leakage_correction`
-10. Warm start / resume training
-11. MultipleIndependent and RestrictedPrior
-12. SNLE (likelihood-based inference)
-13. MCMC posterior (MI4)
+**Important but not blocking (🟡):**
+3. SNLE (likelihood-based inference)
+4. Custom network callables beyond `EmbeddingNet`
+5. Potential / potential_fn compatibility
+6. LC2ST / PP plot diagnostics
 
 **Lower priority (🟢 — defer):**
-14. SNRE, FMPE, MNPE, MNLE
-15. Variational inference posterior
-16. Slice sampling, HMC
-17. KDE wrapper, sensitivity analysis
+7. SNRE, FMPE, MNPE, MNLE
+8. Variational inference posterior
+9. Slice sampling, HMC
+10. KDE wrapper, sensitivity analysis
 
 ---
 
@@ -161,10 +154,8 @@ vbi/
       mdn.py             # MDNEstimator (from cde.py)
       maf.py             # MAFEstimator (from cde.py)
     _backends/
-      __init__.py
-      numpy_.py          # autograd/numpy (current, default)
-      numba_.py          # Numba JIT forward pass (MI-numba)
-      jax_.py            # JAX: jit + vmap + grad (MI1)
+      __init__.py        # backend registry / dispatch
+      jax_/              # JAX: jit + vmap + grad (MI1)
   cde.py                 # deprecated shim → re-exports from vbi.inference
 ```
 
@@ -173,7 +164,6 @@ vbi/
 SNPE(prior, density_estimator='maf', backend='auto')
 # 'auto' → jax if installed, else numpy
 # 'numpy' → autograd/numpy (always available)
-# 'numba' → Numba JIT (install vbi[numba])
 # 'jax'   → JAX XLA (install vbi[jax])
 ```
 
@@ -222,7 +212,7 @@ Verified against sbi 0.26.1 exact signatures.
 |-----------|---------------|-------|
 | `from sbi.inference import SNPE` | `from vbi.cde import SNPE` | import only |
 | `BoxUniform(low=torch.tensor([0.]), high=torch.tensor([1.]))` | `BoxUniform(low=np.array([0.]), high=np.array([1.]))` | torch → numpy |
-| `SNPE(prior, density_estimator='maf'\|'mdn'\|'nsf', device='cpu')` | `SNPE(prior, density_estimator='maf'\|'mdn', backend='auto')` | `nsf` deferred to MI1+; `backend` is new |
+| `SNPE(prior, density_estimator='maf'\|'mdn'\|'nsf', device='cpu')` | `SNPE(prior, density_estimator='maf'\|'mdn'\|'nsf', backend='auto')` | `backend` is new; `auto` selects JAX when available |
 | `inference.append_simulations(theta, x, proposal=None)` | `inference.append_simulations(theta, x, proposal=None)` | ✅ identical |
 | `inference.train(training_batch_size=200, learning_rate=5e-4, validation_fraction=0.1, stop_after_epochs=20, clip_max_norm=5.0, ...)` | `inference.train(training_batch_size=200, learning_rate=5e-4, validation_fraction=0.1, stop_after_epochs=20, clip_max_norm=5.0, ...)` | ✅ identical kwargs (mapped internally) |
 | `inference.build_posterior(estimator, sample_with='direct'\|'mcmc'\|'vi')` | `inference.build_posterior(estimator, sample_with='direct'\|'mcmc')` | `vi` deferred to MI4+ |
@@ -311,10 +301,10 @@ Phase 4 (future):   Optional: soft-deprecate MDNEstimator.train() in favour
 | `MAFEstimator` | ✅ Complete | MADE blocks, ActNorm, permutations, z-scoring, PCA embedding |
 | `MAFEstimator0` | ⚠️ Legacy | Original simpler MAF, kept for backward compat |
 | Backend | `autograd` (CPU only) | Automatic diff via `autograd.numpy` |
-| Training | Full-batch | No mini-batching → slow on large N |
-| Save/load | ❌ Missing | Trained weights not serializable |
-| Prior integration | ❌ Missing | No prior, no posterior truncation |
-| Sequential rounds | ❌ Missing | No SNPE-C / round-by-round |
+| Training | Mini-batch | Adam, val split, early stopping, grad clip |
+| Save/load | ✅ Complete | `.npz` estimator weights/config |
+| Prior integration | ✅ Complete | Prior objects + posterior prior log-prob / truncation |
+| Sequential rounds | ⚠️ Partial | Rounds stored; APT proposal weighting still missing |
 | MCMC sampling | ❌ Missing | Only direct ancestral sampling |
 
 ### What exists in `vbi/sbi_inference.py`
@@ -379,14 +369,14 @@ vbi/cde.py                        KEEP as deprecated shim
 
 **Tasks:**
 
-- [ ] **Create `vbi/inference/` package** — move estimator classes from
+- [x] **Create `vbi/inference/` package** — move estimator classes from
       `cde.py` into `_estimators/`; keep `vbi/cde.py` as a re-export shim
       with `DeprecationWarning`
-- [ ] **`BoxUniform(low, high)`** — accepts numpy/list;
+- [x] **`BoxUniform(low, high)`** — accepts numpy/list;
       `.sample((n,))` → `(n, d)`; `.log_prob(theta)` → 0 inside, `-inf` outside
-- [ ] **`Gaussian(mean, std)`** — `.sample((n,))` + `.log_prob(theta)`
-- [ ] **`CustomPrior(sample_fn, log_prob_fn)`** — user-supplied callables
-- [ ] **`Posterior` class** — wraps the trained estimator:
+- [x] **`Gaussian(mean, std)`** — `.sample((n,))` + `.log_prob(theta)`
+- [x] **`CustomPrior(sample_fn, log_prob_fn)`** — user-supplied callables
+- [x] **`Posterior` class** — wraps the trained estimator:
       ```python
       posterior.sample((1000,), x=x_obs)    # tuple shape, like sbi
       posterior.log_prob(theta, x=x_obs)    # params FIRST, x as kwarg
@@ -395,7 +385,7 @@ vbi/cde.py                        KEEP as deprecated shim
       ```
       Note: `log_prob(theta, x)` internally calls `estimator.log_prob(x, theta)`
       — the argument swap is handled here so the low-level API is unchanged.
-- [ ] **`SNPE(prior, density_estimator='maf'|'mdn', backend='numpy')`**:
+- [x] **`SNPE(prior, density_estimator='maf'|'mdn'|'nsf', backend='numpy'|'jax'|'auto')`**:
       - `append_simulations(theta, x, proposal=None)` — stores data per round
       - `train(training_batch_size=256, learning_rate=5e-4,
                validation_fraction=0.1, stop_after_epochs=20,
@@ -404,11 +394,11 @@ vbi/cde.py                        KEEP as deprecated shim
       - `build_posterior(density_estimator=None, sample_with='direct')` →
         `Posterior`
       - `num_atoms` accepted but ignored (implement in MI3)
-- [ ] **`SNLE`** — stub that raises `NotImplementedError` with message
+- [x] **`SNLE`** — stub that raises `NotImplementedError` with message
       "SNLE coming in a future release; use SNPE for now"
-- [ ] **Mini-batch support** in `MAFEstimator.train()` (`batch_size` kwarg,
+- [x] **Mini-batch support** in `MAFEstimator.train()` (`batch_size` kwarg,
       shuffle indices each epoch) — needed for `training_batch_size` to work
-- [ ] **Drop-in migration test**:
+- [x] **Drop-in migration test**:
       ```python
       # Assert this works with vbi.inference.SNPE
       inference = SNPE(prior=prior, density_estimator='maf')
@@ -418,7 +408,7 @@ vbi/cde.py                        KEEP as deprecated shim
       s = post.sample((500,), x=x_obs_np)
       assert s.shape == (500, n_params)
       ```
-- [ ] `vbi/cde.py` becomes:
+- [x] `vbi/cde.py` becomes:
       ```python
       import warnings
       warnings.warn("vbi.cde is deprecated; use vbi.inference", DeprecationWarning)
@@ -439,18 +429,18 @@ autograd implementation before adding new backends.
 
 **Tasks:**
 
-- [ ] **Mini-batch training**: add `batch_size` parameter to `train()`;
+- [x] **Mini-batch training**: add `batch_size` parameter to `train()`;
       shuffle indices each epoch; default `batch_size=256`
-- [ ] **Save / load**: `estimator.save(path)` → pickle or npz;
+- [x] **Save / load**: `estimator.save(path)` → pickle or npz;
       `MDNEstimator.load(path)` → class method restoring weights + config
-- [ ] **Logging cleanup**: replace `print(...)` with `logging.getLogger(...)`;
+- [x] **Logging cleanup**: replace `print(...)` with `logging.getLogger(...)`;
       verbose level controlled by `verbose: bool = False`
-- [ ] **Numerical stability**:
+- [x] **Numerical stability**:
       - `logsumexp` already used in MDN; check MAF log_det underflow
       - Clip log_sigma more aggressively in MAFEstimator when needed
-- [ ] **API consistency**: `train()` signature unified across MDN/MAF
+- [x] **API consistency**: `train()` signature unified across MDN/MAF
       (currently MAF has extra params not in base); lift common params to ABC
-- [ ] **Test coverage**: `test_cde.py` covers basic MDN; add
+- [x] **Test coverage**: `test_cde.py` covers basic MDN; add
       - MAF round-trip: `log_prob` + `sample` consistency test
       - Save/load: weights survive serialization
       - Mini-batch: loss converges same as full-batch (loose tolerance)
@@ -482,20 +472,20 @@ going down as the distribution collapses.
 
 **Tasks:**
 
-- [ ] **LR schedule**: add `lr_schedule='cosine'|'step'|None` to `MAFEstimator.train()`;
+- [x] **LR schedule**: add `lr_schedule='cosine'|'step'|None` to `MAFEstimator.train()`;
       cosine annealing from `learning_rate` to `learning_rate * 0.01` over training
-- [ ] **`log_scale` clamp**: in `_made_forward`, `log_sig = clip(out, -7, 7)` already
+- [x] **`log_scale` clamp**: in `_made_forward`, `log_sig = clip(out, -7, 7)` already
       exists — verify it is effective and add a `min_log_scale` constructor kwarg
-- [ ] **Posterior std monitoring**: add `monitor_collapse=True` to `train()`;
+- [x] **Posterior std monitoring**: add `monitor_collapse=True` to `train()`;
       every `check_every=10` epochs, draw `n_check=200` samples at a fixed
       `x_check` observation; if `samples.std() < prior_std * collapse_threshold`
       (default 0.05), restore best weights and stop
-- [ ] **Auto `max_num_epochs`**: when `monitor_collapse=True`, the user does not
+- [x] **Auto `max_num_epochs`**: when `monitor_collapse=True`, the user does not
       need to set `max_num_epochs` — the collapse monitor + plateau early-stopping
       handle termination automatically
-- [ ] **`SNPE.train()` kwarg**: expose `monitor_collapse=True` and `x_check=None`
+- [x] **`SNPE.train()` kwarg**: expose `monitor_collapse=True` and `x_check=None`
       (auto-selected from training data if not provided)
-- [ ] **Tests**: verify that with `monitor_collapse=True`, std error on the
+- [x] **Tests**: verify that with `monitor_collapse=True`, std error on the
       1-D Gaussian demo stays < 0.15 regardless of `max_num_epochs`
 
 **Effort:** Small, 1-2 days.
@@ -508,10 +498,10 @@ going down as the distribution collapses.
 Rational-quadratic spline transforms with pure NumPy/autograd.
 
 **Tasks:**
-- [ ] `vbi/inference/_estimators/nsf.py` — RQ-spline MADE block
-- [ ] `NSFEstimator` class with same API as `MAFEstimator`
-- [ ] Register `density_estimator='nsf'` in `SNPE`
-- [ ] Tests: NSF log_prob finite and loss lower than MAF on moons dataset
+- [x] `vbi/inference/_estimators/nsf.py` — RQ-spline MADE block
+- [x] `NSFEstimator` class with same API as `MAFEstimator`
+- [x] Register `density_estimator='nsf'` in `SNPE`
+- [x] Tests: NSF log_prob finite and loss lower than MAF on moons dataset
 
 **Effort:** Medium, 3-4 days.
 
@@ -528,10 +518,10 @@ SNPE(prior, density_estimator='nsf', embedding_net=MLP(x_dim, 20))
 ```
 
 **Tasks:**
-- [ ] `EmbeddingNet` class: MLP that maps `(n, x_dim)` → `(n, embed_dim)`
-- [ ] `SNPE(..., embedding_net=None)` kwarg; applied inside `train()` to features
-- [ ] Default identity (no embedding) leaves behaviour unchanged
-- [ ] Tests: embedding reduces feature dim correctly; loss converges
+- [x] `EmbeddingNet` class: MLP that maps `(n, x_dim)` → `(n, embed_dim)`
+- [x] `SNPE(..., embedding_net=None)` kwarg; applied inside `train()` to features
+- [x] Default identity (no embedding) leaves behaviour unchanged
+- [x] Tests: embedding reduces feature dim correctly; loss converges
 
 **Effort:** Small, 1 day.
 
@@ -543,10 +533,10 @@ SNPE(prior, density_estimator='nsf', embedding_net=MLP(x_dim, 20))
 Adds `reject_outside_prior=True` to `Posterior.sample()` and `leakage_correction`.
 
 **Tasks:**
-- [ ] `Posterior.sample(..., reject_outside_prior=True)` — oversample then filter
-- [ ] `Posterior.leakage_correction(x_obs)` → scalar leakage estimate
-- [ ] `build_posterior(..., sample_with='rejection')` — explicit rejection path
-- [ ] Tests: samples from BoxUniform prior always inside bounds
+- [x] `Posterior.sample(..., reject_outside_prior=True)` — oversample then filter
+- [x] `Posterior.leakage_correction(x_obs)` → scalar leakage estimate
+- [x] `build_posterior(..., sample_with='rejection')` — explicit rejection path
+- [x] Tests: samples from BoxUniform prior always inside bounds
 
 **Effort:** Small, 1 day.
 
@@ -557,15 +547,15 @@ Adds `reject_outside_prior=True` to `Posterior.sample()` and `leakage_correction
 **Goal:** Match the prior types users expect from scipy/sbi.
 
 **Tasks:**
-- [ ] `MultivariateNormal(mean, cov)` — full covariance Gaussian
-- [ ] `LogNormal(mean, std)` — log-normal marginals
-- [ ] `Gamma(concentration, rate)` — positive-valued parameters
-- [ ] `Beta(alpha, beta)` — [0,1]-valued parameters
-- [ ] `MultipleIndependent([prior1, prior2, ...])` — product of independent priors
+- [x] `MultivariateNormal(mean, cov)` — full covariance Gaussian
+- [x] `LogNormal(mean, std)` — log-normal marginals
+- [x] `Gamma(concentration, rate)` — positive-valued parameters
+- [x] `Beta(alpha, beta)` — [0,1]-valued parameters
+- [x] `MultipleIndependent([prior1, prior2, ...])` — product of independent priors
       (mix different types per parameter dimension)
-- [ ] `RestrictedPrior(base_prior, constraint_fn)` — truncated prior
-- [ ] All priors: `.sample((n,))`, `.log_prob(theta)`, `.dim` property
-- [ ] Tests: each prior samples correct shape and log_prob is finite inside support
+- [x] `RestrictedPrior(base_prior, constraint_fn)` — truncated prior
+- [x] All priors: `.sample((n,))`, `.log_prob(theta)`, `.dim` property
+- [x] Tests: each prior samples correct shape and log_prob is finite inside support
 
 **Effort:** Small-medium, 2 days.
 
@@ -576,13 +566,13 @@ Adds `reject_outside_prior=True` to `Posterior.sample()` and `leakage_correction
 **Goal:** QoL helpers that sbi users expect.
 
 **Tasks:**
-- [ ] `simulate_for_sbi(simulator_fn, prior, num_simulations, seed=None)` →
+- [x] `simulate_for_sbi(simulator_fn, prior, num_simulations, seed=None)` →
       `(theta, x)` — runs simulator in a loop, handles errors gracefully
-- [ ] `SNPE.get_simulations(starting_round=0)` → `(theta, x, proposal)` —
+- [x] `SNPE.get_simulations(starting_round=0)` → `(theta, x, proposal)` —
       retrieve stored simulation data
-- [ ] `SNPE.train(..., resume_training=True)` — warm start from current weights
-- [ ] `process_prior(prior)` — validate that prior has `.sample` and `.log_prob`
-- [ ] Tests: simulate_for_sbi returns correct shapes
+- [x] `SNPE.train(..., resume_training=True)` — warm start from current weights
+- [x] `process_prior(prior)` — validate that prior has `.sample` and `.log_prob`
+- [x] Tests: simulate_for_sbi returns correct shapes
 
 **Effort:** Small, 1 day.
 
@@ -596,27 +586,27 @@ These are the most critical tools for scientific use.
 **Tasks:**
 
 ### SBC (Simulation-Based Calibration)
-- [ ] `run_sbc(posterior, simulator, prior, num_sbc_runs, num_posterior_samples)`
+- [x] `run_sbc(posterior, simulator, prior, num_sbc_runs, num_posterior_samples)`
       → `{ranks: array, dap_samples: array}`
-- [ ] `check_sbc(ranks)` → `{uniformity_pvalue, c2st_ranks}`
-- [ ] `sbc_rank_plot(ranks)` — per-parameter rank histograms
+- [x] `check_sbc(ranks)` → `{uniformity_pvalue, c2st_ranks}`
+- [x] `sbc_rank_plot(ranks)` — per-parameter rank histograms
 
 ### Coverage (TARP)
-- [ ] `run_tarp(posterior, simulator, prior, num_runs)`
+- [x] `run_tarp(posterior, simulator, prior, num_runs)`
       → `{alphas, ecp}` (expected coverage probability)
-- [ ] `check_tarp(alphas, ecp)` → coverage summary
-- [ ] `plot_tarp(alphas, ecp)` — coverage plot
+- [x] `check_tarp(alphas, ecp)` → coverage summary
+- [x] `plot_tarp(alphas, ecp)` — coverage plot
 
 ### Classifier 2-Sample Test (C2ST)
-- [ ] `c2st(samples_p, samples_q, seed=None)` → accuracy ∈ [0.5, 1.0]
+- [x] `c2st(samples_p, samples_q, seed=None)` → accuracy ∈ [0.5, 1.0]
       (0.5 = indistinguishable = good posterior)
-- [ ] Requires sklearn LogisticRegression (already available)
+- [x] Requires sklearn LogisticRegression (already available)
 
 ### Posterior visualisation
-- [ ] `pairplot(samples, points=None, limits=None, labels=None)` →
+- [x] `pairplot(samples, points=None, limits=None, labels=None)` →
       matplotlib Figure — triangle plot of marginals and pairwise joints
-- [ ] `conditional_pairplot(posterior, x_obs, prior)` — condition on observation
-- [ ] `plot_loss(loss_history, val_loss_history)` — training curves
+- [x] `conditional_pairplot(posterior, x_obs, prior)` — condition on observation
+- [x] `plot_loss(loss_history, val_loss_history)` — training curves
 
 **Effort:** Medium, 4-5 days.  SBC and pairplot are the most impactful.
 
@@ -681,21 +671,22 @@ Key differences to handle:
 
 **Tasks:**
 
-- [ ] Create `vbi/cde_jax.py` (or add `backend='jax'` dispatch in `cde.py`)
-- [ ] Functional Adam optimizer (pure functions, no mutation):
+- [x] Create `vbi/cde_jax.py` (or add `backend='jax'` dispatch in `cde.py`)
+- [x] Functional Adam optimizer (pure functions, no mutation):
       ```python
       def adam_update(weights, grads, m, v, t, lr): ...
       ```
-- [ ] JIT-compile training loop: `jax.jit(grad(loss_fn))`
-- [ ] `jax.random` PRNG threading through sample/train
-- [ ] `vmap`-compatible `log_prob` and `sample` for batch conditions
-- [ ] `jax.grad` through the full `log_prob` (for gradient-based posterior
+- [x] JIT-compile training loop: `jax.jit(grad(loss_fn))`
+- [x] `jax.random` PRNG threading through sample/train
+- [x] `vmap`-compatible `log_prob` and `sample` for batch conditions
+- [x] `jax.grad` through the full `log_prob` (for gradient-based posterior
       exploration)
-- [ ] Mini-batch training with `jnp.take`
-- [ ] Data normalization inside JIT-safe transforms
-- [ ] Benchmark: autograd vs JAX on N=10k, N=100k, CPU, GPU
-- [ ] Tests: numerical match autograd vs JAX (rtol=1e-4)
-- [ ] Fallback: if JAX not installed, silently use autograd
+- [x] Mini-batch training with `jnp.take`
+- [x] Data normalization inside JIT-safe transforms
+- [x] Benchmark: initial autograd vs JAX CPU demo (`08_backend_benchmark.py`);
+      large-N / GPU benchmarks still pending
+- [x] Tests: numerical match autograd vs JAX (rtol=1e-4)
+- [x] Fallback: if JAX not installed, silently use autograd
 
 **Effort:** Medium, 3–5 days. Most logic is a direct translation.
 
@@ -904,7 +895,7 @@ samples = posterior.sample(5000)
 
 ## Priority order
 
-**Current focus: finish numpy-backend feature parity, then move to JAX.**
+**Current focus: finish sequential / MCMC parity and VBI integration.**
 
 ```
 ★ DONE:  MI-API        sbi-compatible interface, MAF, MDN, BoxUniform, Gaussian,
@@ -913,14 +904,12 @@ samples = posterior.sample(5000)
          MI0-rejection reject_outside_prior, leakage_correction, sample_with='rejection'
          MI0-embed     EmbeddingNet (jointly trained MLP summary network)
          MI0-utils     simulate_for_vbi, get_simulations, resume_training, process_prior
-
-  NEXT (numpy, remaining):
           MI0-priors   MultivariateNormal, MultipleIndependent, Beta, Gamma, RestrictedPrior
           MI-diag      SBC, TARP, C2ST, pairplot, plot_loss
-          MI0-NSF      NSF density estimator (optional — harder in autograd; may defer to MI1)
+          MI0-NSF      NSF density estimator (numpy/autograd + JAX)
+          MI1          JAX backend (MDN, MAF, NSF), auto backend, CPU-safe device selection
 
-  THEN (after numpy is complete):
-          MI1   JAX backend (GPU, vmap, jit, PRNG refactor) — translate autograd → JAX
+  NEXT:
           MI3   Sequential rounds with APT importance weights (num_atoms)
           MI4   MCMC posterior (MH on numpy; NUTS requires JAX)
           MI6   End-to-end VBIInference API
@@ -961,16 +950,16 @@ MI-API + MI0-*
 | get_simulations | ✅ | ✅ done |
 | resume_training (warm start) | ✅ | ✅ done |
 | BoxUniform, Gaussian, CustomPrior | ✅ | ✅ done |
-| MultivariateNormal, Beta, Gamma | ✅ | ❌ MI0-priors |
-| MultipleIndependent, RestrictedPrior | ✅ | ❌ MI0-priors |
-| NSF (neural spline flow) | ✅ | ❌ MI0-NSF (may defer to MI1/JAX) |
-| SBC, TARP, C2ST diagnostics | ✅ | ❌ MI-diag |
-| pairplot, plot_loss | ✅ | ❌ MI-diag |
+| MultivariateNormal, Beta, Gamma | ✅ | ✅ done |
+| MultipleIndependent, RestrictedPrior | ✅ | ✅ done |
+| NSF (neural spline flow) | ✅ | ✅ done |
+| SBC, TARP, C2ST diagnostics | ✅ | ✅ done |
+| pairplot, plot_loss | ✅ | ✅ done |
 | Sequential rounds (SNPE-C / APT) | ✅ | ❌ MI3 |
 | MCMC refinement (NUTS) | ✅ | ❌ MI4 (NUTS needs JAX) |
-| GPU training | ✅ (torch.cuda) | ❌ MI1 (JAX/XLA) |
-| vmap batch eval | ✅ | ❌ MI1 |
-| Gradient through posterior | Limited | ❌ MI1 (JAX, full) |
+| GPU training | ✅ (torch.cuda) | ⚠️ JAX backend exists; GPU needs environment validation |
+| vmap batch eval | ✅ | ✅ batched posterior APIs + JAX backend |
+| Gradient through posterior | Limited | ✅ JAX estimator path |
 | Dependency size | ~2 GB | ~50 MB (numpy+autograd) |
 | Integration with VBI sim | ❌ manual | ❌ MI6 |
 | Numpy speed (small N) | Slower | ✅ already faster |
@@ -983,9 +972,8 @@ MI-API + MI0-*
    the default backend? Proposal: keep `backend='autograd'` as always-available
    fallback; JAX becomes default when installed (`backend='auto'`).
 
-2. **NSF in autograd vs JAX**: RQ-spline transforms are doable in autograd but
-   tedious; in JAX they're cleaner and faster.  Current decision: defer MI0-NSF
-   and implement NSF as part of MI1 (JAX backend first, autograd fallback later).
+2. ~~**NSF in autograd vs JAX**~~: resolved — NSF exists in both the
+   numpy/autograd and JAX estimator maps.
 
 3. **`MAFEstimator0` deprecation**: The original simpler MAF should be
    deprecated at the start of MI1 and removed one release cycle after.
