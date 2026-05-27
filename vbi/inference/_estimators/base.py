@@ -85,7 +85,8 @@ class ConditionalDensityEstimator(abc.ABC):
         if params.ndim   == 1: params   = params.reshape(-1, 1)
         if features.ndim == 1: features = features.reshape(-1, 1)
 
-        self.param_dim   = params.shape[1]
+        n_extra = getattr(self, "_n_apt_extra_cols", 0)
+        self.param_dim   = params.shape[1] - n_extra
         self.feature_dim = features.shape[1]
         self._dims_inferred = True
 
@@ -112,6 +113,7 @@ class ConditionalDensityEstimator(abc.ABC):
         min_delta: float = 0.0,
         window_size: int = 1,
         resume_training: bool = False,
+        loss_fn=None,
     ):
         """
         Train with Adam.  Mini-batch training is enabled when ``batch_size``
@@ -176,7 +178,8 @@ class ConditionalDensityEstimator(abc.ABC):
         counter      = 0
         loss_window: list[float] = []
 
-        gradient_func = grad(self._wrapped_loss)
+        active_loss   = loss_fn if loss_fn is not None else self._wrapped_loss
+        gradient_func = grad(active_loss)
         iterator = trange(n_iter, desc="Training", disable=not verbose)
 
         for i in iterator:
@@ -188,7 +191,7 @@ class ConditionalDensityEstimator(abc.ABC):
                 f_batch, p_batch = features, params
 
             g    = gradient_func(self.weights, f_batch, p_batch)
-            loss = self._wrapped_loss(self.weights, f_batch, p_batch)
+            loss = active_loss(self.weights, f_batch, p_batch)
             self.loss_history.append(float(loss))
 
             if not anp.isfinite(loss):

@@ -80,9 +80,11 @@ class JaxMAFEstimator(JaxConditionalDensityEstimator):
         return self.feature_dim
 
     def prepare_normalizers(self, features, params):
+        n_extra = getattr(self, "_n_apt_extra_cols", 0)
+        p = params[:, :params.shape[1] - n_extra] if n_extra > 0 else params
         if self.z_score_theta:
-            self.theta_mean = jnp.array(np.mean(params,   axis=0))
-            self.theta_std  = jnp.array(np.std(params,    axis=0) + 1e-8)
+            self.theta_mean = jnp.array(np.mean(p,   axis=0))
+            self.theta_std  = jnp.array(np.std(p,    axis=0) + 1e-8)
         else:
             self.theta_mean = jnp.zeros(self.param_dim)
             self.theta_std  = jnp.ones(self.param_dim)
@@ -348,6 +350,7 @@ class JaxMAFEstimator(JaxConditionalDensityEstimator):
         collapse_threshold: float = 0.05,
         check_every: int = 10,
         n_check: int = 200,
+        loss_fn=None,
     ):
         params   = np.asarray(params, dtype="f")
         features = np.asarray(features, dtype="f")
@@ -381,6 +384,12 @@ class JaxMAFEstimator(JaxConditionalDensityEstimator):
         p_val, f_val = ((params[val_idx], features[val_idx])
                         if n_val > 0 else (None, None))
 
+        # For APT: p_tr has an extra log_w column; strip it for init-only uses.
+        # Mini-batches keep the full p_tr so apt_loss can read log_w from last col.
+        _n_extra = getattr(self, "_n_apt_extra_cols", 0)
+        p_tr_real = p_tr[:, :-_n_extra] if _n_extra else p_tr
+        p_val_real = p_val[:, :-_n_extra] if (_n_extra and p_val is not None) else p_val
+
         if early_stopping_delta is None:
             early_stopping_delta = 1e-4 if lr_schedule == "cosine" else 0.0
 
@@ -391,14 +400,14 @@ class JaxMAFEstimator(JaxConditionalDensityEstimator):
             f_tr_norm = self._emb.forward(_init_emb_w, f_tr)
         else:
             f_tr_norm = f_tr
-        self.prepare_normalizers(f_tr_norm, p_tr)
+        self.prepare_normalizers(f_tr_norm, p_tr_real)
 
         rng_w = np.random.RandomState(seed)
         if resume_training and self.weights is not None:
             weights_np = {k: np.array(v) for k, v in self.weights.items()}
         else:
             weights_np = self._initialize_weights(seed)
-            weights_np = self._init_actnorm_data_dependent(weights_np, f_tr, p_tr)
+            weights_np = self._init_actnorm_data_dependent(weights_np, f_tr, p_tr_real)
         self.loss_history     = []
         self.val_loss_history = []
 
@@ -413,9 +422,15 @@ class JaxMAFEstimator(JaxConditionalDensityEstimator):
         v = {k: jnp.zeros_like(v) for k, v in weights.items()}
         beta1, beta2, eps_adam = 0.9, 0.999, 1e-8
 
-        # Compile the full Adam step (grad + clip + update) into one jit call.
-        # This eliminates per-step Python→JAX synchronisation overhead.
-        _train_step = self._make_train_step(clip_max_norm, beta1, beta2, eps_adam)
+        # Compile the full Adam step into one jit call (default path).
+        # APT: when loss_fn is provided (atom-sampling involves numpy → not jit-able),
+        # fall back to eager grad + manual Adam so the APT loss can run per-step.
+        if loss_fn is not None:
+            _train_step = None
+            _apt_grad = jax.value_and_grad(loss_fn)
+        else:
+            _train_step = self._make_train_step(clip_max_norm, beta1, beta2, eps_adam)
+            _apt_grad   = None
 
         best_weights     = {k: np.array(v) for k, v in weights.items()}
         best_val         = np.inf if n_val > 0 else None
@@ -423,7 +438,7 @@ class JaxMAFEstimator(JaxConditionalDensityEstimator):
         self.best_epoch    = -1
         self.best_val_loss = None
 
-        _data_std = p_tr.std(axis=0) + 1e-8
+        _data_std = p_tr_real.std(axis=0) + 1e-8
         _stopped_for_collapse = False
         if monitor_collapse:
             _x_chk = (np.atleast_2d(np.asarray(x_check, dtype="f"))
@@ -445,11 +460,30 @@ class JaxMAFEstimator(JaxConditionalDensityEstimator):
             else:
                 f_b, p_b = f_tr_j, p_tr_j
 
-            weights, m, v, train_loss = _train_step(
-                weights, m, v, f_b, p_b,
-                jnp.float32(lr_t), jnp.int32(epoch + 1),
-            )
-            train_loss_f = float(train_loss)
+            if _train_step is not None:
+                weights, m, v, train_loss = _train_step(
+                    weights, m, v, f_b, p_b,
+                    jnp.float32(lr_t), jnp.int32(epoch + 1),
+                )
+                train_loss_f = float(train_loss)
+            else:
+                # APT eager path: atom-sampling happens inside loss_fn
+                train_loss_val, g_apt = _apt_grad(weights, f_b, p_b)
+                train_loss_f = float(train_loss_val)
+                # Manual Adam + grad clip
+                total_sq = sum(float(jnp.sum(g_apt[k] ** 2)) for k in g_apt)
+                norm = (total_sq + 1e-12) ** 0.5
+                scale = (clip_max_norm / (norm + 1e-12)) if (clip_max_norm and norm > clip_max_norm) else 1.0
+                new_weights = {}
+                for key in weights:
+                    gk = g_apt[key] * scale
+                    m[key] = beta1 * m[key] + (1 - beta1) * gk
+                    v[key] = beta2 * v[key] + (1 - beta2) * gk ** 2
+                    m_hat  = m[key] / (1 - beta1 ** (epoch + 1))
+                    v_hat  = v[key] / (1 - beta2 ** (epoch + 1))
+                    new_weights[key] = weights[key] - lr_t * m_hat / (jnp.sqrt(v_hat) + eps_adam)
+                weights = new_weights
+
             self.loss_history.append(train_loss_f)
 
             if not math.isfinite(train_loss_f):
@@ -458,8 +492,9 @@ class JaxMAFEstimator(JaxConditionalDensityEstimator):
                 break
 
             # Validation + early stopping
+            active_loss_val = loss_fn if loss_fn is not None else self._loss_function
             if n_val > 0:
-                val_loss  = float(self._loss_function(weights, f_val_j, p_val_j))
+                val_loss  = float(active_loss_val(weights, f_val_j, p_val_j))
                 self.val_loss_history.append(val_loss)
                 improved  = (best_val - val_loss) > early_stopping_delta
                 if improved:

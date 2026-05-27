@@ -47,7 +47,7 @@
 | Early stopping | ✅ | ✅ | — | done |
 | Gradient clipping | ✅ | ✅ | — | done |
 | Sequential rounds: append_simulations | ✅ | ✅ (data only) | ⚠️ | done |
-| APT importance weights (num_atoms) | ✅ | ❌ stored, ignored | 🔴 | MI3 |
+| APT importance weights (num_atoms) | ✅ | ✅ | — | done (MI3) |
 | Warm start (resume_training) | ✅ | ✅ | — | done |
 | get_simulations() | ✅ | ✅ | — | done |
 | Custom DataLoader kwargs | ✅ | ❌ | 🟢 | future |
@@ -61,8 +61,8 @@
 | sample_batched (vectorised over x) | ✅ | ✅ | — | done |
 | Rejection sampling (against prior) | ✅ | ✅ | — | done |
 | reject_outside_prior in sample() | ✅ | ✅ | — | done |
-| MCMC: Metropolis-Hastings | ✅ | ❌ | 🔴 | MI4 |
-| MCMC: NUTS (pyro / pymc) | ✅ | ❌ | 🟡 | MI4-JAX |
+| MCMC: Metropolis-Hastings | ✅ | ✅ | — | done (MI4) |
+| MCMC: NUTS (JAX) | ✅ | ✅ | — | done (MI4) |
 | MCMC: slice sampling | ✅ | ❌ | 🟢 | MI4 |
 | Variational inference (rKL, fKL) | ✅ | ❌ | 🟢 | future |
 | Importance sampling posterior | ✅ | ❌ | 🟡 | future |
@@ -122,11 +122,11 @@
 ### Gap summary
 
 **Blocking for real use (🔴):**
-1. APT importance weighting (multi-round `num_atoms`)
-2. MCMC posterior refinement (MI4)
+~~1. APT importance weighting (multi-round `num_atoms`) — done~~
+~~2. MCMC posterior refinement (MI4) — done~~
 
 **Important but not blocking (🟡):**
-3. SNLE (likelihood-based inference)
+1. SNLE (likelihood-based inference)
 4. Custom network callables beyond `EmbeddingNet`
 5. Potential / potential_fn compatibility
 6. LC2ST / PP plot diagnostics
@@ -909,9 +909,11 @@ samples = posterior.sample(5000)
           MI0-NSF      NSF density estimator (numpy/autograd + JAX)
           MI1          JAX backend (MDN, MAF, NSF), auto backend, CPU-safe device selection
 
-  NEXT:
+  DONE (recent):
           MI3   Sequential rounds with APT importance weights (num_atoms)
-          MI4   MCMC posterior (MH on numpy; NUTS requires JAX)
+          MI4   MCMC posterior: MH (numpy) + NUTS (JAX) + R-hat/ESS diagnostics
+
+  NEXT:
           MI6   End-to-end VBIInference API
 
   SKIPPED / DEFERRED:
@@ -955,8 +957,8 @@ MI-API + MI0-*
 | NSF (neural spline flow) | ✅ | ✅ done |
 | SBC, TARP, C2ST diagnostics | ✅ | ✅ done |
 | pairplot, plot_loss | ✅ | ✅ done |
-| Sequential rounds (SNPE-C / APT) | ✅ | ❌ MI3 |
-| MCMC refinement (NUTS) | ✅ | ❌ MI4 (NUTS needs JAX) |
+| Sequential rounds (SNPE-C / APT) | ✅ | ✅ done (MI3) |
+| MCMC refinement (MH + NUTS) | ✅ | ✅ done (MI4) |
 | GPU training | ✅ (torch.cuda) | ⚠️ JAX backend exists; GPU needs environment validation |
 | vmap batch eval | ✅ | ✅ batched posterior APIs + JAX backend |
 | Gradient through posterior | Limited | ✅ JAX estimator path |

@@ -94,15 +94,18 @@ class MDNEstimator(ConditionalDensityEstimator):
 
         return alpha, mu, L_prec, L_log_diag
 
-    def _loss_function(self, weights, features, params) -> float:
+    def _get_log_prob(self, weights, features, params):
+        """Per-sample log p(params | features), shape (B,). Used by APT loss."""
         alpha, mu, L_prec, L_log_diag = self._forward_pass(weights, features)
         delta      = params[:, anp.newaxis, :] - mu
         z          = anp.einsum("nkij,nkj->nki", L_prec, delta)
         quad       = -0.5 * anp.sum(z ** 2, axis=2)
         log_det    = anp.sum(L_log_diag, axis=2)
         log_prob_k = quad + log_det - 0.5 * self.param_dim * anp.log(2 * math.pi)
-        total      = logsumexp(anp.log(alpha + 1e-9) + log_prob_k, axis=1)
-        return -anp.mean(total)
+        return logsumexp(anp.log(alpha + 1e-9) + log_prob_k, axis=1)
+
+    def _loss_function(self, weights, features, params) -> float:
+        return -anp.mean(self._get_log_prob(weights, features, params))
 
     def _log_prob_preembedded(self, features, params) -> anp.ndarray:
         """Compute log_prob assuming features are already embedded (no re-embedding)."""

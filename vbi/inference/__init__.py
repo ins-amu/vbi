@@ -29,6 +29,7 @@ With::
 """
 
 from ._api        import SNPE, SNLE, set_jax_device
+from ._mcmc       import MetropolisHastings, NUTS, r_hat, effective_sample_size
 from ._prior      import (
     BoxUniform, Gaussian, CustomPrior,
     MultivariateNormal, LogNormal, Gamma, Beta,
@@ -86,6 +87,11 @@ __all__ = [
     "MAFEstimator",
     "MAFEstimator0",
     "NSFEstimator",
+    # MCMC samplers (MI4)
+    "MetropolisHastings",
+    "NUTS",
+    "r_hat",
+    "effective_sample_size",
     # Diagnostics
     "run_sbc",
     "check_sbc",

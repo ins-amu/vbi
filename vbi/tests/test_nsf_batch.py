@@ -10,6 +10,7 @@ from vbi.inference import (
     SNPE, BoxUniform,
     NSFEstimator, MAFEstimator,
 )
+from vbi.inference._backends.jax_ import JaxNSFEstimator
 from vbi.inference._estimators.nsf import (
     _spline_params, _rq_forward_1d, _rq_inverse_1d,
 )
@@ -235,7 +236,7 @@ class TestSNPEWithNSF:
         inf   = SNPE(prior=prior, density_estimator="nsf")
         inf   = inf.append_simulations(theta, x)
         inf.train(max_num_epochs=3, verbose=False)
-        assert isinstance(inf._estimator, NSFEstimator)
+        assert isinstance(inf._estimator, (NSFEstimator, JaxNSFEstimator))
 
 
 # ---------------------------------------------------------------------------

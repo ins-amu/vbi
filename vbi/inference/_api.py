@@ -222,12 +222,37 @@ class SNPE:
         theta_all = np.concatenate([r[0] for r in self._rounds], axis=0)
         x_all     = np.concatenate([r[1] for r in self._rounds], axis=0)
 
+        # ── MI3: APT/SNPE-C importance-weighted loss ──────────────────────────
+        # Activated when num_atoms >= 2 AND at least one round has a proposal.
+        _proposals_exist = any(r[2] is not None for r in self._rounds)
+        _use_apt = (num_atoms >= 2) and _proposals_exist
+        _apt_loss_fn = None
+        if _use_apt:
+            from ._apt import make_apt_loss, compute_log_importance_weights
+            log_w = compute_log_importance_weights(self._rounds, self._prior_obj)
+            # Augment theta with log_w as last column; APT loss strips it back
+            theta_all = np.concatenate([theta_all,
+                                        log_w[:, None].astype("f")], axis=1)
+
         # Build fresh estimator (or reuse existing on warm start)
         if not resume_training or self._estimator is None:
             de_map = get_estimator_map(self._backend)
             self._estimator = de_map[self._de_type]()
         if self._embedding_net is not None:
             self._estimator.set_embedding(self._embedding_net)
+
+        # Tell the estimator how many extra columns theta_all carries (APT log_w)
+        # so _infer_dimensions and prepare_normalizers use the true param_dim.
+        self._estimator._n_apt_extra_cols = 1 if _use_apt else 0
+
+        # Build APT loss now that the estimator instance exists
+        if _use_apt:
+            _apt_loss_fn = make_apt_loss(self._estimator, num_atoms=num_atoms)
+            log.info(
+                "APT/SNPE-C loss active: num_atoms=%d, %d rounds, "
+                "%d samples with non-zero importance weights.",
+                num_atoms, len(self._rounds), int(np.sum(log_w != 0)),
+            )
 
         # verbose kwarg overrides the constructor-level show_progress_bars
         if verbose is None:
@@ -259,6 +284,8 @@ class SNPE:
             resume_training       = resume_training,
             **kwargs,              # forward seed, etc.
         )
+        if _use_apt:
+            common["loss_fn"] = _apt_loss_fn
 
         # MAF/NSF (both autograd and JAX variants) use the full train() signature
         from ._backends.jax_.maf_jax import JaxMAFEstimator
@@ -281,7 +308,7 @@ class SNPE:
             base_kwargs = {k: v for k, v in common.items()
                            if k in ("params", "features", "n_iter",
                                     "learning_rate", "batch_size",
-                                    "verbose")}
+                                    "verbose", "loss_fn")}
             base_kwargs["patience"]    = stop_after_epochs   # epoch count (unscaled)
             base_kwargs["window_size"] = batches_per_epoch
             self._estimator.train(**base_kwargs)
@@ -293,6 +320,10 @@ class SNPE:
         density_estimator=None,
         prior=None,
         sample_with: Literal["direct", "mcmc", "rejection"] = "direct",
+        mcmc_method: str = "mh",
+        mcmc_step_size: float = 0.1,
+        mcmc_num_warmup: int = 500,
+        show_progress_bars: bool = False,
         **kwargs,
     ) -> Posterior:
         """
@@ -306,9 +337,18 @@ class SNPE:
         prior : prior object | None
             Uses the prior passed to ``__init__`` if None.
         sample_with : 'direct' | 'mcmc' | 'rejection'
-            'direct' (default) — ancestral sampling from the flow/mixture.
-            'mcmc'             — Metropolis-Hastings (added in MI4).
-            'rejection'        — rejection sampling against prior (added in MI4).
+            'direct'    — ancestral sampling from the flow/mixture.
+            'mcmc'      — MCMC via MetropolisHastings or NUTS.
+            'rejection' — rejection sampling against prior.
+        mcmc_method : 'mh' | 'nuts'
+            MCMC algorithm when ``sample_with='mcmc'``.
+            'nuts' requires a JAX-backend estimator.
+        mcmc_step_size : float
+            Proposal step size for MH; initial leapfrog step for NUTS.
+        mcmc_num_warmup : int
+            Warmup (burn-in) steps discarded from MCMC chain.
+        show_progress_bars : bool
+            Show tqdm progress during MCMC sampling.
 
         Returns
         -------
@@ -323,13 +363,15 @@ class SNPE:
 
         p = prior if prior is not None else self._prior_obj
 
-        if sample_with == "mcmc":
-            raise NotImplementedError(
-                "sample_with='mcmc' is not yet implemented. "
-                "MCMC sampling is planned for MI4."
-            )
-
-        return Posterior(estimator=est, prior=p, sample_with=sample_with)
+        return Posterior(
+            estimator=est,
+            prior=p,
+            sample_with=sample_with,
+            mcmc_method=mcmc_method,
+            mcmc_step_size=mcmc_step_size,
+            mcmc_num_warmup=mcmc_num_warmup,
+            show_progress_bars=show_progress_bars,
+        )
 
     # ------------------------------------------------------------------
     # Convenience

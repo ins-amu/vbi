@@ -81,7 +81,8 @@ class JaxConditionalDensityEstimator(abc.ABC):
         if params.ndim   == 1: params   = params.reshape(-1, 1)
         if features.ndim == 1: features = features.reshape(-1, 1)
 
-        self.param_dim   = params.shape[1]
+        n_extra = getattr(self, "_n_apt_extra_cols", 0)
+        self.param_dim   = params.shape[1] - n_extra
         self.feature_dim = features.shape[1]
         self._dims_inferred = True
 
@@ -123,6 +124,7 @@ class JaxConditionalDensityEstimator(abc.ABC):
         min_delta: float = 0.0,
         window_size: int = 1,
         resume_training: bool = False,
+        loss_fn=None,
     ):
         """
         Adam training loop (JAX).
@@ -173,7 +175,12 @@ class JaxConditionalDensityEstimator(abc.ABC):
         counter     = 0
         loss_window: list[float] = []
 
-        loss_and_grad = jax.jit(jax.value_and_grad(self._wrapped_loss))
+        # APT: if loss_fn is provided it replaces _wrapped_loss; cannot be jit-compiled
+        # because it contains numpy-level atom sampling. Fall back to eager mode.
+        if loss_fn is not None:
+            loss_and_grad = jax.value_and_grad(loss_fn)
+        else:
+            loss_and_grad = jax.jit(jax.value_and_grad(self._wrapped_loss))
 
         iterator = trange(n_iter, desc="Training", disable=not verbose)
 

@@ -781,14 +781,15 @@ class TestRejectionSampling:
         with pytest.raises(ValueError, match="prior"):
             post_no_prior.leakage_correction(x=np.array([[0.5, 0.5]]))
 
-    def test_build_posterior_mcmc_still_raises(self):
-        """sample_with='mcmc' still raises NotImplementedError (MI4)."""
+    def test_build_posterior_mcmc_returns_posterior(self):
+        """sample_with='mcmc' returns a Posterior (MI4 implemented)."""
+        from vbi.inference import Posterior
         prior, theta, x = _linear_gaussian(n=100, d=1)
         inf = SNPE(prior=prior)
         inf.append_simulations(theta, x)
         inf.train(max_num_epochs=3, verbose=False)
-        with pytest.raises(NotImplementedError, match="mcmc"):
-            inf.build_posterior(sample_with='mcmc')
+        post = inf.build_posterior(sample_with='mcmc')
+        assert isinstance(post, Posterior)
 
 
 # ---------------------------------------------------------------------------

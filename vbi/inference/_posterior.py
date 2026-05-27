@@ -22,13 +22,30 @@ class Posterior:
     >>> log_probs = posterior.log_prob(theta, x=x_obs)
     """
 
-    def __init__(self, estimator, prior=None, default_x=None, sample_with: str = "direct"):
+    def __init__(
+        self,
+        estimator,
+        prior=None,
+        default_x=None,
+        sample_with: str = "direct",
+        mcmc_method: str = "mh",
+        mcmc_step_size: float | np.ndarray = 0.1,
+        mcmc_num_warmup: int = 500,
+        show_progress_bars: bool = False,
+    ):
         self._estimator  = estimator
         self._prior      = prior
         self._default_x  = None if default_x is None else np.asarray(default_x)
-        if sample_with not in ("direct", "rejection"):
-            raise ValueError(f"sample_with={sample_with!r} not supported. Choose 'direct' or 'rejection'.")
-        self._sample_with = sample_with
+        if sample_with not in ("direct", "rejection", "mcmc"):
+            raise ValueError(
+                f"sample_with={sample_with!r} not supported. "
+                "Choose 'direct', 'rejection', or 'mcmc'."
+            )
+        self._sample_with      = sample_with
+        self._mcmc_method      = mcmc_method
+        self._mcmc_step_size   = mcmc_step_size
+        self._mcmc_num_warmup  = mcmc_num_warmup
+        self._show_progress    = show_progress_bars
 
     # ------------------------------------------------------------------
     # sbi-compatible public API
@@ -73,6 +90,9 @@ class Posterior:
         rng = np.random.RandomState(seed)
 
         x_2d = np.atleast_2d(np.asarray(x, dtype="f"))
+
+        if self._sample_with == "mcmc":
+            return self._sample_with_mcmc(n, x_2d, seed)
 
         use_rejection = reject_outside_prior or (self._sample_with == "rejection")
         if use_rejection:
@@ -259,6 +279,31 @@ class Posterior:
     # ------------------------------------------------------------------
     # Internals
     # ------------------------------------------------------------------
+
+    def _sample_with_mcmc(self, n: int, x_2d: np.ndarray, seed) -> np.ndarray:
+        """Delegate to MetropolisHastings or NUTS sampler."""
+        from ._mcmc import MetropolisHastings, NUTS
+
+        method = (self._mcmc_method or "mh").lower()
+        if method == "nuts":
+            sampler = NUTS(
+                estimator=self._estimator,
+                prior=self._prior,
+                step_size=self._mcmc_step_size,
+            )
+        else:
+            sampler = MetropolisHastings(
+                estimator=self._estimator,
+                prior=self._prior,
+                step_size=self._mcmc_step_size,
+            )
+        return sampler.run(
+            x_obs=x_2d,
+            n_samples=n,
+            n_warmup=self._mcmc_num_warmup,
+            seed=seed,
+            show_progress=self._show_progress,
+        )
 
     def _sample_with_rejection(
         self, n: int, x_2d: np.ndarray, rng

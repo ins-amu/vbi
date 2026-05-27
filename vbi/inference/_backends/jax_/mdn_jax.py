@@ -89,15 +89,12 @@ class JaxMDNEstimator(JaxConditionalDensityEstimator):
 
         return alpha, mu, L_prec, L_log_diag
 
+    def _get_log_prob(self, weights, features, params):
+        """Per-sample log p(params | features), shape (B,). Used by APT loss."""
+        return self._log_prob_core(weights, features, params)
+
     def _loss_function(self, weights, features, params) -> float:
-        alpha, mu, L_prec, L_log_diag = self._forward_pass(weights, features)
-        delta      = params[:, jnp.newaxis, :] - mu
-        z          = jnp.einsum("nkij,nkj->nki", L_prec, delta)
-        quad       = -0.5 * jnp.sum(z ** 2, axis=2)
-        log_det    = jnp.sum(L_log_diag, axis=2)
-        log_prob_k = quad + log_det - 0.5 * self.param_dim * jnp.log(2 * math.pi)
-        total      = logsumexp(jnp.log(alpha + 1e-9) + log_prob_k, axis=1)
-        return -jnp.mean(total)
+        return -jnp.mean(self._get_log_prob(weights, features, params))
 
     def _log_prob_core(self, weights, features, params):
         """log_prob without re-embedding (features already embedded)."""

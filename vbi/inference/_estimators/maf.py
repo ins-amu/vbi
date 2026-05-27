@@ -87,9 +87,11 @@ class MAFEstimator(ConditionalDensityEstimator):
         return self.feature_dim
 
     def prepare_normalizers(self, features, params):
+        n_extra = getattr(self, "_n_apt_extra_cols", 0)
+        p = params[:, :params.shape[1] - n_extra] if n_extra > 0 else params
         if self.z_score_theta:
-            self.theta_mean = anp.mean(params,   axis=0)
-            self.theta_std  = anp.std(params,    axis=0) + 1e-8
+            self.theta_mean = anp.mean(p,   axis=0)
+            self.theta_std  = anp.std(p,    axis=0) + 1e-8
         else:
             self.theta_mean = anp.zeros(self.param_dim)
             self.theta_std  = anp.ones(self.param_dim)
@@ -295,6 +297,7 @@ class MAFEstimator(ConditionalDensityEstimator):
         collapse_threshold: float = 0.05,
         check_every: int = 10,
         n_check: int = 200,
+        loss_fn=None,
     ):
         """
         Train with Adam, optional mini-batches, train/val split, early stopping,
@@ -363,6 +366,13 @@ class MAFEstimator(ConditionalDensityEstimator):
         p_val, f_val = ((params[val_idx], features[val_idx])
                         if n_val > 0 else (None, None))
 
+        # For APT: p_tr has an extra log_w column; strip it for init-only uses
+        # (normalizers, ActNorm, _data_std).  Mini-batches still get full p_tr
+        # so the APT loss can read log_w from the last column.
+        _n_extra = getattr(self, "_n_apt_extra_cols", 0)
+        p_tr_real = p_tr[:, :-_n_extra] if _n_extra else p_tr
+        p_val_real = p_val[:, :-_n_extra] if (_n_extra and p_val is not None) else p_val
+
         # With cosine LR, late-epoch updates are tiny (lr ≈ lr_min = 1e-5).
         # A plain delta=0 means even a 1e-5 improvement resets patience,
         # so early stopping never fires.  Auto-set a sensible floor when
@@ -377,7 +387,7 @@ class MAFEstimator(ConditionalDensityEstimator):
             f_tr_norm = self._emb.forward(_init_emb_w, f_tr)
         else:
             f_tr_norm = f_tr
-        self.prepare_normalizers(f_tr_norm, p_tr)
+        self.prepare_normalizers(f_tr_norm, p_tr_real)
 
         rng_w = anp.random.RandomState(seed)
         if resume_training and self.weights is not None:
@@ -390,8 +400,8 @@ class MAFEstimator(ConditionalDensityEstimator):
 
         # ActNorm warmup (embedding applied inside _get_log_prob)
         if self.use_actnorm:
-            k = min(512, len(p_tr))
-            _ = self._get_log_prob(self.weights, f_tr[:k], p_tr[:k])
+            k = min(512, len(p_tr_real))
+            _ = self._get_log_prob(self.weights, f_tr[:k], p_tr_real[:k])
 
         m = {k: anp.zeros_like(v) for k, v in self.weights.items()}
         v = {k: anp.zeros_like(v) for k, v in self.weights.items()}
@@ -399,7 +409,9 @@ class MAFEstimator(ConditionalDensityEstimator):
 
         # Embedding is applied inside _get_log_prob (called by _loss_function),
         # so we differentiate through _loss_function directly — no wrapper needed.
-        gradient_func = grad(self._loss_function)
+        # APT: when loss_fn is provided it replaces _loss_function entirely.
+        active_loss   = loss_fn if loss_fn is not None else self._loss_function
+        gradient_func = grad(active_loss)
         iterator      = trange(n_iter, desc="Training", disable=not verbose)
 
         best_weights     = {k: w.copy() for k, w in self.weights.items()}
@@ -414,7 +426,7 @@ class MAFEstimator(ConditionalDensityEstimator):
         #   last_healthy_weights — latest weights where posterior_std was OK
         # When collapse is detected we restore last_healthy_weights, which
         # avoids restoring an already-collapsed best_val checkpoint.
-        _data_std = p_tr.std(axis=0) + 1e-8   # (param_dim,)
+        _data_std = p_tr_real.std(axis=0) + 1e-8   # (param_dim,)
         _stopped_for_collapse = False   # track which exit path was taken
         if monitor_collapse:
             _x_chk = (anp.atleast_2d(anp.asarray(x_check, dtype="f"))
@@ -439,7 +451,7 @@ class MAFEstimator(ConditionalDensityEstimator):
                 f_b, p_b = f_tr, p_tr
 
             g          = gradient_func(self.weights, f_b, p_b)
-            train_loss = self._loss_function(self.weights, f_b, p_b)
+            train_loss = active_loss(self.weights, f_b, p_b)
             self.loss_history.append(float(train_loss))
 
             # ── Gradient clipping ─────────────────────────────────────────────
@@ -463,7 +475,7 @@ class MAFEstimator(ConditionalDensityEstimator):
 
             # ── Validation loss + plateau early stopping ──────────────────────
             if n_val > 0:
-                val_loss = self._loss_function(self.weights, f_val, p_val)
+                val_loss = active_loss(self.weights, f_val, p_val)
                 self.val_loss_history.append(float(val_loss))
                 improved = (best_val - val_loss) > early_stopping_delta
                 if improved:
