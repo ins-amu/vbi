@@ -239,7 +239,7 @@ class TestBoldMonitor:
         spec = self._bold_spec(n_nodes=4, tr=2000.0)
         _, bold = _jx_sim(spec, 6000.0)["bold"]
         # 6000 ms / 2000 ms TR = 3 samples
-        assert bold.shape == (3, 4), f"expected (3, 4), got {bold.shape}"
+        assert bold.shape == (3, 1, 4), f"expected (3, 1, 4), got {bold.shape}"
 
     def test_bold_matches_numpy(self):
         """
@@ -351,8 +351,8 @@ class TestSweep:
         results = Sweeper(spec, sweep_spec, backend="jax").run(6000.0)
         assert len(results) == n_G
         _, bold = results[0]["bold"]
-        # shape: (n_record, n_nodes)
-        assert bold.shape[1] == n_nodes
+        # shape: (n_record, 1, n_nodes)
+        assert bold.shape[1:] == (1, n_nodes)
         assert bold.shape[0] > 0
 
     def test_same_noise_true_identical_first_step(self):

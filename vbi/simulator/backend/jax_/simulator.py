@@ -371,14 +371,14 @@ def _run_monitor(
             (new_nc, new_bw), _ = jax.lax.scan(
                 inner_bold, (neural_carry, bw), None, length=tr_steps)
 
-            bold_signal = _bw_bold_jax(new_bw, p)   # (n_nodes,)
+            bold_signal = _bw_bold_jax(new_bw, p)[None, :]   # (1, n_nodes)
             _, _, t, _, _ = new_nc
             t_out = jnp.float32(t) * dt
             return (new_nc, new_bw), (t_out, bold_signal)
 
         _, (times, bolds) = jax.lax.scan(
             bold_outer, (init_carry, bw0), None, length=n_record)
-        # times: (n_record,)   bolds: (n_record, n_nodes)
+        # times: (n_record,)   bolds: (n_record, 1, n_nodes)
         return times, bolds
 
     if kind == "raw":
@@ -508,4 +508,3 @@ class JaxSimulator:
         # Convert JAX arrays to numpy after JIT boundary
         return {kind: (np.array(t), np.array(d))
                 for kind, (t, d) in jax_results.items()}
-

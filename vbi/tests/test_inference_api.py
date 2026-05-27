@@ -131,7 +131,8 @@ class TestSBICompatibility:
         expected = sbi_prior.log_prob(
             torch.as_tensor(theta, dtype=torch.float64)
         ).detach().cpu().numpy()
-        np.testing.assert_allclose(got, expected, rtol=1e-12, atol=0.0)
+        rtol = 1e-12 if expected.dtype == np.float64 else 1e-6
+        np.testing.assert_allclose(got, expected, rtol=rtol, atol=0.0)
 
     def test_boxuniform_sample_contract_matches_sbi(self, sbi_boxuniform):
         SBIBoxUniform, torch = sbi_boxuniform
