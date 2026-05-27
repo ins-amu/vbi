@@ -26,13 +26,14 @@ class History:
         self._step = 0
 
     def initialize(self, cvar_state: np.ndarray) -> None:
-        """Fill all buffer slots with a fixed initial state.
+        """Fill all buffer slots with a fixed initial state and reset the step counter.
 
         Parameters
         ----------
         cvar_state : (n_cvar, n_nodes)
         """
         self.buf[:] = cvar_state[np.newaxis]
+        self._step = 0
 
     def write(self, cvar_state: np.ndarray) -> None:
         """Store current coupling-variable state at write head.

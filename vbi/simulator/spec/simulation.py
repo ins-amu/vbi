@@ -43,10 +43,16 @@ class SimulationSpec:
     stimuli: tuple[StimSpec, ...] = field(default_factory=tuple)
 
     def __post_init__(self):
+        # Coerce weights and tract_lengths to float64 ndarray (accepts lists etc.)
+        object.__setattr__(self, "weights",
+                           np.asarray(self.weights, dtype=np.float64))
         if self.tract_lengths is None:
             object.__setattr__(self, "tract_lengths",
                                np.zeros_like(self.weights))
-        # Basic shape / value validation
+        else:
+            object.__setattr__(self, "tract_lengths",
+                               np.asarray(self.tract_lengths, dtype=np.float64))
+        # Shape / value validation
         w = self.weights
         tl = self.tract_lengths
         if w.ndim != 2 or w.shape[0] != w.shape[1]:
@@ -56,6 +62,10 @@ class SimulationSpec:
         if tl.shape != w.shape:
             raise ValueError(
                 f"tract_lengths shape {tl.shape} must match weights shape {w.shape}."
+            )
+        if np.any(tl < 0):
+            raise ValueError(
+                "tract_lengths must be non-negative; found negative values."
             )
         if self.speed <= 0:
             raise ValueError(

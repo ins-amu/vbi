@@ -215,7 +215,8 @@ class BoldMonitor(Monitor):
         if not self._data:
             raise ValueError(
                 f"BoldMonitor collected no samples. "
-                f"duration must be >= tr ({self.tr_steps * self.dt} ms)."
+                f"duration must be > tr ({self.tr_steps * self.dt} ms) "
+                f"because sampling fires only on step > 0."
             )
         return np.array(self._times), np.stack(self._data)
 

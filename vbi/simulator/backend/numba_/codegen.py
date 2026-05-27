@@ -90,11 +90,17 @@ def build_numba_dfun(spec: ModelSpec):
     if key in _MODULE_CACHE:
         return _MODULE_CACHE[key]._dfun_nb
 
-    _CACHE_DIR.mkdir(parents=True, exist_ok=True)
-    mod_path = _CACHE_DIR / f"nb_dfun_{key}.py"
-
-    if not mod_path.exists():
-        mod_path.write_text(src)
+    try:
+        _CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        mod_path = _CACHE_DIR / f"nb_dfun_{key}.py"
+        if not mod_path.exists():
+            mod_path.write_text(src)
+    except OSError as exc:
+        raise OSError(
+            f"Cannot write Numba dfun cache to {_CACHE_DIR}. "
+            f"Set the VBI_NB_CACHE environment variable to a writable directory. "
+            f"Original error: {exc}"
+        ) from exc
 
     mod_name = f"vbi_nb_dfun_{key}"
     spec_obj = importlib.util.spec_from_file_location(mod_name, mod_path)
@@ -131,11 +137,15 @@ def build_params(spec: SimulationSpec) -> np.ndarray:
         val = np.asarray(val, dtype=np.float64)
         if val.ndim == 0:
             result[i, :] = val.item()
+        elif val.shape == (1,):
+            result[i, :] = val.item()
         elif val.shape == (n_nodes,):
             result[i, :] = val
         else:
-            # Scalar stored in array of length 1 or similar
-            result[i, :] = float(val.flat[0])
+            raise ValueError(
+                f"Parameter {p.name!r} has shape {val.shape!r}; "
+                f"expected scalar, (1,), or ({n_nodes},)."
+            )
 
     return result
 
@@ -203,7 +213,19 @@ def get_noise_params(spec: SimulationSpec) -> tuple[np.ndarray, np.ndarray]:
     nsig     = spec.integrator.noise_nsig
     if nsig is None:
         nsig = np.ones(len(ni)) * 1e-3
-    nsig = np.asarray(nsig, dtype=np.float64)
+    nsig = np.atleast_1d(np.asarray(nsig, dtype=np.float64))
+    if nsig.ndim != 1:
+        raise ValueError(
+            f"noise_nsig must be a 1-D array; got shape {nsig.shape}."
+        )
+    if nsig.shape[0] == 1 and len(ni) > 1:
+        nsig = np.broadcast_to(nsig, (len(ni),)).copy()
+    if nsig.shape[0] != len(ni):
+        raise ValueError(
+            f"noise_nsig length ({nsig.shape[0]}) does not match "
+            f"the number of noise variables ({len(ni)}) in model "
+            f"{spec.model.name!r}."
+        )
 
     style = getattr(spec.integrator, "noise_style", "amplitude")
     if style == "amplitude":

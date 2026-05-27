@@ -54,7 +54,10 @@ def _apply_monitor(kind, m_spec, raw_data, raw_times, model):
         istep  = max(1, round(period / dt_raw))
         n_win  = n_record // istep
         if n_win == 0:
-            return np.array([]), np.empty((0, len(voi), n_nodes))
+            raise ValueError(
+                f"TemporalAverageMonitor (Numba) collected no samples. "
+                f"duration must exceed period ({period} ms)."
+            )
         win = raw_data[:n_win * istep].reshape(n_win, istep, n_sv, n_nodes)
         avg = win.mean(axis=1)[:, voi, :]
         # midpoint timing matching NumPy TemporalAverageMonitor
@@ -81,12 +84,15 @@ def _apply_monitor(kind, m_spec, raw_data, raw_times, model):
         times_bold, data_bold = [], []
         for i in range(n_record):
             neural = raw_data[i, voi[0] if len(voi) > 0 else 0]
-            bw_state = _bw_step(bw_state, neural, dt_raw, _BW_DEFAULTS)
+            bw_state = _bw_step(bw_state, neural, dt_raw * 1e-3, _BW_DEFAULTS)
             if i > 0 and i % tr_steps == 0:
                 times_bold.append(raw_times[i])
-                data_bold.append(_bw_bold(bw_state, _BW_DEFAULTS).copy())
+                data_bold.append(_bw_bold(bw_state, _BW_DEFAULTS)[np.newaxis, :].copy())
         if not times_bold:
-            return np.array([]), np.empty((0, n_nodes))
+            raise ValueError(
+                f"BoldMonitor (Numba) collected no samples. "
+                f"duration must be > tr ({tr} ms)."
+            )
         return np.array(times_bold), np.stack(data_bold)
 
     raise ValueError(f"Unsupported monitor kind: {kind!r}")

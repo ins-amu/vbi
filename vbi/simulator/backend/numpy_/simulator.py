@@ -191,13 +191,14 @@ class NumpySimulator:
         dict[str, (times, data)]
             One entry per monitor; key is the monitor kind string.
         """
+        if duration <= 0:
+            raise ValueError(f"duration must be > 0 ms; got duration={duration!r}.")
         spec = self.spec
         # Reset to initial conditions before every run
         self._state = _build_initial_state(spec)
         self._history.initialize(self._state[list(spec.model.cvar_indices)])
-        for mon in self._monitors:
-            mon.configure(spec.monitors[self._monitors.index(mon)], spec.model,
-                          spec.integrator.dt)
+        for mon, mon_spec in zip(self._monitors, spec.monitors):
+            mon.configure(mon_spec, spec.model, spec.integrator.dt)
 
         dt = spec.integrator.dt
         n_steps = round(duration / dt)

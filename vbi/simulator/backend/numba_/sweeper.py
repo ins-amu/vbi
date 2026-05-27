@@ -27,6 +27,7 @@ from ._nb_sim import (
     nb_sweep_det_feat, nb_sweep_stoch_feat,
 )
 from vbi.simulator.spec.stimulus import build_stim_data as _build_stim_data
+from .simulator import _apply_monitor
 
 
 def _count_records(n_steps: int, t_cut_step: int, record_period: int) -> int:
@@ -99,11 +100,23 @@ class NumbaSweeperCPU:
 
         self._weights = np.ascontiguousarray(spec.weights, dtype=np.float64)
 
-        # Pre-resolve sweep param indices in the params array
+        # Pre-resolve sweep param indices in the packed params array.
+        # If G was injected (not declared in model), it lives at self._G_idx.
         model_param_names = list(spec.model.param_names)
         sweep_names       = self.sweep._param_names_list
+
+        def _resolve_idx(name: str) -> int:
+            if name in model_param_names:
+                return model_param_names.index(name)
+            if name == "G" and self._G_idx >= 0:
+                return self._G_idx
+            raise ValueError(
+                f"Sweep parameter {name!r} not found in model param_names "
+                f"{model_param_names!r} and is not an injected 'G' parameter."
+            )
+
         self._sweep_param_indices = np.array(
-            [model_param_names.index(n) for n in sweep_names],
+            [_resolve_idx(n) for n in sweep_names],
             dtype=np.int64,
         )
 
@@ -144,7 +157,11 @@ class NumbaSweeperCPU:
 
         if self._stochastic:
             base_seed = spec.integrator.noise_seed
-            seeds = np.arange(param_sets.shape[0], dtype=np.int64) + base_seed
+            n_ps = param_sets.shape[0]
+            if self.sweep.same_noise:
+                seeds = np.full(n_ps, base_seed, dtype=np.int64)
+            else:
+                seeds = np.arange(n_ps, dtype=np.int64) + base_seed
             raw = nb_sweep_stoch(
                 param_sets, self._params, self._state0, self._srcbuf0,
                 self._weights, self._delay_steps, self._horizon,
@@ -237,7 +254,10 @@ class NumbaSweeperCPU:
 
             if self._stochastic:
                 base_seed = self.spec.integrator.noise_seed
-                seeds     = np.arange(n_samples, dtype=np.int64) + base_seed
+                if self.sweep.same_noise:
+                    seeds = np.full(n_samples, base_seed, dtype=np.int64)
+                else:
+                    seeds = np.arange(n_samples, dtype=np.int64) + base_seed
                 feat_vals = nb_sweep_stoch_feat(
                     ps, self._params, self._state0, self._srcbuf0,
                     self._weights, self._delay_steps, self._horizon,
@@ -271,9 +291,16 @@ class NumbaSweeperCPU:
         dt = self.spec.integrator.dt
 
         if pipeline is None:
-            t        = np.arange(raw.shape[1], dtype=np.float64) * record_period * dt
-            mon_kind = self.spec.monitors[0].kind if self.spec.monitors else "raw"
-            return [{mon_kind: (t, raw[i])} for i in range(n_samples)]
+            t_raw = np.arange(raw.shape[1], dtype=np.float64) * record_period * dt
+            results = []
+            for i in range(n_samples):
+                sample_result = {}
+                for m in self.spec.monitors:
+                    sample_result[m.kind] = _apply_monitor(
+                        m.kind, m, raw[i], t_raw, self.spec.model
+                    )
+                results.append(sample_result)
+            return results
 
         # Tier-1 pipeline loop
         t_cut_step   = round(pipeline.t_cut / dt)
@@ -282,9 +309,23 @@ class NumbaSweeperCPU:
         all_labels: list[str] = []
         rows: list[np.ndarray] = []
 
+        # Find the MonitorSpec that matches pipeline.signal
+        m_spec = next(
+            (m for m in self.spec.monitors if m.kind == pipeline.signal), None
+        )
+        if m_spec is None:
+            raise ValueError(
+                f"pipeline.signal={pipeline.signal!r} has no matching monitor in "
+                f"spec.monitors. Available: {[m.kind for m in self.spec.monitors]}"
+            )
+
+        t_raw = t_base + np.arange(raw.shape[1]) * record_period * dt
+
         for i in range(n_samples):
-            t_i            = t_base + np.arange(raw.shape[1]) * record_period * dt
-            monitor_result = {pipeline.signal: (t_i, raw[i])}
+            t_proc, data_proc = _apply_monitor(
+                pipeline.signal, m_spec, raw[i], t_raw, self.spec.model
+            )
+            monitor_result = {pipeline.signal: (t_proc, data_proc)}
             feat_labels_i, feat_vals_i = pipeline.extract(monitor_result)
             if not labels_set:
                 all_labels = param_names + feat_labels_i

@@ -7,8 +7,12 @@ import numpy as np
 @dataclass(frozen=True)
 class IntegratorSpec:
     method: Literal["euler", "heun"] = "heun"
-    dt: float = 0.01                        # ms
+    dt: float = 0.01                        # ms — must be > 0
     stochastic: bool = False
+
+    def __post_init__(self):
+        if self.dt <= 0:
+            raise ValueError(f"IntegratorSpec.dt must be > 0; got dt={self.dt!r}.")
     # One value per noisy state variable.
     # "amplitude": noise_nsig * sqrt(dt) * N(0, 1)
     # "tvb": sqrt(2 * noise_nsig) * sqrt(dt) * N(0, 1)

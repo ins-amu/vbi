@@ -374,3 +374,158 @@ class TestAgainstTVBMPR:
 
         assert vbi_data.shape == tvb_data.shape
         np.testing.assert_allclose(vbi_data, tvb_data, rtol=2e-10, atol=2e-12)
+
+
+# ---------------------------------------------------------------------------
+# New contract tests (findings 11-17)
+# ---------------------------------------------------------------------------
+
+class TestNewContracts:
+    """Lock down the corrected contracts from the follow-up review."""
+
+    # --- run() reset semantics (F3 / F12) ---
+
+    def test_run_is_repeatable(self):
+        """Two run() calls on the same instance must return identical output."""
+        spec = make_mpr_spec(n_nodes=2, monitors=(MonitorSpec("tavg", period=1.0),))
+        sim = Simulator(spec, backend="numpy")
+        r1 = sim.run(50.0)
+        r2 = sim.run(50.0)
+        t1, d1 = r1["tavg"]
+        t2, d2 = r2["tavg"]
+        np.testing.assert_array_equal(t1, t2)
+        np.testing.assert_array_equal(d1, d2)
+
+    def test_run_is_repeatable_with_delays(self):
+        """Reset must also reinitialise the history buffer (_step included)."""
+        spec = make_mpr_spec(n_nodes=4, monitors=(MonitorSpec("raw",),))
+        sim = Simulator(spec, backend="numpy")
+        _, d1 = sim.run(10.0)["raw"]
+        _, d2 = sim.run(10.0)["raw"]
+        np.testing.assert_array_equal(d1, d2)
+
+    # --- Empty-output monitor errors (F2) ---
+
+    def test_empty_monitor_tavg_raises(self):
+        spec = make_mpr_spec(monitors=(MonitorSpec("tavg", period=10.0),))
+        with pytest.raises(ValueError, match="TemporalAverageMonitor"):
+            Simulator(spec, backend="numpy").run(5.0)
+
+    def test_empty_monitor_bold_raises(self):
+        spec = make_mpr_spec(monitors=(MonitorSpec("bold", tr=50.0),))
+        with pytest.raises(ValueError, match="BoldMonitor"):
+            Simulator(spec, backend="numpy").run(50.0)   # == tr, not > tr
+
+    def test_empty_monitor_raw_raises(self):
+        spec = make_mpr_spec(monitors=(MonitorSpec("raw"),))
+        with pytest.raises(ValueError, match="duration must be > 0"):
+            Simulator(spec, backend="numpy").run(0.0)
+
+    # --- Noise amplitude validation (F5) ---
+
+    def test_noise_nsig_scalar_broadcasts(self):
+        """Scalar noise_nsig must broadcast to all noise variables."""
+        spec = SimulationSpec(
+            model=mpr,
+            integrator=IntegratorSpec(method="euler", dt=0.1,
+                                      stochastic=True, noise_nsig=np.array([5e-4])),
+            coupling=CouplingSpec("linear", a=1.0),
+            monitors=(MonitorSpec("tavg", period=1.0),),
+            weights=np.array([[0.0, 0.5], [0.5, 0.0]]),
+        )
+        result = Simulator(spec, backend="numpy").run(10.0)
+        assert "tavg" in result
+
+    def test_noise_nsig_wrong_length_raises(self):
+        """noise_nsig with wrong length must raise at build() time."""
+        spec = SimulationSpec(
+            model=mpr,
+            integrator=IntegratorSpec(method="euler", dt=0.1,
+                                      stochastic=True,
+                                      noise_nsig=np.array([1e-3, 1e-3, 1e-3])),  # mpr has 2 sv
+            coupling=CouplingSpec("linear", a=1.0),
+            monitors=(MonitorSpec("tavg", period=1.0),),
+            weights=np.array([[0.0, 0.5], [0.5, 0.0]]),
+        )
+        with pytest.raises(ValueError, match="noise_nsig length"):
+            Simulator(spec, backend="numpy")   # build() is called in __init__
+
+    # --- SimulationSpec validation (F10 / F14 / F15) ---
+
+    def test_spec_nonsquare_weights_raises(self):
+        with pytest.raises(ValueError, match="square"):
+            SimulationSpec(
+                model=mpr,
+                integrator=IntegratorSpec(),
+                coupling=CouplingSpec("linear", a=1.0),
+                monitors=(MonitorSpec("raw"),),
+                weights=np.ones((2, 3)),
+            )
+
+    def test_spec_mismatched_tract_lengths_raises(self):
+        with pytest.raises(ValueError, match="tract_lengths shape"):
+            SimulationSpec(
+                model=mpr,
+                integrator=IntegratorSpec(),
+                coupling=CouplingSpec("linear", a=1.0),
+                monitors=(MonitorSpec("raw"),),
+                weights=np.zeros((2, 2)),
+                tract_lengths=np.zeros((3, 3)),
+            )
+
+    def test_spec_negative_tract_lengths_raises(self):
+        with pytest.raises(ValueError, match="non-negative"):
+            SimulationSpec(
+                model=mpr,
+                integrator=IntegratorSpec(),
+                coupling=CouplingSpec("linear", a=1.0),
+                monitors=(MonitorSpec("raw"),),
+                weights=np.zeros((2, 2)),
+                tract_lengths=np.array([[0.0, -1.0], [0.0, 0.0]]),
+            )
+
+    def test_spec_nonpositive_speed_raises(self):
+        with pytest.raises(ValueError, match="speed"):
+            SimulationSpec(
+                model=mpr,
+                integrator=IntegratorSpec(),
+                coupling=CouplingSpec("linear", a=1.0),
+                monitors=(MonitorSpec("raw"),),
+                weights=np.zeros((2, 2)),
+                speed=0.0,
+            )
+
+    def test_spec_list_weights_coerced(self):
+        """Passing Python lists for weights must work (auto-coerced to ndarray)."""
+        spec = SimulationSpec(
+            model=mpr,
+            integrator=IntegratorSpec(),
+            coupling=CouplingSpec("linear", a=1.0),
+            monitors=(MonitorSpec("tavg", period=1.0),),
+            weights=[[0.0, 0.5], [0.5, 0.0]],
+        )
+        assert isinstance(spec.weights, np.ndarray)
+
+    # --- IntegratorSpec and duration validation (F17) ---
+
+    def test_nonpositive_dt_raises(self):
+        with pytest.raises(ValueError, match="dt"):
+            IntegratorSpec(dt=0.0)
+
+    def test_nonpositive_duration_raises(self):
+        spec = make_mpr_spec()
+        with pytest.raises(ValueError, match="duration"):
+            Simulator(spec, backend="numpy").run(0.0)
+
+    # --- Monitor period/tr validation (F6) ---
+
+    def test_monitor_missing_period_raises(self):
+        with pytest.raises(ValueError, match="period"):
+            from vbi.simulator.backend.numpy_.monitors import build_monitor
+            from vbi.simulator.spec import MonitorSpec
+            build_monitor(MonitorSpec("tavg"), mpr, 0.01)
+
+    def test_monitor_zero_period_raises(self):
+        with pytest.raises(ValueError, match="period"):
+            from vbi.simulator.backend.numpy_.monitors import build_monitor
+            build_monitor(MonitorSpec("subsample", period=0.0), mpr, 0.01)

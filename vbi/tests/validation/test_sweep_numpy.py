@@ -149,3 +149,71 @@ class TestSweepConsistency:
             sweep_mean, direct_vals, rtol=1e-10,
             err_msg="Sweep result must match direct Simulator run"
         )
+
+
+# ---------------------------------------------------------------------------
+# Sweeper new contracts (findings 1, 4, 11)
+# ---------------------------------------------------------------------------
+
+class TestSweepNewContracts:
+    """Lock down stimuli preservation and same_noise behaviour."""
+
+    def test_stimuli_preserved_in_sweep(self):
+        """Sweep with a StimSpec must produce different output than no-stim."""
+        from vbi.simulator.spec import SimulationSpec, StimSpec
+
+        base = make_mpr_spec(n_nodes=2,
+                             monitors=(MonitorSpec("tavg", period=1.0),))
+
+        stim = StimSpec(
+            sv_name="r",
+            onset=0.0, offset=200.0,
+            amplitude=5.0,
+            waveform=lambda t: 1.0,   # constant DC waveform
+        )
+        stim_spec = SimulationSpec(
+            model=base.model, integrator=base.integrator,
+            coupling=base.coupling, monitors=base.monitors,
+            weights=base.weights, tract_lengths=base.tract_lengths,
+            speed=base.speed,
+            stimuli=(stim,),
+        )
+
+        sw_spec = SweepSpec(params={"G": np.array([1.0])})
+        result_with_stim = Sweeper(stim_spec, sw_spec, backend="numpy").run(100.0)
+        result_no_stim   = Sweeper(base,      sw_spec, backend="numpy").run(100.0)
+
+        _, d_stim   = result_with_stim[0]["tavg"]
+        _, d_nostim = result_no_stim[0]["tavg"]
+        assert not np.allclose(d_stim, d_nostim), \
+            "StimSpec must affect sweep output (stimuli were not preserved)"
+
+    def test_same_noise_true_identical_features(self):
+        """Duplicate param sets with same_noise=True must give identical rows."""
+        base = make_mpr_spec(n_nodes=2, stochastic=True,
+                             monitors=(MonitorSpec("tavg", period=1.0),))
+        pipeline = MeanStdPipeline(features=["mean"], signal="tavg", t_cut=0.0)
+        sw_spec = SweepSpec(
+            params={"G": np.array([1.0, 1.0])},   # two identical sets
+            pipeline=pipeline,
+            same_noise=True,
+        )
+        _, values = Sweeper(base, sw_spec, backend="numpy").run(50.0)
+        np.testing.assert_allclose(
+            values[0, 1:], values[1, 1:], rtol=1e-10,
+            err_msg="same_noise=True: identical params must give identical features"
+        )
+
+    def test_same_noise_false_different_features(self):
+        """Duplicate param sets with same_noise=False must give different rows."""
+        base = make_mpr_spec(n_nodes=2, stochastic=True,
+                             monitors=(MonitorSpec("tavg", period=1.0),))
+        pipeline = MeanStdPipeline(features=["mean"], signal="tavg", t_cut=0.0)
+        sw_spec = SweepSpec(
+            params={"G": np.array([1.0, 1.0])},   # same params, different seeds
+            pipeline=pipeline,
+            same_noise=False,
+        )
+        _, values = Sweeper(base, sw_spec, backend="numpy").run(50.0)
+        assert not np.allclose(values[0, 1:], values[1, 1:]), \
+            "same_noise=False: duplicate params should give different features"
