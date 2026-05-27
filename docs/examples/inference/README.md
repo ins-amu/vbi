@@ -26,6 +26,7 @@ done
 | `04_mdn_vs_maf.py` | Same 1-D Gaussian, MDN vs MAF | Side-by-side error + training time comparison |
 | `05_sequential_rounds.py` | 2-round sequential inference | Round-2 focused sims improve or match round-1 accuracy |
 | `07_jax_vs_numpy.py` | Same 1-D Gaussian, NumPy vs JAX backends | Backend/estimator side-by-side accuracy + training time; set `VBI_DEMO7_ESTIMATORS=maf,mdn,nsf` to include NSF |
+| `09_backend_selection.py` | Same 1-D Gaussian, same SNPE calls with different `backend=` | Minimal backend-selection API smoke test |
 
 ## Pass/fail thresholds
 
