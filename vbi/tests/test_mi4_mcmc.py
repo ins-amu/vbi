@@ -3,11 +3,12 @@ MI4 tests — MCMC posterior sampling.
 
 Covers:
   1. MetropolisHastings: samples shape, finiteness, stays near true posterior.
-  2. NUTS: same checks with JAX backend.
+  2. HMC: same checks with JAX backend.
   3. r_hat: converges to ~1 on well-mixed chains; flags non-convergence.
   4. effective_sample_size: positive and <= chain length.
   5. SNPE.build_posterior(sample_with='mcmc') end-to-end.
   6. Posterior.sample() dispatches to MCMC correctly.
+  7. Negative-path: invalid mcmc_method, batched x, out-of-support init.
 """
 import numpy as np
 import pytest
@@ -16,7 +17,7 @@ pytest.importorskip("autograd", reason="autograd not installed")
 
 from vbi.inference import (
     SNPE, BoxUniform,
-    MetropolisHastings, NUTS, r_hat, effective_sample_size,
+    MetropolisHastings, HMC, NUTS, r_hat, effective_sample_size,
 )
 from vbi.inference._estimators.maf import MAFEstimator
 
@@ -130,18 +131,18 @@ class TestSNPEMCMCPosterior:
 
 
 # ---------------------------------------------------------------------------
-# NUTS (JAX only)
+# HMC (JAX only)
 # ---------------------------------------------------------------------------
 
-class TestNUTS:
+class TestHMC:
 
-    def test_nuts_requires_jax_estimator(self, trained_1d):
+    def test_hmc_requires_jax_estimator(self, trained_1d):
         est, prior, x_obs, _, _ = trained_1d
         # autograd MAFEstimator — should raise TypeError
         with pytest.raises(TypeError, match="JAX-backend"):
-            NUTS(est, prior=prior)
+            HMC(est, prior=prior)
 
-    def test_nuts_jax_samples_shape(self, trained_1d):
+    def test_hmc_jax_samples_shape(self, trained_1d):
         pytest.importorskip("jax")
         from vbi.inference._backends.jax_.maf_jax import JaxMAFEstimator
 
@@ -155,10 +156,47 @@ class TestNUTS:
                       verbose=False, validation_fraction=0.0, stop_after_epochs=80,
                       lr_schedule=None)
 
-        nuts = NUTS(jax_est, prior=prior, step_size=0.1, max_tree_depth=4)
-        samples = nuts.run(x_obs, n_samples=100, n_warmup=100, seed=21)
+        hmc = HMC(jax_est, prior=prior, step_size=0.1, max_tree_depth=4)
+        samples = hmc.run(x_obs, n_samples=100, n_warmup=100, seed=21)
         assert samples.shape == (100, 1)
         assert np.all(np.isfinite(samples))
+
+    def test_nuts_alias(self, trained_1d):
+        """NUTS is a backward-compatible alias for HMC."""
+        assert NUTS is HMC
+
+
+# ---------------------------------------------------------------------------
+# Negative-path tests (findings 4, 5, 6)
+# ---------------------------------------------------------------------------
+
+class TestNegativePaths:
+
+    def test_invalid_mcmc_method_raises(self, trained_1d):
+        """Unknown mcmc_method should raise ValueError at construction time."""
+        from vbi.inference import Posterior
+        est, prior, x_obs, _, _ = trained_1d
+        with pytest.raises(ValueError, match="mcmc_method"):
+            Posterior(est, prior=prior, sample_with="mcmc", mcmc_method="nust")
+
+    def test_batched_x_raises_for_mcmc(self, trained_1d):
+        """Batched observations must be rejected with a clear error."""
+        from vbi.inference import Posterior
+        est, prior, x_obs, _, _ = trained_1d
+        post = Posterior(est, prior=prior, sample_with="mcmc",
+                         mcmc_step_size=0.15, mcmc_num_warmup=10)
+        x_batched = np.tile(x_obs, (3, 1))   # shape (3, feature_dim)
+        with pytest.raises(ValueError, match="single observation"):
+            post.sample((10,), x=x_batched, seed=0)
+
+    def test_mh_samples_within_prior_support(self, trained_1d):
+        """MH with a bounded prior must stay within bounds (support masking)."""
+        est, prior, x_obs, _, _ = trained_1d
+        # prior is BoxUniform([-3], [3])
+        mh = MetropolisHastings(est, prior=prior, step_size=0.5)
+        samples = mh.run(x_obs, n_samples=200, n_warmup=100, seed=42)
+        assert np.all(samples >= -3.0) and np.all(samples <= 3.0), \
+            "MH samples escaped BoxUniform support"
 
 
 # ---------------------------------------------------------------------------

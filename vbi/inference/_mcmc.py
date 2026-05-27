@@ -6,8 +6,14 @@ Classes
 MetropolisHastings
     Random-walk MH using the trained neural posterior as a log-likelihood
     surrogate.  Works with any backend (numpy / JAX).
-NUTS
-    No-U-Turn Sampler using JAX gradients.  Requires a JAX-backend estimator.
+HMC
+    Hamiltonian Monte Carlo using JAX gradients with fixed-length leapfrog
+    trajectories and dual-averaging step-size adaptation.
+    Requires a JAX-backend estimator.
+
+Aliases
+-------
+NUTS = HMC  (backward-compatible name; the sampler is HMC, not NUTS)
 
 Diagnostics
 -----------
@@ -107,15 +113,20 @@ class MetropolisHastings:
     """
     Random-walk Metropolis-Hastings sampler.
 
-    Uses ``log_posterior = estimator.log_prob(x_obs, theta) + prior.log_prob(theta)``
-    as the target density.
+    Uses ``estimator.log_prob(x_obs, theta)`` as the MCMC target, treating the
+    trained SNPE network as an approximation to ``log p(theta | x)``.
+
+    If a prior is supplied it is used only as a **support mask**: proposals
+    outside the prior support (where ``prior.log_prob`` returns ``-inf``) are
+    rejected immediately.  The prior density is *not* added to the target, so
+    MCMC and direct sampling both target the same distribution.
 
     Parameters
     ----------
     estimator : ConditionalDensityEstimator
         Trained density estimator (any backend).
     prior : prior object | None
-        Prior with ``.log_prob(theta)`` method.
+        Prior with ``.log_prob(theta)`` method.  Used for support masking only.
     step_size : float | ndarray
         Gaussian proposal std.  Scalar or per-parameter vector.
     """
@@ -131,10 +142,12 @@ class MetropolisHastings:
         x_2d     = np.atleast_2d(x_obs).astype("f")
         if x_2d.shape[0] == 1 and theta_2d.shape[0] > 1:
             x_2d = np.repeat(x_2d, theta_2d.shape[0], axis=0)
-        log_l = float(np.array(self._est.log_prob(x_2d, theta_2d))[0])
+        # Support mask: reject immediately if outside prior support
         if self._prior is not None:
-            log_l += float(np.array(self._prior.log_prob(theta_2d))[0])
-        return log_l
+            lp_prior = float(np.array(self._prior.log_prob(theta_2d))[0])
+            if not np.isfinite(lp_prior):
+                return -np.inf
+        return float(np.array(self._est.log_prob(x_2d, theta_2d))[0])
 
     def run(
         self,
@@ -157,7 +170,8 @@ class MetropolisHastings:
             Warmup/burn-in steps (discarded).
         seed : int | None
         init_theta : ndarray (param_dim,) | None
-            Starting point.  Defaults to zero vector.
+            Starting point.  Defaults to a draw from the prior when available,
+            otherwise zeros.
         show_progress : bool
 
         Returns
@@ -170,14 +184,22 @@ class MetropolisHastings:
         rng   = np.random.default_rng(seed)
 
         param_dim = self._est.param_dim
-        theta_cur = (np.zeros(param_dim, dtype="f")
-                     if init_theta is None
-                     else np.asarray(init_theta, dtype="f"))
+        if init_theta is not None:
+            theta_cur = np.asarray(init_theta, dtype="f")
+        elif self._prior is not None:
+            try:
+                theta_cur = np.array(self._prior.sample((1,)), dtype="f").flatten()
+            except Exception:
+                theta_cur = np.zeros(param_dim, dtype="f")
+        else:
+            theta_cur = np.zeros(param_dim, dtype="f")
+
         log_p_cur = self._log_target(theta_cur, x_obs)
 
-        samples     = np.empty((n_samples, param_dim), dtype="f")
-        n_total     = n_warmup + n_samples
-        accepted    = 0
+        samples          = np.empty((n_samples, param_dim), dtype="f")
+        n_total          = n_warmup + n_samples
+        warmup_accepted  = 0
+        sample_accepted  = 0
 
         it = trange(n_total, desc="MH sampling", disable=not show_progress)
         for i in it:
@@ -188,43 +210,56 @@ class MetropolisHastings:
             log_alpha = log_p_p - log_p_cur
             if math.log(rng.uniform() + 1e-300) < log_alpha:
                 theta_cur, log_p_cur = theta_p, log_p_p
-                accepted += 1
+                if i < n_warmup:
+                    warmup_accepted += 1
+                else:
+                    sample_accepted += 1
 
             if i >= n_warmup:
                 samples[i - n_warmup] = theta_cur
 
-        accept_rate = accepted / n_total
-        log.info("MH acceptance rate: %.3f", accept_rate)
-        if accept_rate < 0.05:
+        warmup_rate = warmup_accepted / max(n_warmup, 1)
+        sample_rate = sample_accepted / max(n_samples, 1)
+        log.info("MH warmup acceptance: %.3f  sampling acceptance: %.3f",
+                 warmup_rate, sample_rate)
+        if sample_rate < 0.05:
             log.warning(
-                "Very low MH acceptance rate (%.3f). "
+                "Very low MH sampling acceptance rate (%.3f). "
                 "Consider reducing step_size (current: %s).",
-                accept_rate, self._step,
+                sample_rate, self._step,
             )
         return samples
 
 
 # ---------------------------------------------------------------------------
-# NUTS (JAX backend only)
+# HMC (JAX backend only)
 # ---------------------------------------------------------------------------
 
-class NUTS:
+class HMC:
     """
-    No-U-Turn Sampler using JAX automatic differentiation.
+    Hamiltonian Monte Carlo sampler using JAX automatic differentiation.
+
+    Uses fixed-length leapfrog trajectories (2^min(max_tree_depth, 4) steps)
+    with dual-averaging step-size adaptation during warmup.
 
     Requires a JAX-backend estimator (JaxMAFEstimator / JaxNSFEstimator /
     JaxMDNEstimator) so that ``jax.grad`` can flow through ``log_prob``.
+
+    The MCMC target is ``estimator.log_prob(x_obs, theta)`` — the trained SNPE
+    posterior — so direct sampling and HMC target the same distribution.  If a
+    prior is supplied it is used only as a **support mask** for bounded priors
+    (e.g. BoxUniform); unbounded priors are not added to the target.
 
     Parameters
     ----------
     estimator : JaxConditionalDensityEstimator
         Trained JAX-backend estimator.
     prior : prior object | None
-        Prior with ``.log_prob(theta)`` method.
+        Prior with ``.log_prob(theta)`` method.  Used for support masking only.
     step_size : float
         Initial leapfrog step size.  Adapted during warmup.
     max_tree_depth : int
-        Maximum tree depth (2^max_tree_depth leapfrog steps per sample).
+        Controls leapfrog steps per sample: 2^min(max_tree_depth, 4) steps.
     """
 
     def __init__(
@@ -238,49 +273,41 @@ class NUTS:
             import jax
             import jax.numpy as jnp
         except ImportError as e:
-            raise ImportError("NUTS requires JAX: pip install jax jaxlib") from e
+            raise ImportError("HMC requires JAX: pip install jax jaxlib") from e
 
         if not hasattr(estimator, "_to_jax_key"):
             raise TypeError(
-                "NUTS requires a JAX-backend estimator "
+                "HMC requires a JAX-backend estimator "
                 "(JaxMAFEstimator / JaxNSFEstimator / JaxMDNEstimator). "
                 "Use MetropolisHastings for non-JAX estimators."
             )
 
-        self._est           = estimator
-        self._prior         = prior
-        self._step_size     = step_size
+        self._est            = estimator
+        self._prior          = prior
+        self._step_size      = step_size
         self._max_tree_depth = max_tree_depth
 
     @staticmethod
-    def _jax_prior_log_prob(prior, theta):
-        """JAX-differentiable log_prob for common prior types."""
-        import jax
+    def _jax_prior_support_mask(prior, theta):
+        """
+        Return 0.0 inside prior support, -1e38 outside.
+
+        Only enforces bounds for bounded priors (BoxUniform).  Unbounded
+        priors (Gaussian, etc.) return 0.0 — their density is NOT added to
+        the target since the SNPE estimator already encodes it.
+        """
         import jax.numpy as jnp
-        from ._prior import BoxUniform, Gaussian, MultivariateNormal
+        from ._prior import BoxUniform
 
         if isinstance(prior, BoxUniform):
             low  = jnp.array(prior.low,  dtype="f")
             high = jnp.array(prior.high, dtype="f")
-            log_vol = float(np.sum(np.log(prior.high - prior.low)))
             in_bounds = jnp.all((theta >= low) & (theta <= high))
-            return jnp.where(in_bounds, jnp.array(-log_vol, dtype="f"),
-                             jnp.array(-1e38, dtype="f"))
-        if isinstance(prior, Gaussian):
-            mean = jnp.array(prior.mean, dtype="f")
-            std  = jnp.array(prior.std,  dtype="f")
-            z    = (theta - mean) / std
-            return -0.5 * jnp.sum(z ** 2) - jnp.sum(jnp.log(std)) \
-                   - 0.5 * theta.shape[0] * jnp.log(2.0 * jnp.pi)
-        if isinstance(prior, MultivariateNormal):
-            mean = jnp.array(prior.mean, dtype="f")
-            L    = jnp.array(prior._L,   dtype="f")
-            z    = jnp.linalg.solve(L, theta - mean)
-            return -0.5 * jnp.sum(z ** 2) - jnp.sum(jnp.log(jnp.diag(L))) \
-                   - 0.5 * theta.shape[0] * jnp.log(2.0 * jnp.pi)
-        # Fallback: evaluate with numpy then stop gradient (no prior gradient)
-        lp_np = float(np.array(prior.log_prob(np.array(theta)[None]))[0])
-        return jax.lax.stop_gradient(jnp.array(lp_np, dtype="f"))
+            return jnp.where(in_bounds,
+                             jnp.array(0.0,    dtype="f"),
+                             jnp.array(-1e38,  dtype="f"))
+        # Unbounded prior: no masking needed
+        return jnp.array(0.0, dtype="f")
 
     def _make_log_prob_fn(self, x_obs_j):
         """Return a JAX-differentiable log posterior function."""
@@ -295,7 +322,7 @@ class NUTS:
             x_emb = est._emb.forward(w, x_obs_j) if est._emb is not None else x_obs_j
             lp = est._get_log_prob(w, x_emb, theta_2d)[0]
             if prior is not None:
-                lp = lp + NUTS._jax_prior_log_prob(prior, theta)
+                lp = lp + HMC._jax_prior_support_mask(prior, theta)
             return lp
 
         return log_prob_fn
@@ -310,10 +337,10 @@ class NUTS:
         show_progress: bool = False,
     ) -> np.ndarray:
         """
-        Run NUTS and return posterior samples.
+        Run HMC and return posterior samples.
 
-        Uses a simple dual-averaging step-size adaptation during warmup,
-        then fixes the step-size for the sampling phase.
+        Uses dual-averaging step-size adaptation during warmup, then fixes
+        the step size for the sampling phase.
 
         Parameters
         ----------
@@ -322,6 +349,8 @@ class NUTS:
         n_warmup : int  Warmup steps (discarded; step-size adapted here).
         seed : int | None
         init_theta : ndarray (param_dim,) | None
+            Starting point.  Defaults to a draw from the prior when available,
+            otherwise zeros.
 
         Returns
         -------
@@ -336,10 +365,20 @@ class NUTS:
         key     = jax.random.PRNGKey(seed if seed is not None else 0)
         D       = self._est.param_dim
 
-        theta_cur = jnp.zeros(D) if init_theta is None else jnp.array(init_theta, dtype="f")
+        if init_theta is not None:
+            theta_cur = jnp.array(init_theta, dtype="f")
+        elif self._prior is not None:
+            try:
+                theta_cur = jnp.array(
+                    np.array(self._prior.sample((1,)), dtype="f").flatten()
+                )
+            except Exception:
+                theta_cur = jnp.zeros(D)
+        else:
+            theta_cur = jnp.zeros(D)
 
-        log_prob_fn  = self._make_log_prob_fn(x_obs_j)
-        log_prob_grad = jax.value_and_grad(log_prob_fn)  # eager — prior.log_prob may be numpy
+        log_prob_fn   = self._make_log_prob_fn(x_obs_j)
+        log_prob_grad = jax.value_and_grad(log_prob_fn)
 
         step  = self._step_size
         delta = 0.65   # target acceptance rate for dual averaging
@@ -347,31 +386,31 @@ class NUTS:
         log_step_bar, H_bar, m_adapt = 0.0, 0.0, 1.0
         gamma, t0, kappa = 0.05, 10, 0.75
 
-        samples  = np.empty((n_samples, D), dtype="f")
-        n_total  = n_warmup + n_samples
-        accepted = 0
+        samples         = np.empty((n_samples, D), dtype="f")
+        n_total         = n_warmup + n_samples
+        warmup_accepted = 0
+        sample_accepted = 0
 
-        it = trange(n_total, desc="NUTS sampling", disable=not show_progress)
+        it = trange(n_total, desc="HMC sampling", disable=not show_progress)
         for i in it:
             key, subkey = jax.random.split(key)
             r0 = jax.random.normal(subkey, (D,))
 
-            # Build NUTS tree (simplified: leapfrog with doubling)
             lp_cur, g_cur = log_prob_grad(theta_cur)
             theta_p, r_p, lp_p, g_p, n_tree, s = self._build_tree(
                 theta_cur, r0, lp_cur, g_cur,
                 log_prob_grad, step, self._max_tree_depth, subkey,
             )
 
-            # Accept / reject
             log_alpha = float(lp_p - lp_cur - 0.5 * (jnp.dot(r_p, r_p) - jnp.dot(r0, r0)))
             log_u = math.log(float(jax.random.uniform(key)) + 1e-300)
             if log_u < log_alpha:
                 theta_cur = theta_p
-                accepted += 1
-                alpha = min(1.0, math.exp(log_alpha))
-            else:
-                alpha = min(1.0, math.exp(log_alpha))
+                if i < n_warmup:
+                    warmup_accepted += 1
+                else:
+                    sample_accepted += 1
+            alpha = min(1.0, math.exp(log_alpha))
 
             # Dual-averaging step-size adaptation during warmup
             if i < n_warmup:
@@ -387,14 +426,15 @@ class NUTS:
             if i >= n_warmup:
                 samples[i - n_warmup] = np.array(theta_cur)
 
-        accept_rate = accepted / n_total
-        log.info("NUTS acceptance rate: %.3f  final step_size: %.4f", accept_rate, step)
+        warmup_rate = warmup_accepted / max(n_warmup, 1)
+        sample_rate = sample_accepted / max(n_samples, 1)
+        log.info("HMC warmup acceptance: %.3f  sampling acceptance: %.3f  final step_size: %.4f",
+                 warmup_rate, sample_rate, step)
         return samples
 
     @staticmethod
     def _build_tree(theta, r, lp, g, log_prob_grad, step, max_depth, key):
-        """Simplified NUTS tree-building via repeated leapfrog doubling."""
-        import jax
+        """Fixed-length leapfrog trajectory (2^min(max_depth,4) steps)."""
         import jax.numpy as jnp
 
         def leapfrog(th, rv, g_val, eps):
@@ -405,9 +445,13 @@ class NUTS:
             return th_new, rv_new, lp_new, g_new
 
         theta_p, r_p, lp_p, g_p = theta, r, lp, g
-        n_steps = 2 ** min(max_depth, 4)   # bounded for speed; full NUTS uses tree
+        n_steps = 2 ** min(max_depth, 4)
 
         for _ in range(n_steps):
             theta_p, r_p, lp_p, g_p = leapfrog(theta_p, r_p, g_p, step)
 
         return theta_p, r_p, lp_p, g_p, n_steps, True
+
+
+# Backward-compatible alias
+NUTS = HMC

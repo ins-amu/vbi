@@ -41,6 +41,12 @@ class Posterior:
                 f"sample_with={sample_with!r} not supported. "
                 "Choose 'direct', 'rejection', or 'mcmc'."
             )
+        _valid_mcmc = {"mh", "hmc", "nuts"}   # "nuts" is a legacy alias for "hmc"
+        if mcmc_method.lower() not in _valid_mcmc:
+            raise ValueError(
+                f"mcmc_method={mcmc_method!r} not supported. "
+                "Choose 'mh' or 'hmc'."
+            )
         self._sample_with      = sample_with
         self._mcmc_method      = mcmc_method
         self._mcmc_step_size   = mcmc_step_size
@@ -138,13 +144,10 @@ class Posterior:
         if x_2d.shape[0] == 1 and theta.shape[0] > 1:
             x_2d = np.repeat(x_2d, theta.shape[0], axis=0)
 
-        # Low-level API: log_prob(features, params) — note order swap here
-        log_p = np.array(self._estimator.log_prob(x_2d, theta))
-
-        if self._prior is not None:
-            log_p = log_p + np.array(self._prior.log_prob(theta))
-
-        return log_p
+        # Low-level API: log_prob(features, params) — note order swap here.
+        # The SNPE estimator already encodes log p(theta|x); we do not add the
+        # prior again here, which would double-count it and bias log_prob vs sample().
+        return np.array(self._estimator.log_prob(x_2d, theta))
 
     def map(
         self,
@@ -281,12 +284,19 @@ class Posterior:
     # ------------------------------------------------------------------
 
     def _sample_with_mcmc(self, n: int, x_2d: np.ndarray, seed) -> np.ndarray:
-        """Delegate to MetropolisHastings or NUTS sampler."""
-        from ._mcmc import MetropolisHastings, NUTS
+        """Delegate to MetropolisHastings or HMC sampler."""
+        from ._mcmc import MetropolisHastings, HMC
+
+        if x_2d.shape[0] != 1:
+            raise ValueError(
+                f"MCMC sampling requires a single observation but got "
+                f"x with shape {x_2d.shape}. "
+                "Use sample_batched() for batched direct sampling."
+            )
 
         method = (self._mcmc_method or "mh").lower()
-        if method == "nuts":
-            sampler = NUTS(
+        if method in ("nuts", "hmc"):
+            sampler = HMC(
                 estimator=self._estimator,
                 prior=self._prior,
                 step_size=self._mcmc_step_size,
