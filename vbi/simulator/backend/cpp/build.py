@@ -127,23 +127,37 @@ def build_or_load(spec: SimulationSpec, verbose: bool = False) -> types.ModuleTy
 
 def _write_sources(spec: SimulationSpec, key: str,
                    build_dir: Path, verbose: bool = False) -> None:
-    build_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        build_dir.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        raise CppBackendUnavailable(
+            f"Cannot create C++ build directory {build_dir}. "
+            f"Set VBI_CPP_CACHE to a writable directory. "
+            f"Original error: {exc}"
+        ) from exc
 
     module_name      = f"vbi_cpp_{key[:16]}"
     cpp_filename     = f"{module_name}.cpp"
     bindings_filename= f"{module_name}_bindings.cpp"
     runtime_dst      = build_dir / "runtime.hpp"
 
-    # Copy shared runtime header
-    shutil.copy2(_TEMPLATES_DIR / "runtime.hpp", runtime_dst)
+    try:
+        # Copy shared runtime header
+        shutil.copy2(_TEMPLATES_DIR / "runtime.hpp", runtime_dst)
 
-    # Render and write generated sources
-    (build_dir / cpp_filename).write_text(
-        render_sim_module(spec, key), encoding="utf-8")
-    (build_dir / bindings_filename).write_text(
-        render_bindings(spec, module_name, cpp_filename), encoding="utf-8")
-    (build_dir / "CMakeLists.txt").write_text(
-        render_cmake(module_name, bindings_filename), encoding="utf-8")
+        # Render and write generated sources
+        (build_dir / cpp_filename).write_text(
+            render_sim_module(spec, key), encoding="utf-8")
+        (build_dir / bindings_filename).write_text(
+            render_bindings(spec, module_name, cpp_filename), encoding="utf-8")
+        (build_dir / "CMakeLists.txt").write_text(
+            render_cmake(module_name, bindings_filename), encoding="utf-8")
+    except OSError as exc:
+        raise CppBackendUnavailable(
+            f"Cannot write C++ source files to {build_dir}. "
+            f"Set VBI_CPP_CACHE to a writable directory. "
+            f"Original error: {exc}"
+        ) from exc
 
     if verbose:
         print(f"[vbi-cpp] Sources written → {build_dir}")

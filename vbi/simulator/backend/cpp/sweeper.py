@@ -28,7 +28,7 @@ from vbi.simulator.spec.stimulus import build_stim_data
 # Helpers
 # ---------------------------------------------------------------------------
 
-_FULL_RES_MONITORS = frozenset({"tavg", "bold"})
+_FULL_RES_MONITORS = frozenset({"raw", "tavg", "bold"})
 
 
 def _patch_params(base_params: np.ndarray,
@@ -162,8 +162,10 @@ class CppSweeper:
 
         record_every = self._record_every(dt)
 
-        pipeline   = self.sweep.pipeline
-        t_cut_steps = round(pipeline.t_cut / dt) if pipeline is not None else 0
+        # Always run from step 0 so monitor post-processing (e.g. BW ODE) uses the
+        # full trajectory. Pipeline burn-in is applied inside pipeline.extract() via
+        # the returned time array (keep = times >= t_cut).
+        t_cut_steps = 0
 
         # Patched params for this sweep point (G as coupling scalar is skipped here)
         params_flat = _patch_params(
@@ -328,9 +330,7 @@ class CppSweeper:
         rows: list[np.ndarray] = []
 
         for i, raw in enumerate(raw_list):
-            pipeline_t_cut = round(pipeline.t_cut / dt)
-            t0 = pipeline_t_cut * dt
-            raw_times = t0 + np.arange(raw.shape[0], dtype=np.float64) * record_every * dt
+            raw_times = np.arange(raw.shape[0], dtype=np.float64) * record_every * dt
             t_proc, data_proc = _apply_monitor(
                 pipeline.signal, m_spec, raw, raw_times, spec.model
             )

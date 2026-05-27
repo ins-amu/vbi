@@ -252,12 +252,15 @@ def render_bindings(spec: SimulationSpec, module_name: str, cpp_filename: str) -
 
 
 def render_cmake(module_name: str, bindings_cpp_filename: str) -> str:
+    _env = os.environ.get("VBI_CPP_CXXFLAGS", "")
+    cxx_flags = _env if _env else "-O3 -march=native -ffast-math"
     return _render(
         _TEMPLATES_DIR / "cmake_template.mako",
         {
-            "module_name":          module_name,
+            "module_name":           module_name,
             "bindings_cpp_filename": bindings_cpp_filename,
-            "python_executable":    sys.executable,
+            "python_executable":     sys.executable,
+            "cxx_flags_release":     cxx_flags,
         },
     )
 
