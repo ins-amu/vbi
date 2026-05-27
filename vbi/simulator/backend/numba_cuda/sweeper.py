@@ -94,14 +94,19 @@ class CudaSweeperGPU:
         _use_kuramoto = spec.coupling.kind == "kuramoto"
         _alpha        = float(spec.coupling.alpha)
 
-        self.spec  = spec
-        self.sweep = sweep_spec
+        self.spec          = spec
+        self.sweep         = sweep_spec
+        self._use_kuramoto = _use_kuramoto
 
         dt      = spec.integrator.dt
         n_nodes = spec.n_nodes
         model   = spec.model
 
         # Sparse / dense decision
+        if connectivity not in {"auto", "dense", "sparse"}:
+            raise ValueError(
+                f"connectivity must be 'auto', 'dense', or 'sparse'; got {connectivity!r}."
+            )
         if connectivity == "auto":
             self._sparse = _auto_sparse(spec.weights)
         elif connectivity == "sparse":
@@ -148,6 +153,16 @@ class CudaSweeperGPU:
         self._seed_base  = int(spec.integrator.noise_seed)
         self._sweep_names = sweep_spec._param_names_list
 
+        # Validate sweep parameter names early.
+        pnames = list(spec.model.param_names)
+        _supported = set(pnames) | {"G"}
+        for name in self._sweep_names:
+            if name not in _supported:
+                raise ValueError(
+                    f"CUDA backend: unknown sweep parameter {name!r}. "
+                    f"Supported: model parameters {pnames} or 'G' (global coupling scale)."
+                )
+
     def _transfer_connectivity(self):
         """Transfer connectivity arrays to device; returns dict of device arrays."""
         from numba import cuda
@@ -183,7 +198,11 @@ class CudaSweeperGPU:
         n_samples   = param_sets.shape[0]
         param_names = self.sweep._param_names_list
 
-        if spec.monitors and spec.monitors[0].period:
+        _NEEDS_FULL_RES = {"tavg", "bold"}
+        if spec.monitors and any(m.kind in _NEEDS_FULL_RES for m in spec.monitors):
+            # tavg/bold post-processing requires raw-resolution samples.
+            record_period = 1
+        elif spec.monitors and spec.monitors[0].period:
             record_period = max(1, round(float(spec.monitors[0].period) / float(dt)))
         else:
             record_period = 1
@@ -243,6 +262,17 @@ class CudaSweeperGPU:
 
         blocks = (n_samples + _TPB - 1) // _TPB
 
+        # Per-sample coupling scale — base value broadcast; overridden if G is swept.
+        coup_a_h = np.full(n_samples, self._coup_a, dtype=np.float32)
+        if "G" in param_names:
+            g_idx = param_names.index("G")
+            G_vals = param_sets[:, g_idx].astype(np.float32)
+            if self._use_kuramoto:
+                coup_a_h = (G_vals / spec.n_nodes).astype(np.float32)
+            else:
+                coup_a_h = (np.float32(spec.coupling.a) * G_vals).astype(np.float32)
+        coup_a_d = cuda.to_device(coup_a_h)
+
         # Pre-sample stimuli (same for all sweep samples) and transfer to device
         stim_np, has_stimulus = build_stim_data(spec, n_steps, float(dt))
         stim_flat = np.ascontiguousarray(stim_np.ravel(), dtype=np.float32)
@@ -266,14 +296,15 @@ class CudaSweeperGPU:
             np.int32(n_record),
             np.int32(t_cut_step),
             np.int32(record_period),
-            self._coup_a, self._coup_b,
+            coup_a_d, self._coup_b,
             self._has_delays,
             self._use_heun,
             stim_d, has_stimulus,
         ]
 
         if self._stochastic:
-            noise_h = generate_noise(spec, n_steps, n_samples, self._seed_base)
+            noise_h = generate_noise(spec, n_steps, n_samples, self._seed_base,
+                                     same_noise=self.sweep.same_noise)
             noise_d = cuda.to_device(noise_h)
             self._mod.cuda_sweep_stoch[blocks, _TPB](*common, noise_d, ts_out_d)
         else:
@@ -303,13 +334,20 @@ class CudaSweeperGPU:
                 results.append(mon_dict)
             return results
 
+        _pipeline_mon = next(
+            (m for m in spec.monitors if m.kind == pipeline.signal), None)
         labels_set = False
         all_labels: list[str] = []
         rows: list[np.ndarray] = []
         for i in range(n_samples):
             t_arr = t_base + np.arange(n_record, dtype=np.float64) * rec_dt
+            if _pipeline_mon is not None:
+                mon_t, mon_data = _apply_monitor(
+                    pipeline.signal, _pipeline_mon, ts[i], t_arr, spec.model)
+            else:
+                mon_t, mon_data = t_arr, ts[i]
             feat_labels, feat_vals = pipeline.extract(
-                {pipeline.signal: (t_arr, ts[i])})
+                {pipeline.signal: (mon_t, mon_data)})
             if not labels_set:
                 all_labels = param_names + feat_labels
                 labels_set = True

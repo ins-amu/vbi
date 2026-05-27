@@ -38,8 +38,10 @@ from __future__ import annotations
 
 import hashlib
 import importlib.util
+import os
 import re
 import sys
+import tempfile
 import types
 from pathlib import Path
 
@@ -48,7 +50,8 @@ import numpy as np
 from vbi.simulator.spec.model import ModelSpec
 from vbi.simulator.spec.simulation import SimulationSpec
 
-_CACHE_DIR = Path.home() / ".cache" / "vbi" / "cuda"
+_CACHE_DIR = Path(os.environ.get(
+    "VBI_CUDA_CACHE_DIR", Path.home() / ".cache" / "vbi" / "cuda"))
 _MODULE_CACHE: dict[str, types.ModuleType] = {}
 
 _MATH_MAP = [
@@ -157,7 +160,7 @@ def _generate_source(spec: ModelSpec, sparse: bool = False,
             "    n_record,      # int32",
             "    t_cut_step,    # int32",
             "    record_period, # int32",
-            "    coup_a,        # float32",
+            "    coup_a,        # (n_samples,) float32  per-sample coupling scale",
             "    coup_b,        # float32",
             "    has_delays,    # bool",
             "    use_heun,      # bool",
@@ -172,6 +175,7 @@ def _generate_source(spec: ModelSpec, sparse: bool = False,
             "    if tid >= n_samp:",
             "        return",
             "",
+            "    _coup_a_s = coup_a[tid]",
             f"    sv     = cuda.local.array(({n_sv},), dtype=float32)",
             f"    k1     = cuda.local.array(({n_sv},), dtype=float32)",
             f"    k2     = cuda.local.array(({n_sv},), dtype=float32)",
@@ -220,7 +224,7 @@ def _generate_source(spec: ModelSpec, sparse: bool = False,
                 K.append(f"            else:")
                 K.append(f"                for _src in range(n_nodes):")
                 K.append(f"                    _s0 += weights[node, _src] * math.sin(state[{cv0}, _src, tid] - _theta_node + coup_b)")
-            K.append(f"            coup[0] = coup_a * _s0")
+            K.append(f"            coup[0] = _coup_a_s * _s0")
         else:
             for cv_i, cv_name in enumerate(cvars):
                 ci = f"cvar_indices[{cv_i}]"
@@ -247,7 +251,7 @@ def _generate_source(spec: ModelSpec, sparse: bool = False,
                     K.append(f"            else:")
                     K.append(f"                for _src in range(n_nodes):")
                     K.append(f"                    _s{cv_i} += weights[node, _src] * state[{ci}, _src, tid]")
-                K.append(f"            coup[{cv_i}] = coup_a * _s{cv_i} + coup_b")
+                K.append(f"            coup[{cv_i}] = _coup_a_s * _s{cv_i} + coup_b")
 
         # Stimulus injection — same point as all other backends
         # stim_data layout: stim_data[step * n_cvar * n_nodes + cv * n_nodes + node]
@@ -363,8 +367,13 @@ def build_cuda_module(spec: ModelSpec, sparse: bool = False,
     if key in _MODULE_CACHE:
         return _MODULE_CACHE[key]
 
-    _CACHE_DIR.mkdir(parents=True, exist_ok=True)
-    p = _CACHE_DIR / f"cuda_sweep_{key}.py"
+    try:
+        _CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        cache_dir = _CACHE_DIR
+    except OSError:
+        cache_dir = Path(tempfile.gettempdir()) / "vbi_cuda"
+        cache_dir.mkdir(parents=True, exist_ok=True)
+    p = cache_dir / f"cuda_sweep_{key}.py"
     if not p.exists():
         p.write_text(src)
 
@@ -483,10 +492,13 @@ def to_csr(weights: np.ndarray, delay_steps: np.ndarray | None = None,
 
 
 def generate_noise(spec: SimulationSpec, n_steps: int,
-                   n_samples: int, seed_base: int) -> np.ndarray:
+                   n_samples: int, seed_base: int,
+                   same_noise: bool = False) -> np.ndarray:
     """
     (n_steps, n_sv, n_nodes, n_samples) float32 — coalesced layout.
-    Each sample gets seed = seed_base + sample_idx.
+
+    same_noise=False (default): each sample gets seed = seed_base + sample_idx.
+    same_noise=True: one noise draw (seed = seed_base) is broadcast to all samples.
     """
     n_sv    = spec.model.n_sv
     n_nodes = spec.n_nodes
@@ -499,6 +511,18 @@ def generate_noise(spec: SimulationSpec, n_steps: int,
     style   = getattr(spec.integrator, "noise_style", "amplitude")
     amp     = np.sqrt(2.0 * nsig) if style == "tvb" else nsig
     eff_amp = (amp * np.sqrt(spec.integrator.dt)).astype(np.float32)
+
+    if same_noise:
+        rng  = np.random.default_rng(seed_base)
+        base = np.zeros((n_steps, n_sv, n_nodes), dtype=np.float32)
+        for k, sv_idx in enumerate(ni):
+            base[:, sv_idx, :] = (
+                eff_amp[k] * rng.standard_normal((n_steps, n_nodes))
+            ).astype(np.float32)
+        return np.ascontiguousarray(
+            np.broadcast_to(base[:, :, :, np.newaxis],
+                            (n_steps, n_sv, n_nodes, n_samples)).copy()
+        )
 
     noise = np.zeros((n_steps, n_sv, n_nodes, n_samples), dtype=np.float32)
     for s in range(n_samples):
