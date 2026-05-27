@@ -48,6 +48,11 @@ latex/
 sbi-logs/
 .coverage
 
+# Generated code graph
+graphify-out/
+AGENTS.md
+CLAUDE.md
+
 # Jupyter
 .ipynb_checkpoints/
 tt.ipynb
