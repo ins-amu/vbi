@@ -256,7 +256,7 @@ class TestMonitors:
         # steps 0..9999; BOLD fires at step>0 and step%2000==0
         # -> at steps 2000,4000,6000,8000 = 4 samples
         assert len(t) == 4
-        assert data.shape == (4, 2)
+        assert data.shape == (4, 1, 2)   # (n_samples, 1, n_nodes) — consistent with other monitors
 
     def test_multiple_monitors(self):
         spec = make_mpr_spec(

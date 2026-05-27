@@ -87,10 +87,18 @@ class RawMonitor(Monitor):
         self._data: list[np.ndarray] = []
 
     def sample(self, step: int, state: np.ndarray) -> None:
+        # Time label is step*dt — state AFTER the step-th integration step.
+        # Step 0 therefore labels the state after the first integration step,
+        # not the initial condition.  This matches the TVB Raw monitor convention.
         self._times.append(step * self.dt)
         self._data.append(state[self.voi].copy())
 
     def result(self) -> tuple[np.ndarray, np.ndarray]:
+        if not self._data:
+            raise ValueError(
+                "RawMonitor collected no samples. "
+                "duration must be > 0 to produce output."
+            )
         return np.array(self._times), np.stack(self._data)
 
 
@@ -110,6 +118,11 @@ class SubSampleMonitor(Monitor):
             self._data.append(state[self.voi].copy())
 
     def result(self) -> tuple[np.ndarray, np.ndarray]:
+        if not self._data:
+            raise ValueError(
+                f"SubSampleMonitor collected no samples. "
+                f"duration must be >= period ({self.istep * self.dt} ms)."
+            )
         return np.array(self._times), np.stack(self._data)
 
 
@@ -140,6 +153,11 @@ class TemporalAverageMonitor(Monitor):
             self._stock_idx = 0
 
     def result(self) -> tuple[np.ndarray, np.ndarray]:
+        if not self._data:
+            raise ValueError(
+                f"TemporalAverageMonitor collected no samples. "
+                f"duration must be >= period ({self.istep * self.dt} ms)."
+            )
         return np.array(self._times), np.stack(self._data)
 
 
@@ -160,6 +178,11 @@ class GlobalAverageMonitor(Monitor):
             self._data.append(data.copy())
 
     def result(self) -> tuple[np.ndarray, np.ndarray]:
+        if not self._data:
+            raise ValueError(
+                f"GlobalAverageMonitor collected no samples. "
+                f"duration must be >= period ({self.istep * self.dt} ms)."
+            )
         return np.array(self._times), np.stack(self._data)
 
 
@@ -186,9 +209,14 @@ class BoldMonitor(Monitor):
         if step > 0 and step % self.tr_steps == 0:
             bold = _bw_bold(self._bw, self._bw_p)
             self._times.append(step * self.dt)
-            self._data.append(bold.copy())
+            self._data.append(bold[np.newaxis, :].copy())   # (1, n_nodes)
 
     def result(self) -> tuple[np.ndarray, np.ndarray]:
+        if not self._data:
+            raise ValueError(
+                f"BoldMonitor collected no samples. "
+                f"duration must be >= tr ({self.tr_steps * self.dt} ms)."
+            )
         return np.array(self._times), np.stack(self._data)
 
 
@@ -209,6 +237,19 @@ def build_monitor(spec: MonitorSpec, model: ModelSpec, dt: float) -> Monitor:
     cls = _KIND_MAP.get(spec.kind)
     if cls is None:
         raise ValueError(f"Unknown monitor kind: {spec.kind!r}")
+    # Validate period / tr before constructing (finding 6)
+    if spec.kind in ("subsample", "tavg", "gavg"):
+        if spec.period is None or spec.period <= 0:
+            raise ValueError(
+                f"MonitorSpec(kind={spec.kind!r}) requires period > 0; "
+                f"got period={spec.period!r}."
+            )
+    if spec.kind == "bold":
+        if spec.tr is None or spec.tr <= 0:
+            raise ValueError(
+                f"MonitorSpec(kind='bold') requires tr > 0; "
+                f"got tr={spec.tr!r}."
+            )
     mon = cls()
     mon.configure(spec, model, dt)
     return mon

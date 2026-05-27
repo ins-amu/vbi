@@ -46,6 +46,21 @@ class SimulationSpec:
         if self.tract_lengths is None:
             object.__setattr__(self, "tract_lengths",
                                np.zeros_like(self.weights))
+        # Basic shape / value validation
+        w = self.weights
+        tl = self.tract_lengths
+        if w.ndim != 2 or w.shape[0] != w.shape[1]:
+            raise ValueError(
+                f"weights must be a square 2-D array; got shape {w.shape}."
+            )
+        if tl.shape != w.shape:
+            raise ValueError(
+                f"tract_lengths shape {tl.shape} must match weights shape {w.shape}."
+            )
+        if self.speed <= 0:
+            raise ValueError(
+                f"speed must be > 0 mm/ms; got speed={self.speed!r}."
+            )
 
     @property
     def n_nodes(self) -> int:

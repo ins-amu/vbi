@@ -1,5 +1,5 @@
 from __future__ import annotations
-import copy
+import dataclasses
 import numpy as np
 
 from vbi.simulator.spec.simulation import SimulationSpec
@@ -8,25 +8,34 @@ from .simulator import NumpySimulator
 
 
 def _patch_spec(base: SimulationSpec, param_names: list[str],
-                theta: np.ndarray) -> SimulationSpec:
+                theta: np.ndarray,
+                run_index: int = 0,
+                same_noise: bool = True) -> SimulationSpec:
     """Return a SimulationSpec with swept parameters overridden."""
     new_node_params = dict(base.node_params)
-    new_integrator = base.integrator
 
-    # We need to patch model default_params — we do this via node_params
-    # so the simulator's _build_params picks them up (node_params override defaults).
+    # node_params overrides take priority over model.default_params in build()
     for name, val in zip(param_names, theta):
         new_node_params[name] = float(val)
 
+    # For stochastic sweeps with same_noise=False derive a unique per-run seed.
+    integrator = base.integrator
+    if base.integrator.stochastic and not same_noise:
+        integrator = dataclasses.replace(
+            base.integrator,
+            noise_seed=base.integrator.noise_seed + run_index,
+        )
+
     patched = SimulationSpec(
         model=base.model,
-        integrator=new_integrator,
+        integrator=integrator,
         coupling=base.coupling,
         monitors=base.monitors,
         weights=base.weights,
         tract_lengths=base.tract_lengths,
         speed=base.speed,
         node_params=new_node_params,
+        stimuli=base.stimuli,   # preserve stimuli from base spec
     )
     return patched
 
@@ -35,6 +44,13 @@ class NumpySweeper:
     """
     Reference sweep backend — sequential Python loop over parameter sets.
     Not optimised; used for validation of faster backends.
+
+    Notes
+    -----
+    ``same_noise`` behaviour (from ``SweepSpec.same_noise``):
+      True  (default) — all sweep runs share ``base.integrator.noise_seed``,
+            giving identical stochastic forcing across parameter sets.
+      False — each run uses ``base_seed + run_index`` for independent noise.
     """
 
     def __init__(self, spec: SimulationSpec, sweep_spec: SweepSpec):
@@ -48,20 +64,21 @@ class NumpySweeper:
         Returns
         -------
         If sweep_spec.pipeline is None:
-            dict mapping monitor kind -> list of (t, data) per run.
+            list of dicts mapping monitor kind -> (t, data) per run.
         If pipeline is set:
             (labels, values) where values shape is (n_samples, n_features+n_params).
         """
         param_names = self.sweep._param_names_list
-        param_sets = self.sweep.param_sets       # (n_samples, n_params)
-        n = param_sets.shape[0]
-        pipeline = self.sweep.pipeline
+        param_sets  = self.sweep.param_sets       # (n_samples, n_params)
+        n           = param_sets.shape[0]
+        pipeline    = self.sweep.pipeline
+        same_noise  = self.sweep.same_noise
 
         if pipeline is None:
-            # Return raw monitor output — list per run
             all_results: list[dict] = []
             for i in range(n):
-                patched = _patch_spec(self.spec, param_names, param_sets[i])
+                patched = _patch_spec(self.spec, param_names, param_sets[i],
+                                      run_index=i, same_noise=same_noise)
                 sim = NumpySimulator()
                 sim.build(patched)
                 all_results.append(sim.run(duration))
@@ -69,11 +86,12 @@ class NumpySweeper:
 
         # Pipeline mode: extract features per run; accumulate into arrays
         labels_set = False
-        feat_labels: list[str] = []
+        all_labels: list[str] = []
         rows: list[np.ndarray] = []
 
         for i in range(n):
-            patched = _patch_spec(self.spec, param_names, param_sets[i])
+            patched = _patch_spec(self.spec, param_names, param_sets[i],
+                                  run_index=i, same_noise=same_noise)
             sim = NumpySimulator()
             sim.build(patched)
             result = sim.run(duration)

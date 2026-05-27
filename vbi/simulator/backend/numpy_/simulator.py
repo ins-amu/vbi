@@ -30,7 +30,10 @@ def build_dfun(spec: ModelSpec) -> Callable:
     For each cvar name, injects  c_{name}  as a local (n_nodes,) variable.
     Also injects  c = coupling[0]  for single-cvar backward compatibility.
 
-    Uses exec() on our own spec strings — not user-supplied input.
+    TRUST BOUNDARY: ``dfun_str`` is executed via ``exec()``.  ModelSpec is
+    part of the project's internal modelling layer and its strings are treated
+    as trusted code.  Do not expose ``ModelSpec.dfun_str`` to external or
+    user-supplied input without sanitising it first.
     Compiled once at build() time, not per step.
     """
     sv = spec.sv_names
@@ -151,14 +154,51 @@ class NumpySimulator:
             nsig = spec.integrator.noise_nsig
             if nsig is None:
                 nsig = np.ones(len(ni)) * 1e-3
-            nsig = np.asarray(nsig, dtype=np.float64)
+            nsig = np.atleast_1d(np.asarray(nsig, dtype=np.float64))
+            if nsig.ndim != 1:
+                raise ValueError(
+                    f"noise_nsig must be a 1-D array; got shape {nsig.shape}."
+                )
+            if nsig.shape[0] == 1 and len(ni) > 1:
+                nsig = np.broadcast_to(nsig, (len(ni),)).copy()
+            if nsig.shape[0] != len(ni):
+                raise ValueError(
+                    f"noise_nsig length ({nsig.shape[0]}) does not match "
+                    f"the number of noise variables ({len(ni)}) in model "
+                    f"{spec.model.name!r}. Provide one value per noise variable "
+                    f"or a scalar that will be broadcast."
+                )
             self._noise_amp = _resolve_noise_amplitude(spec, nsig)
         else:
             self._noise_mask = None
             self._noise_amp = None
 
     def run(self, duration: float) -> dict[str, tuple[np.ndarray, np.ndarray]]:
+        """
+        Run the simulation for ``duration`` ms and return monitor output.
+
+        Each call resets state, history, and monitor buffers to their initial
+        values, so repeated calls with the same duration always produce
+        identical output (deterministic reset semantics).
+
+        Parameters
+        ----------
+        duration : float
+            Simulation length in ms.
+
+        Returns
+        -------
+        dict[str, (times, data)]
+            One entry per monitor; key is the monitor kind string.
+        """
         spec = self.spec
+        # Reset to initial conditions before every run
+        self._state = _build_initial_state(spec)
+        self._history.initialize(self._state[list(spec.model.cvar_indices)])
+        for mon in self._monitors:
+            mon.configure(spec.monitors[self._monitors.index(mon)], spec.model,
+                          spec.integrator.dt)
+
         dt = spec.integrator.dt
         n_steps = round(duration / dt)
         stochastic = spec.integrator.stochastic
