@@ -338,13 +338,14 @@ class SNPE:
             Uses the prior passed to ``__init__`` if None.
         sample_with : 'direct' | 'mcmc' | 'rejection'
             'direct'    — ancestral sampling from the flow/mixture.
-            'mcmc'      — MCMC via MetropolisHastings or NUTS.
+            'mcmc'      — MCMC via MetropolisHastings or HMC.
             'rejection' — rejection sampling against prior.
-        mcmc_method : 'mh' | 'nuts'
+        mcmc_method : 'mh' | 'hmc'
             MCMC algorithm when ``sample_with='mcmc'``.
-            'nuts' requires a JAX-backend estimator.
+            'hmc' requires a JAX-backend estimator.
+            'nuts' is accepted as a backward-compatible alias for 'hmc'.
         mcmc_step_size : float
-            Proposal step size for MH; initial leapfrog step for NUTS.
+            Proposal step size for MH; initial leapfrog step size for HMC.
         mcmc_num_warmup : int
             Warmup (burn-in) steps discarded from MCMC chain.
         show_progress_bars : bool

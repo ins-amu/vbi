@@ -188,7 +188,7 @@ class MetropolisHastings:
             theta_cur = np.asarray(init_theta, dtype="f")
         elif self._prior is not None:
             try:
-                theta_cur = np.array(self._prior.sample((1,)), dtype="f").flatten()
+                theta_cur = np.array(self._prior.sample((1,), seed=seed), dtype="f").flatten()
             except Exception:
                 theta_cur = np.zeros(param_dim, dtype="f")
         else:
@@ -239,16 +239,16 @@ class HMC:
     """
     Hamiltonian Monte Carlo sampler using JAX automatic differentiation.
 
-    Uses fixed-length leapfrog trajectories (2^min(max_tree_depth, 4) steps)
-    with dual-averaging step-size adaptation during warmup.
+    Uses fixed-length leapfrog trajectories with dual-averaging step-size
+    adaptation during warmup.
 
     Requires a JAX-backend estimator (JaxMAFEstimator / JaxNSFEstimator /
     JaxMDNEstimator) so that ``jax.grad`` can flow through ``log_prob``.
 
     The MCMC target is ``estimator.log_prob(x_obs, theta)`` — the trained SNPE
     posterior — so direct sampling and HMC target the same distribution.  If a
-    prior is supplied it is used only as a **support mask** for bounded priors
-    (e.g. BoxUniform); unbounded priors are not added to the target.
+    prior is supplied it is used only as a **support mask**: samples outside the
+    prior support are rejected; no density is added.
 
     Parameters
     ----------
@@ -256,10 +256,15 @@ class HMC:
         Trained JAX-backend estimator.
     prior : prior object | None
         Prior with ``.log_prob(theta)`` method.  Used for support masking only.
+        ``RestrictedPrior`` is not supported (constraint function is not
+        JAX-traceable); pass it to ``MetropolisHastings`` instead.
     step_size : float
         Initial leapfrog step size.  Adapted during warmup.
+    num_leapfrog_steps : int | None
+        Number of leapfrog steps per sample.  When ``None``, falls back to
+        ``2 ** min(max_tree_depth, 4)`` for backward compatibility.
     max_tree_depth : int
-        Controls leapfrog steps per sample: 2^min(max_tree_depth, 4) steps.
+        Deprecated legacy parameter.  Use ``num_leapfrog_steps`` instead.
     """
 
     def __init__(
@@ -267,6 +272,7 @@ class HMC:
         estimator,
         prior=None,
         step_size: float = 0.1,
+        num_leapfrog_steps: int | None = None,
         max_tree_depth: int = 10,
     ):
         try:
@@ -282,32 +288,60 @@ class HMC:
                 "Use MetropolisHastings for non-JAX estimators."
             )
 
-        self._est            = estimator
-        self._prior          = prior
-        self._step_size      = step_size
-        self._max_tree_depth = max_tree_depth
+        from ._prior import RestrictedPrior
+        if prior is not None and isinstance(prior, RestrictedPrior):
+            raise TypeError(
+                "HMC does not support RestrictedPrior: the constraint function "
+                "is not JAX-traceable. Use MetropolisHastings instead."
+            )
+
+        self._est               = estimator
+        self._prior             = prior
+        self._step_size         = step_size
+        self._num_leapfrog_steps = (
+            num_leapfrog_steps if num_leapfrog_steps is not None
+            else 2 ** min(max_tree_depth, 4)
+        )
+        self._max_tree_depth    = max_tree_depth
 
     @staticmethod
     def _jax_prior_support_mask(prior, theta):
         """
         Return 0.0 inside prior support, -1e38 outside.
 
-        Only enforces bounds for bounded priors (BoxUniform).  Unbounded
-        priors (Gaussian, etc.) return 0.0 — their density is NOT added to
-        the target since the SNPE estimator already encodes it.
+        Handles BoxUniform, Beta, Gamma, LogNormal, and MultipleIndependent.
+        Unbounded priors (Gaussian, MultivariateNormal) return 0.0 — their
+        density is NOT added since the SNPE estimator already encodes it.
+        RestrictedPrior must be rejected at construction time (not here).
         """
         import jax.numpy as jnp
-        from ._prior import BoxUniform
+        from ._prior import BoxUniform, Beta, Gamma, LogNormal, MultipleIndependent
+
+        _IN  = jnp.array(0.0,   dtype="f")
+        _OUT = jnp.array(-1e38, dtype="f")
 
         if isinstance(prior, BoxUniform):
             low  = jnp.array(prior.low,  dtype="f")
             high = jnp.array(prior.high, dtype="f")
-            in_bounds = jnp.all((theta >= low) & (theta <= high))
-            return jnp.where(in_bounds,
-                             jnp.array(0.0,    dtype="f"),
-                             jnp.array(-1e38,  dtype="f"))
-        # Unbounded prior: no masking needed
-        return jnp.array(0.0, dtype="f")
+            return jnp.where(jnp.all((theta >= low) & (theta <= high)), _IN, _OUT)
+
+        if isinstance(prior, Beta):
+            return jnp.where(jnp.all((theta > 0.0) & (theta < 1.0)), _IN, _OUT)
+
+        if isinstance(prior, (Gamma, LogNormal)):
+            return jnp.where(jnp.all(theta > 0.0), _IN, _OUT)
+
+        if isinstance(prior, MultipleIndependent):
+            mask = _IN
+            offset = 0
+            for p in prior._priors:
+                d     = p.dim
+                mask  = mask + HMC._jax_prior_support_mask(p, theta[offset: offset + d])
+                offset += d
+            return mask   # -1e38 if any component is out of support
+
+        # Gaussian, MultivariateNormal, CustomPrior: assume full support
+        return _IN
 
     def _make_log_prob_fn(self, x_obs_j):
         """Return a JAX-differentiable log posterior function."""
@@ -370,7 +404,7 @@ class HMC:
         elif self._prior is not None:
             try:
                 theta_cur = jnp.array(
-                    np.array(self._prior.sample((1,)), dtype="f").flatten()
+                    np.array(self._prior.sample((1,), seed=seed), dtype="f").flatten()
                 )
             except Exception:
                 theta_cur = jnp.zeros(D)
@@ -399,7 +433,7 @@ class HMC:
             lp_cur, g_cur = log_prob_grad(theta_cur)
             theta_p, r_p, lp_p, g_p, n_tree, s = self._build_tree(
                 theta_cur, r0, lp_cur, g_cur,
-                log_prob_grad, step, self._max_tree_depth, subkey,
+                log_prob_grad, step, self._num_leapfrog_steps, subkey,
             )
 
             log_alpha = float(lp_p - lp_cur - 0.5 * (jnp.dot(r_p, r_p) - jnp.dot(r0, r0)))
@@ -410,7 +444,7 @@ class HMC:
                     warmup_accepted += 1
                 else:
                     sample_accepted += 1
-            alpha = min(1.0, math.exp(log_alpha))
+            alpha = 1.0 if log_alpha >= 0 else math.exp(log_alpha)
 
             # Dual-averaging step-size adaptation during warmup
             if i < n_warmup:
@@ -433,8 +467,8 @@ class HMC:
         return samples
 
     @staticmethod
-    def _build_tree(theta, r, lp, g, log_prob_grad, step, max_depth, key):
-        """Fixed-length leapfrog trajectory (2^min(max_depth,4) steps)."""
+    def _build_tree(theta, r, lp, g, log_prob_grad, step, num_leapfrog_steps, key):
+        """Fixed-length leapfrog trajectory."""
         import jax.numpy as jnp
 
         def leapfrog(th, rv, g_val, eps):
@@ -445,12 +479,10 @@ class HMC:
             return th_new, rv_new, lp_new, g_new
 
         theta_p, r_p, lp_p, g_p = theta, r, lp, g
-        n_steps = 2 ** min(max_depth, 4)
-
-        for _ in range(n_steps):
+        for _ in range(num_leapfrog_steps):
             theta_p, r_p, lp_p, g_p = leapfrog(theta_p, r_p, g_p, step)
 
-        return theta_p, r_p, lp_p, g_p, n_steps, True
+        return theta_p, r_p, lp_p, g_p, num_leapfrog_steps, True
 
 
 # Backward-compatible alias

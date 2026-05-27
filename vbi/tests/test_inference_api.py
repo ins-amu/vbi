@@ -510,14 +510,13 @@ class TestPosterior:
         with pytest.raises(ValueError, match="No observation provided"):
             posterior.sample((10,))
 
-    def test_prior_log_prob_added(self):
-        """Posterior with Gaussian prior adds prior.log_prob to estimator output."""
+    def test_prior_log_prob_not_added(self):
+        """Posterior.log_prob returns estimator output only; prior is not added."""
         prior, theta, x = _linear_gaussian(n=100, d=1)
         inf  = SNPE(prior=prior, density_estimator='mdn')
         inf.append_simulations(theta, x)
         est  = inf.train(max_num_epochs=5, verbose=False)
 
-        # Use Gaussian prior so log_prob is non-zero (BoxUniform is 0 inside)
         gaussian_prior = Gaussian(mean=np.array([0.5]), std=np.array([0.2]))
         post_with    = Posterior(estimator=est, prior=gaussian_prior)
         post_without = Posterior(estimator=est, prior=None)
@@ -525,8 +524,9 @@ class TestPosterior:
         t     = theta[:5].reshape(-1, 1)
         lp_w  = post_with.log_prob(t,    x=x_obs)
         lp_wo = post_without.log_prob(t, x=x_obs)
-        # Gaussian prior adds a non-zero term; values should differ
-        assert not np.allclose(lp_w, lp_wo)
+        # Prior must NOT be added on top; both posteriors share the same estimator
+        assert np.allclose(lp_w, lp_wo), \
+            "log_prob() should not add prior density for SNPE posteriors"
 
 
 # ---------------------------------------------------------------------------
