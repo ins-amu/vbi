@@ -413,7 +413,9 @@ class JaxMAFEstimator(JaxConditionalDensityEstimator):
         v = {k: jnp.zeros_like(v) for k, v in weights.items()}
         beta1, beta2, eps_adam = 0.9, 0.999, 1e-8
 
-        loss_and_grad = jax.jit(jax.value_and_grad(self._loss_function))
+        # Compile the full Adam step (grad + clip + update) into one jit call.
+        # This eliminates per-step Python→JAX synchronisation overhead.
+        _train_step = self._make_train_step(clip_max_norm, beta1, beta2, eps_adam)
 
         best_weights     = {k: np.array(v) for k, v in weights.items()}
         best_val         = np.inf if n_val > 0 else None
@@ -443,35 +445,17 @@ class JaxMAFEstimator(JaxConditionalDensityEstimator):
             else:
                 f_b, p_b = f_tr_j, p_tr_j
 
-            train_loss, g = loss_and_grad(weights, f_b, p_b)
-            train_loss_f  = float(train_loss)
+            weights, m, v, train_loss = _train_step(
+                weights, m, v, f_b, p_b,
+                jnp.float32(lr_t), jnp.int32(epoch + 1),
+            )
+            train_loss_f = float(train_loss)
             self.loss_history.append(train_loss_f)
 
-            # Gradient clipping
-            if clip_max_norm is not None:
-                total_sq = sum(float(jnp.sum(g[k] ** 2)) for k in g)
-                norm     = math.sqrt(total_sq + 1e-12)
-                if norm > clip_max_norm:
-                    scale = clip_max_norm / (norm + 1e-12)
-                    g = {k: g[k] * scale for k in g}
-
-            # Adam update
-            new_weights = {}
-            nan_found = False
-            for key in weights:
-                if not np.all(np.isfinite(np.array(g[key]))):
-                    log.warning("Non-finite gradient for '%s' at epoch %d.", key, epoch)
-                    nan_found = True
-                    break
-                m[key] = beta1 * m[key] + (1 - beta1) * g[key]
-                v[key] = beta2 * v[key] + (1 - beta2) * g[key] ** 2
-                m_hat  = m[key] / (1 - beta1 ** (epoch + 1))
-                v_hat  = v[key] / (1 - beta2 ** (epoch + 1))
-                new_weights[key] = weights[key] - lr_t * m_hat / (jnp.sqrt(v_hat) + eps_adam)
-            if nan_found:
+            if not math.isfinite(train_loss_f):
+                log.warning("Non-finite loss at epoch %d; restoring best weights.", epoch)
                 weights = {k: jnp.array(best_weights[k]) for k in best_weights}
                 break
-            weights = new_weights
 
             # Validation + early stopping
             if n_val > 0:
@@ -535,6 +519,54 @@ class JaxMAFEstimator(JaxConditionalDensityEstimator):
             self.weights = best_weights
         else:
             self.weights = {k: np.array(v_) for k, v_ in weights.items()}
+
+    # ------------------------------------------------------------------
+    # Jitted training step
+    # ------------------------------------------------------------------
+
+    def _make_train_step(self, clip_max_norm, beta1, beta2, eps_adam):
+        """
+        Return a jit-compiled function that does one full Adam step.
+
+        Signature: (weights, m, v, features, params, lr, t) →
+                   (new_weights, new_m, new_v, loss)
+
+        Everything — forward pass, backward pass, gradient clipping, and Adam
+        update — runs inside a single XLA kernel.  The caller only needs to
+        extract the scalar ``loss`` (one sync point per step instead of ~3×N_keys).
+        """
+        loss_fn = self._loss_function
+
+        @jax.jit
+        def step(weights, m, v, features, params, lr, t):
+            loss, g = jax.value_and_grad(loss_fn)(weights, features, params)
+
+            # Gradient clipping — fully inside jit
+            if clip_max_norm is not None:
+                leaves   = jax.tree_util.tree_leaves(g)
+                total_sq = sum(jnp.sum(gi ** 2) for gi in leaves)
+                norm     = jnp.sqrt(total_sq + 1e-12)
+                scale    = jnp.minimum(jnp.float32(1.0),
+                                       jnp.float32(clip_max_norm) / (norm + 1e-12))
+                g = jax.tree_util.tree_map(lambda gi: gi * scale, g)
+
+            # Adam — fully inside jit
+            m = jax.tree_util.tree_map(
+                lambda mk, gk: beta1 * mk + (1.0 - beta1) * gk, m, g)
+            v = jax.tree_util.tree_map(
+                lambda vk, gk: beta2 * vk + (1.0 - beta2) * gk ** 2, v, g)
+            t_f = t.astype(jnp.float32)
+            m_hat = jax.tree_util.tree_map(
+                lambda mk: mk / (1.0 - jnp.float32(beta1) ** t_f), m)
+            v_hat = jax.tree_util.tree_map(
+                lambda vk: vk / (1.0 - jnp.float32(beta2) ** t_f), v)
+            new_w = jax.tree_util.tree_map(
+                lambda wk, mhk, vhk: wk - lr * mhk / (jnp.sqrt(vhk) + eps_adam),
+                weights, m_hat, v_hat,
+            )
+            return new_w, m, v, loss
+
+        return step
 
     def reinitialize(self, seed: int = 0):
         weights = self._initialize_weights(seed)
