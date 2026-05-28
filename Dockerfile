@@ -50,6 +50,9 @@ COPY . .
 
 RUN pip install .[all-docker] --no-cache-dir
 
+# Compile C++ SWIG modules for the container's Python version
+RUN cd vbi/models/cpp/_src && make parallel
+
 # Install CuPy for CUDA 12.x
 RUN pip install --no-cache-dir cupy-cuda12x
 

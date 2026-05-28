@@ -64,3 +64,6 @@ tmp/
 build/
 dist/
 *.egg-info/
+
+# Pre-compiled C++ extensions — recompiled inside the container for the correct Python version
+vbi/models/cpp/_src/*.so
