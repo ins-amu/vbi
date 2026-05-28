@@ -28,7 +28,8 @@ With::
     theta = theta_np   # plain numpy — nothing else changes
 """
 
-from ._api        import SNPE, SNLE, set_jax_device
+from ._api            import SNPE, SNLE, set_jax_device
+from ._vbi_inference  import VBIInference
 from ._mcmc       import MetropolisHastings, HMC, NUTS, r_hat, effective_sample_size
 from ._prior      import (
     BoxUniform, Gaussian, CustomPrior,
@@ -68,6 +69,8 @@ __all__ = [
     "SNPE",
     "SNLE",
     "set_jax_device",
+    # End-to-end workflow
+    "VBIInference",
     # Priors
     "BoxUniform",
     "Gaussian",
