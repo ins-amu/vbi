@@ -111,6 +111,12 @@ Try these examples directly in your browser using Google Colab:
 | Damped Oscillator | <a href="https://colab.research.google.com/github/Ziaeemehr/vbi_paper/blob/main/docs/examples/damp_oscillator_cde.ipynb" target="_parent"><img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/></a> |
 
 
+## Upcoming: Unified API (v0.5)
+
+VBI is transitioning to a unified `vbi.simulator` and `vbi.inference` API that works consistently across all computational backends (NumPy, Numba, CUDA, C++). The current model-specific paths remain fully supported during this transition.
+
+> Documentation is in progress and will be published alongside the stable release. For the full transition plan, see [notes/README.md](notes/README.md).
+
 ## Feedback and Contributions
 
 We welcome contributions to the VBI project! If you have suggestions, bug reports, or feature requests, please open an issue on our [GitHub repository](https://github.com/ins-amu/vbi/issues). To contribute code, fork the repository, create a new branch for your feature or bugfix, and submit a pull request. Make sure to follow our coding standards and include tests for your changes. For detailed guidelines, please refer to our [CONTRIBUTING.md](https://github.com/ins-amu/vbi/blob/main/CONTRIBUTING.md) file. Thank you for helping us improve VBI!
