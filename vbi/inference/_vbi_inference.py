@@ -115,6 +115,88 @@ def _unpack_estimator(d, EstCls):
     return est
 
 
+# ---------------------------------------------------------------------------
+# Config-loading helpers  (Step 5)
+# ---------------------------------------------------------------------------
+
+def _load_config(config) -> dict:
+    """Accept a file path (YAML/JSON) or a plain dict."""
+    if isinstance(config, dict):
+        return config
+    path = Path(config)
+    text = path.read_text()
+    try:
+        import yaml
+        return yaml.safe_load(text)
+    except ImportError:
+        import json
+        return json.loads(text)
+
+
+def _parse_prior(d: dict):
+    """Build a prior object from a config dict with a ``type`` key."""
+    from ._prior import (
+        BoxUniform, Gaussian, MultivariateNormal,
+        LogNormal, Gamma, Beta, MultipleIndependent,
+    )
+    t = d["type"]
+    pn = d.get("param_names")
+    if t == "BoxUniform":
+        return BoxUniform(
+            low=np.asarray(d["low"]),
+            high=np.asarray(d["high"]),
+            param_names=pn,
+        )
+    if t == "Gaussian":
+        return Gaussian(
+            mean=np.asarray(d["mean"]),
+            std=np.asarray(d["std"]),
+            param_names=pn,
+        )
+    if t == "MultivariateNormal":
+        return MultivariateNormal(
+            mean=np.asarray(d["mean"]),
+            cov=np.asarray(d["cov"]),
+            param_names=pn,
+        )
+    if t == "LogNormal":
+        return LogNormal(np.asarray(d["mean"]), np.asarray(d["std"]), param_names=pn)
+    if t == "Gamma":
+        return Gamma(np.asarray(d["concentration"]), np.asarray(d["rate"]), param_names=pn)
+    if t == "Beta":
+        return Beta(np.asarray(d["alpha"]), np.asarray(d["beta"]), param_names=pn)
+    if t == "MultipleIndependent":
+        return MultipleIndependent(
+            [_parse_prior(p) for p in d["priors"]], param_names=pn
+        )
+    raise ValueError(
+        f"Unknown prior type {t!r}. "
+        f"Supported: BoxUniform, Gaussian, MultivariateNormal, LogNormal, "
+        f"Gamma, Beta, MultipleIndependent."
+    )
+
+
+def _parse_pipeline(d: dict):
+    """Build a FeaturePipeline from a config dict."""
+    from vbi.feature_extraction import (
+        FeaturePipeline,
+        get_features_by_domain,
+        get_features_by_given_names,
+    )
+    domain   = d.get("domain")
+    features = d.get("features")
+
+    cfg = get_features_by_domain(domain)     # domain=None → all domains
+    if features:
+        cfg = get_features_by_given_names(cfg, names=list(features))
+
+    return FeaturePipeline(
+        cfg,
+        signal = d.get("signal", "tavg"),
+        t_cut  = float(d.get("t_cut", 500.0)),
+    )
+
+
 class VBIInference:
     """
     End-to-end VBI inference workflow.
@@ -443,8 +525,67 @@ class VBIInference:
 
     @classmethod
     def from_config(cls, config) -> "VBIInference":
-        """Build from a YAML / JSON config dict or file path.  Step 5."""
-        raise NotImplementedError("from_config coming in Step 5.")
+        """
+        Build a ``VBIInference`` from a YAML/JSON config file or dict.
+
+        Parameters
+        ----------
+        config : str | Path | dict
+            Path to a YAML or JSON file, or an already-parsed dict.
+
+        Config schema
+        -------------
+        .. code-block:: yaml
+
+            sim:
+              model: mpr
+              connectivity: data/SC_68.npz   # .npz with weights / tract_lengths
+              node_params: {eta: -4.6}
+              dt: 0.1
+              method: heun
+              monitors: [{kind: tavg, period: 1.0}]
+              coupling: {kind: linear, a: 1.0}
+              speed: 4.0
+
+            prior:
+              type: BoxUniform
+              low:  [0.5, -5.5]
+              high: [5.0, -3.0]
+              param_names: [G, eta]
+
+            pipeline:
+              features: [calc_fc, calc_fcd]   # or domain: connectivity
+              signal: tavg
+              t_cut: 500.0
+
+            inference:
+              density_estimator: maf
+              sim_backend: numba
+              backend: auto
+              training:              # stored as default_train_kwargs
+                training_batch_size: 256
+                stop_after_epochs: 30
+                learning_rate: 5.0e-4
+        """
+        cfg = _load_config(config)
+
+        from vbi.simulator.spec.simulation import SimulationSpec
+        sim_spec = SimulationSpec.from_dict(cfg["sim"])
+
+        prior  = _parse_prior(cfg["prior"])
+        pipeline = _parse_pipeline(cfg["pipeline"])
+
+        infer_cfg = cfg.get("inference", {})
+        inf = cls(
+            sim_spec          = sim_spec,
+            prior             = prior,
+            pipeline          = pipeline,
+            density_estimator = infer_cfg.get("density_estimator", "maf"),
+            sim_backend       = infer_cfg.get("sim_backend", "numba"),
+            backend           = infer_cfg.get("backend", "auto"),
+        )
+        inf._default_train_kwargs = dict(infer_cfg.get("training", {}))
+        return inf
 
     # ------------------------------------------------------------------
     # Diagnostics  (Step 6)
