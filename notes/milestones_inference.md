@@ -1261,24 +1261,102 @@ Thin forwarding so user doesn't need to import `_diagnostics` directly.
 
 ---
 
-### Implementation order
+### Step 8 — `inference_backend` kwarg: plug in `sbi.SNPE`
 
-```
-Step 0  param_names on priors          (~1 hour)    prerequisite for Steps 1+
-Step 1  simulate_for_vbi_sweep         (~0.5 day)   core bridge, unblocks Step 3
-Step 2  simulation cache               (~1.5 days)  run_raw + chunked write + extract
-Step 3  VBIInference core              (~1 day)     first working end-to-end
-Step 4  save / load                    (~0.5 day)   needed for real use
-Step 5  from_config                    (~1 day)     reproducibility
-Step 6  diagnostic helpers             (~0.5 day)   polish
-Step 7  tests + notebook               (~1 day)     validation
+**Goal:** Let users bring their own inference engine (e.g. `sbi.SNPE`) while
+still using `VBIInference` for the simulation + feature extraction half.
+
+```python
+# vbi.inference backend (default, no torch required)
+inf = VBIInference(sim_spec, prior, pipeline, inference_backend="vbi")
+
+# sbi backend — same simulation path, sbi handles training + posterior
+inf = VBIInference(sim_spec, prior, pipeline, inference_backend="sbi")
+
+# Explicit sbi inference object (full control)
+from sbi.inference import SNPE as SBI_SNPE
+sbi_snpe = SBI_SNPE(prior=torch_prior, density_estimator="maf")
+inf = VBIInference(sim_spec, prior, pipeline, inference_engine=sbi_snpe)
 ```
 
-**Total effort: ~6 days of focused work.**
+**Design:**
+
+`VBIInference` owns only the simulation half. The internal SNPE is replaced
+by a thin adapter interface:
+
+```python
+class _InferenceAdapter(Protocol):
+    def append_simulations(self, theta, x): ...
+    def train(self, **kwargs): ...
+    def build_posterior(self, **kwargs): ...
+    def get_simulations(self): ...
+    n_simulations: int
+    n_rounds: int
+```
+
+Two implementations:
+- `_VBIAdapter` — wraps `vbi.inference.SNPE` (current behavior)
+- `_SBIAdapter` — wraps `sbi.inference.SNPE`; converts numpy ↔ torch at the boundary
+
+The `simulate()` method is backend-agnostic: always returns numpy arrays and
+calls `adapter.append_simulations(theta, x)`.
+
+**Tasks:**
+
+- [ ] Define `_InferenceAdapter` protocol in `_vbi_inference.py`
+- [ ] `_VBIAdapter` — thin wrapper around current `self._snpe` (no behavior change)
+- [ ] `_SBIAdapter`:
+  - [ ] `append_simulations(theta, x)` → `torch.tensor(theta, dtype=float32)` →
+        `sbi_snpe.append_simulations`
+  - [ ] `train(**kwargs)` → delegate, return the sbi estimator
+  - [ ] `build_posterior(**kwargs)` → delegate, return sbi Posterior
+  - [ ] `get_simulations()` → retrieve from sbi internal state, convert to numpy
+  - [ ] `n_simulations`, `n_rounds` properties
+- [ ] `VBIInference.__init__`: add `inference_backend: str = "vbi"` and
+      `inference_engine=None` (explicit engine object)
+  - [ ] `inference_engine` is not None → wrap it in the appropriate adapter
+  - [ ] `inference_backend="sbi"` → import sbi lazily, raise clear error if not
+        installed; build `SBI_SNPE(prior=torch_prior)` from the vbi prior
+- [ ] `VBIInference._prior_to_torch(prior)` — convert vbi prior to a
+      `torch.distributions.Distribution` compatible with sbi:
+      - `BoxUniform` → `sbi.utils.BoxUniform(torch.tensor(low), torch.tensor(high))`
+      - Others → `sbi.utils.CustomPrior`
+- [ ] `save` / `load` for sbi backend: save `(theta, x)` numpy arrays + backend name;
+      load restores simulation data but does NOT restore the sbi estimator weights
+      (sbi has its own state_dict mechanism — document this limitation)
+- [ ] Tests: `tests/test_vbi_inference_sbi_backend.py`
+  - [ ] Skip if `sbi` not installed (`pytest.importorskip("sbi")`)
+  - [ ] `simulate(50)` → `train()` → `build_posterior()` → `sample()` → shape correct
+  - [ ] Numpy output from `simulate()` equals sbi backend output
+- [ ] Update `from_config` (Step 5) to accept `inference: backend: sbi`
+
+**Effort:** ~1 day. The simulation path is unchanged; the adapter is pure glue.
+
+**Note:** `save` / `load` with the sbi backend only restores the simulation data.
+To restore the trained estimator, use sbi's own `torch.save(posterior, path)`.
+Document this clearly.
 
 ---
 
-**Effort:** ~6 days total.
+### Implementation order
+
+```
+Step 0  param_names on priors          (~1 hour)    ✅ DONE
+Step 1  simulate_for_vbi_sweep         (~0.5 day)   ✅ DONE
+Step 2  simulation cache               (~1.5 days)  ✅ DONE
+Step 3  VBIInference core              (~1 day)     ✅ DONE
+Step 4  save / load                    (~0.5 day)   ✅ DONE
+Step 5  from_config                    (~1 day)
+Step 6  diagnostic helpers             (~0.5 day)
+Step 7  tests + notebook               (~1 day)
+Step 8  inference_backend kwarg (sbi)  (~1 day)
+```
+
+**Total effort: ~7 days of focused work.**
+
+---
+
+**Effort:** ~7 days total.
 
 ---
 

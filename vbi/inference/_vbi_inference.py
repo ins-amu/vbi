@@ -28,6 +28,93 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 
+# ---------------------------------------------------------------------------
+# Estimator serialisation helpers
+# ---------------------------------------------------------------------------
+
+def _pack_estimator(est, data: dict) -> None:
+    """
+    Write all state needed to reconstruct ``est`` for inference (not training)
+    into the flat numpy array dict ``data`` using an ``est__`` prefix.
+
+    Saved beyond the basic ``weights / param_dim / feature_dim``:
+      - z-score normalizers  (theta_mean/std, x_mean/std)
+      - autoregressive masks (model_constants per flow)
+      - ActNorm init flags
+      - PCA components (if used)
+      - n_flows (so load can set up the right list sizes)
+    """
+    for k, v in est.weights.items():
+        data[f"est__w__{k}"] = np.asarray(v)
+
+    data["est__param_dim"]   = np.array(est.param_dim)
+    data["est__feature_dim"] = np.array(est.feature_dim)
+    data["est__n_flows"]     = np.array(getattr(est, "n_flows", 0))
+
+    for attr in ("theta_mean", "theta_std", "x_mean", "x_std"):
+        val = getattr(est, attr, None)
+        if val is not None:
+            data[f"est__{attr}"] = np.asarray(val)
+
+    mc = getattr(est, "model_constants", None)
+    if mc is not None:
+        for k_flow, layer in enumerate(mc["layers"]):
+            for key in ("M1", "M2", "Mm", "perm", "inv_perm"):
+                if key in layer:
+                    data[f"est__mc__{k_flow}__{key}"] = np.asarray(layer[key])
+
+    actnorm = getattr(est, "_actnorm_initialized", None)
+    if actnorm is not None:
+        data["est__actnorm_init"] = np.array(actnorm, dtype=bool)
+
+    if getattr(est, "_use_pca", False) and getattr(est, "_pca_components", None) is not None:
+        data["est__pca_components"] = np.asarray(est._pca_components)
+
+
+def _unpack_estimator(d, EstCls):
+    """
+    Reconstruct a fully functional estimator from the flat array dict ``d``
+    (keys produced by ``_pack_estimator``).
+
+    Uses ``EstCls(n_flows=n)`` so ``__post_init__`` initialises the correct
+    list sizes, then overrides all attributes with the restored values.
+    """
+    n_flows = int(d["est__n_flows"]) if "est__n_flows" in d else 4
+    est = EstCls(n_flows=n_flows)
+
+    est.weights        = {k[len("est__w__"):]: d[k] for k in d if k.startswith("est__w__")}
+    est.param_dim      = int(d["est__param_dim"])
+    est.feature_dim    = int(d["est__feature_dim"])
+    est._dims_inferred = True
+    est.loss_history   = []
+
+    for attr in ("theta_mean", "theta_std", "x_mean", "x_std"):
+        if f"est__{attr}" in d:
+            setattr(est, attr, d[f"est__{attr}"])
+
+    mc_keys = [k for k in d if k.startswith("est__mc__")]
+    if mc_keys:
+        n_mc_flows = max(int(k.split("__")[2]) for k in mc_keys) + 1
+        layers = []
+        for k_flow in range(n_mc_flows):
+            layer = {
+                key: d[f"est__mc__{k_flow}__{key}"]
+                for key in ("M1", "M2", "Mm", "perm", "inv_perm")
+                if f"est__mc__{k_flow}__{key}" in d
+            }
+            layers.append(layer)
+        est.model_constants = {"layers": layers}
+
+    if "est__actnorm_init" in d:
+        est._actnorm_initialized = list(d["est__actnorm_init"])
+
+    if "est__pca_components" in d:
+        est._pca_components = d["est__pca_components"]
+        est._use_pca = True
+
+    return est
+
+
 class VBIInference:
     """
     End-to-end VBI inference workflow.
@@ -234,17 +321,121 @@ class VBIInference:
         return _extract_from_cache(cache_dir, pipeline)
 
     # ------------------------------------------------------------------
-    # Save / load  (Step 4)
+    # Save / load
     # ------------------------------------------------------------------
 
     def save(self, path) -> None:
-        """Persist inference state to a ``.npz`` checkpoint.  Step 4."""
-        raise NotImplementedError("save/load coming in Step 4.")
+        """
+        Persist inference state to a single ``.npz`` checkpoint.
+
+        Saved: simulation data (theta, x across all rounds), full
+        estimator state (weights + normalizers + masks), feature/param
+        label lists, and constructor kwargs.
+
+        NOT saved: ``sim_spec`` and ``pipeline`` — supply them on load.
+
+        Parameters
+        ----------
+        path : str | Path  target file (``.npz`` extension added if absent)
+        """
+        path = Path(path)
+        if not path.suffix:
+            path = path.with_suffix(".npz")
+
+        data: dict[str, np.ndarray] = {}
+
+        # -- simulation data -------------------------------------------------
+        if self._snpe.n_simulations > 0:
+            theta_all, x_all, _ = self._snpe.get_simulations()
+            data["sim__theta_all"] = theta_all
+            data["sim__x_all"]     = x_all
+
+        # -- estimator state -------------------------------------------------
+        if self._last_estimator is not None:
+            _pack_estimator(self._last_estimator, data)
+
+        # -- metadata --------------------------------------------------------
+        data["meta__feature_labels"]    = np.array("|".join(self._feature_labels or []))
+        data["meta__param_names"]       = np.array("|".join(self._param_names or []))
+        data["meta__density_estimator"] = np.array(self._de_type)
+        data["meta__sim_backend"]       = np.array(self._sim_backend)
+        data["meta__backend"]           = np.array(self._snpe._backend)
+        data["meta__n_rounds"]          = np.array(self._snpe.n_rounds)
+
+        np.savez(path, **data)
+        log.info("VBIInference saved to %s", path)
 
     @classmethod
-    def load(cls, path, sim_spec, pipeline, prior=None, **kwargs) -> "VBIInference":
-        """Restore from a checkpoint written by ``save()``.  Step 4."""
-        raise NotImplementedError("save/load coming in Step 4.")
+    def load(
+        cls,
+        path,
+        sim_spec,
+        pipeline,
+        prior=None,
+        show_progress_bars: bool = True,
+        embedding_net=None,
+    ) -> "VBIInference":
+        """
+        Restore from a checkpoint written by ``save()``.
+
+        Parameters
+        ----------
+        path : str | Path
+        sim_spec : SimulationSpec
+        pipeline : FeaturePipeline  may differ from the saved one
+        prior : prior object | None
+            Required to call ``build_posterior()`` after load.
+
+        Returns
+        -------
+        VBIInference  fully reconstructed — ``train()`` and
+                      ``build_posterior()`` work immediately.
+        """
+        from ._backends import resolve_backend, get_estimator_map
+
+        path = Path(path)
+        d    = np.load(path, allow_pickle=False)
+
+        de_type     = str(d["meta__density_estimator"])
+        sim_backend = str(d["meta__sim_backend"])
+        backend     = str(d["meta__backend"])
+
+        inf = cls(
+            sim_spec           = sim_spec,
+            prior              = prior,
+            pipeline           = pipeline,
+            density_estimator  = de_type,
+            sim_backend        = sim_backend,
+            backend            = backend,
+            show_progress_bars = show_progress_bars,
+            embedding_net      = embedding_net,
+        )
+
+        fl_raw = str(d["meta__feature_labels"])
+        pn_raw = str(d["meta__param_names"])
+        inf._feature_labels = fl_raw.split("|") if fl_raw else []
+        inf._param_names    = pn_raw.split("|") if pn_raw else []
+
+        if "sim__theta_all" in d and "sim__x_all" in d:
+            inf._snpe.append_simulations(
+                d["sim__theta_all"], d["sim__x_all"],
+                exclude_invalid_x=False,
+            )
+
+        if "est__param_dim" in d:
+            backend_resolved = resolve_backend(backend)
+            de_map           = get_estimator_map(backend_resolved)
+            EstCls           = de_map[de_type]
+            est = _unpack_estimator(d, EstCls)
+            inf._last_estimator  = est
+            inf._snpe._estimator = est
+
+        log.info(
+            "VBIInference loaded from %s  (n_sims=%d, estimator=%s)",
+            path, inf._snpe.n_simulations,
+            "restored" if inf._last_estimator is not None else "not found",
+        )
+        return inf
 
     # ------------------------------------------------------------------
     # Config loader  (Step 5)

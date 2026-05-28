@@ -154,3 +154,107 @@ class TestVBIInferenceCore:
         # Explicit kwarg overrides default
         est = inf.train(stop_after_epochs=2, max_num_epochs=4)
         assert est is not None
+
+
+class TestVBIInferenceSaveLoad:
+
+    def test_save_creates_file(self, tmp_path):
+        inf = _make_inf()
+        inf.simulate(N_SIM, DURATION, seed=10)
+        inf.save(tmp_path / "ckpt.npz")
+        assert (tmp_path / "ckpt.npz").exists()
+
+    def test_save_adds_npz_extension(self, tmp_path):
+        inf = _make_inf()
+        inf.simulate(N_SIM, DURATION, seed=11)
+        inf.save(tmp_path / "ckpt")          # no extension
+        assert (tmp_path / "ckpt.npz").exists()
+
+    def test_load_restores_simulations(self, tmp_path):
+        inf = _make_inf()
+        theta_orig, x_orig = inf.simulate(N_SIM, DURATION, seed=12)
+        inf.save(tmp_path / "ckpt.npz")
+
+        inf2 = VBIInference.load(
+            tmp_path / "ckpt.npz",
+            sim_spec = _make_spec(),
+            pipeline = _stat_pipeline(),
+            prior    = PRIOR,
+        )
+        theta2, x2, _ = inf2.get_simulations()
+        assert theta2.shape == (N_SIM, 2)
+        assert x2.shape[0] == N_SIM
+        # Values survive round-trip at float32 precision
+        np.testing.assert_array_almost_equal(
+            theta_orig.astype("f4"), theta2, decimal=5
+        )
+
+    def test_load_restores_metadata(self, tmp_path):
+        inf = _make_inf()
+        inf.simulate(N_SIM, DURATION, seed=13)
+        inf.save(tmp_path / "ckpt.npz")
+
+        inf2 = VBIInference.load(
+            tmp_path / "ckpt.npz",
+            sim_spec = _make_spec(),
+            pipeline = _stat_pipeline(),
+            prior    = PRIOR,
+        )
+        assert inf2._param_names    == ["G", "eta"]
+        assert len(inf2._feature_labels) > 0
+
+    def test_load_restores_estimator_and_posterior_works(self, tmp_path):
+        inf = _make_inf()
+        inf.simulate(N_SIM, DURATION, seed=14)
+        est_orig = inf.train(stop_after_epochs=3, max_num_epochs=5)
+        inf.save(tmp_path / "ckpt.npz")
+
+        inf2 = VBIInference.load(
+            tmp_path / "ckpt.npz",
+            sim_spec = _make_spec(),
+            pipeline = _stat_pipeline(),
+            prior    = PRIOR,
+        )
+        assert inf2._last_estimator is not None
+
+        x_obs = inf2._snpe.get_simulations()[1][0]
+        post  = inf2.build_posterior()
+        samples = post.sample((50,), x=x_obs)
+        assert samples.shape == (50, 2)
+
+    def test_load_posterior_samples_consistent(self, tmp_path):
+        """Posterior samples before and after save/load agree at the same seed."""
+        inf = _make_inf()
+        inf.simulate(N_SIM, DURATION, seed=15)
+        inf.train(stop_after_epochs=3, max_num_epochs=5)
+
+        x_obs     = inf._snpe.get_simulations()[1][0]
+        post_orig = inf.build_posterior()
+        s_orig    = post_orig.sample((30,), x=x_obs, seed=99)
+
+        inf.save(tmp_path / "ckpt.npz")
+        inf2 = VBIInference.load(
+            tmp_path / "ckpt.npz",
+            sim_spec = _make_spec(),
+            pipeline = _stat_pipeline(),
+            prior    = PRIOR,
+        )
+        post2 = inf2.build_posterior()
+        s2    = post2.sample((30,), x=x_obs, seed=99)
+
+        np.testing.assert_array_almost_equal(s_orig, s2, decimal=4)
+
+    def test_save_without_estimator(self, tmp_path):
+        """save() works even if train() was never called."""
+        inf = _make_inf()
+        inf.simulate(N_SIM, DURATION, seed=16)
+        inf.save(tmp_path / "ckpt.npz")   # no train() call
+
+        inf2 = VBIInference.load(
+            tmp_path / "ckpt.npz",
+            sim_spec = _make_spec(),
+            pipeline = _stat_pipeline(),
+            prior    = PRIOR,
+        )
+        assert inf2._last_estimator is None
+        assert inf2._snpe.n_simulations == N_SIM
