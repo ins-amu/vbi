@@ -9,7 +9,7 @@ jobs:
   build-and-publish:
     name: Build and publish
     runs-on: ubuntu-latest
-    environment: pypi          # optional: add a GitHub "pypi" environment for extra protection
+    # environment: pypi          # optional: add a GitHub "pypi" environment for extra protection
     permissions:
       id-token: write          # required for PyPI trusted publisher (OIDC)
       contents: read
