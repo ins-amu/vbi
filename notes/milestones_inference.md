@@ -1346,8 +1346,8 @@ Step 1  simulate_for_vbi_sweep         (~0.5 day)   ✅ DONE
 Step 2  simulation cache               (~1.5 days)  ✅ DONE
 Step 3  VBIInference core              (~1 day)     ✅ DONE
 Step 4  save / load                    (~0.5 day)   ✅ DONE
-Step 5  from_config                    (~1 day)
-Step 6  diagnostic helpers             (~0.5 day)
+Step 5  from_config                    (~1 day)     ✅ DONE
+Step 6  diagnostic helpers             (~0.5 day)   ✅ DONE
 Step 7  tests + notebook               (~1 day)
 Step 8  inference_backend kwarg (sbi)  (~1 day)
 ```

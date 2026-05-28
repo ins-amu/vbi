@@ -197,6 +197,39 @@ def _parse_pipeline(d: dict):
     )
 
 
+# ---------------------------------------------------------------------------
+# SBC simulator helper  (Step 6)
+# ---------------------------------------------------------------------------
+
+def _make_simulator_fn(sim_spec, prior, pipeline, sim_backend, duration):
+    """
+    Return a callable ``theta_1d -> x_1d`` suitable for :func:`run_sbc`.
+
+    Each call patches the SimulationSpec with the given parameter values,
+    runs one simulation, and extracts features via the pipeline.
+    """
+    from vbi.simulator.api import Simulator
+    from vbi.simulator.spec.sweep import SweepSpec
+    from vbi.simulator.api import Sweeper
+
+    param_names = prior._resolved_param_names
+
+    def simulator_fn(theta_1d: np.ndarray) -> np.ndarray:
+        theta_1d = np.asarray(theta_1d, dtype=np.float64).ravel()
+        sweep_spec = SweepSpec(
+            params      = theta_1d[None, :],   # (1, d_theta)
+            param_names = tuple(param_names),
+            pipeline    = pipeline,
+        )
+        sweeper = Sweeper(sim_spec, sweep_spec, backend=sim_backend)
+        labels, values = sweeper.run(duration)
+        n_params = len(param_names)
+        x_1d = values[0, n_params:].astype(np.float64)
+        return x_1d
+
+    return simulator_fn
+
+
 class VBIInference:
     """
     End-to-end VBI inference workflow.
@@ -588,16 +621,120 @@ class VBIInference:
         return inf
 
     # ------------------------------------------------------------------
-    # Diagnostics  (Step 6)
+    # Diagnostics
     # ------------------------------------------------------------------
 
     def plot_loss(self):
-        """Plot training / validation loss curves.  Step 6."""
-        raise NotImplementedError("Diagnostics coming in Step 6.")
+        """
+        Plot training and validation loss curves for the last ``train()`` call.
+
+        Returns
+        -------
+        matplotlib.figure.Figure
+
+        Raises
+        ------
+        RuntimeError  if ``train()`` has not been called yet.
+        """
+        from ._diagnostics import plot_loss as _plot_loss
+
+        if self._last_estimator is None:
+            raise RuntimeError("No trained estimator — call train() first.")
+
+        train_loss = getattr(self._last_estimator, "loss_history", [])
+        val_loss   = getattr(self._last_estimator, "val_loss_history", None)
+        if not train_loss:
+            raise RuntimeError(
+                "Loss history is empty — the estimator may have been loaded "
+                "from a checkpoint (loss is not persisted)."
+            )
+        return _plot_loss(train_loss, val_loss)
 
     def pairplot(self, x_obs, num_samples: int = 1000, **kwargs):
-        """Pairplot of posterior samples at x_obs.  Step 6."""
-        raise NotImplementedError("Diagnostics coming in Step 6.")
+        """
+        Sample the posterior at ``x_obs`` and plot a pairplot.
+
+        Parameters
+        ----------
+        x_obs       : array_like  observed feature vector
+        num_samples : int  posterior samples to draw
+        **kwargs    : forwarded to :func:`vbi.inference.pairplot`
+
+        Returns
+        -------
+        matplotlib.figure.Figure
+
+        Raises
+        ------
+        RuntimeError  if ``build_posterior()`` has not been called.
+        """
+        from ._diagnostics import pairplot as _pairplot
+
+        if self._last_estimator is None:
+            raise RuntimeError(
+                "No trained estimator — call train() and build_posterior() first."
+            )
+        posterior = self.build_posterior()
+        samples   = posterior.sample((num_samples,), x=np.asarray(x_obs))
+        return _pairplot(
+            samples,
+            labels = self._param_names,
+            **kwargs,
+        )
+
+    def run_sbc(
+        self,
+        duration: float | None = None,
+        num_sbc_runs: int       = 500,
+        num_posterior_samples: int = 100,
+        seed: int               = 0,
+    ) -> dict:
+        """
+        Run Simulation-Based Calibration using the internal simulator.
+
+        Parameters
+        ----------
+        duration              : float  simulation length in ms; uses the last
+                                ``simulate()`` duration if None (not stored —
+                                must supply explicitly).
+        num_sbc_runs          : int
+        num_posterior_samples : int
+        seed                  : int
+
+        Returns
+        -------
+        dict  with keys ``ranks``, ``dap_samples``; pass to
+              :func:`vbi.inference.check_sbc` or :func:`vbi.inference.sbc_rank_plot`.
+
+        Raises
+        ------
+        RuntimeError  if ``train()`` / ``build_posterior()`` not called yet, or
+                      if ``duration`` is not supplied.
+        """
+        from ._diagnostics import run_sbc as _run_sbc
+
+        if duration is None:
+            raise RuntimeError(
+                "duration must be supplied (simulation length in ms)."
+            )
+        if self._last_estimator is None:
+            raise RuntimeError(
+                "No trained estimator — call train() first."
+            )
+
+        posterior    = self.build_posterior()
+        simulator_fn = _make_simulator_fn(
+            self._sim_spec, self._prior, self._pipeline,
+            self._sim_backend, duration,
+        )
+        return _run_sbc(
+            posterior            = posterior,
+            simulator            = simulator_fn,
+            prior                = self._prior,
+            num_sbc_runs         = num_sbc_runs,
+            num_posterior_samples = num_posterior_samples,
+            seed                 = seed,
+        )
 
     # ------------------------------------------------------------------
     # Repr
