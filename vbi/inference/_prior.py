@@ -12,6 +12,17 @@ import numpy as np
 from scipy.special import gammaln
 
 
+def _resolve_param_names(param_names, dim: int) -> list[str]:
+    if param_names is not None:
+        names = list(param_names)
+        if len(names) != dim:
+            raise ValueError(
+                f"param_names has {len(names)} entries but prior has dim={dim}."
+            )
+        return names
+    return [f"p{i}" for i in range(dim)]
+
+
 class BoxUniform:
     """
     Independent uniform distribution on a hyperrectangle.
@@ -31,7 +42,7 @@ class BoxUniform:
     (1000, 2)
     """
 
-    def __init__(self, low, high):
+    def __init__(self, low, high, param_names=None):
         self.low  = np.asarray(low,  dtype=np.float64)
         self.high = np.asarray(high, dtype=np.float64)
         if self.low.shape != self.high.shape:
@@ -39,6 +50,9 @@ class BoxUniform:
         if np.any(self.low >= self.high):
             raise ValueError("low must be strictly less than high for every dimension.")
         self._log_volume = np.sum(np.log(self.high - self.low))
+        self.param_names = param_names
+        if param_names is not None:
+            _resolve_param_names(param_names, self.dim)
 
     @property
     def event_shape(self):
@@ -47,6 +61,10 @@ class BoxUniform:
     @property
     def dim(self) -> int:
         return int(self.low.size)
+
+    @property
+    def _resolved_param_names(self) -> list[str]:
+        return _resolve_param_names(self.param_names, self.dim)
 
     def sample(self, sample_shape, seed: int | None = None) -> np.ndarray:
         """
@@ -98,15 +116,22 @@ class Gaussian:
     std  : array-like  shape (d,)  — standard deviations (not variances)
     """
 
-    def __init__(self, mean, std):
+    def __init__(self, mean, std, param_names=None):
         self.mean = np.asarray(mean, dtype=np.float64)
         self.std  = np.asarray(std,  dtype=np.float64)
         if np.any(self.std <= 0):
             raise ValueError("std must be strictly positive.")
+        self.param_names = param_names
+        if param_names is not None:
+            _resolve_param_names(param_names, self.dim)
 
     @property
     def dim(self) -> int:
         return int(self.mean.size)
+
+    @property
+    def _resolved_param_names(self) -> list[str]:
+        return _resolve_param_names(self.param_names, self.dim)
 
     def sample(self, sample_shape, seed: int | None = None) -> np.ndarray:
         rng  = np.random.default_rng(seed)
@@ -136,14 +161,21 @@ class CustomPrior:
     dim         : int  dimensionality of the parameter space
     """
 
-    def __init__(self, sample_fn, log_prob_fn, dim: int):
+    def __init__(self, sample_fn, log_prob_fn, dim: int, param_names=None):
         self._sample_fn   = sample_fn
         self._log_prob_fn = log_prob_fn
         self._dim         = dim
+        self.param_names  = param_names
+        if param_names is not None:
+            _resolve_param_names(param_names, self.dim)
 
     @property
     def dim(self) -> int:
         return self._dim
+
+    @property
+    def _resolved_param_names(self) -> list[str]:
+        return _resolve_param_names(self.param_names, self.dim)
 
     def sample(self, sample_shape, seed: int | None = None) -> np.ndarray:
         return np.asarray(self._sample_fn(sample_shape))
@@ -169,7 +201,7 @@ class MultivariateNormal:
     cov  : array-like  (d, d)  — positive-definite covariance matrix
     """
 
-    def __init__(self, mean, cov):
+    def __init__(self, mean, cov, param_names=None):
         self.mean = np.asarray(mean, dtype=np.float64)
         self.cov  = np.asarray(cov,  dtype=np.float64)
         if self.mean.ndim != 1:
@@ -177,13 +209,20 @@ class MultivariateNormal:
         d = self.mean.size
         if self.cov.shape != (d, d):
             raise ValueError(f"cov must be ({d}, {d}).")
-        self._L       = np.linalg.cholesky(self.cov)          # lower triangular
+        self._L       = np.linalg.cholesky(self.cov)
         self._L_inv   = np.linalg.inv(self._L)
         self._log_det = 2.0 * np.sum(np.log(np.diag(self._L)))
+        self.param_names = param_names
+        if param_names is not None:
+            _resolve_param_names(param_names, self.dim)
 
     @property
     def dim(self) -> int:
         return int(self.mean.size)
+
+    @property
+    def _resolved_param_names(self) -> list[str]:
+        return _resolve_param_names(self.param_names, self.dim)
 
     def sample(self, sample_shape, seed: int | None = None) -> np.ndarray:
         rng  = np.random.default_rng(seed)
@@ -219,15 +258,22 @@ class LogNormal:
     std  : array-like  (d,)  — std of log(X)  (must be > 0)
     """
 
-    def __init__(self, mean, std):
+    def __init__(self, mean, std, param_names=None):
         self.mean = np.asarray(mean, dtype=np.float64)
         self.std  = np.asarray(std,  dtype=np.float64)
         if np.any(self.std <= 0):
             raise ValueError("std must be strictly positive.")
+        self.param_names = param_names
+        if param_names is not None:
+            _resolve_param_names(param_names, self.dim)
 
     @property
     def dim(self) -> int:
         return int(self.mean.size)
+
+    @property
+    def _resolved_param_names(self) -> list[str]:
+        return _resolve_param_names(self.param_names, self.dim)
 
     def sample(self, sample_shape, seed: int | None = None) -> np.ndarray:
         rng  = np.random.default_rng(seed)
@@ -266,17 +312,24 @@ class Gamma:
     rate          : array-like  (d,)  — rate parameter β > 0  (scale = 1/rate)
     """
 
-    def __init__(self, concentration, rate):
+    def __init__(self, concentration, rate, param_names=None):
         self.concentration = np.asarray(concentration, dtype=np.float64)
         self.rate          = np.asarray(rate,          dtype=np.float64)
         if np.any(self.concentration <= 0):
             raise ValueError("concentration must be strictly positive.")
         if np.any(self.rate <= 0):
             raise ValueError("rate must be strictly positive.")
+        self.param_names = param_names
+        if param_names is not None:
+            _resolve_param_names(param_names, self.dim)
 
     @property
     def dim(self) -> int:
         return int(self.concentration.size)
+
+    @property
+    def _resolved_param_names(self) -> list[str]:
+        return _resolve_param_names(self.param_names, self.dim)
 
     def sample(self, sample_shape, seed: int | None = None) -> np.ndarray:
         rng  = np.random.default_rng(seed)
@@ -316,17 +369,23 @@ class Beta:
     beta  : array-like  (d,)  — β > 0
     """
 
-    def __init__(self, alpha, beta):
+    def __init__(self, alpha, beta, param_names=None):
         self.alpha = np.asarray(alpha, dtype=np.float64)
         self.beta  = np.asarray(beta,  dtype=np.float64)
         if np.any(self.alpha <= 0) or np.any(self.beta <= 0):
             raise ValueError("alpha and beta must be strictly positive.")
-        # log normalisation constant: log B(α, β) = lgamma(α) + lgamma(β) - lgamma(α+β)
         self._log_norm = gammaln(self.alpha) + gammaln(self.beta) - gammaln(self.alpha + self.beta)
+        self.param_names = param_names
+        if param_names is not None:
+            _resolve_param_names(param_names, self.dim)
 
     @property
     def dim(self) -> int:
         return int(self.alpha.size)
+
+    @property
+    def _resolved_param_names(self) -> list[str]:
+        return _resolve_param_names(self.param_names, self.dim)
 
     def sample(self, sample_shape, seed: int | None = None) -> np.ndarray:
         rng  = np.random.default_rng(seed)
@@ -377,16 +436,28 @@ class MultipleIndependent:
     >>> prior.dim   # 2
     """
 
-    def __init__(self, priors):
+    def __init__(self, priors, param_names=None):
         self._priors = list(priors)
         if not self._priors:
             raise ValueError("priors list must not be empty.")
-        self._dims       = [p.dim for p in self._priors]
-        self._total_dim  = sum(self._dims)
+        self._dims      = [p.dim for p in self._priors]
+        self._total_dim = sum(self._dims)
+        self.param_names = param_names
+        if param_names is not None:
+            _resolve_param_names(param_names, self.dim)
 
     @property
     def dim(self) -> int:
         return self._total_dim
+
+    @property
+    def _resolved_param_names(self) -> list[str]:
+        if self.param_names is not None:
+            return _resolve_param_names(self.param_names, self.dim)
+        names = []
+        for p in self._priors:
+            names.extend(p._resolved_param_names)
+        return names
 
     def sample(self, sample_shape, seed: int | None = None) -> np.ndarray:
         rng  = np.random.default_rng(seed)
@@ -436,13 +507,22 @@ class RestrictedPrior:
     ... )
     """
 
-    def __init__(self, base_prior, constraint_fn):
+    def __init__(self, base_prior, constraint_fn, param_names=None):
         self._base       = base_prior
         self._constraint = constraint_fn
+        self.param_names = param_names
+        if param_names is not None:
+            _resolve_param_names(param_names, self.dim)
 
     @property
     def dim(self) -> int:
         return self._base.dim
+
+    @property
+    def _resolved_param_names(self) -> list[str]:
+        if self.param_names is not None:
+            return _resolve_param_names(self.param_names, self.dim)
+        return self._base._resolved_param_names
 
     def sample(self, sample_shape, seed: int | None = None) -> np.ndarray:
         rng        = np.random.default_rng(seed)

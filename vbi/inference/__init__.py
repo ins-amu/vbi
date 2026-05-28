@@ -37,7 +37,12 @@ from ._prior      import (
 )
 from ._posterior  import Posterior
 from ._embedding  import EmbeddingNet
-from ._utils      import simulate_for_vbi, simulate_for_sbi, process_prior
+from ._utils      import (
+    simulate_for_vbi, simulate_for_sbi, process_prior,
+    simulate_for_vbi_sweep,
+    simulate_for_vbi_sweep_cached,
+    extract_from_cache,
+)
 from ._estimators import (
     ConditionalDensityEstimator,
     MDNEstimator,
@@ -81,6 +86,9 @@ __all__ = [
     "simulate_for_vbi",
     "simulate_for_sbi",
     "process_prior",
+    "simulate_for_vbi_sweep",
+    "simulate_for_vbi_sweep_cached",
+    "extract_from_cache",
     # Low-level estimators (for direct use / subclassing)
     "ConditionalDensityEstimator",
     "MDNEstimator",
