@@ -230,6 +230,119 @@ def _make_simulator_fn(sim_spec, prior, pipeline, sim_backend, duration):
     return simulator_fn
 
 
+# ---------------------------------------------------------------------------
+# SBI inference-backend helpers  (Step 8)
+# ---------------------------------------------------------------------------
+
+def _prior_to_sbi(prior):
+    """Convert a vbi prior to a sbi/torch-compatible prior."""
+    import torch
+    from vbi.inference._prior import BoxUniform as _VBIBoxUniform
+
+    if isinstance(prior, _VBIBoxUniform):
+        from sbi.utils import BoxUniform as _SBIBoxUniform
+        return _SBIBoxUniform(
+            low  = torch.tensor(prior.low,  dtype=torch.float32),
+            high = torch.tensor(prior.high, dtype=torch.float32),
+        )
+
+    # Generic wrapper: expose torch Distribution interface
+    class _TorchWrapper(torch.distributions.Distribution):
+        arg_constraints: dict = {}
+        has_rsample = False
+
+        def __init__(self, vbi_prior):
+            self._p = vbi_prior
+            super().__init__(
+                batch_shape=torch.Size([]),
+                event_shape=torch.Size([vbi_prior.dim]),
+                validate_args=False,
+            )
+
+        def sample(self, sample_shape=torch.Size()):
+            n = sample_shape[0] if len(sample_shape) > 0 else 1
+            arr = self._p.sample((n,))
+            return torch.tensor(arr, dtype=torch.float32)
+
+        def log_prob(self, theta):
+            arr = theta.detach().cpu().numpy()
+            lp  = self._p.log_prob(arr)
+            return torch.tensor(lp, dtype=torch.float32)
+
+    return _TorchWrapper(prior)
+
+
+def _setup_sbi_engine(prior, density_estimator: str, inference_engine, show_progress_bars: bool):
+    """Initialise (or return) an sbi SNPE engine."""
+    try:
+        from sbi.inference import SNPE as _SBI_SNPE
+    except ImportError as e:
+        raise ImportError(
+            "inference_backend='sbi' requires the 'sbi' package. "
+            "Install with:  pip install sbi"
+        ) from e
+
+    if inference_engine is not None:
+        return inference_engine
+
+    torch_prior = _prior_to_sbi(prior)
+    return _SBI_SNPE(
+        prior             = torch_prior,
+        density_estimator = density_estimator,
+        show_progress_bars = show_progress_bars,
+    )
+
+
+def _filter_sbi_train_kwargs(kwargs: dict) -> dict:
+    """
+    Keep only kwargs that sbi's SNPE.train() accepts.
+    sbi uses the same kwarg names as vbi for the common ones.
+    """
+    _SBI_TRAIN_KEYS = {
+        "training_batch_size", "learning_rate", "validation_fraction",
+        "stop_after_epochs", "max_num_epochs", "clip_max_norm",
+        "num_atoms", "resume_training", "show_train_summary",
+    }
+    return {k: v for k, v in kwargs.items() if k in _SBI_TRAIN_KEYS}
+
+
+class _NumpyPosteriorWrapper:
+    """
+    Wraps an sbi Posterior so that ``sample`` and ``log_prob`` return numpy
+    arrays instead of torch tensors.  The underlying sbi posterior is
+    accessible via ``.sbi_posterior``.
+    """
+
+    def __init__(self, sbi_posterior):
+        self.sbi_posterior = sbi_posterior
+
+    def sample(self, sample_shape, x=None, seed=None):
+        import torch
+        n = sample_shape[0] if isinstance(sample_shape, tuple) else int(sample_shape)
+        x_t = torch.tensor(np.asarray(x), dtype=torch.float32) if x is not None else None
+        samples = self.sbi_posterior.sample(
+            (n,), x=x_t, show_progress_bars=False
+        )
+        return samples.detach().cpu().numpy()
+
+    def log_prob(self, theta, x=None):
+        import torch
+        theta_t = torch.tensor(np.atleast_2d(theta), dtype=torch.float32)
+        x_t     = torch.tensor(np.asarray(x), dtype=torch.float32) if x is not None else None
+        lp = self.sbi_posterior.log_prob(theta_t, x=x_t)
+        return lp.detach().cpu().numpy()
+
+    def set_default_x(self, x):
+        import torch
+        self.sbi_posterior.set_default_x(
+            torch.tensor(np.asarray(x), dtype=torch.float32)
+        )
+        return self
+
+    def __repr__(self):
+        return f"_NumpyPosteriorWrapper({self.sbi_posterior!r})"
+
+
 class VBIInference:
     """
     End-to-end VBI inference workflow.
@@ -271,23 +384,49 @@ class VBIInference:
         backend: str = "auto",
         show_progress_bars: bool = True,
         embedding_net=None,
+        inference_backend: str = "vbi",
+        inference_engine=None,
     ):
+        """
+        Parameters
+        ----------
+        inference_backend : 'vbi' | 'sbi'
+            Which inference engine to use for training and posterior.
+            'vbi' (default) uses the built-in torch-free SNPE.
+            'sbi' uses ``sbi.inference.SNPE`` — requires ``sbi`` and ``torch``
+            to be installed.
+        inference_engine : sbi.inference.SNPE | None
+            Pass a pre-configured sbi SNPE object directly.  When set,
+            ``inference_backend`` is ignored and the given object is used.
+            The prior is taken from ``prior`` (converted to torch).
+        """
         self._sim_spec          = sim_spec
         self._prior             = prior
         self._pipeline          = pipeline
         self._sim_backend       = sim_backend
         self._de_type           = density_estimator
-        self._snpe              = SNPE(
-            prior               = prior,
-            density_estimator   = density_estimator,
-            backend             = backend,
-            show_progress_bars  = show_progress_bars,
-            embedding_net       = embedding_net,
-        )
         self._feature_labels: list[str] | None = None
         self._param_names:    list[str] | None = None
         self._default_train_kwargs: dict       = {}
         self._last_estimator                   = None
+        self._sim_rounds: list[tuple]          = []   # (theta, x) per simulate() call
+
+        if inference_engine is not None or inference_backend == "sbi":
+            self._inference_backend = "sbi"
+            self._snpe              = None
+            self._sbi_engine        = _setup_sbi_engine(
+                prior, density_estimator, inference_engine, show_progress_bars,
+            )
+        else:
+            self._inference_backend = "vbi"
+            self._sbi_engine        = None
+            self._snpe              = SNPE(
+                prior               = prior,
+                density_estimator   = density_estimator,
+                backend             = backend,
+                show_progress_bars  = show_progress_bars,
+                embedding_net       = embedding_net,
+            )
 
     # ------------------------------------------------------------------
     # Core workflow
@@ -355,27 +494,43 @@ class VBIInference:
         if self._feature_labels is None:
             self._feature_labels = feat_labels
 
-        self._snpe.append_simulations(theta, x, proposal=proposal)
+        # Backend-agnostic storage (used by get_simulations / save / load)
+        self._sim_rounds.append((theta.copy(), x.copy()))
+
+        # Append to the active inference engine
+        if self._inference_backend == "vbi":
+            self._snpe.append_simulations(theta, x, proposal=proposal)
+        else:
+            torch_prior_proposal = proposal  # sbi handles proposal natively
+            self._sbi_engine.append_simulations(theta, x)
+
         return theta, x
 
-    def train(self, **train_kwargs) -> "ConditionalDensityEstimator":
+    def train(self, **train_kwargs):
         """
         Train the density estimator on all accumulated simulations.
 
-        Keyword arguments are forwarded to ``SNPE.train()``.  Any kwargs
-        stored via ``from_config`` serve as defaults and can be overridden
-        here.
+        Keyword arguments are forwarded to ``SNPE.train()`` (vbi backend) or
+        ``sbi.SNPE.train()`` (sbi backend).  Any kwargs stored via
+        ``from_config`` serve as defaults and can be overridden here.
 
         Returns
         -------
-        estimator : ConditionalDensityEstimator
+        estimator  (vbi backend: ConditionalDensityEstimator;
+                    sbi backend: sbi NeuralPosteriorEstimator)
         """
-        if self._snpe.n_simulations == 0:
+        if not self._sim_rounds:
             raise RuntimeError(
                 "No simulations available.  Call simulate() before train()."
             )
         merged = {**self._default_train_kwargs, **train_kwargs}
-        self._last_estimator = self._snpe.train(**merged)
+
+        if self._inference_backend == "vbi":
+            self._last_estimator = self._snpe.train(**merged)
+        else:
+            # sbi kwarg names overlap substantially with vbi's; pass all through
+            self._last_estimator = self._sbi_engine.train(**_filter_sbi_train_kwargs(merged))
+
         return self._last_estimator
 
     def build_posterior(
@@ -383,36 +538,49 @@ class VBIInference:
         estimator=None,
         sample_with: str = "direct",
         **kwargs,
-    ) -> "Posterior":
+    ):
         """
         Wrap the trained estimator in a Posterior object.
 
+        For the vbi backend returns a ``vbi.inference.Posterior``.
+        For the sbi backend returns a numpy-compatible wrapper around the
+        sbi posterior (``sample`` and ``log_prob`` return numpy arrays).
+
         Parameters
         ----------
-        estimator : ConditionalDensityEstimator | None
+        estimator : estimator object | None
             Uses the last one returned by ``train()`` if None.
         sample_with : 'direct' | 'mcmc' | 'rejection'
-
-        Returns
-        -------
-        Posterior
+            Only used by the vbi backend.
         """
         est = estimator if estimator is not None else self._last_estimator
-        return self._snpe.build_posterior(
-            density_estimator=est, sample_with=sample_with, **kwargs
-        )
+        if self._inference_backend == "vbi":
+            return self._snpe.build_posterior(
+                density_estimator=est, sample_with=sample_with, **kwargs
+            )
+        else:
+            sbi_posterior = self._sbi_engine.build_posterior(est, **kwargs)
+            return _NumpyPosteriorWrapper(sbi_posterior)
 
     def get_simulations(self, starting_round: int = 0):
         """
-        Return all accumulated (theta, x, proposals) from ``starting_round``.
+        Return all accumulated ``(theta, x)`` from ``starting_round`` onward.
+
+        Works for both vbi and sbi backends.
 
         Returns
         -------
-        theta     : (N, d_theta)
-        x         : (N, d_x)
-        proposals : list
+        theta     : (N, d_theta) float32
+        x         : (N, d_x)    float32
+        proposals : list        (always empty list for sbi backend)
         """
-        return self._snpe.get_simulations(starting_round)
+        rounds = self._sim_rounds[starting_round:]
+        if not rounds:
+            empty = np.empty((0, 0), dtype=np.float32)
+            return empty, empty, []
+        theta = np.concatenate([r[0] for r in rounds], axis=0).astype(np.float32)
+        x     = np.concatenate([r[1] for r in rounds], axis=0).astype(np.float32)
+        return theta, x, []
 
     # ------------------------------------------------------------------
     # Cache helper (static — usable without an instance)
@@ -459,23 +627,31 @@ class VBIInference:
 
         data: dict[str, np.ndarray] = {}
 
-        # -- simulation data -------------------------------------------------
-        if self._snpe.n_simulations > 0:
-            theta_all, x_all, _ = self._snpe.get_simulations()
+        # -- simulation data (backend-agnostic) ------------------------------
+        if self._sim_rounds:
+            theta_all, x_all, _ = self.get_simulations()
             data["sim__theta_all"] = theta_all
             data["sim__x_all"]     = x_all
 
-        # -- estimator state -------------------------------------------------
-        if self._last_estimator is not None:
+        # -- estimator state (vbi backend only) --------------------------------
+        if self._inference_backend == "vbi" and self._last_estimator is not None:
             _pack_estimator(self._last_estimator, data)
+        elif self._inference_backend == "sbi" and self._last_estimator is not None:
+            log.warning(
+                "VBIInference.save: sbi estimator weights are NOT saved. "
+                "Use sbi's own torch.save(posterior, path) to persist the trained model."
+            )
 
         # -- metadata --------------------------------------------------------
         data["meta__feature_labels"]    = np.array("|".join(self._feature_labels or []))
         data["meta__param_names"]       = np.array("|".join(self._param_names or []))
         data["meta__density_estimator"] = np.array(self._de_type)
         data["meta__sim_backend"]       = np.array(self._sim_backend)
-        data["meta__backend"]           = np.array(self._snpe._backend)
-        data["meta__n_rounds"]          = np.array(self._snpe.n_rounds)
+        data["meta__inference_backend"] = np.array(self._inference_backend)
+        data["meta__n_rounds"]          = np.array(len(self._sim_rounds))
+        # VBI-only: persist the resolved estimator backend string
+        vbi_backend = self._snpe._backend if self._snpe is not None else "numpy"
+        data["meta__backend"]           = np.array(vbi_backend)
 
         np.savez(path, **data)
         log.info("VBIInference saved to %s", path)
@@ -511,9 +687,11 @@ class VBIInference:
         path = Path(path)
         d    = np.load(path, allow_pickle=False)
 
-        de_type     = str(d["meta__density_estimator"])
-        sim_backend = str(d["meta__sim_backend"])
-        backend     = str(d["meta__backend"])
+        de_type            = str(d["meta__density_estimator"])
+        sim_backend        = str(d["meta__sim_backend"])
+        backend            = str(d["meta__backend"])
+        inference_backend  = str(d["meta__inference_backend"]) \
+                             if "meta__inference_backend" in d else "vbi"
 
         inf = cls(
             sim_spec           = sim_spec,
@@ -524,6 +702,7 @@ class VBIInference:
             backend            = backend,
             show_progress_bars = show_progress_bars,
             embedding_net      = embedding_net,
+            inference_backend  = inference_backend,
         )
 
         fl_raw = str(d["meta__feature_labels"])
@@ -532,12 +711,17 @@ class VBIInference:
         inf._param_names    = pn_raw.split("|") if pn_raw else []
 
         if "sim__theta_all" in d and "sim__x_all" in d:
-            inf._snpe.append_simulations(
-                d["sim__theta_all"], d["sim__x_all"],
-                exclude_invalid_x=False,
-            )
+            theta_all = np.asarray(d["sim__theta_all"])
+            x_all     = np.asarray(d["sim__x_all"])
+            # Re-inject into the active engine
+            if inf._inference_backend == "vbi":
+                inf._snpe.append_simulations(theta_all, x_all, exclude_invalid_x=False)
+            else:
+                inf._sbi_engine.append_simulations(theta_all, x_all)
+            # Restore backend-agnostic round storage (single round)
+            inf._sim_rounds = [(theta_all.astype(np.float64), x_all.astype(np.float64))]
 
-        if "est__param_dim" in d:
+        if "est__param_dim" in d and inf._inference_backend == "vbi":
             backend_resolved = resolve_backend(backend)
             de_map           = get_estimator_map(backend_resolved)
             EstCls           = de_map[de_type]
@@ -741,10 +925,12 @@ class VBIInference:
     # ------------------------------------------------------------------
 
     def __repr__(self) -> str:
+        n_sims = sum(r[0].shape[0] for r in self._sim_rounds)
         return (
             f"VBIInference("
             f"density_estimator={self._de_type!r}, "
+            f"inference_backend={self._inference_backend!r}, "
             f"sim_backend={self._sim_backend!r}, "
-            f"n_rounds={self._snpe.n_rounds}, "
-            f"n_sims={self._snpe.n_simulations})"
+            f"n_rounds={len(self._sim_rounds)}, "
+            f"n_sims={n_sims})"
         )
