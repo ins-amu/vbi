@@ -155,15 +155,32 @@ class SimulationSpec:
             )
         model = _MODELS[model_key]
 
-        # Connectivity
+        # Connectivity — delegate to prepare_connectivity for format flexibility
+        from .connectivity import prepare_connectivity
         conn = d["connectivity"]
-        if isinstance(conn, str):
-            npz = np.load(conn)
-            weights      = npz["weights"]
-            tract_lengths = npz["tract_lengths"] if "tract_lengths" in npz else None
-        else:
+        if isinstance(conn, (str, Path)):
+            path = Path(conn)
+            if path.suffix.lower() == ".npz":
+                npz = np.load(path)
+                weights       = npz["weights"]
+                tract_lengths = npz.get("tract_lengths")
+                weights, tract_lengths = prepare_connectivity(
+                    weights, tract_lengths, normalize=False
+                )
+            else:
+                # .txt / .csv / .npy
+                weights, tract_lengths = prepare_connectivity(
+                    path, normalize=False
+                )
+        elif isinstance(conn, dict):
             weights       = np.asarray(conn["weights"])
-            tract_lengths = np.asarray(conn["tract_lengths"]) if "tract_lengths" in conn else None
+            tl_raw        = conn.get("tract_lengths")
+            tract_lengths = np.asarray(tl_raw) if tl_raw is not None else None
+            weights, tract_lengths = prepare_connectivity(
+                weights, tract_lengths, normalize=False
+            )
+        else:
+            weights, tract_lengths = prepare_connectivity(conn, normalize=False)
 
         # Integrator
         integrator = IntegratorSpec(
