@@ -812,6 +812,28 @@ mdn.train(theta, x, device='cuda')
 
 **Goal:** One object owns the full workflow: prior sampling → sweep simulation
 → feature extraction → SNPE training → posterior.  No manual glue code.
+Expensive simulations can be cached to disk so features can be recomputed
+without re-running the sweeper.
+
+### Resolved design decisions
+
+**Q1 — Sweeper return format with pipeline:**
+`NumpySweeper.run(dur)` returns `(labels, values)` where
+`values.shape == (n_samples, n_params + n_features)`, params first.
+`simulate_for_vbi_sweep` therefore calls `sweeper.run()` and slices:
+`theta = values[:, :n_params]`, `x = values[:, n_params:]`.
+
+**Q2 — `SimulationSpec.from_dict`:** Does not exist.
+Step 4 must add a minimal `SimulationSpec.from_dict(d)` to
+`vbi/simulator/spec/simulation.py`.
+
+**Q3 — `param_names` location:** Add `param_names: list[str] | None = None`
+to all prior constructors in `_prior.py` (see Step 0).
+Rationale: the prior semantically owns its parameter names; this keeps
+`VBIInference` clean, makes pairplots automatic, and matches how sbi
+users think about priors.
+
+---
 
 ### Target API
 
@@ -819,33 +841,52 @@ mdn.train(theta, x, device='cuda')
 from vbi.inference import VBIInference, BoxUniform
 import numpy as np
 
-prior = BoxUniform(low=np.array([0.5, -5.5]), high=np.array([5.0, -3.0]))
-
-inf = VBIInference(
-    sim_spec   = sim_spec,          # SimulationSpec (model + connectivity)
-    prior      = prior,
-    pipeline   = feature_pipeline,  # FeaturePipeline instance
-    density_estimator = "maf",      # "maf" | "mdn" | "nsf"
-    sim_backend = "numba",          # backend for Sweeper
-    backend     = "auto",           # backend for density estimator
+prior = BoxUniform(
+    low=np.array([0.5, -5.5]),
+    high=np.array([5.0, -3.0]),
+    param_names=["G", "eta"],       # NEW — see Step 0
 )
 
-# --- Round 1: simulate from prior, train ---
-theta, x = inf.simulate(num_simulations=2000, duration=5000.0, seed=0)
+inf = VBIInference(
+    sim_spec          = sim_spec,
+    prior             = prior,
+    pipeline          = feature_pipeline,
+    density_estimator = "maf",
+    sim_backend       = "numba",
+    backend           = "auto",
+)
+
+# --- Round 1: simulate → cache raw → extract features → train ---
+theta, x = inf.simulate(
+    num_simulations = 2000,
+    duration        = 5000.0,
+    seed            = 0,
+    cache_dir       = "./sim_cache/r1/",   # optional; omit to skip caching
+    chunk_size      = 500,                 # simulations per chunk (GPU memory control)
+)
 estimator = inf.train(training_batch_size=256, stop_after_epochs=30)
 posterior  = inf.build_posterior(estimator)
 
-# --- Round 2: simulate from posterior (sequential) ---
-theta2, x2 = inf.simulate(num_simulations=500, duration=5000.0,
-                           proposal=posterior, x_obs=x_obs)
+# --- Re-extract with different features, no re-simulation ---
+new_pipeline = FeaturePipeline(new_cfg, signal="tavg", t_cut=1000.0)
+theta2, x2 = VBIInference.extract_from_cache("./sim_cache/r1/", new_pipeline)
+
+# --- Round 2: simulate from posterior ---
+theta_r2, x_r2 = inf.simulate(
+    num_simulations = 500,
+    duration        = 5000.0,
+    proposal        = posterior,
+    x_obs           = x_obs,
+    cache_dir       = "./sim_cache/r2/",
+)
 estimator2 = inf.train()
 posterior2  = inf.build_posterior(estimator2)
 
-# --- Use the posterior ---
-samples    = posterior2.sample((2000,), x=x_obs)
+# --- Posterior use ---
+samples = posterior2.sample((2000,), x=x_obs)
 inf.save("run_mpr_g.npz")
 
-# --- Reload and continue ---
+# --- Reload inference state (not raw cache) ---
 inf2 = VBIInference.load("run_mpr_g.npz", sim_spec=sim_spec, pipeline=feature_pipeline)
 ```
 
@@ -854,9 +895,44 @@ inf2 = VBIInference.load("run_mpr_g.npz", sim_spec=sim_spec, pipeline=feature_pi
 ```
 vbi/inference/
   _vbi_inference.py    NEW — VBIInference class
-  _utils.py            ADD simulate_for_vbi_sweep() helper
+  _utils.py            ADD simulate_for_vbi_sweep(), extract_from_cache()
   __init__.py          ADD VBIInference export
+vbi/simulator/spec/
+  simulation.py        ADD SimulationSpec.from_dict()
 ```
+
+---
+
+### Step 0 — Add `param_names` to prior classes  *(prerequisite)*
+
+**File:** `vbi/inference/_prior.py`
+
+All prior classes gain an optional `param_names` argument.  When `None`,
+auto-generate `["p0", "p1", ...]` at call time based on the sample dimension.
+
+```python
+class BoxUniform:
+    def __init__(self, low, high, param_names=None):
+        ...
+        self.param_names = param_names  # list[str] | None
+
+    @property
+    def _resolved_param_names(self) -> list[str]:
+        if self.param_names is not None:
+            return list(self.param_names)
+        d = np.asarray(self.low).shape[0]
+        return [f"p{i}" for i in range(d)]
+```
+
+**Tasks:**
+
+- [ ] Add `param_names: list[str] | None = None` to `BoxUniform.__init__`
+- [ ] Same for `Gaussian`, `MultivariateNormal`, `MultipleIndependent`,
+      `LogNormal`, `Gamma`, `Beta`, `RestrictedPrior`
+- [ ] Add `_resolved_param_names` property to each (or a shared mixin)
+- [ ] No change to `sample()` or `log_prob()` — purely additive
+
+**Effort:** ~1 hour. Purely additive, no logic changes.
 
 ---
 
@@ -864,8 +940,8 @@ vbi/inference/
 
 **New function:** `simulate_for_vbi_sweep`
 
-Bridges `prior.sample(n)` → `SweepSpec(params=theta_array)` → `Sweeper.run()`
-→ `FeaturePipeline.extract()` → `(theta, x)` numpy arrays.
+Bridges `prior.sample(n)` → `SweepSpec(params=theta, pipeline=pipeline)`
+→ `Sweeper.run(duration)` → slice `(labels, values_concat)` → `(theta, x)`.
 
 ```python
 def simulate_for_vbi_sweep(
@@ -876,34 +952,121 @@ def simulate_for_vbi_sweep(
     duration: float,
     sim_backend: str = "numba",
     seed: int | None = None,
-    proposal=None,          # None = sample from prior; Posterior = sample from posterior
-    x_obs=None,             # required when proposal is a Posterior
-) -> tuple[np.ndarray, np.ndarray]:
-    """Returns (theta, x) where theta is (n, d_theta), x is (n, d_x)."""
+    proposal=None,     # None → sample from prior; Posterior → sample from it
+    x_obs=None,        # required when proposal is not None
+) -> tuple[np.ndarray, np.ndarray, list[str], list[str]]:
+    """
+    Returns (theta, x, param_names, feature_labels).
+    theta : (n, d_theta) float64
+    x     : (n, d_x)     float64
+    """
 ```
 
 **Tasks:**
 
-- [ ] Add `simulate_for_vbi_sweep` to `vbi/inference/_utils.py`
-- [ ] Sample `theta` from `prior` (or `proposal.sample` when proposal is set)
-- [ ] Build `SweepSpec(params=theta, param_names=prior_param_names, pipeline=pipeline)`
-  - [ ] Prior param names: try `prior.param_names`, else generate `["p0", "p1", ...]`
-- [ ] Instantiate `Sweeper(sim_spec, sweep_spec, backend=sim_backend)` and call `.run(duration)`
-  - [ ] The sweeper already calls `pipeline.extract()` per sample when `pipeline` is set
-        in `SweepSpec` — verify this path works for a numba sweep
-- [ ] Handle NaN rows (failed simulations): filter before return, log count
-- [ ] Return `(theta_clean, x_clean)` as `float64` arrays
-- [ ] Export `simulate_for_vbi_sweep` from `vbi/inference/__init__.py`
+- [ ] Sample `theta` from `prior._resolved_param_names` / `prior.sample(n, seed)`
+      (or `proposal.sample` when proposal is provided)
+- [ ] Build `SweepSpec(params=theta, param_names=param_names, pipeline=pipeline)`
+- [ ] Instantiate `Sweeper(sim_spec, sweep_spec, backend=sim_backend)`
+- [ ] Call `labels, values = sweeper.run(duration)`
+  - [ ] `values.shape == (n_samples, n_params + n_features)` — confirmed from
+        `numpy_/sweeper.py` (params first, features after)
+- [ ] Slice: `theta_out = values[:, :n_params]`, `x_out = values[:, n_params:]`
+  - [ ] `feature_labels = labels[n_params:]`
+- [ ] Drop NaN rows (any non-finite value in `x_out`); log how many were dropped
+- [ ] Return `theta_out, x_out, param_names, feature_labels` (all float64)
+- [ ] Export from `vbi/inference/__init__.py`
 - [ ] Test: `tests/test_simulate_for_vbi_sweep.py`
   - [ ] Numba backend, MPR model, 20 simulations, FC features → shapes correct
-  - [ ] Seed reproducibility: same seed → identical `(theta, x)`
+  - [ ] `feature_labels` is a non-empty list of strings
+  - [ ] Same seed → identical output
 
-**Effort:** ~half day. The sweeper already integrates with `FeaturePipeline` via
-`SweepSpec.pipeline`; this is mostly wiring and shape validation.
+**Effort:** ~half day.
 
 ---
 
-### Step 2 — `VBIInference` core: `__init__`, `simulate`, `train`, `build_posterior`
+### Step 2 — Simulation cache: store raw recordings, re-extract features
+
+Time-consuming sweeps (especially CUDA/C++) should be cached so the user can
+change feature parameters without re-running the simulator.
+
+**Cache format:** a directory of chunked `.npz` files + a `metadata.json`.
+
+```
+sim_cache/r1/
+  metadata.json          n_samples, chunk_size, param_names, duration,
+                         sim_backend, dt, n_nodes, n_sv, monitor_period
+  chunk_000.npz          theta (chunk,d_θ), ts (chunk,n_record,n_sv,n_nodes), t (n_record,)
+  chunk_001.npz
+  ...
+```
+
+Memory contract:
+- Each chunk is independent — only one chunk needs to be in RAM at a time.
+- `chunk_size` controls GPU memory pressure: for CUDA with 80 nodes × 5 000 steps,
+  `chunk_size=200` uses ~640 MB float32; `chunk_size=500` uses ~1.6 GB.
+- Feature extraction at load time processes one chunk, runs `pipeline.extract()`,
+  discards the raw `ts`, accumulates only the feature vector.
+
+```python
+# Run sweep + write cache
+theta, x = inf.simulate(
+    num_simulations=5000,
+    duration=5000.0,
+    cache_dir="./sim_cache/r1/",
+    chunk_size=500,
+)
+
+# Later: re-extract with different pipeline, no simulation
+theta2, x2 = VBIInference.extract_from_cache("./sim_cache/r1/", new_pipeline)
+```
+
+**New function:** `simulate_for_vbi_sweep_cached` (internal, called by `simulate`
+when `cache_dir` is set):
+
+```python
+def simulate_for_vbi_sweep_cached(
+    sim_spec, prior, pipeline, num_simulations, duration,
+    cache_dir, chunk_size=500, sim_backend="numba", seed=None, proposal=None,
+) -> tuple[np.ndarray, np.ndarray, list[str], list[str]]:
+```
+
+**New static method:** `VBIInference.extract_from_cache(cache_dir, pipeline)`
+
+**Tasks:**
+
+- [ ] `simulate_for_vbi_sweep_cached` in `_utils.py`:
+  - [ ] Create `cache_dir` if it doesn't exist
+  - [ ] Sample all `theta` upfront (or per-chunk if proposal needs iterative sampling)
+  - [ ] Loop over `ceil(n / chunk_size)` chunks:
+    - [ ] Build `SweepSpec(params=theta_chunk, pipeline=None)` — raw output, no pipeline
+    - [ ] Run `sweeper.run_raw(duration)` → `(ts, t)` arrays
+          (need to verify/add a `run_raw` path that returns raw time series not features)
+    - [ ] Write `chunk_{i:03d}.npz` with `theta`, `ts`, `t`
+    - [ ] Free `ts` from memory before next chunk
+  - [ ] Write `metadata.json`
+  - [ ] Extract features from each chunk (in a second pass or inline) to return `(theta, x)`
+- [ ] `VBIInference.extract_from_cache(cache_dir, pipeline) -> (theta, x)` (static method):
+  - [ ] Read `metadata.json`
+  - [ ] Loop chunks: load `theta`, `ts`, `t`; call `pipeline.extract({"tavg": (t, ts)})`
+        per sample; accumulate `(theta_rows, x_rows)`
+  - [ ] Return stacked `(theta, x)` arrays
+- [ ] Verify that `NumpySweeper` and `NumbaSweeperCPU` have a path to return raw
+      `(ts, t)` without pipeline — `_run_raw` exists in Numba sweeper; check numpy
+  - [ ] If missing from numpy sweeper: add `run_raw(duration)` that skips pipeline
+        and returns `(param_sets, raw_ts, t_array)`
+- [ ] Tests: `tests/test_sim_cache.py`
+  - [ ] `simulate(..., cache_dir=tmp_path)` writes expected files
+  - [ ] `extract_from_cache(tmp_path, pipeline)` returns same `x` as direct sweep
+  - [ ] `extract_from_cache(tmp_path, new_pipeline)` returns different `x` (different features)
+  - [ ] Two-chunk sweep: both chunks loaded and concatenated correctly
+
+**Effort:** ~1.5 days. The main work is the chunked write loop and verifying/adding
+`run_raw` to the sweepers.
+
+---
+
+### Step 3 — `VBIInference` core: `__init__`, `simulate`, `train`, `build_posterior`
 
 **New file:** `vbi/inference/_vbi_inference.py`
 
@@ -920,11 +1083,10 @@ class VBIInference:
         show_progress_bars: bool = True,
         embedding_net=None,
     ):
-        self._sim_spec  = sim_spec
-        self._prior     = prior
-        self._pipeline  = pipeline
+        self._sim_spec    = sim_spec
+        self._prior       = prior
+        self._pipeline    = pipeline
         self._sim_backend = sim_backend
-        # Internal SNPE — all inference state lives here
         self._snpe = SNPE(
             prior=prior,
             density_estimator=density_estimator,
@@ -934,93 +1096,79 @@ class VBIInference:
         )
         self._feature_labels: list[str] | None = None
         self._param_names: list[str] | None = None
+        self._default_train_kwargs: dict = {}
 ```
 
 **Tasks:**
 
-- [ ] `simulate(num_simulations, duration, seed=None, proposal=None, x_obs=None)`
-  - [ ] Calls `simulate_for_vbi_sweep(...)` from Step 1
-  - [ ] Captures `_feature_labels` from first call (from pipeline's label output)
-  - [ ] Captures `_param_names` from prior or sweep_spec
-  - [ ] Calls `self._snpe.append_simulations(theta, x)` internally
-  - [ ] Returns `(theta, x)` so caller can inspect or reuse
+- [ ] `simulate(num_simulations, duration, seed=None, proposal=None, x_obs=None,
+               cache_dir=None, chunk_size=500)`
+  - [ ] If `cache_dir` is None: call `simulate_for_vbi_sweep(...)` (Step 1)
+  - [ ] If `cache_dir` is set: call `simulate_for_vbi_sweep_cached(...)` (Step 2)
+  - [ ] Store `_feature_labels` and `_param_names` from first call
+  - [ ] Call `self._snpe.append_simulations(theta, x)`
+  - [ ] Return `(theta, x)`
 - [ ] `train(**train_kwargs) -> ConditionalDensityEstimator`
-  - [ ] Thin delegation: `return self._snpe.train(**train_kwargs)`
-  - [ ] Raises `RuntimeError` with clear message if `simulate()` was never called
+  - [ ] Merge `self._default_train_kwargs` with explicit `train_kwargs`
+        (explicit overrides defaults)
+  - [ ] Delegate: `return self._snpe.train(**merged_kwargs)`
+  - [ ] Raise `RuntimeError` if `simulate()` was never called
 - [ ] `build_posterior(estimator=None, sample_with="direct", **kwargs) -> Posterior`
-  - [ ] Thin delegation: `return self._snpe.build_posterior(estimator, sample_with, **kwargs)`
+  - [ ] Delegate: `return self._snpe.build_posterior(estimator, sample_with, **kwargs)`
 - [ ] `get_simulations() -> tuple[np.ndarray, np.ndarray]`
-  - [ ] Returns all accumulated `(theta, x)` across rounds
-  - [ ] Delegates to `self._snpe.get_simulations()`
-- [ ] Add `VBIInference` to `vbi/inference/__init__.py` and `__all__`
+  - [ ] Delegate to `self._snpe.get_simulations()`
+- [ ] `staticmethod extract_from_cache(cache_dir, pipeline)` — proxy to `_utils`
+- [ ] Add to `vbi/inference/__init__.py` and `__all__`
 - [ ] Tests: `tests/test_vbi_inference.py`
-  - [ ] End-to-end: `simulate(50)` → `train(stop_after_epochs=5)` → `build_posterior()`
-        → `posterior.sample((100,), x=x_obs)` → shape correct
-  - [ ] `get_simulations()` returns same theta that was simulated
+  - [ ] End-to-end (no cache): `simulate(50)` → `train(stop_after_epochs=5)`
+        → `build_posterior()` → `posterior.sample((100,), x=x_obs)` → shape correct
+  - [ ] With cache: same round-trip, verify `cache_dir` files exist
 
-**Effort:** ~1 day. `simulate` has real logic; `train`/`build_posterior` are one-liners.
+**Effort:** ~1 day.
 
 ---
 
-### Step 3 — Save / load checkpointing
+### Step 4 — Save / load checkpointing
 
-Extend `VBIInference` with `save` / `load` so a workflow can be paused and
-resumed without re-simulating.
+Persist inference state (not raw cache) so training can be resumed.
 
-**What to persist:**
-- Trained estimator weights (already `.npz` via `ConditionalDensityEstimator.save`)
-- `_feature_labels`, `_param_names` (metadata for interpreting arrays)
-- All accumulated `(theta, x)` rounds (from `_snpe.get_simulations()`)
-- Constructor kwargs: `density_estimator`, `sim_backend`, `backend`
+**What to save:** estimator weights, `(theta, x)` rounds, `feature_labels`,
+`param_names`, constructor kwargs (`density_estimator`, `sim_backend`, `backend`).
 
-**What NOT to persist:** `sim_spec` and `pipeline` — these contain Python objects
-(model parameters, connectivity matrices) that the user passes back in on load.
+**What NOT to save:** `sim_spec`, `pipeline` — Python objects; user re-supplies them.
 
 ```python
 inf.save("checkpoint.npz")
-
-# Reload — user must supply sim_spec and pipeline again
-inf2 = VBIInference.load(
-    "checkpoint.npz",
-    sim_spec = sim_spec,
-    pipeline = feature_pipeline,
-)
+inf2 = VBIInference.load("checkpoint.npz", sim_spec=sim_spec, pipeline=feature_pipeline)
 ```
 
 **Tasks:**
 
-- [ ] `save(path: str | Path) -> None`
-  - [ ] Delegate estimator weights to `self._snpe._estimator.save(tmp_estimator_path)`
-  - [ ] Pack metadata + simulation data into a single `.npz`:
-        `theta_all`, `x_all`, `feature_labels`, `param_names`,
-        `density_estimator`, `sim_backend`, `backend`, `n_rounds`
-  - [ ] Write a single `.npz` file at `path`
-- [ ] `classmethod load(path, sim_spec, pipeline, prior=None, **kwargs) -> VBIInference`
+- [ ] `save(path) -> None`
+  - [ ] Write estimator weights to a temporary `.npz`, embed as bytes array
+  - [ ] Pack into a single `.npz`: `theta_all`, `x_all`, `feature_labels`,
+        `param_names`, `density_estimator`, `sim_backend`, `backend`, `n_rounds`
+- [ ] `classmethod load(path, sim_spec, pipeline, prior=None) -> VBIInference`
   - [ ] Load `.npz`, reconstruct `VBIInference.__init__` from saved kwargs
-  - [ ] Restore estimator weights via `ConditionalDensityEstimator.load`
-  - [ ] Re-inject accumulated `(theta, x)` via `_snpe.append_simulations`
+  - [ ] Restore estimator via `ConditionalDensityEstimator.load`
+  - [ ] Re-inject `(theta, x)` via `_snpe.append_simulations`
   - [ ] Restore `_feature_labels` and `_param_names`
 - [ ] Tests:
-  - [ ] `save` then `load` → `get_simulations()` returns identical arrays
-  - [ ] `save` then `load` then `build_posterior()` → samples match pre-save samples
-        (same seed)
+  - [ ] Save → load → `get_simulations()` identical
+  - [ ] Save (trained) → load → `build_posterior()` → samples same as pre-save (same seed)
 
 **Effort:** ~half day.
 
 ---
 
-### Step 4 — Config loading: `from_config`
-
-Support a YAML or JSON config file that fully specifies the workflow.
+### Step 5 — Config loading: `from_config`
 
 ```yaml
 # vbi_config.yaml
 sim:
   model: MPR
   connectivity: data/SC_68.npz
-  node_params:
-    eta: -4.6
-    tau: 1.0
+  node_params: {eta: -4.6, tau: 1.0}
   dt: 0.1
   monitors: [tavg]
   monitor_period: 1.0
@@ -1029,7 +1177,7 @@ prior:
   type: BoxUniform
   low:  [0.5, -5.5]
   high: [5.0, -3.0]
-  param_names: [G, eta]
+  param_names: [G, eta]     # passed to BoxUniform constructor (Step 0)
 
 pipeline:
   features: [calc_fc, calc_fcd]
@@ -1048,114 +1196,89 @@ inference:
 
 **Tasks:**
 
-- [ ] `classmethod from_config(config: str | dict) -> VBIInference`
-  - [ ] If `config` is a string: load YAML (try `yaml`, fallback to JSON)
-  - [ ] Parse `sim` block → build `SimulationSpec`
-        (reuse existing `SimulationSpec.from_dict` if it exists, else add it)
-  - [ ] Parse `prior` block → dispatch on `type`:
-        `BoxUniform`, `Gaussian`, `MultivariateNormal`, `MultipleIndependent`
-        (all already exist in `_prior.py`)
-  - [ ] Parse `pipeline` block → build `FeaturePipeline`:
-        call `get_features_by_given_names` + `FeaturePipeline(cfg, signal, t_cut)`
-  - [ ] Parse `inference` block → pass to `VBIInference.__init__`
-  - [ ] Store `training_kwargs` from `inference.training` for use in `train()`
-- [ ] `VBIInference.default_train_kwargs` property — returns the config-loaded training
-      kwargs; `train()` uses them as defaults but still accepts explicit overrides
+- [ ] `SimulationSpec.from_dict(d: dict) -> SimulationSpec` in
+      `vbi/simulator/spec/simulation.py` (does not exist — must add)
+  - [ ] Parse `model`, `connectivity`, `node_params`, `dt`, `monitors`,
+        `monitor_period`; use existing `SimulationSpec.__init__` internally
+- [ ] `classmethod VBIInference.from_config(config: str | dict) -> VBIInference`
+  - [ ] Load YAML string → dict (via `yaml`, fallback to `json`)
+  - [ ] `sim` block → `SimulationSpec.from_dict(...)`
+  - [ ] `prior` block → dispatch on `type` to existing prior classes in `_prior.py`
+  - [ ] `pipeline` block → `get_features_by_given_names` + `FeaturePipeline(...)`
+  - [ ] `inference` block → `VBIInference.__init__` kwargs
+  - [ ] Store `inference.training` as `self._default_train_kwargs`
 - [ ] Tests: `tests/test_vbi_inference_config.py`
-  - [ ] Load a minimal YAML → `from_config` → `simulate(20)` → no crash
-  - [ ] Config training kwargs are passed through to `train()`
+  - [ ] Minimal YAML → `from_config` → `simulate(20)` → no crash
+  - [ ] `prior.param_names` populated from config
+  - [ ] Training kwargs from config pass through to `train()`
 
-**Effort:** ~1 day. The tricky part is `SimulationSpec.from_dict` — check if it
-exists first; if not, add a minimal version.
+**Effort:** ~1 day. Bulk is `SimulationSpec.from_dict`.
 
 ---
 
-### Step 5 — Diagnostic helpers
+### Step 6 — Diagnostic helpers
 
-Thin forwarding methods on `VBIInference` so the user doesn't need to import
-from `_diagnostics` directly.
-
-```python
-inf.plot_loss()          # training loss curves
-inf.pairplot(x_obs)      # marginal posterior pairplot conditioned on x_obs
-inf.run_sbc(simulator_fn, num_sbc_runs=500)
-```
+Thin forwarding so user doesn't need to import `_diagnostics` directly.
 
 **Tasks:**
 
 - [ ] `plot_loss() -> Figure`
-  - [ ] Retrieve loss history from `self._snpe._estimator._train_loss_` /
-        `_val_loss_` (check actual attribute names in `ConditionalDensityEstimator`)
-  - [ ] Delegate to existing `plot_loss(train_losses, val_losses)` from `_diagnostics`
+  - [ ] Retrieve loss history from estimator (check actual attribute names
+        in `ConditionalDensityEstimator` before implementing)
+  - [ ] Delegate to `plot_loss(train_losses, val_losses)` in `_diagnostics`
 - [ ] `pairplot(x_obs, num_samples=1000, **kwargs) -> Figure`
-  - [ ] Calls `self.build_posterior()._estimator` if posterior already built,
-        else raises with a clear message
-  - [ ] Delegates to `pairplot(samples, labels=self._param_names, **kwargs)`
-- [ ] `run_sbc(simulator_fn, num_sbc_runs=500, num_posterior_samples=100, **kwargs)`
-  - [ ] Builds a thin callable from `sim_spec + pipeline` if `simulator_fn` is None
-  - [ ] Delegates to existing `run_sbc` from `_diagnostics`
-- [ ] Tests: `plot_loss()` returns a matplotlib Figure without crashing
+  - [ ] Sample from trained posterior at `x_obs`
+  - [ ] Delegate to `pairplot(samples, labels=self._param_names, **kwargs)`
+- [ ] `run_sbc(num_sbc_runs=500, num_posterior_samples=100) -> dict`
+  - [ ] Build `simulator_fn` from `sim_spec + pipeline` internally
+  - [ ] Delegate to `run_sbc(posterior, simulator_fn, prior, ...)` in `_diagnostics`
+- [ ] Tests: `plot_loss()` and `pairplot()` return matplotlib Figures without error
 
-**Effort:** ~half day. All the heavy code already exists in `_diagnostics.py`.
+**Effort:** ~half day.
 
 ---
 
-### Step 6 — Tests and example notebook
+### Step 7 — Tests and example notebook
 
 **Tests** (`tests/test_vbi_inference.py`):
 
-- [ ] Full round-trip (Steps 1–3): `simulate → train → build_posterior → sample`
-      on MPR model, numba backend, 50 simulations, 5 epochs — shape assertions only
-- [ ] Sequential rounds: two `simulate + train` calls accumulate data correctly
-      (`get_simulations()` size doubles)
-- [ ] `save` / `load` round-trip: posterior samples pre/post save are consistent
-- [ ] `from_config`: minimal YAML round-trip
-- [ ] `plot_loss()` returns Figure without error
+- [ ] Full round-trip: `simulate(50)` → `train(5 epochs)` → `build_posterior()`
+      → `sample((100,), x=x_obs)` — shape assertions only, MPR + numba
+- [ ] Cache round-trip: same as above with `cache_dir`; verify
+      `extract_from_cache` with alternate pipeline gives different `x`
+- [ ] Sequential rounds: two `simulate + train` calls; `get_simulations()` doubles
+- [ ] `save` / `load` preserves training state
+- [ ] `from_config` minimal YAML
+- [ ] `plot_loss()` returns Figure
 
 **Example notebook** (`examples/vbi_inference_mpr.ipynb`):
 
-- [ ] Setup: MPR model, SC_68, BoxUniform prior on G and eta
-- [ ] 1-round SNPE: 500 simulations (numba), FC features, MAF, pairplot
+- [ ] MPR model, SC_68, `BoxUniform(param_names=["G","eta"])`
+- [ ] 1-round SNPE, 500 simulations (numba), FC features, MAF, pairplot
+- [ ] Cache demo: re-extract with FCD features, no re-simulation
 - [ ] 2-round SNPE: posterior-focused round 2, TARP coverage check
 - [ ] `save` / `load` demo
-- [ ] Optional: NUTS refinement on the round-2 posterior
 
 ---
 
 ### Implementation order
 
 ```
-Step 1  simulate_for_vbi_sweep         (~0.5 day)   unblocks everything
-Step 2  VBIInference core              (~1 day)     first working end-to-end
-Step 3  save / load                    (~0.5 day)   needed for real use
-Step 4  from_config                    (~1 day)     reproducibility
-Step 5  diagnostic helpers             (~0.5 day)   polish
-Step 6  tests + notebook               (~1 day)     validation
+Step 0  param_names on priors          (~1 hour)    prerequisite for Steps 1+
+Step 1  simulate_for_vbi_sweep         (~0.5 day)   core bridge, unblocks Step 3
+Step 2  simulation cache               (~1.5 days)  run_raw + chunked write + extract
+Step 3  VBIInference core              (~1 day)     first working end-to-end
+Step 4  save / load                    (~0.5 day)   needed for real use
+Step 5  from_config                    (~1 day)     reproducibility
+Step 6  diagnostic helpers             (~0.5 day)   polish
+Step 7  tests + notebook               (~1 day)     validation
 ```
 
-**Total effort: ~4.5 days of focused work.**
-
-### Open questions before starting
-
-1. **`SweepSpec` + `FeaturePipeline` integration**: verify that
-   `Sweeper(spec, SweepSpec(params=theta_2d, param_names=names, pipeline=fp)).run(dur)`
-   actually returns `(labels, values_matrix)` today — or does it return a list of
-   per-sample `(labels, values)`? Check `numpy_/sweeper.py` before writing Step 1.
-
-2. **`SimulationSpec.from_dict`**: does it exist? If not, Step 4 needs a minimal
-   implementation. Check `vbi/simulator/spec/simulation.py`.
-
-3. **Prior `param_names`**: `BoxUniform` and other priors currently have no
-   `param_names` attribute. Step 1 needs a fallback (`["p0", "p1", ...]`), and
-   Step 4 needs the config to supply them. Decide: add `param_names` to prior
-   constructors in `_prior.py`, or keep it as a `VBIInference` constructor kwarg?
-
-**Recommendation:** add `param_names: list[str] | None = None` to all prior
-classes (defaulting to auto-generated names). Low friction, consistent with sbi.
+**Total effort: ~6 days of focused work.**
 
 ---
 
-**Effort:** ~4.5 days total.
+**Effort:** ~6 days total.
 
 ---
 
