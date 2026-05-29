@@ -46,6 +46,45 @@ Configured in the RTD project dashboard (not in `.readthedocs.yaml`):
 
 ---
 
+## Branch Strategy
+
+### Current branch chain (linear history)
+
+```
+main
+  └── develop
+        └── auto_generate
+              └── inference_vbi   ← HEAD, all feature work lives here
+```
+
+### Phase 1 — Infrastructure (short-lived branch, merge fast)
+
+Create off `inference_vbi` so it carries all prior work:
+
+```bash
+git checkout inference_vbi
+git checkout -b docs/sphinx-gallery
+```
+
+Scope: Steps 1–3 only (symlink, theme switch, sphinx-gallery config).
+Keep it small so it does not drift out of sync with `inference_vbi`.
+Target: merge directly to `main` (or through the chain depending on PR flow)
+so RTD `latest` picks it up immediately.
+
+### Phase 2 — Demo formatting (incremental, no separate branch)
+
+Steps 4–10 (script formatting, `ju2py` conversions, CUDA dummy images) are
+done directly on `inference_vbi` as each demo is touched. No long-lived docs
+branch — these changes travel to `main` when `inference_vbi` eventually lands.
+
+### Why not one big docs branch
+
+A long-lived branch off `inference_vbi` would need constant rebasing as
+feature commits keep landing. Infrastructure changes are small and bounded —
+merge them fast. Per-demo changes are too incremental to isolate usefully.
+
+---
+
 ## Steps
 
 ### Step 1 — Add root-level symlink for discoverability
