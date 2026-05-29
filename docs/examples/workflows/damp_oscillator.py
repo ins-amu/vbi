@@ -2,9 +2,6 @@
 Damped Oscillator - SBI with vbi.inference.SNPE
 ================================================
 
-Reproduce the ``damp_oscillator_cde.ipynb`` workflow using the new
-``vbi.inference`` API.  No torch, no sbi dependency.
-
 The model
 ---------
 A nonlinear damped oscillator::
@@ -44,7 +41,7 @@ import matplotlib.pyplot as plt
 from vbi.models.numba.damp_oscillator import DO
 from vbi.inference import (
     SNPE, BoxUniform,
-    simulate_for_sbi,
+    simulate_for_vbi,
     pairplot,
     plot_loss,
     run_sbc, pp_plot,
@@ -126,7 +123,7 @@ N_SIM = 2000
 prior = BoxUniform(low=PRIOR_LOW, high=PRIOR_HIGH, param_names=["a", "b"])
 
 print(f"\n  Generating {N_SIM} simulations … ", end="", flush=True)
-theta_train, x_train = simulate_for_sbi(simulator, prior, N_SIM, seed=SEED)
+theta_train, x_train = simulate_for_vbi(simulator, prior, N_SIM, seed=SEED)
 valid = np.all(np.isfinite(x_train), axis=1)
 print(f"done  ({valid.sum()} / {N_SIM} valid)")
 
