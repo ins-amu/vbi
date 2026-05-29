@@ -24,6 +24,15 @@ class FeaturePipeline:
         Burn-in to discard in ms before extracting features.
         When used with NumbaSweeperCPU the time array already starts at
         t_cut, so this has no additional effect (searchsorted returns 0).
+    voi : int | None
+        Which VOI (state-variable index) to use from a 3-D monitor output
+        ``(n_steps, n_voi, n_nodes)``.
+
+        * ``0`` (default) — use only VOI 0 (backward-compatible; correct for
+          most brain models where VOI 0 is the primary output variable).
+        * ``None`` — use **all** VOIs; the resulting feature matrix has
+          ``n_voi × n_nodes`` channels.  Useful for models with multiple
+          meaningful state variables, e.g. DampedOscillator (x and y).
 
     Examples
     --------
@@ -43,10 +52,17 @@ class FeaturePipeline:
     df = Sweeper(spec, sweep_spec, backend="numba").run_df(5000.0)
     """
 
-    def __init__(self, cfg: dict, signal: str = "tavg", t_cut: float = 500.0):
+    def __init__(
+        self,
+        cfg: dict,
+        signal: str = "tavg",
+        t_cut: float = 500.0,
+        voi: int | None = 0,
+    ):
         self.cfg = cfg
         self.signal = signal
         self.t_cut = t_cut
+        self.voi = voi
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -70,10 +86,17 @@ class FeaturePipeline:
         dt_ms = float(t[1] - t[0]) if len(t) > 1 else 1.0
         fs = 1000.0 / dt_ms
 
-        # Normalise shape to (n_nodes, n_steps)
+        # Normalise shape to (n_channels, n_steps) for feature functions.
+        # n_channels = n_nodes         (when voi is an int)
+        # n_channels = n_voi * n_nodes (when voi is None → all VOIs)
         if ts_cut.ndim == 3:
             # (n_steps, n_voi, n_nodes) - tavg / subsample / raw monitors
-            ts_2d = ts_cut[:, 0, :].T
+            if self.voi is None:
+                # flatten all VOIs: (n_steps, n_voi, n_nodes) → (n_voi*n_nodes, n_steps)
+                n_steps, n_voi, n_nodes = ts_cut.shape
+                ts_2d = ts_cut.reshape(n_steps, n_voi * n_nodes).T
+            else:
+                ts_2d = ts_cut[:, self.voi, :].T
         elif ts_cut.ndim == 2:
             # (n_steps, n_nodes) - bold monitor
             ts_2d = ts_cut.T

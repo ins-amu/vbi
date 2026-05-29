@@ -15,6 +15,47 @@ import numpy as np
 log = logging.getLogger(__name__)
 
 
+def _sweep_numpy_with_progress(
+    sim_spec, sweep_spec, duration, num_simulations, n_params, param_names, pipeline
+):
+    """
+    Run a numpy sweep one simulation at a time with a tqdm per-sim bar.
+    Only called when sim_backend='numpy' and show_progress_bars=True.
+    """
+    from vbi.simulator.backend.numpy_.sweeper import _patch_spec
+    from vbi.simulator.backend.numpy_.simulator import NumpySimulator
+    try:
+        from tqdm.auto import tqdm as _tqdm
+    except ImportError:
+        _tqdm = None
+
+    param_sets = sweep_spec.param_sets   # (n, n_params)
+    same_noise = sweep_spec.same_noise
+    desc = f"Simulating {num_simulations}×{duration:.0f}ms [numpy]"
+
+    all_labels = None
+    rows = []
+    iter_range = (
+        _tqdm(range(num_simulations), desc=desc, unit="sim")
+        if _tqdm else range(num_simulations)
+    )
+    for i in iter_range:
+        patched = _patch_spec(sim_spec, list(param_names), param_sets[i],
+                              run_index=i, same_noise=same_noise)
+        sim = NumpySimulator()
+        sim.build(patched)
+        result = sim.run(duration)
+
+        feat_labels, feat_vals = pipeline.extract(result)
+        if all_labels is None:
+            all_labels = list(param_names) + feat_labels
+
+        rows.append(np.concatenate([param_sets[i], feat_vals]))
+
+    values = np.stack(rows)
+    return all_labels, values
+
+
 def simulate_for_vbi_sweep(
     sim_spec,
     prior,
@@ -25,6 +66,7 @@ def simulate_for_vbi_sweep(
     seed: int | None = None,
     proposal=None,
     x_obs=None,
+    show_progress_bars: bool = True,
 ) -> tuple[np.ndarray, np.ndarray, list[str], list[str]]:
     """
     Sample parameters, run a VBI sweep, extract features.
@@ -80,8 +122,28 @@ def simulate_for_vbi_sweep(
         param_names=tuple(param_names),
         pipeline=pipeline,
     )
-    sweeper = Sweeper(sim_spec, sweep_spec, backend=sim_backend)
-    labels, values = sweeper.run(duration)
+    if show_progress_bars and sim_backend == "numpy":
+        # Numpy sweeper is a sequential Python loop — run one-at-a-time with
+        # a real per-simulation progress bar.
+        labels, values = _sweep_numpy_with_progress(
+            sim_spec, sweep_spec, duration, num_simulations, n_params,
+            param_names, pipeline,
+        )
+    else:
+        sweeper = Sweeper(sim_spec, sweep_spec, backend=sim_backend)
+        if show_progress_bars:
+            try:
+                from tqdm.auto import tqdm as _tqdm
+                desc = (
+                    f"Simulating {num_simulations}×{duration:.0f}ms [{sim_backend}]"
+                )
+                with _tqdm(total=num_simulations, desc=desc, unit="sim") as pbar:
+                    labels, values = sweeper.run(duration)
+                    pbar.update(num_simulations)
+            except ImportError:
+                labels, values = sweeper.run(duration)
+        else:
+            labels, values = sweeper.run(duration)
 
     feature_labels = list(labels[n_params:])
     theta_out = values[:, :n_params].astype(np.float64)
@@ -117,6 +179,7 @@ def simulate_for_vbi_sweep_cached(
     seed: int | None = None,
     proposal=None,
     x_obs=None,
+    show_progress_bars: bool = True,
 ) -> tuple[np.ndarray, np.ndarray, list[str], list[str]]:
     """
     Run a VBI sweep in chunks, write raw monitor recordings to disk, then

@@ -452,11 +452,12 @@ class VBIInference:
             ``inference_backend`` is ignored and the given object is used.
             The prior is taken from ``prior`` (converted to torch).
         """
-        self._sim_spec          = sim_spec
-        self._prior             = prior
-        self._pipeline          = pipeline
-        self._sim_backend       = sim_backend
-        self._de_type           = density_estimator
+        self._sim_spec            = sim_spec
+        self._prior               = prior
+        self._pipeline            = pipeline
+        self._sim_backend         = sim_backend
+        self._de_type             = density_estimator
+        self._show_progress_bars  = show_progress_bars
         self._feature_labels: list[str] | None = None
         self._param_names:    list[str] | None = None
         self._default_train_kwargs: dict       = {}
@@ -523,15 +524,16 @@ class VBIInference:
         x     : (n, d_x)     ndarray
         """
         common = dict(
-            sim_spec        = self._sim_spec,
-            prior           = self._prior,
-            pipeline        = self._pipeline,
-            num_simulations = num_simulations,
-            duration        = duration,
-            sim_backend     = self._sim_backend,
-            seed            = seed,
-            proposal        = proposal,
-            x_obs           = x_obs,
+            sim_spec            = self._sim_spec,
+            prior               = self._prior,
+            pipeline            = self._pipeline,
+            num_simulations     = num_simulations,
+            duration            = duration,
+            sim_backend         = self._sim_backend,
+            seed                = seed,
+            proposal            = proposal,
+            x_obs               = x_obs,
+            show_progress_bars  = self._show_progress_bars,
         )
 
         if cache_dir is None:
@@ -581,6 +583,9 @@ class VBIInference:
                 "No simulations available.  Call simulate() before train()."
             )
         merged = {**self._default_train_kwargs, **train_kwargs}
+        # Propagate show_progress_bars as verbose unless caller set it explicitly
+        if "verbose" not in merged:
+            merged["verbose"] = self._show_progress_bars
 
         if self._inference_backend == "vbi":
             self._last_estimator = self._snpe.train(**merged)
