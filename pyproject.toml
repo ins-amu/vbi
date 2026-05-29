@@ -39,6 +39,7 @@ dependencies = [
     "h5py",
     "pandas",
     "matplotlib",
+    "PyYAML>=6",
     "tqdm",
     "scikit-learn",
     "rich",           # used in vbi/utils.py at import time
