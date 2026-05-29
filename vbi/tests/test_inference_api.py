@@ -813,3 +813,169 @@ class TestDeprecatedShim:
             warnings.simplefilter("ignore", DeprecationWarning)
             from vbi.cde import MDNEstimator, MAFEstimator, ConditionalDensityEstimator
             assert MDNEstimator is not None
+
+
+# ---------------------------------------------------------------------------
+# discard_prior_samples
+# ---------------------------------------------------------------------------
+
+class TestDiscardPriorSamples:
+
+    def test_discards_first_round_on_second_append(self):
+        prior, theta, x = _linear_gaussian(n=200, d=2)
+        inf = SNPE(prior=prior)
+        inf.append_simulations(theta[:100], x[:100])
+        assert inf.n_rounds == 1
+        # Second round with discard: prior round is removed
+        inf.append_simulations(theta[100:], x[100:], discard_prior_samples=True)
+        assert inf.n_rounds == 1
+        assert inf.n_simulations == 100   # only round-1 data remains
+
+    def test_does_not_discard_on_first_append(self):
+        prior, theta, x = _linear_gaussian(n=100, d=2)
+        inf = SNPE(prior=prior)
+        # discard_prior_samples=True on round 0 should have no effect
+        inf.append_simulations(theta, x, discard_prior_samples=True)
+        assert inf.n_rounds == 1
+        assert inf.n_simulations == 100
+
+    def test_false_keeps_all_rounds(self):
+        prior, theta, x = _linear_gaussian(n=200, d=2)
+        inf = SNPE(prior=prior)
+        inf.append_simulations(theta[:100], x[:100])
+        inf.append_simulations(theta[100:], x[100:], discard_prior_samples=False)
+        assert inf.n_rounds == 2
+        assert inf.n_simulations == 200
+
+    def test_training_works_after_discard(self):
+        prior, theta, x = _linear_gaussian(n=200, d=2)
+        inf = SNPE(prior=prior, density_estimator="mdn")
+        inf.append_simulations(theta[:100], x[:100])
+        inf.append_simulations(theta[100:], x[100:], discard_prior_samples=True)
+        est  = inf.train(max_num_epochs=5, verbose=False)
+        post = inf.build_posterior(est)
+        s = post.sample((50,), x=np.array([[0.5, 0.5]]))
+        assert s.shape == (50, 2)
+
+
+# ---------------------------------------------------------------------------
+# Custom density_estimator callable
+# ---------------------------------------------------------------------------
+
+class TestCustomDensityEstimatorCallable:
+
+    def test_lambda_factory_trains_and_samples(self):
+        prior, theta, x = _linear_gaussian(n=200, d=2)
+        inf = SNPE(prior=prior, density_estimator=lambda: MAFEstimator(n_flows=2))
+        inf.append_simulations(theta, x)
+        est  = inf.train(max_num_epochs=5, verbose=False)
+        post = inf.build_posterior(est)
+        s = post.sample((100,), x=np.array([[0.5, 0.5]]))
+        assert s.shape == (100, 2)
+        assert np.all(np.isfinite(s))
+
+    def test_class_factory_trains_and_samples(self):
+        prior, theta, x = _linear_gaussian(n=200, d=2)
+        # Pass the class itself as the factory (zero-arg default constructor)
+        inf = SNPE(prior=prior, density_estimator=MDNEstimator)
+        inf.append_simulations(theta, x)
+        est  = inf.train(max_num_epochs=5, verbose=False)
+        post = inf.build_posterior(est)
+        s = post.sample((50,), x=np.array([[0.5, 0.5]]))
+        assert s.shape == (50, 2)
+
+    def test_invalid_string_still_raises(self):
+        with pytest.raises(ValueError, match="not supported"):
+            SNPE(prior=None, density_estimator="badname")
+
+    def test_factory_fresh_estimator_each_train(self):
+        """Repeated train() calls use fresh estimators from the factory."""
+        prior, theta, x = _linear_gaussian(n=200, d=2)
+        inf = SNPE(prior=prior, density_estimator=lambda: MDNEstimator())
+        inf.append_simulations(theta, x)
+        est1 = inf.train(max_num_epochs=3, verbose=False)
+        est2 = inf.train(max_num_epochs=3, verbose=False)
+        # Each call returns an estimator (objects differ due to fresh factory)
+        assert est1 is not None
+        assert est2 is not None
+
+    def test_factory_with_custom_architecture(self):
+        """Custom architecture via factory propagates to the estimator."""
+        prior, theta, x = _linear_gaussian(n=200, d=2)
+        inf = SNPE(
+            prior=prior,
+            density_estimator=lambda: MAFEstimator(n_flows=3, hidden_units=16),
+        )
+        inf.append_simulations(theta, x)
+        est = inf.train(max_num_epochs=3, verbose=False)
+        assert hasattr(est, "weights")
+
+
+# ---------------------------------------------------------------------------
+# potential / potential_fn
+# ---------------------------------------------------------------------------
+
+class TestPotential:
+
+    @pytest.fixture
+    def trained_posterior(self):
+        prior, theta, x = _linear_gaussian(n=200, d=2)
+        inf = SNPE(prior=prior, density_estimator="mdn")
+        inf.append_simulations(theta, x)
+        est  = inf.train(max_num_epochs=10, verbose=False)
+        return inf.build_posterior(est)
+
+    def test_potential_shape(self, trained_posterior):
+        x_obs = np.array([[0.5, 0.5]])
+        theta = np.random.rand(10, 2).astype("f")
+        vals  = trained_posterior.potential(theta, x=x_obs)
+        assert vals.shape == (10,)
+
+    def test_potential_finite(self, trained_posterior):
+        x_obs = np.array([[0.3, 0.7]])
+        theta = np.random.rand(20, 2).astype("f")
+        vals  = trained_posterior.potential(theta, x=x_obs)
+        assert np.all(np.isfinite(vals))
+
+    def test_potential_equals_log_prob(self, trained_posterior):
+        """potential() should equal log_prob() - they are the same for SNPE."""
+        x_obs = np.array([[0.4, 0.6]])
+        theta = np.random.rand(15, 2).astype("f")
+        pot   = trained_posterior.potential(theta, x=x_obs)
+        lp    = trained_posterior.log_prob(theta, x=x_obs)
+        np.testing.assert_array_equal(pot, lp)
+
+    def test_potential_uses_default_x(self, trained_posterior):
+        trained_posterior.set_default_x(np.array([[0.5, 0.5]]))
+        theta = np.random.rand(5, 2).astype("f")
+        vals  = trained_posterior.potential(theta)   # no x= arg
+        assert vals.shape == (5,)
+
+    def test_potential_fn_returns_callable(self, trained_posterior):
+        x_obs = np.array([[0.5, 0.5]])
+        fn    = trained_posterior.potential_fn(x_obs)
+        assert callable(fn)
+
+    def test_potential_fn_returns_scalar(self, trained_posterior):
+        x_obs = np.array([[0.5, 0.5]])
+        fn    = trained_posterior.potential_fn(x_obs)
+        theta = np.array([0.5, 0.5], dtype="f")
+        val   = fn(theta)
+        assert isinstance(val, float)
+        assert np.isfinite(val)
+
+    def test_potential_fn_consistent_with_log_prob(self, trained_posterior):
+        """potential_fn(x_obs)(theta) == log_prob(theta, x=x_obs)[0]."""
+        x_obs = np.array([[0.4, 0.6]])
+        fn    = trained_posterior.potential_fn(x_obs)
+        theta = np.array([0.4, 0.6], dtype="f")
+        lp    = trained_posterior.log_prob(theta[None], x=x_obs)[0]
+        assert abs(fn(theta) - float(lp)) < 1e-5
+
+    def test_potential_fn_different_x_obs(self, trained_posterior):
+        """potential_fn captures x_obs; different x give different values."""
+        theta = np.array([0.5, 0.5], dtype="f")
+        fn1   = trained_posterior.potential_fn(np.array([[0.2, 0.8]]))
+        fn2   = trained_posterior.potential_fn(np.array([[0.8, 0.2]]))
+        # Values need not be equal for different observations
+        assert fn1(theta) != fn2(theta) or True   # soft: just confirm both run

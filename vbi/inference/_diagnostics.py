@@ -493,7 +493,9 @@ def pp_plot(ranks: np.ndarray, labels=None, fig=None, axes=None):
     if ranks.ndim == 1:
         ranks = ranks[:, None]
     n_runs, d = ranks.shape
-    n_bins = n_runs + 1   # ranks are integers in [0, n_posterior_samples]
+    # n_bins = num_posterior_samples + 1 (ranks span [0, num_posterior_samples]).
+    # Infer from the data; fall back to n_runs + 1 if all ranks are 0.
+    n_bins = int(ranks.max()) + 2 if ranks.max() > 0 else n_runs + 1
 
     if labels is None:
         labels = [f"$\\theta_{i}$" for i in range(d)]

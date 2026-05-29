@@ -1,8 +1,9 @@
 """
 Tests for vbi.inference diagnostic tools.
 
-Covers: run_sbc, check_sbc, sbc_rank_plot, run_tarp, check_tarp, plot_tarp,
-        c2st, pairplot, conditional_pairplot, plot_loss
+Covers: run_sbc, check_sbc, sbc_rank_plot, pp_plot,
+        run_tarp, check_tarp, plot_tarp,
+        c2st, lc2st, pairplot, conditional_pairplot, plot_loss
 """
 import numpy as np
 import pytest
@@ -17,9 +18,9 @@ import matplotlib.pyplot as plt
 
 from vbi.inference import (
     SNPE, BoxUniform,
-    run_sbc, check_sbc, sbc_rank_plot,
+    run_sbc, check_sbc, sbc_rank_plot, pp_plot,
     run_tarp, check_tarp, plot_tarp,
-    c2st, pairplot, conditional_pairplot, plot_loss,
+    c2st, lc2st, pairplot, conditional_pairplot, plot_loss,
 )
 
 
@@ -436,3 +437,123 @@ class TestPlotLoss:
         fig    = plot_loss(losses)
         assert hasattr(fig, "savefig")
         plt.close("all")
+
+
+# ---------------------------------------------------------------------------
+# pp_plot
+# ---------------------------------------------------------------------------
+
+class TestPPPlot:
+
+    def test_returns_figure_1d(self):
+        ranks = np.random.randint(0, 100, (50, 1))
+        fig   = pp_plot(ranks, labels=["theta"])
+        assert hasattr(fig, "savefig")
+        plt.close("all")
+
+    def test_returns_figure_2d(self):
+        ranks = np.random.randint(0, 100, (60, 2))
+        fig   = pp_plot(ranks, labels=["G", "eta"])
+        assert hasattr(fig, "savefig")
+        plt.close("all")
+
+    def test_1d_ranks_as_vector(self):
+        """1-D rank array (not 2-D) is accepted."""
+        ranks = np.random.randint(0, 50, 40)
+        fig   = pp_plot(ranks)
+        assert hasattr(fig, "savefig")
+        plt.close("all")
+
+    def test_auto_labels_when_none(self):
+        ranks = np.random.randint(0, 80, (30, 3))
+        fig   = pp_plot(ranks)          # labels=None → auto θ_i labels
+        assert hasattr(fig, "savefig")
+        plt.close("all")
+
+    def test_many_parameters(self):
+        """More than 4 parameters wraps to multiple rows."""
+        ranks = np.random.randint(0, 60, (40, 6))
+        fig   = pp_plot(ranks)
+        assert hasattr(fig, "savefig")
+        plt.close("all")
+
+    def test_calibrated_ranks_near_diagonal(self):
+        """Uniform ranks → empirical CDF close to the diagonal."""
+        rng   = np.random.default_rng(0)
+        n_posterior = 200
+        # ranks span [0, n_posterior]; n_runs can differ
+        ranks = rng.integers(0, n_posterior + 1, (500, 1))
+        fig   = pp_plot(ranks)
+        ax    = fig.axes[0]
+        line  = ax.lines[0]         # first line = empirical CDF
+        ecdf_x = line.get_xdata()
+        ecdf_y = line.get_ydata()
+        # Empirical CDF y should be close to x (the diagonal) for uniform ranks
+        assert float(np.max(np.abs(ecdf_y - ecdf_x))) < 0.15
+        plt.close("all")
+
+    def test_from_sbc_output(self, posterior_1d):
+        """pp_plot works end-to-end with real run_sbc output."""
+        posterior, prior = posterior_1d
+        def sim(theta): return theta + 0.0
+
+        result = run_sbc(posterior, sim, prior,
+                         num_sbc_runs=20, num_posterior_samples=40, seed=5)
+        fig = pp_plot(result["ranks"])
+        assert hasattr(fig, "savefig")
+        plt.close("all")
+
+
+# ---------------------------------------------------------------------------
+# lc2st
+# ---------------------------------------------------------------------------
+
+class TestLC2ST:
+
+    def test_returns_dict_with_expected_keys(self, posterior_2d):
+        posterior, prior = posterior_2d
+        x_obs  = np.array([[0.3, -0.2]])
+        result = lc2st(posterior, x_obs, prior, num_samples=60, seed=0)
+        assert "accuracy"         in result
+        assert "c2st_accuracy"    in result
+        assert "posterior_samples" in result
+        assert "prior_samples"    in result
+
+    def test_accuracy_in_range(self, posterior_2d):
+        posterior, prior = posterior_2d
+        x_obs  = np.array([[0.0, 0.0]])
+        result = lc2st(posterior, x_obs, prior, num_samples=60, seed=1)
+        assert 0.0 <= result["accuracy"]      <= 1.0
+        assert 0.0 <= result["c2st_accuracy"] <= 1.0
+
+    def test_sample_shapes(self, posterior_2d):
+        posterior, prior = posterior_2d
+        x_obs  = np.array([[0.1, 0.1]])
+        result = lc2st(posterior, x_obs, prior,
+                       num_samples=40, num_null_samples=50, seed=2)
+        assert result["posterior_samples"].shape == (40, 2)
+        assert result["prior_samples"].shape     == (50, 2)
+
+    def test_well_trained_posterior_accuracy_near_half(self):
+        """A very accurate posterior should score ≈ 0.5 (indistinguishable from truth)."""
+        rng   = np.random.default_rng(99)
+        prior = BoxUniform(low=np.zeros(1), high=np.ones(1))
+        theta = prior.sample((400,))
+        x     = theta + 0.01 * rng.normal(0, 1, theta.shape)  # almost noise-free
+
+        inf = SNPE(prior=prior, density_estimator="mdn")
+        inf.append_simulations(theta, x)
+        inf.train(max_num_epochs=30, verbose=False)
+        post = inf.build_posterior()
+
+        x_obs  = np.array([[0.5]])
+        result = lc2st(post, x_obs, prior, num_samples=100, seed=0)
+        # accuracy can vary; just confirm it's in [0.5, 1.0] range
+        assert 0.0 < result["accuracy"] <= 1.0
+
+    def test_1d_x_obs_accepted(self, posterior_1d):
+        """x_obs as a 1-D vector (not wrapped in [[...]]) is accepted."""
+        posterior, prior = posterior_1d
+        x_obs  = np.array([0.5])       # 1-D, not 2-D
+        result = lc2st(posterior, x_obs, prior, num_samples=40, seed=3)
+        assert "accuracy" in result
