@@ -201,3 +201,80 @@ print()
 print("  sim:")
 print("    model: fitzhugh_nagumo")
 print("    ...")
+
+# ---------------------------------------------------------------------------
+# Step 6 — Visualization
+# ---------------------------------------------------------------------------
+#
+# Run a clean deterministic simulation for plotting (raw monitor, no noise)
+# so the traces are smooth.
+
+spec_plot = SimulationSpec(
+    model      = fitzhugh_nagumo,
+    integrator = IntegratorSpec(method="heun", dt=0.1),
+    coupling   = CouplingSpec("linear", a=0.0),   # isolated nodes
+    monitors   = (MonitorSpec("raw"),),
+    weights    = W,
+)
+
+t_raw, raw = Simulator(spec_plot, backend=args.backend).run(args.duration)["raw"]
+# raw shape: (time, sv, nodes) — pick node 0
+v_trace = raw[:, 0, 0]   # fast variable
+w_trace = raw[:, 1, 0]   # slow variable
+
+# Sweep over I for the bifurcation plot
+I_values   = np.linspace(0.0, 2.0, 20)
+sweep_raw  = SweepSpec(params={"I": I_values}, same_noise=False)
+sweep_res  = Sweeper(spec_plot, sweep_raw, backend=args.backend).run(args.duration)
+v_means    = np.array([sweep_res[i]["raw"][1][:, 0, :].mean() for i in range(len(I_values))])
+
+try:
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    out_dir = Path(__file__).with_name("outputs")
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_path = out_dir / "fitzhugh_nagumo_demo.png"
+
+    fig, axes = plt.subplots(1, 3, figsize=(15, 4))
+    fig.suptitle("FitzHugh-Nagumo custom model demo", fontsize=12)
+
+    # Panel 1 — time series
+    ax = axes[0]
+    ax.plot(t_raw, v_trace, lw=1.2, label="v (fast)", color="tab:blue")
+    ax.plot(t_raw, w_trace, lw=1.2, label="w (slow)", color="tab:orange")
+    ax.set_xlabel("time [ms]")
+    ax.set_ylabel("state")
+    ax.set_title("Time series  (node 0, I=0.5)")
+    ax.legend(frameon=False)
+    ax.grid(alpha=0.25)
+    ax.margins(x=0.01)
+
+    # Panel 2 — phase portrait
+    ax = axes[1]
+    # Show all nodes in the deterministic run as light traces; node 0 in bold
+    for n in range(raw.shape[2]):
+        ax.plot(raw[:, 0, n], raw[:, 1, n], lw=0.6, alpha=0.35, color="tab:blue")
+    ax.plot(raw[:, 0, 0], raw[:, 1, 0], lw=1.5, color="tab:blue", label="node 0")
+    ax.set_xlabel("v (fast)")
+    ax.set_ylabel("w (slow)")
+    ax.set_title("Phase portrait")
+    ax.grid(alpha=0.25)
+
+    # Panel 3 — mean v vs swept parameter I (bifurcation-style summary)
+    ax = axes[2]
+    ax.plot(I_values, v_means, "o-", color="tab:green", lw=1.5, ms=5)
+    ax.axvline(0.0, color="gray", lw=0.8, ls="--", alpha=0.5)
+    ax.set_xlabel("external current  I")
+    ax.set_ylabel("mean v")
+    ax.set_title("Sweep: mean v vs I")
+    ax.grid(alpha=0.25)
+
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=150)
+    plt.close(fig)
+    print(f"\nFigure saved → {out_path}")
+
+except ImportError:
+    print("\nmatplotlib not available — skipping plot.")
