@@ -12,6 +12,73 @@ from .monitor import MonitorSpec
 from .stimulus import StimSpec
 
 
+_MODEL_REGISTRY: "dict | None" = None
+
+
+def _get_model_registry() -> dict:
+    """Build (once) and return the name → model-module registry."""
+    global _MODEL_REGISTRY
+    if _MODEL_REGISTRY is not None:
+        return _MODEL_REGISTRY
+    from vbi.simulator.models import (
+        mpr, jansen_rit, wilson_cowan, reduced_wong_wang,
+        wong_wang_exc_inh, generic_2d_oscillator, kuramoto,
+        sup_hopf, linear, larter_breakspear,
+        coombes_byrne_2d, gast_sd, gast_sf, vep, ghb, sl,
+        damped_oscillator,
+    )
+    _all_models = (
+        mpr, jansen_rit, wilson_cowan, reduced_wong_wang,
+        wong_wang_exc_inh, generic_2d_oscillator, kuramoto,
+        sup_hopf, linear, larter_breakspear,
+        coombes_byrne_2d, gast_sd, gast_sf, vep, ghb, sl,
+        damped_oscillator,
+    )
+    reg = {m.name.lower(): m for m in _all_models}
+    reg.update({
+        "mpr": mpr, "jansen_rit": jansen_rit, "jansenrit": jansen_rit,
+        "wilson_cowan": wilson_cowan, "wilsoncowan": wilson_cowan,
+        "reduced_wong_wang": reduced_wong_wang,
+        "wong_wang_exc_inh": wong_wang_exc_inh,
+        "generic_2d_oscillator": generic_2d_oscillator,
+        "generic2doscillator": generic_2d_oscillator,
+        "sup_hopf": sup_hopf, "suphopf": sup_hopf,
+        "larter_breakspear": larter_breakspear,
+        "coombes_byrne_2d": coombes_byrne_2d,
+        "gast_sd": gast_sd, "gast_sf": gast_sf,
+        "ghb": ghb, "sl": sl,
+        "damped_oscillator": damped_oscillator,
+        "kuramoto": kuramoto, "linear": linear, "vep": vep,
+    })
+    _MODEL_REGISTRY = reg
+    return _MODEL_REGISTRY
+
+
+def register_model(model, *aliases: str) -> None:
+    """
+    Add a custom model to the ``SimulationSpec.from_dict()`` registry.
+
+    Call this before any ``from_dict()`` or ``from_config()`` call that uses
+    the new model name.
+
+    Parameters
+    ----------
+    model : ModelSpec
+        The model object (must have a ``.name`` attribute).
+    *aliases : str
+        Extra lookup names, e.g. ``"my_model"``, ``"mymodel"``.
+
+    Examples
+    --------
+    >>> from vbi.simulator.spec.simulation import register_model
+    >>> register_model(my_model, "my_model", "mymodel")
+    """
+    reg = _get_model_registry()          # ensures base registry is built first
+    reg[model.name.lower()] = model
+    for alias in aliases:
+        reg[alias.lower()] = model
+
+
 @dataclass
 class SimulationSpec:
     """
@@ -114,38 +181,7 @@ class SimulationSpec:
         ``node_params``  (``{name: value}`` dict),
         ``speed``, ``noise_nsig``
         """
-        from vbi.simulator.models import (
-            mpr, jansen_rit, wilson_cowan, reduced_wong_wang,
-            wong_wang_exc_inh, generic_2d_oscillator, kuramoto,
-            sup_hopf, linear, larter_breakspear,
-            coombes_byrne_2d, gast_sd, gast_sf, vep, ghb, sl,
-            damped_oscillator,
-        )
-        _all_models = (
-            mpr, jansen_rit, wilson_cowan, reduced_wong_wang,
-            wong_wang_exc_inh, generic_2d_oscillator, kuramoto,
-            sup_hopf, linear, larter_breakspear,
-            coombes_byrne_2d, gast_sd, gast_sf, vep, ghb, sl,
-            damped_oscillator,
-        )
-        # Register by long model name and by short Python variable alias
-        _aliases = {
-            "mpr": mpr, "jansen_rit": jansen_rit, "jansenrit": jansen_rit,
-            "wilson_cowan": wilson_cowan, "wilsoncowan": wilson_cowan,
-            "reduced_wong_wang": reduced_wong_wang,
-            "wong_wang_exc_inh": wong_wang_exc_inh,
-            "generic_2d_oscillator": generic_2d_oscillator,
-            "generic2doscillator": generic_2d_oscillator,
-            "sup_hopf": sup_hopf, "suphopf": sup_hopf,
-            "larter_breakspear": larter_breakspear,
-            "coombes_byrne_2d": coombes_byrne_2d,
-            "gast_sd": gast_sd, "gast_sf": gast_sf,
-            "ghb": ghb, "sl": sl,
-            "damped_oscillator": damped_oscillator,
-            "kuramoto": kuramoto, "linear": linear, "vep": vep,
-        }
-        _MODELS = {m.name.lower(): m for m in _all_models}
-        _MODELS.update(_aliases)
+        _MODELS = _get_model_registry()
 
         # Model
         model_key = str(d["model"]).lower()

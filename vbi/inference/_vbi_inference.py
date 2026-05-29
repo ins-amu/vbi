@@ -36,28 +36,34 @@ def _pack_estimator(est, data: dict) -> None:
     Write all state needed to reconstruct ``est`` for inference (not training)
     into the flat numpy array dict ``data`` using an ``est__`` prefix.
 
-    Saved beyond the basic ``weights / param_dim / feature_dim``:
+    Saved:
+      - full constructor config (all dataclass fields) as a JSON string
+      - weights dict
       - z-score normalizers  (theta_mean/std, x_mean/std)
       - autoregressive masks (model_constants per flow)
       - ActNorm init flags
       - PCA components (if used)
-      - n_flows (so load can set up the right list sizes)
     """
+    import dataclasses, json
+
+    # Full constructor config — covers MAF/NSF/MDN non-default architectures.
+    if dataclasses.is_dataclass(est):
+        config: dict = {}
+        for f in dataclasses.fields(est):
+            val = getattr(est, f.name, None)
+            if isinstance(val, (int, float, bool, str, type(None))):
+                config[f.name] = val
+            elif isinstance(val, (list, tuple)) and all(isinstance(x, (int, float)) for x in val):
+                config[f.name] = list(val)
+        data["est__config"] = np.array(json.dumps(config))
+
+    data["est__type"] = np.array(type(est).__name__)
+
     for k, v in est.weights.items():
         data[f"est__w__{k}"] = np.asarray(v)
 
     data["est__param_dim"]   = np.array(est.param_dim)
     data["est__feature_dim"] = np.array(est.feature_dim)
-    data["est__n_flows"]     = np.array(getattr(est, "n_flows", 0))
-    data["est__type"]        = np.array(type(est).__name__)
-
-    # MDN-specific hyperparams needed to reconstruct the estimator
-    n_comp = getattr(est, "n_components", None)
-    if n_comp is not None:
-        data["est__n_components"] = np.array(n_comp)
-    hidden = getattr(est, "hidden_sizes", None)
-    if hidden is not None:
-        data["est__hidden_sizes"] = np.array(list(hidden))
 
     for attr in ("theta_mean", "theta_std", "x_mean", "x_std"):
         val = getattr(est, attr, None)
@@ -84,16 +90,33 @@ def _unpack_estimator(d, EstCls):
     Reconstruct a fully functional estimator from the flat array dict ``d``
     (keys produced by ``_pack_estimator``).
 
-    Branches on whether the estimator class uses ``n_flows`` (MAF/NSF) or
-    not (MDN), reconstructing with the saved hyperparams.
+    Reconstructs from the ``est__config`` JSON blob (full constructor kwargs),
+    falling back to legacy field-by-field keys for old checkpoints.
+    After construction, restores weights and all runtime state, then rebuilds
+    any derived attributes (e.g. MDN ``_offdiag_basis``).
     """
-    import dataclasses
+    import dataclasses, json
+
     _fields = {f.name for f in dataclasses.fields(EstCls)} if dataclasses.is_dataclass(EstCls) else set()
-    if "n_flows" in _fields:
+
+    if "est__config" in d:
+        raw = json.loads(str(d["est__config"]))
+        # Coerce list → tuple for tuple-typed fields (e.g. hidden_sizes)
+        kwargs = {}
+        for f in dataclasses.fields(EstCls) if dataclasses.is_dataclass(EstCls) else []:
+            if f.name in raw:
+                val = raw[f.name]
+                # f.default is a tuple (e.g. hidden_sizes=(32,32)) → coerce JSON list
+                if isinstance(val, list) and isinstance(f.default, tuple):
+                    val = tuple(val)
+                kwargs[f.name] = val
+        est = EstCls(**{k: v for k, v in kwargs.items() if k in _fields})
+    elif "n_flows" in _fields:
+        # Legacy checkpoint: MAF/NSF only stored n_flows
         n_flows = int(d["est__n_flows"]) if "est__n_flows" in d else 4
         est = EstCls(n_flows=n_flows)
     else:
-        # MDN-like estimator: reconstruct with saved hyperparams
+        # Legacy checkpoint: MDN stored n_components / hidden_sizes separately
         kwargs = {}
         if "est__n_components" in d:
             kwargs["n_components"] = int(d["est__n_components"])
@@ -106,6 +129,11 @@ def _unpack_estimator(d, EstCls):
     est.feature_dim    = int(d["est__feature_dim"])
     est._dims_inferred = True
     est.loss_history   = []
+
+    # Rebuild derived state that depends on param_dim/feature_dim.
+    # MDNEstimator creates _offdiag_basis in _infer_dimensions(); rebuild it here.
+    if hasattr(est, "_create_offdiag_basis"):
+        est._offdiag_basis = est._create_offdiag_basis()
 
     for attr in ("theta_mean", "theta_std", "x_mean", "x_std"):
         if f"est__{attr}" in d:
@@ -820,6 +848,7 @@ class VBIInference:
 
             inference:
               density_estimator: maf
+              inference_backend: vbi   # 'vbi' (default) or 'sbi'
               sim_backend: numba
               backend: auto
               training:              # stored as default_train_kwargs
@@ -841,6 +870,7 @@ class VBIInference:
             prior             = prior,
             pipeline          = pipeline,
             density_estimator = infer_cfg.get("density_estimator", "maf"),
+            inference_backend = infer_cfg.get("inference_backend", "vbi"),
             sim_backend       = infer_cfg.get("sim_backend", "numba"),
             backend           = infer_cfg.get("backend", "auto"),
         )
