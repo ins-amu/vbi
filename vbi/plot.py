@@ -906,3 +906,135 @@ def pairplot(
 
 # Backwards-compatibility alias
 pairplot_numpy = pairplot
+
+
+# ---------------------------------------------------------------------------
+# posterior_1d
+# ---------------------------------------------------------------------------
+
+def posterior_1d(
+    samples,
+    true_mean: float | None = None,
+    true_std:  float | None = None,
+    x_obs_val: float | None = None,
+    label_est: str = "estimated posterior",
+    title: str = "",
+    xlim: tuple | None = None,
+    ax: "Axes | None" = None,
+) -> "FigureBase":
+    """
+    1-D posterior histogram with an optional analytical Gaussian overlay.
+
+    Parameters
+    ----------
+    samples   : array_like  (n,)  - posterior samples for one parameter
+    true_mean : float | None      - mean of the analytical posterior
+    true_std  : float | None      - std of the analytical posterior
+    x_obs_val : float | None      - observed value (vertical marker)
+    label_est : str               - legend label for the histogram
+    title     : str
+    xlim      : (lo, hi) | None   - x-axis limits
+    ax        : Axes | None       - existing axes to draw into
+
+    Returns
+    -------
+    matplotlib Figure
+    """
+    from matplotlib import pyplot as _plt
+    from scipy.stats import norm as _norm
+
+    samples = np.asarray(samples).ravel()
+    if ax is None:
+        fig, ax = _plt.subplots(figsize=(6, 3.5))
+    else:
+        fig = ax.get_figure()
+
+    ax.hist(samples, bins=50, density=True, alpha=0.6,
+            color="steelblue", label=label_est,
+            range=xlim if xlim is not None else None)
+
+    if true_mean is not None and true_std is not None:
+        lo = xlim[0] if xlim else samples.min() - 3 * true_std
+        hi = xlim[1] if xlim else samples.max() + 3 * true_std
+        xg = np.linspace(lo, hi, 300)
+        ax.plot(xg, _norm.pdf(xg, true_mean, true_std),
+                "k--", lw=2, label="analytical posterior")
+        ax.axvline(true_mean, color="k", lw=1, ls=":")
+
+    if x_obs_val is not None:
+        ax.axvline(x_obs_val, color="tomato", lw=1.5, ls="--",
+                   label=f"x_obs={x_obs_val:.3g}")
+
+    ax.set_xlabel("θ")
+    ax.set_ylabel("density")
+    if xlim is not None:
+        ax.set_xlim(*xlim)
+    ax.legend(fontsize=8)
+    if title:
+        ax.set_title(title, fontsize=10)
+    ax.spines["right"].set_visible(False)
+    ax.spines["top"].set_visible(False)
+    fig.tight_layout()
+    return fig
+
+
+# ---------------------------------------------------------------------------
+# coverage_plot
+# ---------------------------------------------------------------------------
+
+def coverage_plot(
+    x_test,
+    true_means,
+    est_means,
+    est_lo,
+    est_hi,
+    xlabel: str = "x_obs",
+    ylabel: str = "θ",
+    title: str = "Posterior coverage",
+    ax: "Axes | None" = None,
+) -> "FigureBase":
+    """
+    Posterior mean ± credible interval vs the analytical/reference mean.
+
+    Useful for validating that the posterior is well-calibrated across a
+    range of observations.
+
+    Parameters
+    ----------
+    x_test     : (n,) array  - conditioning values (x_obs axis)
+    true_means : (n,) array  - reference/analytical posterior mean
+    est_means  : (n,) array  - estimated posterior mean
+    est_lo     : (n,) array  - lower credible bound (e.g. 5th percentile)
+    est_hi     : (n,) array  - upper credible bound (e.g. 95th percentile)
+    xlabel     : str          - x-axis label
+    ylabel     : str          - y-axis label
+    title      : str
+    ax         : Axes | None  - existing axes to draw into
+
+    Returns
+    -------
+    matplotlib Figure
+    """
+    from matplotlib import pyplot as _plt
+
+    x_test, true_means = np.asarray(x_test), np.asarray(true_means)
+    est_means, est_lo, est_hi = (
+        np.asarray(est_means), np.asarray(est_lo), np.asarray(est_hi)
+    )
+    if ax is None:
+        fig, ax = _plt.subplots(figsize=(6, 3.5))
+    else:
+        fig = ax.get_figure()
+
+    ax.plot(x_test, true_means, "k--", lw=1.5, label="reference mean")
+    ax.plot(x_test, est_means, "o-", color="steelblue", ms=4, label="estimated mean")
+    ax.fill_between(x_test, est_lo, est_hi, alpha=0.25,
+                    color="steelblue", label="90% CI")
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+    ax.legend(fontsize=8)
+    ax.set_title(title, fontsize=10)
+    ax.spines["right"].set_visible(False)
+    ax.spines["top"].set_visible(False)
+    fig.tight_layout()
+    return fig
