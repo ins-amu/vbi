@@ -15,6 +15,58 @@ import numpy as np
 log = logging.getLogger(__name__)
 
 
+# Models whose numba kernels have been compiled this session.
+# Key: (model_name, dt, stochastic) → True once warm-up is done.
+_JIT_WARMED: dict = {}
+
+
+def _jit_warmup(sim_spec, sweep_spec, duration: float, show_progress_bars: bool) -> None:
+    """
+    Trigger numba JIT compilation with a 1-sample sweep before the real run.
+
+    Compilation is a one-time cost per (model, dt, stochastic) combination
+    per Python session.  Subsequent calls to the same model config are instant.
+    Skips silently if the kernels are already compiled this session.
+    """
+    from vbi.simulator.api import Sweeper
+    from vbi.simulator.spec.sweep import SweepSpec
+
+    key = (
+        sim_spec.model.name,
+        sim_spec.integrator.dt,
+        sim_spec.integrator.stochastic,
+    )
+    if key in _JIT_WARMED:
+        return
+
+    param_sets = sweep_spec.param_sets[:1]   # 1 sample only
+    warmup_spec = SweepSpec(
+        params      = param_sets,
+        param_names = tuple(sweep_spec._param_names_list),
+        pipeline    = sweep_spec.pipeline,
+        same_noise  = sweep_spec.same_noise,
+    )
+    warmup_sweeper = Sweeper(sim_spec, warmup_spec, backend="numba")
+
+    if show_progress_bars:
+        try:
+            from tqdm.auto import tqdm as _tqdm
+            with _tqdm(
+                total=1,
+                desc=f"Compiling numba [{sim_spec.model.name}] (one-time)",
+                unit="step",
+                bar_format="{desc}: {elapsed}",
+            ) as pbar:
+                warmup_sweeper.run(duration)
+                pbar.update(1)
+        except ImportError:
+            warmup_sweeper.run(duration)
+    else:
+        warmup_sweeper.run(duration)
+
+    _JIT_WARMED[key] = True
+
+
 def _sweep_numpy_with_progress(
     sim_spec, sweep_spec, duration, num_simulations, n_params, param_names, pipeline
 ):
@@ -130,6 +182,12 @@ def simulate_for_vbi_sweep(
             param_names, pipeline,
         )
     else:
+        # For compiled backends (numba/cuda/jax/cpp), trigger JIT compilation
+        # with a 1-sample warm-up before the main sweep.  Compilation is a
+        # one-time cost per session (~20s for numba); subsequent calls are fast.
+        if sim_backend == "numba":
+            _jit_warmup(sim_spec, sweep_spec, duration, show_progress_bars)
+
         sweeper = Sweeper(sim_spec, sweep_spec, backend=sim_backend)
         if show_progress_bars:
             try:

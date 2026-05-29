@@ -126,19 +126,19 @@ def _coup_linear_delayed(srcbuf, step, horizon, weights, delay_steps, G, a, b):
 # Integrators  (dfun_fn passed as first-class @njit function)
 # ---------------------------------------------------------------------------
 
-@njit(cache=False)
+@njit(cache=True)
 def _heun_det(state, coupling, params, dt, dfun_fn):
     k1 = dfun_fn(state, coupling, params)
     k2 = dfun_fn(state + dt * k1, coupling, params)
     return state + 0.5 * dt * (k1 + k2)
 
 
-@njit(cache=False)
+@njit(cache=True)
 def _euler_det(state, coupling, params, dt, dfun_fn):
     return state + dt * dfun_fn(state, coupling, params)
 
 
-@njit(cache=False)
+@njit(cache=True)
 def _heun_stoch(state, coupling, params, dt, dfun_fn, dW):
     """Stochastic Heun: dW = pre-generated (n_sv, n_nodes) noise for this step."""
     k1 = dfun_fn(state, coupling, params)
@@ -147,7 +147,7 @@ def _heun_stoch(state, coupling, params, dt, dfun_fn, dW):
     return state + 0.5 * dt * (k1 + k2) + dW
 
 
-@njit(cache=False)
+@njit(cache=True)
 def _euler_stoch(state, coupling, params, dt, dfun_fn, dW):
     return state + dt * dfun_fn(state, coupling, params) + dW
 
@@ -177,7 +177,7 @@ def _apply_bounds(state, lower_bounds, has_lower, upper_bounds, has_upper):
 # Deterministic simulation loop
 # ---------------------------------------------------------------------------
 
-@njit(cache=False)
+@njit(cache=True)
 def nb_simulate_det(
     state0, srcbuf0, weights, delay_steps, horizon,
     params, G_idx, a, b, dt, n_steps, n_record,
@@ -264,7 +264,7 @@ def nb_simulate_det(
 # Stochastic simulation loop  (noise generated per step inside @njit)
 # ---------------------------------------------------------------------------
 
-@njit(cache=False)
+@njit(cache=True)
 def nb_simulate_stoch(
     state0, srcbuf0, weights, delay_steps, horizon,
     params, G_idx, a, b, dt, n_steps, n_record,
@@ -364,7 +364,7 @@ def nb_simulate_stoch(
 # Parallel deterministic sweep  (prange over parameter sets)
 # ---------------------------------------------------------------------------
 
-@njit(parallel=True, cache=False)
+@njit(parallel=True, cache=True)
 def nb_sweep_det(
     param_sets, base_params, state0, srcbuf0,
     weights, delay_steps, horizon, G_idx, a, b, dt, n_steps, n_record,
@@ -410,7 +410,7 @@ def nb_sweep_det(
 # Parallel stochastic sweep
 # ---------------------------------------------------------------------------
 
-@njit(parallel=True, cache=False)
+@njit(parallel=True, cache=True)
 def nb_sweep_stoch(
     param_sets, base_params, state0, srcbuf0,
     weights, delay_steps, horizon, G_idx, a, b, dt, n_steps, n_record,
@@ -458,7 +458,7 @@ def nb_sweep_stoch(
 # Parallel deterministic sweep - inline feature extraction (Tier-2)
 # ---------------------------------------------------------------------------
 
-@njit(parallel=True, cache=False)
+@njit(parallel=True, cache=True)
 def nb_sweep_det_feat(
     param_sets, base_params, state0, srcbuf0,
     weights, delay_steps, horizon, G_idx, a, b, dt, n_steps, n_record,
@@ -527,7 +527,7 @@ def nb_sweep_det_feat(
 # Parallel stochastic sweep - inline feature extraction (Tier-2)
 # ---------------------------------------------------------------------------
 
-@njit(parallel=True, cache=False)
+@njit(parallel=True, cache=True)
 def nb_sweep_stoch_feat(
     param_sets, base_params, state0, srcbuf0,
     weights, delay_steps, horizon, G_idx, a, b, dt, n_steps, n_record,
