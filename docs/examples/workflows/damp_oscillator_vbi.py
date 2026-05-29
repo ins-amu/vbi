@@ -89,13 +89,13 @@ sim_spec = SimulationSpec(
 THETA_TRUE = np.array([0.1, 0.05])   # a=0.1, b=0.05
 PRIOR_LOW  = np.array([0.0, 0.0])
 PRIOR_HIGH = np.array([1.0, 1.0])
-DURATION   = 200.0   # ms  (system reaches steady state by ~100 ms)
+DURATION   = 250.0   # ms  (system reaches steady state by ~100 ms)
 T_CUT      = 20.0    # ms  (discard initial transient)
 
 # Run a single simulation at the true parameters for visual check
 sim_spec_true = SimulationSpec(
     model         = damped_oscillator,
-    integrator    = IntegratorSpec(method="heun", dt=0.01),
+    integrator    = IntegratorSpec(method="heun", dt=0.1),
     coupling      = CouplingSpec("linear", a=0.0),
     monitors      = (MonitorSpec("subsample", period=0.1),),
     weights       = W,
