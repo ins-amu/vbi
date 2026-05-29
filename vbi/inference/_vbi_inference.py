@@ -236,7 +236,13 @@ def _make_simulator_fn(sim_spec, prior, pipeline, sim_backend, duration):
 
 def _prior_to_sbi(prior):
     """Convert a vbi prior to a sbi/torch-compatible prior."""
-    import torch
+    try:
+        import torch
+    except ImportError as e:
+        raise ImportError(
+            "inference_backend='sbi' requires PyTorch. "
+            "Install with:  pip install torch"
+        ) from e
     from vbi.inference._prior import BoxUniform as _VBIBoxUniform
 
     if isinstance(prior, _VBIBoxUniform):
@@ -501,8 +507,11 @@ class VBIInference:
         if self._inference_backend == "vbi":
             self._snpe.append_simulations(theta, x, proposal=proposal)
         else:
-            torch_prior_proposal = proposal  # sbi handles proposal natively
-            self._sbi_engine.append_simulations(theta, x)
+            import torch
+            self._sbi_engine.append_simulations(
+                torch.tensor(theta, dtype=torch.float32),
+                torch.tensor(x,     dtype=torch.float32),
+            )
 
         return theta, x
 
@@ -717,7 +726,11 @@ class VBIInference:
             if inf._inference_backend == "vbi":
                 inf._snpe.append_simulations(theta_all, x_all, exclude_invalid_x=False)
             else:
-                inf._sbi_engine.append_simulations(theta_all, x_all)
+                import torch
+                inf._sbi_engine.append_simulations(
+                    torch.tensor(theta_all, dtype=torch.float32),
+                    torch.tensor(x_all,     dtype=torch.float32),
+                )
             # Restore backend-agnostic round storage (single round)
             inf._sim_rounds = [(theta_all.astype(np.float64), x_all.astype(np.float64))]
 
@@ -729,9 +742,10 @@ class VBIInference:
             inf._last_estimator  = est
             inf._snpe._estimator = est
 
+        n_sims = sum(r[0].shape[0] for r in inf._sim_rounds)
         log.info(
             "VBIInference loaded from %s  (n_sims=%d, estimator=%s)",
-            path, inf._snpe.n_simulations,
+            path, n_sims,
             "restored" if inf._last_estimator is not None else "not found",
         )
         return inf
