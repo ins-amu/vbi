@@ -466,7 +466,7 @@ def nb_sweep_det_feat(
     lower_bounds, has_lower, upper_bounds, has_upper,
     record_period, t_cut_step, n_voi, voi_indices,
     use_heun, sweep_param_indices,
-    do_mean, do_std, do_fc, do_fcd, fcd_window, n_features,
+    do_mean, do_std, do_fc, do_fcd, fcd_window, n_features, n_voi_feat,
     dfun_fn, use_kuramoto, alpha, stim_data, has_stimulus,
 ):
     """
@@ -476,12 +476,18 @@ def nb_sweep_det_feat(
     only the feature vector is written to the global output - the full
     time series is never materialised across all samples simultaneously.
 
+    n_voi_feat : int
+        Number of VOIs to include as feature channels.
+        1  → VOI 0 only (backward-compatible default for brain models).
+        >1 → first n_voi_feat VOIs flattened into channels for multi-VOI models.
+
     Returns
     -------
     out : (n_samples, n_features) float64
     """
-    n_samples = param_sets.shape[0]
-    n_nodes   = state0.shape[1]
+    n_samples  = param_sets.shape[0]
+    n_nodes    = state0.shape[1]
+    n_channels = n_voi_feat * n_nodes
 
     out = np.empty((n_samples, n_features))
 
@@ -504,8 +510,12 @@ def nb_sweep_det_feat(
             use_heun, dfun_fn, use_kuramoto, alpha, stim_data, has_stimulus,
         )
 
-        # Extract features from voi=0  →  (n_record, n_nodes)
-        ts_2d = ts_i[:, 0, :]
+        # Flatten n_voi_feat VOIs into channels: (n_record, n_channels)
+        ts_2d = np.empty((n_record, n_channels))
+        for v in range(n_voi_feat):
+            for nd in range(n_nodes):
+                ts_2d[:, v * n_nodes + nd] = ts_i[:, v, nd]
+
         feat_buf = np.empty(n_features)
         nb_extract(ts_2d, do_mean, do_std, do_fc, do_fcd, fcd_window, feat_buf)
         out[i] = feat_buf
@@ -526,7 +536,7 @@ def nb_sweep_stoch_feat(
     eff_noise_amp, noise_mask,
     record_period, t_cut_step, n_voi, voi_indices,
     use_heun, sweep_param_indices, seeds,
-    do_mean, do_std, do_fc, do_fcd, fcd_window, n_features,
+    do_mean, do_std, do_fc, do_fcd, fcd_window, n_features, n_voi_feat,
     dfun_fn, use_kuramoto, alpha, stim_data, has_stimulus,
 ):
     """
@@ -536,8 +546,9 @@ def nb_sweep_stoch_feat(
     -------
     out : (n_samples, n_features) float64
     """
-    n_samples = param_sets.shape[0]
-    n_nodes   = state0.shape[1]
+    n_samples  = param_sets.shape[0]
+    n_nodes    = state0.shape[1]
+    n_channels = n_voi_feat * n_nodes
 
     out = np.empty((n_samples, n_features))
 
@@ -561,7 +572,11 @@ def nb_sweep_stoch_feat(
             alpha, stim_data, has_stimulus,
         )
 
-        ts_2d = ts_i[:, 0, :]
+        ts_2d = np.empty((n_record, n_channels))
+        for v in range(n_voi_feat):
+            for nd in range(n_nodes):
+                ts_2d[:, v * n_nodes + nd] = ts_i[:, v, nd]
+
         feat_buf = np.empty(n_features)
         nb_extract(ts_2d, do_mean, do_std, do_fc, do_fcd, fcd_window, feat_buf)
         out[i] = feat_buf

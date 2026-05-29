@@ -219,31 +219,42 @@ class NbExtractorSpec:
     Created by FeaturePipeline.nb_extractor; consumed by NumbaSweeperCPU
     to dispatch nb_sweep_det_feat / nb_sweep_stoch_feat instead of the
     Tier-1 Python-loop path.
+
+    n_voi_feat
+    ----------
+    How many VOIs (state variables) to include as channels for feature
+    extraction.
+      1  (default)  — VOI 0 only (backward-compatible for brain models)
+     -1             — all VOIs; the sweeper resolves this to model.n_sv at
+                      run time and flattens (n_voi, n_nodes) into n_channels.
     """
     do_mean:    bool = False
     do_std:     bool = False
     do_fc:      bool = False
     do_fcd:     bool = False
     fcd_window: int  = 30
+    n_voi_feat: int  = 1   # 1 = VOI 0 only; -1 = all VOIs (resolved by sweeper)
 
-    def n_features(self, n_nodes: int) -> int:
+    def n_features(self, n_channels: int) -> int:
+        """n_channels = n_voi_feat * n_nodes (after VOI flattening)."""
         n = 0
-        if self.do_mean: n += n_nodes
-        if self.do_std:  n += n_nodes
-        if self.do_fc:   n += n_nodes * (n_nodes - 1) // 2
+        if self.do_mean: n += n_channels
+        if self.do_std:  n += n_channels
+        if self.do_fc:   n += n_channels * (n_channels - 1) // 2
         if self.do_fcd:  n += 1
         return n
 
-    def labels(self, n_nodes: int) -> list[str]:
+    def labels(self, n_channels: int) -> list[str]:
+        """n_channels = n_voi_feat * n_nodes (after VOI flattening)."""
         lbls: list[str] = []
         if self.do_std:
-            lbls += [f"std_{i}" for i in range(n_nodes)]
+            lbls += [f"std_{i}" for i in range(n_channels)]
         if self.do_mean:
-            lbls += [f"mean_{i}" for i in range(n_nodes)]
+            lbls += [f"mean_{i}" for i in range(n_channels)]
         if self.do_fc:
             lbls += [f"fc_{i}_{j}"
-                     for i in range(n_nodes)
-                     for j in range(i + 1, n_nodes)]
+                     for i in range(n_channels)
+                     for j in range(i + 1, n_channels)]
         if self.do_fcd:
             lbls += ["fcd_mean"]
         return lbls

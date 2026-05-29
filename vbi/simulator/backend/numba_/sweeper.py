@@ -229,9 +229,12 @@ class NumbaSweeperCPU:
             dt, n_steps, record_period, t_cut_step, n_record, n_sv, voi_indices = \
                 self._sweep_params(duration)
 
-            n_nodes     = self.spec.n_nodes
-            n_feat      = nb_spec.n_features(n_nodes)
-            feat_labels = nb_spec.labels(n_nodes)
+            n_nodes = self.spec.n_nodes
+            # Resolve n_voi_feat: -1 sentinel means "use all VOIs"
+            n_voi_feat  = n_sv if nb_spec.n_voi_feat == -1 else nb_spec.n_voi_feat
+            n_channels  = n_voi_feat * n_nodes
+            n_feat      = nb_spec.n_features(n_channels)
+            feat_labels = nb_spec.labels(n_channels)
             ps          = param_sets.astype(np.float64)
 
             stim_data, has_stimulus = _build_stim_data(self.spec, n_steps, dt)
@@ -249,6 +252,7 @@ class NumbaSweeperCPU:
                 nb_spec.do_mean, nb_spec.do_std,
                 nb_spec.do_fc, nb_spec.do_fcd,
                 np.int64(nb_spec.fcd_window), np.int64(n_feat),
+                np.int64(n_voi_feat),
                 self._dfun,
             )
 
@@ -272,6 +276,7 @@ class NumbaSweeperCPU:
                     nb_spec.do_mean, nb_spec.do_std,
                     nb_spec.do_fc, nb_spec.do_fcd,
                     np.int64(nb_spec.fcd_window), np.int64(n_feat),
+                    np.int64(n_voi_feat),
                     self._dfun, self._use_kuramoto, self._alpha,
                     stim_data, has_stimulus,
                 )

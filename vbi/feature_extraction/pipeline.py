@@ -153,7 +153,8 @@ class FeaturePipeline:
         is supported by the Numba JIT tier, otherwise return None.
 
         Currently supported cfg keys: calc_mean, calc_std.
-        When None is returned the sweeper falls back to the Tier-1 Python path.
+        When None is returned the sweeper falls back to the Tier-1 Python path
+        (simulation still runs in numba; only feature extraction is in Python).
         """
         from vbi.feature_extraction.features_utils_nb import (
             NbExtractorSpec,
@@ -173,5 +174,9 @@ class FeaturePipeline:
         for name in all_names:
             flag = _PYTHON_TIER_COMPAT[name]
             setattr(spec, flag, True)
+
+        # voi=None  → use all VOIs (-1 is a sentinel; sweeper resolves to n_sv)
+        # voi=0     → VOI 0 only (default, backward-compatible)
+        spec.n_voi_feat = -1 if self.voi is None else 1
 
         return spec

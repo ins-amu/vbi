@@ -75,7 +75,7 @@ D = np.zeros((N, N))
 
 sim_spec = SimulationSpec(
     model         = damped_oscillator,
-    integrator    = IntegratorSpec(method="heun", dt=0.01),
+    integrator    = IntegratorSpec(method="heun", dt=0.1),
     coupling      = CouplingSpec("linear", a=0.0),
     monitors      = (MonitorSpec("subsample", period=0.1),),
     # Use MonitorSpec("raw") for full dt-resolution signal instead.
@@ -104,7 +104,7 @@ sim_spec_true = SimulationSpec(
     node_params   = {"a": np.array([THETA_TRUE[0]]),
                      "b": np.array([THETA_TRUE[1]])},
 )
-result_true = Simulator(sim_spec_true, backend="numba").run(DURATION)
+result_true = Simulator(sim_spec_true, backend="numpy").run(DURATION)
 t_obs, ts_obs = result_true["subsample"]       # ts: (T, 2, 1)
 
 fig, axes = plt.subplots(2, 1, figsize=(6, 4), sharex=True)
@@ -163,111 +163,47 @@ inf = VBIInference(
     prior             = prior,
     pipeline          = pipeline,
     density_estimator = "maf",
-    sim_backend       = "numba",
+    sim_backend       = "numba",   # simulation JIT-compiled; feature extraction via Python (voi=None)
     backend           = "auto",
     show_progress_bars = True,
 )
 print(f"\n  {inf}")
 
-# ── 6 - Round 1: simulate + train + posterior ─────────────────────────────────
+# ── 6 - Simulate + train + posterior  (single round) ─────────────────────────
 
-N_R1 = 200
+N_SIM = 2000
 
-
-print(f"\n  Round 1: {N_R1} simulations × {DURATION} ms …", flush=True)
-theta_r1, x_r1 = inf.simulate(N_R1, DURATION, seed=0)
-print(f"  theta {theta_r1.shape}   x {x_r1.shape}")
+print(f"\n  Simulating {N_SIM} × {DURATION} ms …", flush=True)
+theta, x = inf.simulate(N_SIM, DURATION, seed=0)
+print(f"  theta {theta.shape}   x {x.shape}")
 
 print("  Training MAF …", flush=True)
-est_r1 = inf.train(
+estimator = inf.train(
     training_batch_size = 256,
     learning_rate       = 5e-4,
     stop_after_epochs   = 20,
     max_num_epochs      = 500,
 )
-print(f"  Best val loss : {est_r1.best_val_loss:.4f}  (epoch {est_r1.best_epoch})")
-exit(0)
+print(f"  Best val loss : {estimator.best_val_loss:.4f}  (epoch {estimator.best_epoch})")
 
 fig_loss = inf.plot_loss()
-fig_loss.savefig(OUT / "do_vbi_r1_loss.png", dpi=120)
+fig_loss.savefig(OUT / "do_vbi_loss.png", dpi=120)
 plt.close(fig_loss)
-print(f"  Loss curve    → {OUT/'do_vbi_r1_loss.png'}")
+print(f"  Loss curve    → {OUT/'do_vbi_loss.png'}")
 
-# Observed feature vector from true parameters
-post_r1 = inf.build_posterior(est_r1)
-x_obs   = values   # features at THETA_TRUE
+posterior = inf.build_posterior(estimator)
+x_obs     = values   # feature vector at THETA_TRUE
 
-samples_r1 = post_r1.sample((5000,), x=x_obs[None], seed=0)
-print(f"\n  Posterior samples : {samples_r1.shape}")
-
-post_mean = samples_r1.mean(axis=0)
-post_std  = samples_r1.std(axis=0)
+samples = posterior.sample((5000,), x=x_obs[None], seed=0)
+print(f"\n  Posterior samples : {samples.shape}")
 print(f"  True θ            : {THETA_TRUE}")
-print(f"  Posterior mean    : {np.round(post_mean, 4)}")
-print(f"  Posterior std     : {np.round(post_std,  4)}")
+print(f"  Posterior mean    : {np.round(samples.mean(0), 4)}")
+print(f"  Posterior std     : {np.round(samples.std(0),  4)}")
 
-fig_pair = pairplot(samples_r1, labels=["a", "b"], points=THETA_TRUE[None])
-fig_pair.savefig(OUT / "do_vbi_r1_pairplot.png", dpi=120)
+fig_pair = pairplot(samples, labels=["a", "b"], points=THETA_TRUE[None])
+fig_pair.savefig(OUT / "do_vbi_pairplot.png", dpi=120)
 plt.close(fig_pair)
-print(f"  Pairplot          → {OUT/'do_vbi_r1_pairplot.png'}")
-
-# ── 7 - Save / load checkpoint ────────────────────────────────────────────────
-
-ckpt = OUT / "do_vbi_r1.npz"
-inf.save(ckpt)
-print(f"\n  Checkpoint saved  → {ckpt}")
-
-inf_loaded = VBIInference.load(ckpt, sim_spec=sim_spec, pipeline=pipeline, prior=prior)
-post_ld    = inf_loaded.build_posterior()
-s_ld       = post_ld.sample((100,), x=x_obs[None], seed=1)
-assert s_ld.shape == (100, 2)
-print("  ✓ Load + sample OK")
-
-# ── 8 - Round 2: posterior-focused simulation ─────────────────────────────────
-
-N_R2 = 500
-post_r1.set_default_x(x_obs[None])
-
-print(f"\n  Round 2: {N_R2} sims from round-1 posterior …", flush=True)
-theta_r2, x_r2 = inf.simulate(
-    N_R2, DURATION,
-    proposal = post_r1,
-    x_obs    = x_obs[None],
-    seed     = 1,
-)
-print(f"  theta {theta_r2.shape}   x {x_r2.shape}")
-print(f"  Total sims: {inf._snpe.n_simulations}")
-
-est_r2  = inf.train(
-    training_batch_size = 256,
-    learning_rate       = 5e-4,
-    stop_after_epochs   = 20,
-    max_num_epochs      = 500,
-)
-post_r2    = inf.build_posterior(est_r2)
-samples_r2 = post_r2.sample((5000,), x=x_obs[None], seed=0)
-print(f"  Round-2 mean: {np.round(samples_r2.mean(axis=0), 4)}")
-print(f"  Round-2 std : {np.round(samples_r2.std(axis=0),  4)}")
-
-fig, axes = plt.subplots(1, 2, figsize=(10, 4), sharey=True)
-for ax, samp, label in zip(
-    axes,
-    [samples_r1, samples_r2],
-    [f"Round 1  (n={N_R1})",
-     f"Round 2  (+{N_R2} posterior sims)"],
-):
-    ax.scatter(samp[:, 0], samp[:, 1], s=3, alpha=0.3, color="steelblue")
-    ax.scatter(*THETA_TRUE, color="red", s=80, marker="*", zorder=5, label="true θ")
-    ax.set_xlabel("a"); ax.set_ylabel("b")
-    ax.set_title(label, fontsize=10)
-    ax.legend(fontsize=8)
-    ax.spines["right"].set_visible(False)
-    ax.spines["top"].set_visible(False)
-fig.suptitle("Round-1 vs Round-2 posterior", fontsize=11)
-fig.tight_layout()
-fig.savefig(OUT / "do_vbi_r1_vs_r2.png", dpi=120)
-plt.close(fig)
-print(f"\n  Comparison plot   → {OUT/'do_vbi_r1_vs_r2.png'}")
+print(f"  Pairplot          → {OUT/'do_vbi_pairplot.png'}")
 
 # ── Summary ───────────────────────────────────────────────────────────────────
 
@@ -275,10 +211,10 @@ print("\n" + "=" * 62)
 print("Summary")
 print("=" * 62)
 print(f"  Model    : DampedOscillator  (N=1, no coupling)")
+print(f"  Backend  : numba (sim) + auto (inference)")
 print(f"  Monitor  : subsample  period=0.1 ms")
 print(f"  Features : {labels}  (voi=None → both SVs)")
-print(f"  R1 sims  : {N_R1}  |  R2 sims: {N_R2}")
+print(f"  N sims   : {N_SIM}  ×  {DURATION} ms")
 print(f"  True θ   : a={THETA_TRUE[0]}, b={THETA_TRUE[1]}")
-print(f"  R1 mean  : {np.round(samples_r1.mean(0), 4)}")
-print(f"  R2 mean  : {np.round(samples_r2.mean(0), 4)}")
+print(f"  Post mean: {np.round(samples.mean(0), 4)}")
 print(f"  Outputs  : {OUT}/")
