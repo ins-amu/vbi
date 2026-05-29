@@ -218,6 +218,12 @@ class SimulationSpec:
             for k, v in raw_np.items()
         }
 
+        if "stimuli" in d:
+            raise ValueError(
+                "Stimuli configuration is not yet supported in SimulationSpec.from_dict(). "
+                "Create the SimulationSpec manually and pass stimuli= directly."
+            )
+
         return cls(
             model        = model,
             integrator   = integrator,

@@ -266,6 +266,13 @@ def _extract_from_cache_impl(
             labels_i, vals_i = pipeline.extract(monitor_result)
             if feat_labels is None:
                 feat_labels = labels_i
+            elif labels_i != feat_labels:
+                raise ValueError(
+                    f"Feature labels changed at chunk {chunk_idx}, row {i}: "
+                    f"expected {feat_labels}, got {labels_i}. "
+                    "The pipeline may be data-dependent; ensure it produces "
+                    "consistent labels across all cached samples."
+                )
             theta_rows.append(theta_c[i])
             x_rows.append(vals_i)
 

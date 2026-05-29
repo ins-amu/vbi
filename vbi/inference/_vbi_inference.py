@@ -18,7 +18,6 @@ from ._utils import (
     simulate_for_vbi_sweep,
     simulate_for_vbi_sweep_cached,
     extract_from_cache as _extract_from_cache,
-    _extract_from_cache_impl,
 )
 
 if TYPE_CHECKING:
@@ -50,6 +49,15 @@ def _pack_estimator(est, data: dict) -> None:
     data["est__param_dim"]   = np.array(est.param_dim)
     data["est__feature_dim"] = np.array(est.feature_dim)
     data["est__n_flows"]     = np.array(getattr(est, "n_flows", 0))
+    data["est__type"]        = np.array(type(est).__name__)
+
+    # MDN-specific hyperparams needed to reconstruct the estimator
+    n_comp = getattr(est, "n_components", None)
+    if n_comp is not None:
+        data["est__n_components"] = np.array(n_comp)
+    hidden = getattr(est, "hidden_sizes", None)
+    if hidden is not None:
+        data["est__hidden_sizes"] = np.array(list(hidden))
 
     for attr in ("theta_mean", "theta_std", "x_mean", "x_std"):
         val = getattr(est, attr, None)
@@ -76,11 +84,22 @@ def _unpack_estimator(d, EstCls):
     Reconstruct a fully functional estimator from the flat array dict ``d``
     (keys produced by ``_pack_estimator``).
 
-    Uses ``EstCls(n_flows=n)`` so ``__post_init__`` initialises the correct
-    list sizes, then overrides all attributes with the restored values.
+    Branches on whether the estimator class uses ``n_flows`` (MAF/NSF) or
+    not (MDN), reconstructing with the saved hyperparams.
     """
-    n_flows = int(d["est__n_flows"]) if "est__n_flows" in d else 4
-    est = EstCls(n_flows=n_flows)
+    import dataclasses
+    _fields = {f.name for f in dataclasses.fields(EstCls)} if dataclasses.is_dataclass(EstCls) else set()
+    if "n_flows" in _fields:
+        n_flows = int(d["est__n_flows"]) if "est__n_flows" in d else 4
+        est = EstCls(n_flows=n_flows)
+    else:
+        # MDN-like estimator: reconstruct with saved hyperparams
+        kwargs = {}
+        if "est__n_components" in d:
+            kwargs["n_components"] = int(d["est__n_components"])
+        if "est__hidden_sizes" in d:
+            kwargs["hidden_sizes"] = tuple(int(x) for x in d["est__hidden_sizes"])
+        est = EstCls(**kwargs)
 
     est.weights        = {k[len("est__w__"):]: d[k] for k in d if k.startswith("est__w__")}
     est.param_dim      = int(d["est__param_dim"])
@@ -208,7 +227,6 @@ def _make_simulator_fn(sim_spec, prior, pipeline, sim_backend, duration):
     Each call patches the SimulationSpec with the given parameter values,
     runs one simulation, and extracts features via the pipeline.
     """
-    from vbi.simulator.api import Simulator
     from vbi.simulator.spec.sweep import SweepSpec
     from vbi.simulator.api import Sweeper
 
@@ -508,10 +526,12 @@ class VBIInference:
             self._snpe.append_simulations(theta, x, proposal=proposal)
         else:
             import torch
-            self._sbi_engine.append_simulations(
-                torch.tensor(theta, dtype=torch.float32),
-                torch.tensor(x,     dtype=torch.float32),
-            )
+            theta_t = torch.tensor(theta, dtype=torch.float32)
+            x_t     = torch.tensor(x,     dtype=torch.float32)
+            if proposal is not None:
+                self._sbi_engine.append_simulations(theta_t, x_t, proposal=proposal)
+            else:
+                self._sbi_engine.append_simulations(theta_t, x_t)
 
         return theta, x
 
@@ -624,6 +644,9 @@ class VBIInference:
         estimator state (weights + normalizers + masks), feature/param
         label lists, and constructor kwargs.
 
+        For the sbi backend, the trained estimator is written to a companion
+        ``<stem>_sbi.pt`` file next to the ``.npz``.
+
         NOT saved: ``sim_spec`` and ``pipeline`` — supply them on load.
 
         Parameters
@@ -646,10 +669,10 @@ class VBIInference:
         if self._inference_backend == "vbi" and self._last_estimator is not None:
             _pack_estimator(self._last_estimator, data)
         elif self._inference_backend == "sbi" and self._last_estimator is not None:
-            log.warning(
-                "VBIInference.save: sbi estimator weights are NOT saved. "
-                "Use sbi's own torch.save(posterior, path) to persist the trained model."
-            )
+            import torch
+            sbi_path = path.with_name(path.stem + "_sbi.pt")
+            torch.save(self._last_estimator, sbi_path)
+            log.info("VBIInference sbi estimator saved to %s", sbi_path)
 
         # -- metadata --------------------------------------------------------
         data["meta__feature_labels"]    = np.array("|".join(self._feature_labels or []))
@@ -741,6 +764,12 @@ class VBIInference:
             est = _unpack_estimator(d, EstCls)
             inf._last_estimator  = est
             inf._snpe._estimator = est
+        elif inf._inference_backend == "sbi":
+            sbi_path = path.with_name(path.stem + "_sbi.pt")
+            if sbi_path.exists():
+                import torch
+                inf._last_estimator = torch.load(sbi_path, weights_only=False)
+                log.info("VBIInference sbi estimator loaded from %s", sbi_path)
 
         n_sims = sum(r[0].shape[0] for r in inf._sim_rounds)
         log.info(
@@ -870,7 +899,7 @@ class VBIInference:
 
         if self._last_estimator is None:
             raise RuntimeError(
-                "No trained estimator — call train() and build_posterior() first."
+                "No trained estimator — call train() first."
             )
         posterior = self.build_posterior()
         samples   = posterior.sample((num_samples,), x=np.asarray(x_obs))
