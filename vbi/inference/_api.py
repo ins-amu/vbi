@@ -18,7 +18,7 @@ Migration from sbi:
 from __future__ import annotations
 
 import logging
-from typing import Literal
+from typing import Literal, Union
 
 import numpy as np
 
@@ -67,23 +67,39 @@ class SNPE:
     def __init__(
         self,
         prior=None,
-        density_estimator: Literal["maf", "mdn"] = "maf",
+        density_estimator: Union[Literal["maf", "mdn", "nsf"], callable] = "maf",
         backend: str = "auto",
         device: str | None = None,
         show_progress_bars: bool = True,
         embedding_net=None,
         **kwargs,
     ):
+        """
+        Parameters
+        ----------
+        density_estimator : 'maf' | 'mdn' | 'nsf' | callable
+            Architecture to use.  Alternatively, pass a zero-argument
+            callable (factory) that returns a ``ConditionalDensityEstimator``
+            instance, e.g.::
+
+                SNPE(prior, density_estimator=lambda: MAFEstimator(n_flows=6))
+                SNPE(prior, density_estimator=MyCustomEstimator)
+
+            When a callable is given, ``backend`` is ignored for estimator
+            construction (the factory is responsible for its own backend).
+        """
         _valid = ("maf", "mdn", "nsf")
-        if density_estimator not in _valid:
+        _is_factory = callable(density_estimator) and not isinstance(density_estimator, str)
+        if not _is_factory and density_estimator not in _valid:
             raise ValueError(
                 f"density_estimator={density_estimator!r} not supported. "
-                f"Choose from: {list(_valid)}."
+                f"Choose from: {list(_valid)}, or pass a callable factory."
             )
         if device is not None:
             set_jax_device(device)
         self._prior_obj        = prior
-        self._de_type          = density_estimator
+        self._de_type          = density_estimator   # str or callable factory
+        self._de_is_factory    = _is_factory
         self._backend          = resolve_backend(backend)
         self._show_progress    = show_progress_bars
         self._embedding_net    = embedding_net
@@ -101,6 +117,7 @@ class SNPE:
         proposal=None,
         exclude_invalid_x: bool = True,
         data_device: str | None = None,
+        discard_prior_samples: bool = False,
     ) -> "SNPE":
         """
         Store a round of simulations.
@@ -111,10 +128,16 @@ class SNPE:
         x     : array (n, d_x)
         proposal : posterior object | None
             Proposal used to generate theta (for importance-weighted
-            multi-round training).  Currently stored but not used;
-            full APT weighting is added in MI3.
+            multi-round training).
         exclude_invalid_x : bool
             Drop rows where x contains NaN/inf.
+        discard_prior_samples : bool
+            When True and this is not the first round (``n_rounds > 0``),
+            discard all previously stored round-0 (prior) simulations.
+            Mirrors sbi's ``discard_prior_samples`` behaviour: after the
+            first round, training on only the current proposal avoids
+            the prior-dominated low-density region and can speed up
+            convergence in later rounds.
 
         Returns
         -------
@@ -132,6 +155,15 @@ class SNPE:
             dropped = (~ok).sum()
             if dropped:
                 log.info("append_simulations: dropped %d rows with non-finite values.", dropped)
+
+        if discard_prior_samples and len(self._rounds) > 0:
+            n_discarded = sum(r[0].shape[0] for r in self._rounds)
+            self._rounds.clear()
+            log.info(
+                "append_simulations: discarded %d prior-round samples "
+                "(discard_prior_samples=True).",
+                n_discarded,
+            )
 
         self._rounds.append((theta, x, proposal))
         return self
@@ -236,8 +268,11 @@ class SNPE:
 
         # Build fresh estimator (or reuse existing on warm start)
         if not resume_training or self._estimator is None:
-            de_map = get_estimator_map(self._backend)
-            self._estimator = de_map[self._de_type]()
+            if self._de_is_factory:
+                self._estimator = self._de_type()
+            else:
+                de_map = get_estimator_map(self._backend)
+                self._estimator = de_map[self._de_type]()
         if self._embedding_net is not None:
             self._estimator.set_embedding(self._embedding_net)
 

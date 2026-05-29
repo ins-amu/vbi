@@ -244,6 +244,64 @@ class Posterior:
         """
         return self.log_prob(theta, x=x, **kwargs)
 
+    def potential(
+        self,
+        theta,
+        x=None,
+        track_gradients: bool = False,
+    ) -> np.ndarray:
+        """
+        Unnormalised log-potential of the posterior at ``(theta, x)``.
+
+        For SNPE the potential equals the log of the approximate posterior
+        ``log q(theta | x)``.  When a prior is available it is **not** added
+        here (the flow already encodes the posterior, not the likelihood), so
+        the potential is directly comparable to ``log_prob``.
+
+        Parameters
+        ----------
+        theta : array (n, param_dim) or (param_dim,)
+        x     : array-like | None  - falls back to ``default_x``
+        track_gradients : bool
+            Accepted for sbi-compatibility; ignored (gradients are available
+            through the JAX backend but not tracked here).
+
+        Returns
+        -------
+        ndarray  (n,)  log-potential values
+        """
+        return self.log_prob(theta, x=x)
+
+    def potential_fn(self, x_obs) -> "callable":
+        """
+        Return a zero-argument closure that captures ``x_obs`` and evaluates
+        the log-potential for any ``theta``.
+
+        This is the standard interface expected by external MCMC libraries
+        (e.g. NumPyro, blackjax) as the *target log-density*.
+
+        Parameters
+        ----------
+        x_obs : array-like  observed feature vector
+
+        Returns
+        -------
+        callable  ``fn(theta) -> float``  log-potential at the fixed x_obs
+
+        Examples
+        --------
+        >>> log_target = posterior.potential_fn(x_obs)
+        >>> log_target(theta_sample)          # scalar float
+        >>> grad_fn = jax.grad(log_target)    # JAX-differentiable (JAX backend)
+        """
+        x_obs = np.asarray(x_obs, dtype="f")
+
+        def _fn(theta):
+            lp = self.log_prob(np.atleast_2d(np.asarray(theta, dtype="f")), x=x_obs)
+            return float(lp[0]) if np.ndim(lp) > 0 else float(lp)
+
+        return _fn
+
     def leakage_correction(
         self,
         x=None,
