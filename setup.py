@@ -1,5 +1,6 @@
 import os
 import sys
+import shutil
 import platform
 import subprocess
 from setuptools import setup, Extension, find_packages
@@ -16,73 +17,30 @@ def get_version():
 
 class OptionalBuildExt(build_ext):
     """
-    Build C++ extensions with graceful fallback on failure.
-    Supports environment variables for controlling compilation.
+    Build SWIG C++ extensions with graceful fallback on any failure.
+
+    When this class is invoked, should_skip_cpp() has already returned False
+    (tools are available). But compilation can still fail (e.g. compiler flags,
+    missing headers); we catch that and install without C++ rather than erroring.
     """
-    
+
     def run(self):
-        # Automatically skip C++ compilation on Windows
-        if platform.system() == "Windows":
-            print("Detected Windows system - skipping C++ extensions automatically")
-            print("VBI will work with Python/NumPy/Numba models only.")
+        # Double-check: should_skip_cpp() is already called in get_extensions(),
+        # so this is just a safety net for edge cases.
+        skip, reason = should_skip_cpp()
+        if skip:
+            print(f"[vbi] Skipping SWIG C++ models: {reason}")
             return
-        
-        # Check for skip flags on non-Windows systems
-        skip_reasons = []
-        
-        # Check multiple environment variables for flexibility
-        skip_env_vars = [
-            'SKIP_CPP', 'VBI_NO_CPP', 'VBI_SKIP_CPP', 
-            'NO_CPP', 'DISABLE_CPP', 'CPP_DISABLE'
-        ]
-        
-        for env_var in skip_env_vars:
-            if os.environ.get(env_var, '').lower() in ('1', 'true', 'yes', 'on'):
-                skip_reasons.append(f"{env_var} environment variable set")
-                break  # Only report the first one found
-        
-        # Check for special marker file (alternative to env vars)
-        skip_file = os.path.join(os.path.dirname(__file__), '.skip_cpp')
-        if os.path.exists(skip_file):
-            skip_reasons.append(".skip_cpp file found")
-        
-        # Check for required tools
-        if not self._check_swig():
-            skip_reasons.append("SWIG not found")
-        
-        if not self._check_compiler():
-            skip_reasons.append("C++ compiler not found or incompatible")
-        
-        if skip_reasons:
-            print(f"Skipping C++ extensions: {', '.join(skip_reasons)}")
-            print("VBI will work with Python/NumPy/Numba models only.")
-            print("To force skipping C++ compilation, set SKIP_CPP=1 or VBI_NO_CPP=1")
-            return
-        
+
         try:
             self._compile_swig_interfaces()
             super().run()
-            print("C++ extensions compiled successfully!")
+            print("[vbi] SWIG C++ extensions compiled successfully.")
         except Exception as e:
-            print(f"Failed to compile C++ extensions: {e}")
-            print("VBI will work with Python/NumPy/Numba models only.")
-            print("To force skipping C++ compilation, set SKIP_CPP=1 or VBI_NO_CPP=1")
-    
-    def _check_swig(self):
-        try:
-            subprocess.run(['swig', '-version'], capture_output=True, check=True)
-            return True
-        except (subprocess.CalledProcessError, FileNotFoundError):
-            return False
-    
-    def _check_compiler(self):
-        try:
-            # Check for gcc/g++ (non-Windows systems only)
-            subprocess.run(['g++', '--version'], capture_output=True, check=True)
-            return True
-        except (subprocess.CalledProcessError, FileNotFoundError):
-            return False
-    
+            print(f"[vbi] SWIG C++ compilation failed: {e}")
+            print("[vbi] Installing without C++ models. "
+                  "Set FORCE_CPP=1 to treat this as a fatal error.")
+
     def _compile_swig_interfaces(self):
         src_dir = "vbi/models/cpp/_src"
         swig_files = [f for f in os.listdir(src_dir) if f.endswith(".i")]
@@ -150,36 +108,48 @@ def create_extension(model):
 
 
 def should_skip_cpp():
-    """Check if C++ compilation should be skipped."""
-    # Automatically skip C++ compilation on Windows
+    """
+    Return (skip: bool, reason: str).
+
+    Decision order:
+    1. Windows → always skip (no SWIG toolchain).
+    2. Explicit opt-out: env var  SKIP_CPP / VBI_NO_CPP / ...  or  .skip_cpp file.
+    3. Explicit opt-in:  env var  FORCE_CPP=1  → compile even if tools look absent.
+    4. Auto-detect:      SWIG not found  OR  no C++ compiler → skip with a notice.
+    """
     if platform.system() == "Windows":
-        return True
-    
-    skip_env_vars = [
-        'SKIP_CPP', 'VBI_NO_CPP', 'VBI_SKIP_CPP', 
-        'NO_CPP', 'DISABLE_CPP', 'CPP_DISABLE'
-    ]
-    
-    # Check environment variables
-    for env_var in skip_env_vars:
-        if os.environ.get(env_var, '').lower() in ('1', 'true', 'yes', 'on'):
-            return True
-    
-    # Check for skip file
+        return True, "Windows (SWIG toolchain not supported)"
+
+    # Explicit opt-out
+    for var in ('SKIP_CPP', 'VBI_NO_CPP', 'VBI_SKIP_CPP', 'NO_CPP',
+                'DISABLE_CPP', 'CPP_DISABLE'):
+        if os.environ.get(var, '').lower() in ('1', 'true', 'yes', 'on'):
+            return True, f"{var} environment variable"
+
     skip_file = os.path.join(os.path.dirname(__file__), '.skip_cpp')
     if os.path.exists(skip_file):
-        return True
-    
-    return False
+        return True, ".skip_cpp file present"
+
+    # Explicit opt-in overrides auto-detection
+    if os.environ.get('FORCE_CPP', '').lower() in ('1', 'true', 'yes', 'on'):
+        return False, ""
+
+    # Auto-detect: require both SWIG and a C++ compiler
+    if not shutil.which("swig"):
+        return True, "swig not found (install: apt install swig  or  conda install swig)"
+    if not any(shutil.which(c) for c in ("g++", "c++", "clang++")):
+        return True, "no C++ compiler found (install: apt install build-essential)"
+
+    return False, ""
 
 
 def get_extensions():
-    """Get list of C++ extensions if compilation is not skipped."""
-    if should_skip_cpp():
-        if platform.system() == "Windows":
-            print("Skipping C++ extensions on Windows - using Python/NumPy/Numba models only")
-        else:
-            print("Skipping C++ extensions due to environment variable")
+    """Return C++ extension list, or [] if tools are absent / skipped."""
+    skip, reason = should_skip_cpp()
+    if skip:
+        if reason:
+            print(f"[vbi] Skipping SWIG C++ models: {reason}")
+            print("[vbi]   NumPy / Numba backends are fully functional without C++.")
         return []
     
     src_dir = "vbi/models/cpp/_src"
@@ -196,19 +166,13 @@ def get_extensions():
 
 
 def get_package_data():
-    """Get package data, excluding .so files if C++ is skipped."""
-    base_data = {
-        "vbi": ["models/pytorch/data/*"],
-    }
-    
-    if should_skip_cpp():
-        # Exclude compiled extensions when skipping C++
+    """Get package data, excluding .so files when C++ compilation is skipped."""
+    skip, _ = should_skip_cpp()
+    base_data = {"vbi": ["models/pytorch/data/*"]}
+    if skip:
         base_data["vbi.models.cpp._src"] = ["*.h", "*.i", "*.py"]
-        print("Excluding C++ compiled files from package data")
     else:
-        # Include compiled extensions when C++ is enabled
         base_data["vbi.models.cpp._src"] = ["*.so", "*.dll", "*.pyd", "*.h", "*.i", "*.py"]
-    
     return base_data
 
 

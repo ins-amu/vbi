@@ -93,6 +93,9 @@ def main():
     if args.durations > 0:
         cmd.extend(["--durations", str(args.durations)])
     
+    # Get the tests directory first
+    tests_dir = os.path.dirname(os.path.abspath(__file__))
+    
     # Add coverage options
     if args.coverage or args.html_coverage:
         # Add coverage for the parent vbi package
@@ -108,7 +111,6 @@ def main():
     cmd.extend(["--tb=short"])  # Short traceback format
     
     # Change to the tests directory
-    tests_dir = os.path.dirname(os.path.abspath(__file__))
     os.chdir(tests_dir)
     
     print(f"Running: {' '.join(cmd)}")

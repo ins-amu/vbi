@@ -55,6 +55,39 @@ Your pull request will be reviewed by one of the project maintainers. Please be 
 - Include docstrings for all functions and classes.
 - Write tests for any new functionality or bugfixes.
 
+## Finding Areas That Need Contribution
+
+### Test Coverage
+
+To identify modules that need tests or improvements, use our test coverage tools. First, activate the development environment:
+
+```sh
+conda activate vbidevelop
+```
+
+Then use one of the following commands:
+
+**Quick coverage check (module-level):**
+```sh
+cd vbi/tests
+python quick_coverage.py
+```
+This shows which modules have tests (✅) and which don't (❌).
+
+**HTML coverage report with short tests (fastest):**
+```sh
+cd vbi/tests
+python run_tests.py --short --html-coverage
+```
+
+**HTML coverage report with all tests:**
+```sh
+cd vbi/tests
+python run_tests.py --all --html-coverage
+```
+
+The HTML reports will be generated at `vbi/htmlcov/index.html` and can be opened in your browser to see detailed line-by-line coverage information, making it easy to identify untested code.
+
 ## Documentation
 
 If you are contributing to the documentation, make sure to update the relevant `.rst` files in the `docs` directory. You can build the documentation locally using:

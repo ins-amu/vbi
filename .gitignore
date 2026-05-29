@@ -1,48 +1,69 @@
-*.pt
-*.txt
-*.png
-*.pdf
+# Python build
 __pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg
+*.egg-info/
+dist/
 build/
 _build/
-.vscode/
-vbi.egg-info/
-html/
-*/cpp/_src*.py
-*/cpp/_src/*.py
-.ipynb_checkpoints/
-latex/
-html/
+.eggs/
 
-sbi-logs/
-e/
-e_*/
-_e/
-*/*/*/_src/*.py
-
+# C extension build (SWIG)
 *_wrap.cpp
 *_wrap.cxx
 *.o
-*.dat
 *.so
-*.npz
-*.bin
-*.sh
-*.gz
-*.pickle
+
+# Generated source files
+*/cpp/_src/*.py
+*/*/*/_src/*.py
+vbi/models/cupy/_mpr.py
+
+# Documentation build output
+html/
+latex/
+
+# Images and data formats
+*.png
 *.jpeg
-*.pickle
-*.pkl
-.DS_Store
-.editorconfig
-*.mat
-*.csv
+*.pdf
 *.json
-!codemeta.json
+*.csv
+*.mat
+*.npz
+
+# Binary and serialized output
+*.pt
+*.pkl
+*.pickle
+*.bin
+*.dat
+*.gz
+
+# Logs, locks, and coverage
+*.log
+*.lock
+sbi-logs/
+.coverage
+
+# Generated code graph
+graphify-out/
+AGENTS.md
+CLAUDE.md
+
+# Jupyter
+.ipynb_checkpoints/
 tt.ipynb
-*.egg
+
+# OS and IDE
+.DS_Store
+.vscode/
+
+# Development and experiment directories
+e/
+e_*/
+_e/
 examples_dev/
 executed_notebooks/
-dist/
-
-vbi/models/cupy/_mpr.py

@@ -207,7 +207,7 @@ def _kde_grid(x: np.ndarray, y: np.ndarray,
         inv = np.empty_like(idx)
         inv[idx] = np.arange(idx.size)
         C = cum[inv].reshape(Z.shape)
-        # Convert to "which level" label image for contour—return continuous map
+        # Convert to "which level" label image for contour-return continuous map
         Z = C
     else:
         Z = (Z - Z.min()) / (Z.max() - Z.min() + 1e-12)
@@ -824,8 +824,8 @@ def plot_2d_distribution(
     
     return ax
 
-# ---- public API: pairplot_numpy (no torch)
-def pairplot_numpy(
+# ---- public API: pairplot (numpy-only, sbi-compatible interface)
+def pairplot(
     samples: Union[List[np.ndarray], np.ndarray, List[List[float]]],
     points: Optional[Union[List[np.ndarray], np.ndarray, List[List[float]]]] = None,
     limits: Optional[Union[List, np.ndarray]] = None,
@@ -846,7 +846,10 @@ def pairplot_numpy(
     **kwargs: Optional[Any],
 ) -> Tuple[FigureBase, Axes]:
     """
-    NumPy-only version of `pairplot` with the same interface/behavior, no torch needed.
+    Plot samples in a 2D grid showing marginals and pairwise marginals.
+
+    NumPy-only drop-in replacement for ``sbi.analysis.pairplot`` - same
+    parameters and return value, no torch required.
     """
     # Back-compat alias
     if offdiag is not None:
@@ -899,3 +902,7 @@ def pairplot_numpy(
         samples, points_list, limits_arr, subset, figsize, labels, ticks,
         fig, axes, fig_kwargs_filled
     )
+
+
+# Backwards-compatibility alias
+pairplot_numpy = pairplot
