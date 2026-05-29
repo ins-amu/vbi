@@ -1,5 +1,5 @@
 """
-M1 validation: Numba CPU backend — Wilson-Cowan model.
+M1 validation: Numba CPU backend - Wilson-Cowan model.
 
 Gold standard: NumPy baseline (validated against TVB in test_wilson_cowan_numpy.py).
 Deterministic Numba results must match NumPy to rtol=1e-4.

@@ -11,7 +11,7 @@ set(CMAKE_CXX_FLAGS_RELEASE "${cxx_flags_release}")
 
 find_package(Python3 REQUIRED COMPONENTS Interpreter Development)
 
-# pybind11 — try cmake package first, then fall back to python path
+# pybind11 - try cmake package first, then fall back to python path
 find_package(pybind11 CONFIG QUIET)
 if(NOT pybind11_FOUND)
     execute_process(

@@ -108,7 +108,7 @@ class JaxConditionalDensityEstimator(abc.ABC):
         return jax.random.PRNGKey(seed)
 
     # ------------------------------------------------------------------
-    # Training loop — used by MDNEstimator; MAFEstimator overrides fully
+    # Training loop - used by MDNEstimator; MAFEstimator overrides fully
     # ------------------------------------------------------------------
 
     def train(
@@ -197,7 +197,7 @@ class JaxConditionalDensityEstimator(abc.ABC):
             self.loss_history.append(loss_f)
 
             if not np.isfinite(loss_f):
-                log.warning("Non-finite loss at iteration %d — stopping.", i)
+                log.warning("Non-finite loss at iteration %d - stopping.", i)
                 break
 
             loss_window.append(loss_f)
@@ -215,7 +215,7 @@ class JaxConditionalDensityEstimator(abc.ABC):
             if verbose:
                 iterator.set_postfix(loss=f"{loss_f:.4f}")
 
-            # Adam update (pure pytree ops — no in-place mutation)
+            # Adam update (pure pytree ops - no in-place mutation)
             new_weights = {}
             for key in weights:
                 if not np.all(np.isfinite(np.array(g[key]))):
@@ -232,7 +232,7 @@ class JaxConditionalDensityEstimator(abc.ABC):
         self.weights = {k: np.array(v) for k, v in weights.items()}
 
     # ------------------------------------------------------------------
-    # Serialisation (identical to base.py — weights are numpy on disk)
+    # Serialisation (identical to base.py - weights are numpy on disk)
     # ------------------------------------------------------------------
 
     def save(self, path: str) -> None:

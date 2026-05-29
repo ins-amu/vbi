@@ -1,5 +1,5 @@
 """
-Tests for VBIInference.from_config — Step 5 of MI6.
+Tests for VBIInference.from_config - Step 5 of MI6.
 """
 import json
 import numpy as np

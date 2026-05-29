@@ -1,7 +1,7 @@
 import numpy as np
 from vbi.simulator.spec.model import ModelSpec, StateVar, Parameter
 
-# Stuart-Landau (supercritical Hopf) oscillator — Cartesian form with Laplacian coupling.
+# Stuart-Landau (supercritical Hopf) oscillator - Cartesian form with Laplacian coupling.
 # Equivalent to the SL_sde numba model; uses scalar a and omega (same for all nodes).
 # For per-node bifurcation/frequency variation use ghb instead.
 #
@@ -13,7 +13,7 @@ from vbi.simulator.spec.model import ModelSpec, StateVar, Parameter
 #         = (a - x²-y²)*y + omega*x + c_y - G*row_sum*y
 #
 # Required node_params:
-#   row_sum = weights.sum(axis=1)   — per-node sum of incoming weights
+#   row_sum = weights.sum(axis=1)   - per-node sum of incoming weights
 
 sl = ModelSpec(
     name="StuartLandau",

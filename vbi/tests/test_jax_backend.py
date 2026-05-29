@@ -212,7 +212,7 @@ class TestJaxSaveLoad:
 
         # load() is a classmethod that returns a new instance
         est2 = JaxMAFEstimator.load(path)
-        # Restore architecture state (not serialised — must match constructor args)
+        # Restore architecture state (not serialised - must match constructor args)
         est2.n_flows       = est.n_flows
         est2.hidden_units  = est.hidden_units
         est2.num_blocks    = est.num_blocks

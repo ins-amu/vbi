@@ -1,5 +1,5 @@
 """
-JAX backend — differentiable simulator using jax.lax.scan + jax.vmap.
+JAX backend - differentiable simulator using jax.lax.scan + jax.vmap.
 
 Design notes
 ------------
@@ -17,7 +17,7 @@ Time loop
     All carry shapes are static (JAX requirement).
 
 Noise
-    jax.random.fold_in(master_key, step) — no key splitting, cheap,
+    jax.random.fold_in(master_key, step) - no key splitting, cheap,
     reproducible across runs; adapted from bold_delay_gpu.py.
     master_key is static (not part of JIT-recompile trigger).
 
@@ -119,7 +119,7 @@ def _build_bounds(spec: SimulationSpec) -> tuple[jnp.ndarray, jnp.ndarray]:
 
 
 def _build_noise_amp(spec: SimulationSpec) -> jnp.ndarray:
-    """(n_sv,) amplitude array — zero for non-noisy state vars."""
+    """(n_sv,) amplitude array - zero for non-noisy state vars."""
     dtype = _resolve_dtype(spec)
     n_sv = spec.model.n_sv
     amp = np.zeros(n_sv, dtype=dtype)
@@ -153,8 +153,8 @@ def _read_delayed_coupling(
     """
     Returns coupling (n_cvar, n_nodes).
 
-    delay_steps : (n_nodes, n_nodes) int32  — delay_steps[tgt, src]
-    weights     : (n_nodes, n_nodes)        — weights[tgt, src]
+    delay_steps : (n_nodes, n_nodes) int32  - delay_steps[tgt, src]
+    weights     : (n_nodes, n_nodes)        - weights[tgt, src]
 
     Uses the flat-index trick to turn a 2-D dynamic gather into a 1-D gather:
         delayed[tgt, src] = buf[idx_time[tgt,src], cvar, src]
@@ -275,7 +275,7 @@ def _make_step_fn(
 
     params is part of the carry so that vmap can inject swept values.
     G is read from params["G"] at every step so that parameter sweeps and
-    jax.grad work correctly — it is never baked into a closure constant.
+    jax.grad work correctly - it is never baked into a closure constant.
     """
     cvar_idx = jnp.array(list(cvar_indices), dtype=jnp.int32)
     sqrt_dt = jnp.float32(jnp.sqrt(dt))
@@ -342,7 +342,7 @@ def _run_monitor(
     Run simulation and return (times, data) for the given monitor.
 
     For raw (period == dt):   scan length = n_steps, output every step.
-    For subsample / tavg:     nested scan — inner = istep steps, outer = n_record.
+    For subsample / tavg:     nested scan - inner = istep steps, outer = n_record.
     For gavg:                 spatial mean applied to subsample output.
     """
     kind = monitor_spec.kind
@@ -382,14 +382,14 @@ def _run_monitor(
         return times, bolds
 
     if kind == "raw":
-        # One output per integration step — simple scan
+        # One output per integration step - simple scan
         _, all_states = jax.lax.scan(
             step_fn, init_carry, None, length=n_steps)
-        # all_states: (n_steps, n_sv, n_nodes) — dtype follows state0
+        # all_states: (n_steps, n_sv, n_nodes) - dtype follows state0
         times = jnp.arange(n_steps, dtype=all_states.dtype) * dt
         return times, all_states
 
-    # subsample / tavg / gavg — outer scan, inner scan of istep steps
+    # subsample / tavg / gavg - outer scan, inner scan of istep steps
     n_record = n_steps // istep
 
     def outer_body(carry, _):
@@ -422,7 +422,7 @@ def _run_monitor(
 # ---------------------------------------------------------------------------
 
 class JaxSimulator:
-    """JAX backend — single run, jit-compiled, differentiable."""
+    """JAX backend - single run, jit-compiled, differentiable."""
 
     def build(self, spec: SimulationSpec) -> None:
         self.spec = spec
@@ -492,7 +492,7 @@ class JaxSimulator:
 
         results = {}
         for mon_spec in self.spec.monitors:
-            # Each monitor gets its own run — trade compile time for simplicity
+            # Each monitor gets its own run - trade compile time for simplicity
             # (for multiple monitors on one run, nest them in one scan body)
             times, data = _run_monitor(
                 self._step_fn, carry, mon_spec, n_steps, self._dt)

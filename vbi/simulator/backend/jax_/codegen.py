@@ -13,10 +13,10 @@ def build_jax_dfun(spec: ModelSpec) -> Callable:
 
     where:
         state    : (n_sv, n_nodes)
-        coupling : (n_cvar, n_nodes)  — one row per coupling variable
+        coupling : (n_cvar, n_nodes)  - one row per coupling variable
         params   : dict[str, scalar | jnp.ndarray]
 
-    Uses jnp.stack to build the output — avoids .at[].set() in the hot path.
+    Uses jnp.stack to build the output - avoids .at[].set() in the hot path.
     Compiled once at build() time via exec() on our own spec strings.
     """
     sv = spec.sv_names
@@ -37,7 +37,7 @@ def build_jax_dfun(spec: ModelSpec) -> Callable:
     # Inject coupling by cvar name: c_r, c_V, …
     for i, cname in enumerate(cvar_names):
         lines.append(f"    c_{cname} = coupling[{i}]")
-    # c = first coupling term — backward compat for single-cvar models
+    # c = first coupling term - backward compat for single-cvar models
     lines.append("    c = coupling[0]")
     # Stack derivative expressions into (n_sv, n_nodes) output
     sv_exprs = ", ".join(f"({spec.dfun_str[name]})" for name in sv)

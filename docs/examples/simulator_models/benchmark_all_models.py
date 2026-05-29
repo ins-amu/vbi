@@ -229,11 +229,11 @@ def main() -> None:
           f"{'JAX':>10}  {'platform':>8}  {'time(s)':>8}")
     print("-" * 92)
     for s in summaries:
-        nb  = f"{s['peak_numba_NT_sam_s']:.0f}" if s["peak_numba_NT_sam_s"] else "—"
-        cp  = f"{s['peak_cpp_par_sam_s']:.0f}"  if s["peak_cpp_par_sam_s"]  else "—"
-        cu  = f"{s['peak_cuda_sam_s']:.0f}"      if s["peak_cuda_sam_s"]     else "—"
-        jx  = f"{s['peak_jax_sam_s']:.0f}"       if s["peak_jax_sam_s"]      else "—"
-        plt = s["jax_platform"] or "—"
+        nb  = f"{s['peak_numba_NT_sam_s']:.0f}" if s["peak_numba_NT_sam_s"] else "-"
+        cp  = f"{s['peak_cpp_par_sam_s']:.0f}"  if s["peak_cpp_par_sam_s"]  else "-"
+        cu  = f"{s['peak_cuda_sam_s']:.0f}"      if s["peak_cuda_sam_s"]     else "-"
+        jx  = f"{s['peak_jax_sam_s']:.0f}"       if s["peak_jax_sam_s"]      else "-"
+        plt = s["jax_platform"] or "-"
         print(f"{s['model']:<26}  {nb:>10}  {cp:>10}  {cu:>10}  "
               f"{jx:>10}  {plt:>8}  {s['wall_s']:>8.1f}")
     print("-" * 92)

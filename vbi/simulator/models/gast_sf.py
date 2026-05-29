@@ -2,7 +2,7 @@ from vbi.simulator.spec.model import ModelSpec, StateVar, Parameter
 
 # Ott-Antonsen QIF reduction with Spike-Frequency adaptation.
 # Differs from gast_sd only in the V equation: J*tau*r - A (not J*tau*r*(1-A)).
-# cvar=("r","V") — c_r = coupling[0], c_V = coupling[1].
+# cvar=("r","V") - c_r = coupling[0], c_V = coupling[1].
 gast_sf = ModelSpec(
     name="GastSchmidtKnosche_SF",
     state_variables=(

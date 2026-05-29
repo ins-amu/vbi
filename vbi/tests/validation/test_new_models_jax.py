@@ -83,7 +83,7 @@ def _jx(spec, duration):
 
 
 # ---------------------------------------------------------------------------
-# Deterministic trajectory match — JAX must reproduce NumPy to rtol=1e-2
+# Deterministic trajectory match - JAX must reproduce NumPy to rtol=1e-2
 # (float32 vs float64)
 # ---------------------------------------------------------------------------
 
@@ -147,7 +147,7 @@ class TestJaxDeterministicMatchesNumPy:
 
 
 # ---------------------------------------------------------------------------
-# With delays — ring buffer correctness across models
+# With delays - ring buffer correctness across models
 # ---------------------------------------------------------------------------
 
 @pytest.mark.parametrize("model,dt,coup_a", [
@@ -175,7 +175,7 @@ def test_with_delays_matches_numpy(model, dt, coup_a):
 
 
 # ---------------------------------------------------------------------------
-# Stochastic — finite output and same seed reproducibility
+# Stochastic - finite output and same seed reproducibility
 # ---------------------------------------------------------------------------
 
 @pytest.mark.parametrize("model,dt", [
@@ -220,7 +220,7 @@ def test_gast_sd_r_nonneg_jax():
 
 
 # ---------------------------------------------------------------------------
-# Sweep — shape and per-sample consistency with single Simulator run
+# Sweep - shape and per-sample consistency with single Simulator run
 # ---------------------------------------------------------------------------
 
 @pytest.mark.parametrize("model,sweep_param,values,dt,coup_a", [

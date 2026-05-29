@@ -1,5 +1,5 @@
 """
-Tests for vbi.inference — sbi-compatible API.
+Tests for vbi.inference - sbi-compatible API.
 
 Covers:
   - Prior objects (BoxUniform, Gaussian, CustomPrior)
@@ -494,7 +494,7 @@ class TestPosterior:
         assert s.shape == (100, 2)
 
     def test_log_prob_theta_first(self, posterior):
-        """sbi signature: log_prob(theta, x=x_obs) — theta FIRST."""
+        """sbi signature: log_prob(theta, x=x_obs) - theta FIRST."""
         # Use in-distribution theta (within the prior [0,1]²)
         rng   = np.random.default_rng(0)
         theta = rng.uniform(0, 1, (20, 2)).astype("f")

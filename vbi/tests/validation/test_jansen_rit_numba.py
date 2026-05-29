@@ -1,5 +1,5 @@
 """
-M1 validation: Numba CPU backend — Jansen-Rit model.
+M1 validation: Numba CPU backend - Jansen-Rit model.
 
 Gold standard: NumPy baseline (validated against TVB in test_jansen_rit_numpy.py).
 Deterministic Numba results must match NumPy to rtol=1e-4.

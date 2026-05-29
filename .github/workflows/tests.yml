@@ -8,7 +8,7 @@ on:
 
 jobs:
   # -------------------------------------------------------------------------
-  # Fast CI — runs on every push / PR (~3 min)
+  # Fast CI - runs on every push / PR (~3 min)
   # Covers: spec correctness, NumPy baselines, pipeline.
   # Skips:  Numba JIT, C++ compilation, dynamics simulations, CUDA.
   # -------------------------------------------------------------------------
@@ -28,7 +28,7 @@ jobs:
       - name: Install core + CI dependencies
         run: |
           pip install --upgrade pip
-          # Core simulation deps only — no mako/pybind11 (no C++ backend needed)
+          # Core simulation deps only - no mako/pybind11 (no C++ backend needed)
           pip install ".[ci]"
 
       - name: Fast tests  (not slow, not cuda)
@@ -39,7 +39,7 @@ jobs:
             -q --tb=short
 
   # -------------------------------------------------------------------------
-  # Full CI — runs only on push to main or develop (~15 min)
+  # Full CI - runs only on push to main or develop (~15 min)
   # Covers everything except CUDA (no GPU on GitHub hosted runners).
   # -------------------------------------------------------------------------
   full:
@@ -83,7 +83,7 @@ jobs:
           key: vbi-cpp-${{ runner.os }}-${{ hashFiles('vbi/simulator/backend/cpp/_src/**') }}
           restore-keys: vbi-cpp-${{ runner.os }}-
 
-      - name: Full tests  (skip CUDA — no GPU on hosted runner)
+      - name: Full tests  (skip CUDA - no GPU on hosted runner)
         env:
           NUMBA_CACHE_DIR: ~/.cache/numba
         run: |
@@ -92,7 +92,7 @@ jobs:
             -q --tb=short
 
   # -------------------------------------------------------------------------
-  # CUDA tests — requires a self-hosted GPU runner.
+  # CUDA tests - requires a self-hosted GPU runner.
   # Trigger manually or on tags (uncomment to enable on push to main).
   # -------------------------------------------------------------------------
   cuda:

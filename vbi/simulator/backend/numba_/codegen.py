@@ -204,9 +204,9 @@ def get_noise_params(spec: SimulationSpec) -> tuple[np.ndarray, np.ndarray]:
     """
     Returns (eff_noise_amp, noise_mask).
 
-    eff_noise_amp : (n_noise_vars,) float64 — amplitude * sqrt(dt), already
+    eff_noise_amp : (n_noise_vars,) float64 - amplitude * sqrt(dt), already
                     accounting for noise_style ("amplitude" or "tvb").
-    noise_mask    : (n_sv,) bool — True for state vars that receive noise.
+    noise_mask    : (n_sv,) bool - True for state vars that receive noise.
     """
     ni       = spec.model.noise_indices
     n_sv     = spec.model.n_sv

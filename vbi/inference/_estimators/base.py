@@ -195,7 +195,7 @@ class ConditionalDensityEstimator(abc.ABC):
             self.loss_history.append(float(loss))
 
             if not anp.isfinite(loss):
-                log.warning("Non-finite loss at iteration %d — stopping.", i)
+                log.warning("Non-finite loss at iteration %d - stopping.", i)
                 break
 
             # Accumulate into rolling window; check patience only at window boundaries

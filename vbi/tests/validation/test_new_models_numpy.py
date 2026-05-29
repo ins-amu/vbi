@@ -1,5 +1,5 @@
 """
-M0/M5 validation: NumPy backend — new models ported from TVB.
+M0/M5 validation: NumPy backend - new models ported from TVB.
 
 Each test:
   1. Runs the VBI NumPy simulator.
@@ -108,7 +108,7 @@ class TestNewModelsSmoke:
         assert np.isfinite(d).all()
 
     def test_sup_hopf_two_cvars(self):
-        """SupHopf has cvar=(x,y) — exercises multi-cvar coupling path."""
+        """SupHopf has cvar=(x,y) - exercises multi-cvar coupling path."""
         t, d = _run_vbi(sup_hopf, n_nodes=5, duration=20.0, coup_a=0.1)
         assert d.shape == (len(t), 2, 5)
         assert np.isfinite(d).all()

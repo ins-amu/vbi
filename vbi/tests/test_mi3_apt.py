@@ -1,5 +1,5 @@
 """
-MI3 tests — APT/SNPE-C importance-weighted loss.
+MI3 tests - APT/SNPE-C importance-weighted loss.
 
 Covers:
   1. APT loss computes finite values and has correct shape (unit test).

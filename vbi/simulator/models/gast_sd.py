@@ -1,7 +1,7 @@
 from vbi.simulator.spec.model import ModelSpec, StateVar, Parameter
 
 # Ott-Antonsen QIF reduction with Synaptic Depression adaptation.
-# cvar=("r","V") — only r and V enter the long-range coupling (cr, cv weights).
+# cvar=("r","V") - only r and V enter the long-range coupling (cr, cv weights).
 # c_r = coupling[0], c_V = coupling[1].
 gast_sd = ModelSpec(
     name="GastSchmidtKnosche_SD",

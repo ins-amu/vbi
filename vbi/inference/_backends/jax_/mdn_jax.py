@@ -15,7 +15,7 @@ from .base_jax import JaxConditionalDensityEstimator
 @dataclass
 class JaxMDNEstimator(JaxConditionalDensityEstimator):
     """
-    Mixture Density Network — JAX backend.
+    Mixture Density Network - JAX backend.
 
     Identical interface to ``MDNEstimator`` (autograd version).
     """

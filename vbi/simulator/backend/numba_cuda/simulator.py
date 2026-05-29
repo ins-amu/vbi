@@ -1,5 +1,5 @@
 """
-CudaSimulator — single-run GPU backend (batch=1 wrapper using coalesced layout).
+CudaSimulator - single-run GPU backend (batch=1 wrapper using coalesced layout).
 """
 from __future__ import annotations
 

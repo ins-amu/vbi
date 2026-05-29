@@ -1,5 +1,5 @@
 """
-Connectivity utilities — load, normalise, and save SC matrices.
+Connectivity utilities - load, normalise, and save SC matrices.
 
 Users bring connectivity data in many formats; this module provides a
 single entry point that accepts numpy arrays, plain text files (.txt),
@@ -70,9 +70,9 @@ def prepare_connectivity(
     weights : array-like | str | Path
         (n_nodes, n_nodes) weight matrix, **or** path to a file:
 
-        * ``.txt`` / ``.csv`` — space- or comma-separated text
-        * ``.npy`` — NumPy binary
-        * ``.npz`` — NumPy archive with a ``weights`` key (or a single key)
+        * ``.txt`` / ``.csv`` - space- or comma-separated text
+        * ``.npy`` - NumPy binary
+        * ``.npz`` - NumPy archive with a ``weights`` key (or a single key)
 
     tract_lengths : array-like | str | Path | None
         (n_nodes, n_nodes) tract-length matrix in **mm**.  Same formats as
@@ -165,7 +165,7 @@ def save_connectivity(
     weights       : (n, n) array-like or path (loaded via prepare_connectivity)
     tract_lengths : (n, n) array-like or path | None
     path          : output file path (default ``'connectivity.npz'``)
-    normalize     : bool  row-sum normalise before saving (default False —
+    normalize     : bool  row-sum normalise before saving (default False -
                     assumes data is already prepared)
 
     Returns

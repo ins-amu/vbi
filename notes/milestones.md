@@ -1,4 +1,4 @@
-# Detailed Milestone Plan — `vbi/simulator/`
+# Detailed Milestone Plan - `vbi/simulator/`
 
 > **Scope note:** Unlike TVB hybrid there is no subnetwork mixing here. Every
 > simulation runs one neural-mass model type across N homogeneous (or
@@ -31,13 +31,13 @@ single runs but **parameter sweeps** that produce training data:
 
 ---
 
-## API Contract — enforced across every milestone
+## API Contract - enforced across every milestone
 
 **The goal is to minimize user learning time.** A user should be able to go
 from `import` to a running simulation in ≤ 10 lines. Every design decision
 should be measured against this.
 
-### Canonical usage — single run (exploration, debugging)
+### Canonical usage - single run (exploration, debugging)
 
 ```python
 from vbi.simulator import Simulator
@@ -58,7 +58,7 @@ result = sim.run(duration=5000.0)        # ms
 t, state = result["subsample"]
 ```
 
-### Canonical usage — parameter sweep (primary SBI use case)
+### Canonical usage - parameter sweep (primary SBI use case)
 
 ```python
 from vbi.simulator import Sweeper
@@ -104,7 +104,7 @@ labels, values = sweeper.run(duration=5000.0)
 | `SweepSpec` holds the parameter grid / sample array | Decoupled from the model; can be reused across models |
 | Changing backend = change one string in either class | Backend internals are invisible |
 | All monitors use `result[kind]` → `(t, state)` (single) or `features[kind]` → array (sweep) | Consistent output convention |
-| Feature monitors exist for FC, FCD, bold — raw is opt-in for sweeps | Sweeps don't store full time series by default |
+| Feature monitors exist for FC, FCD, bold - raw is opt-in for sweeps | Sweeps don't store full time series by default |
 | Optional/advanced parameters are keyword-only with sensible defaults | New users see a flat, minimal interface |
 | Backend-specific imports fail with a clear `ImportError` + install hint | No silent fallbacks that change behaviour |
 | `ModelSpec` can be written in 5–10 lines of Python | Adding a new model is self-contained |
@@ -138,7 +138,7 @@ TVB reference (gold)
 
 ---
 
-## M0 — Spec Layer + NumPy Baseline  ✅ COMPLETE
+## M0 - Spec Layer + NumPy Baseline  ✅ COMPLETE
 
 **Goal:** Define the data model, implement a pure-NumPy simulator, validate
 against TVB for MPR. Everything that follows builds on this layer.
@@ -148,7 +148,7 @@ against TVB for MPR. Everything that follows builds on this layer.
 | Component | File | State |
 |-----------|------|-------|
 | Spec dataclasses | `vbi/simulator/spec/` | ✅ done |
-| MPR model spec | `vbi/simulator/models/mpr.py` | ✅ done — TVB-consistent `cvar=(r,V)`, `cr`/`cv` params |
+| MPR model spec | `vbi/simulator/models/mpr.py` | ✅ done - TVB-consistent `cvar=(r,V)`, `cr`/`cv` params |
 | Ring buffer | `vbi/simulator/backend/numpy_/history.py` | ✅ done |
 | Coupling (linear, sigmoidal) | `vbi/simulator/backend/numpy_/coupling.py` | ✅ done |
 | Integrators (Euler/Heun det+stoch) | `vbi/simulator/backend/numpy_/integrators.py` | ✅ done |
@@ -159,7 +159,7 @@ against TVB for MPR. Everything that follows builds on this layer.
 | Public API (`Simulator`, `Sweeper`) | `vbi/simulator/api.py` | ✅ done |
 | FeaturePipeline (NumPy) | `vbi/feature_extraction/pipeline.py` | ✅ done |
 | Validation tests | `vbi/tests/validation/` | ✅ 23 tests passing |
-| TVB trajectory comparison | — | ⏳ deferred (needs `tvb-library` as dev dep) |
+| TVB trajectory comparison | - | ⏳ deferred (needs `tvb-library` as dev dep) |
 
 **Note:** Backend-specific feature extraction variants (`get_fc_nb`, `get_fc_jax`, etc.)
 are deferred to their respective backend milestones (M1, M3, M4).
@@ -174,7 +174,7 @@ vbi/simulator/spec/integrator.py
 vbi/simulator/spec/coupling.py
 vbi/simulator/spec/monitor.py        # raw, subsample, tavg, gavg, bold
 vbi/simulator/spec/simulation.py
-vbi/simulator/spec/sweep.py          # SweepSpec — NEW
+vbi/simulator/spec/sweep.py          # SweepSpec - NEW
 
 vbi/simulator/models/__init__.py
 vbi/simulator/models/mpr.py
@@ -187,7 +187,7 @@ vbi/simulator/backend/numpy_/coupling.py
 vbi/simulator/backend/numpy_/integrators.py
 vbi/simulator/backend/numpy_/monitors.py
 vbi/simulator/backend/numpy_/simulator.py
-vbi/simulator/backend/numpy_/sweeper.py  # NEW — loop over param sets
+vbi/simulator/backend/numpy_/sweeper.py  # NEW - loop over param sets
 
 vbi/simulator/api.py                 # Simulator + Sweeper public classes
 
@@ -199,7 +199,7 @@ vbi/tests/validation/test_sweep_numpy.py  # NEW
 
 ---
 
-### M0.1 — Spec dataclasses (including sweep and feature monitors)
+### M0.1 - Spec dataclasses (including sweep and feature monitors)
 
 **`vbi/simulator/spec/model.py`**
 
@@ -224,7 +224,7 @@ class ModelSpec:
     state_variables: tuple[StateVar, ...]
     parameters: tuple[Parameter, ...]
     cvar: tuple[str, ...]          # names of coupling-variable state vars
-    dfun_str: dict[str, str]       # {"dr": "expr", "dV": "expr"} — bare math
+    dfun_str: dict[str, str]       # {"dr": "expr", "dV": "expr"} - bare math
     noise_variables: tuple[str, ...] = ()
     reference: str = ""
 
@@ -266,7 +266,7 @@ class CouplingSpec:
 
 **`vbi/simulator/spec/monitor.py`**
 
-Monitors follow the TVB pattern — they record simulator state during the run.
+Monitors follow the TVB pattern - they record simulator state during the run.
 Feature extraction is a **separate post-processing step** applied to monitor
 output (see M0.10).
 
@@ -274,7 +274,7 @@ output (see M0.10).
 @dataclass(frozen=True)
 class MonitorSpec:
     kind: Literal["raw", "subsample", "tavg", "gavg", "bold"]
-    period: float | None = None      # ms — ignored for "raw" (uses dt)
+    period: float | None = None      # ms - ignored for "raw" (uses dt)
     variables: tuple[str, ...] = ()  # state-var names to record; empty → all VOIs
     # bold-only
     tr: float = 2000.0               # BOLD repetition time in ms
@@ -289,7 +289,7 @@ class MonitorSpec:
 | `bold` | `Bold` | Balloon-Windkessel haemodynamics driven by first VOI | `(n_bold_steps, n_nodes)` |
 
 - **`tavg`** accumulates states into a rolling stock array and flushes the
-  time-average every `istep = round(period/dt)` steps — identical to TVB
+  time-average every `istep = round(period/dt)` steps - identical to TVB
   `TemporalAverage`. This is the most useful monitor for SBI because it acts
   as a low-pass filter before feature extraction.
 - **`bold`** integrates its own Balloon-Windkessel ODE at every neural step
@@ -298,7 +298,7 @@ class MonitorSpec:
 - **`subsample`** and **`raw`** are interchangeable for SBI; prefer `subsample`
   or `tavg` to reduce memory.
 
-**`vbi/simulator/spec/sweep.py`** — NEW
+**`vbi/simulator/spec/sweep.py`** - NEW
 
 ```python
 @dataclass
@@ -312,7 +312,7 @@ class SweepSpec:
 
     Examples
     --------
-    # Grid (outer product — 50x50 = 2500 runs):
+    # Grid (outer product - 50x50 = 2500 runs):
     SweepSpec(params={"G": np.linspace(0.5,5,50), "eta": np.linspace(-5.5,-3,50)})
 
     # Latin hypercube / arbitrary samples (5000 runs, 3 params):
@@ -364,7 +364,7 @@ class SimulationSpec:
 
 ---
 
-### M0.2 — MPR model spec
+### M0.2 - MPR model spec
 
 **`vbi/simulator/models/mpr.py`**
 
@@ -400,13 +400,13 @@ Notes on `dfun_str`:
   It is the only external variable besides state vars and parameters.
 - Uses only: `+`, `-`, `*`, `/`, `**`, `exp`, `log`, `sin`, `cos`, `tanh`,
   `sqrt`, `abs`, `pi`.
-- No `np.` prefix — the code generator injects the math namespace.
+- No `np.` prefix - the code generator injects the math namespace.
 - Node-heterogeneous parameters (e.g. `eta` as a per-node array) are supported;
   the generator emits `eta[node]` for C++/Numba and lets NumPy broadcast.
 
 ---
 
-### M0.3 — Ring buffer / history
+### M0.3 - Ring buffer / history
 
 **`vbi/simulator/backend/numpy_/history.py`**
 
@@ -458,7 +458,7 @@ class History:
 
 ---
 
-### M0.4 — Coupling
+### M0.4 - Coupling
 
 **`vbi/simulator/backend/numpy_/coupling.py`**
 
@@ -492,7 +492,7 @@ class SigmoidalCoupling:
 
 ---
 
-### M0.5 — Integrators
+### M0.5 - Integrators
 
 **`vbi/simulator/backend/numpy_/integrators.py`**
 
@@ -532,13 +532,13 @@ class HeunStochastic:
 ```
 
 > Same 4 integrators are exposed in every backend. `noise_nsig` shape is
-> `(n_noise_vars,)` — one entry per noise-enabled state variable.
+> `(n_noise_vars,)` - one entry per noise-enabled state variable.
 
 ---
 
-### M0.6 — dfun executor (NumPy layer)
+### M0.6 - dfun executor (NumPy layer)
 
-**`vbi/simulator/backend/numpy_/simulator.py`** — dfun eval function
+**`vbi/simulator/backend/numpy_/simulator.py`** - dfun eval function
 
 The NumPy backend builds a `dfun_fn` from `ModelSpec.dfun_str` at
 `Simulator.build()` time via Python's `compile()` + `eval()`. This is safe
@@ -583,7 +583,7 @@ def _build_numpy_dfun(spec: ModelSpec) -> Callable:
 
 ---
 
-### M0.7 — Monitors
+### M0.7 - Monitors
 
 **`vbi/simulator/backend/numpy_/monitors.py`**
 
@@ -593,7 +593,7 @@ should be recorded.
 
 ```python
 class Monitor(ABC):
-    """Abstract base — mirrors TVB Monitor interface."""
+    """Abstract base - mirrors TVB Monitor interface."""
     istep: int      # record every istep integration steps
     dt: float
     voi: np.ndarray # indices into state array to record
@@ -711,7 +711,7 @@ class BoldMonitor(Monitor):
         self._times, self._data = [], []
 
     def sample(self, step, state):
-        neural = state[self.voi[0]]   # (n_nodes,) — BOLD-driving variable
+        neural = state[self.voi[0]]   # (n_nodes,) - BOLD-driving variable
 
         # Accumulate for TR-window average (input to BW model)
         if self._neural_avg is None:
@@ -737,13 +737,13 @@ class BoldMonitor(Monitor):
 
 The Balloon-Windkessel ODEs (`_bw_euler_step`, `_bw_bold_signal`,
 `_init_bw_state`) are ported from `vbi/models/numba/bold.py` and
-`vbi/models/cpp/_src/bold.hpp` — no reimplementation needed.
+`vbi/models/cpp/_src/bold.hpp` - no reimplementation needed.
 
 ---
 
-### M0.8 — Simulator loop
+### M0.8 - Simulator loop
 
-**`vbi/simulator/backend/numpy_/simulator.py`** — main class
+**`vbi/simulator/backend/numpy_/simulator.py`** - main class
 
 ```python
 class NumpySimulator:
@@ -811,13 +811,13 @@ class NumpySimulator:
 
 ---
 
-### M0.9 — Public API
+### M0.9 - Public API
 
 **`vbi/simulator/api.py`**
 
 ```python
 class Simulator:
-    """Single-run interface — exploration, debugging, TVB validation."""
+    """Single-run interface - exploration, debugging, TVB validation."""
     def __init__(self, spec: SimulationSpec, backend: str = "numpy"):
         self._backend = _load_backend(backend)(spec)
 
@@ -827,7 +827,7 @@ class Simulator:
 
 class Sweeper:
     """
-    Primary SBI interface — generates training data via parameter sweeps.
+    Primary SBI interface - generates training data via parameter sweeps.
 
     Parameters
     ----------
@@ -842,7 +842,7 @@ class Sweeper:
     -------
     dict
         Keys match monitor kinds. Values are arrays of shape
-        (n_param_sets, ...) — one result per parameter combination.
+        (n_param_sets, ...) - one result per parameter combination.
 
         "fc"     → (n_param_sets, n_nodes, n_nodes)
         "fcd_ks" → (n_param_sets,)
@@ -857,7 +857,7 @@ class Sweeper:
         return self._impl.run(duration)
 ```
 
-### M0.10 — Feature extraction pipeline (separate from monitors)
+### M0.10 - Feature extraction pipeline (separate from monitors)
 
 **Data flow:**
 
@@ -882,9 +882,9 @@ Simulator / Sweeper
 ```
 
 Monitors are **not** feature extractors. `FeaturePipeline` consumes monitor
-output and produces labelled feature vectors — the direct input to SBI.
+output and produces labelled feature vectors - the direct input to SBI.
 
-**`vbi/feature_extraction/pipeline.py`** — NEW
+**`vbi/feature_extraction/pipeline.py`** - NEW
 
 ```python
 class FeaturePipeline:
@@ -978,19 +978,19 @@ _FEATURE_REGISTRY = {
 Adding a new feature = add one entry to `_FEATURE_REGISTRY`. No changes to
 `Simulator`, `Sweeper`, or any monitor class.
 
-**Backend variants** — *deferred to each backend milestone.*
+**Backend variants** - *deferred to each backend milestone.*
 
 The `FeaturePipeline` always works with NumPy functions from `features_utils.py`
 at the Python level. JIT-compiled variants (`get_fc_nb`, `get_fcd_nb`, etc.) that
 run inside the sweep inner loop are added when each backend is implemented:
 
-- M1 (Numba CPU): `features_utils_nb.py` — `@njit` variants
+- M1 (Numba CPU): `features_utils_nb.py` - `@njit` variants
 - M2 (C++): FC/FCD computed in C++ sweep loop, result returned as ndarray
-- M3 (CUDA): `features_utils_cuda.py` — `@cuda.jit` device functions
-- M4 (JAX): extend `features_utils_jax.py` — already partially done
+- M3 (CUDA): `features_utils_cuda.py` - `@cuda.jit` device functions
+- M4 (JAX): extend `features_utils_jax.py` - already partially done
 
 Until then, the NumPy sweeper calls the existing `features_utils.py` functions
-directly at Python level — correct but not maximally fast.
+directly at Python level - correct but not maximally fast.
 
 **`SweepSpec` -- updated with pipeline:**
 
@@ -1033,13 +1033,13 @@ df = sweeper.run_df(duration=5000.0)
 The DataFrame is the direct input to `sbi.utils.simulate_for_sbi` or any
 inference engine that expects a table of (theta, x) pairs.
 
-### M0.11 — NumPy Sweeper (reference implementation)
+### M0.11 - NumPy Sweeper (reference implementation)
 
 **`vbi/simulator/backend/numpy_/sweeper.py`**
 
 ```python
 class NumpySweeper:
-    """Reference sweep — sequential Python loop. Not fast; used for validation."""
+    """Reference sweep - sequential Python loop. Not fast; used for validation."""
 
     def __init__(self, spec: SimulationSpec, sweep_spec: SweepSpec):
         self.spec = spec
@@ -1052,7 +1052,7 @@ class NumpySweeper:
         param_names = self.sweep.param_names or list(self.sweep.params.keys())
         n           = param_sets.shape[0]
 
-        # Pre-allocate output arrays — no appending in hot path
+        # Pre-allocate output arrays - no appending in hot path
         outputs = _preallocate_outputs(self.sweep.features, n, self.spec)
 
         for i, theta in enumerate(param_sets):
@@ -1082,10 +1082,10 @@ class NumpySweeper:
 ```
 
 `_patch_params` returns a modified `SimulationSpec` with swept params
-overridden (no array copies — only scalar fields differ).
+overridden (no array copies - only scalar fields differ).
 
 `_preallocate_outputs` allocates result arrays before the loop based on
-`sweep_spec.features` — no Python list appending in the hot path.
+`sweep_spec.features` - no Python list appending in the hot path.
 
 ---
 
@@ -1144,10 +1144,10 @@ tests pass.
 
 ---
 
-## M1 — Numba CPU Backend  ✅ COMPLETE
+## M1 - Numba CPU Backend  ✅ COMPLETE
 
 **Goal:** JIT-compile the dfun and the inner simulation loop using Numba.
-The NumPy baseline is the reference. No new model specs needed — reuse M0 specs.
+The NumPy baseline is the reference. No new model specs needed - reuse M0 specs.
 
 **Prerequisite:** M0 complete. ✅
 
@@ -1168,7 +1168,7 @@ vbi/tests/validation/test_mpr_numba.py
 
 ---
 
-### M1.1 — dfun codegen for Numba
+### M1.1 - dfun codegen for Numba
 
 **`vbi/simulator/backend/numba_/codegen.py`**
 
@@ -1212,7 +1212,7 @@ extends to `fn(state, c, scalar_params, vector_params, node_idx)` where
 
 ---
 
-### M1.2 — Numba ring buffer
+### M1.2 - Numba ring buffer
 
 **`vbi/simulator/backend/numba_/history.py`**
 
@@ -1249,7 +1249,7 @@ operations.
 
 ---
 
-### M1.3 — Numba integrators
+### M1.3 - Numba integrators
 
 **`vbi/simulator/backend/numba_/integrators.py`**
 
@@ -1271,7 +1271,7 @@ def heun_stoch(state, dfun_fn, coupling, dt, params, noise_nsig, dW):
 
 ---
 
-### M1.4 — Numba simulator loop
+### M1.4 - Numba simulator loop
 
 **`vbi/simulator/backend/numba_/simulator.py`**
 
@@ -1306,12 +1306,12 @@ class NumbaSimulator:
 
 ---
 
-### M1.5 — Numba CPU Sweeper (primary SBI workhorse on CPU)
+### M1.5 - Numba CPU Sweeper (primary SBI workhorse on CPU)
 
 **`vbi/simulator/backend/numba_/sweeper.py`**
 
 The Numba sweeper parallelizes over parameter sets using `numba.prange`.
-Each iteration is an independent simulation — embarrassingly parallel.
+Each iteration is an independent simulation - embarrassingly parallel.
 
 ```python
 @njit(parallel=True, cache=True)
@@ -1323,7 +1323,7 @@ def _nb_sweep_loop(param_sets, base_params, weights, delay_steps, horizon,
     param_sets: (n_samples, n_sweep_params) float64
     out_fc:     (n_samples, n_nodes, n_nodes)  pre-allocated
     out_fcd_ks: (n_samples,)                   pre-allocated
-    seeds:      (n_samples,) int64 — different seed per run for stochastic
+    seeds:      (n_samples,) int64 - different seed per run for stochastic
     """
     n_samples = param_sets.shape[0]
     for i in prange(n_samples):
@@ -1346,7 +1346,7 @@ def _nb_sweep_loop(param_sets, base_params, weights, delay_steps, horizon,
             if step >= t_cut_step and (step % record_period) == 0:
                 ts_buf[_record_idx(step, t_cut_step, record_period)] = state_i
 
-        # Feature extraction — @njit functions from vbi.feature_extraction
+        # Feature extraction - @njit functions from vbi.feature_extraction
         # get_fc_nb, get_fcd_nb are Numba-compatible variants of get_fc / get_fcd
         out_fc[i]     = get_fc_nb(ts_buf[:, voi_idx, :])
         out_fcd_ks[i] = get_fcd_nb(ts_buf[:, voi_idx, :], window, overlap)
@@ -1394,7 +1394,7 @@ def test_numba_sweep_fc_matches_numpy_sweep(n_nodes=10, n_samples=20):
     np.testing.assert_allclose(np_fc, nb_fc, rtol=1e-4)
 
 def test_numba_sweep_throughput(n_nodes=80, n_samples=500, duration=5000.0):
-    # Benchmark — not a pass/fail test, but records samples/s
+    # Benchmark - not a pass/fail test, but records samples/s
     sweep_spec = SweepSpec(params={"G": np.linspace(0.5,5,n_samples)})
     t0 = time.perf_counter()
     Sweeper(spec, sweep_spec, backend="numba").run(duration)
@@ -1409,7 +1409,7 @@ Also test: JR, WilsonCowan, stochastic Heun (moment comparison).
 
 ---
 
-## M2 — C++ Backend  ✅ COMPLETE
+## M2 - C++ Backend  ✅ COMPLETE
 
 **Goal:** Generate a `.hpp` model file + CMake target from `ModelSpec`. Reuse
 the SWIG wrapper pattern already established in `vbi/models/cpp/`.
@@ -1433,7 +1433,7 @@ vbi/tests/validation/test_mpr_cpp.py
 
 ---
 
-### M2.1 — dfun expression → C++ (AST translator)
+### M2.1 - dfun expression → C++ (AST translator)
 
 **`vbi/simulator/backend/cpp/codegen.py`**
 
@@ -1484,12 +1484,12 @@ def py_expr_to_cpp(expr_str: str, spec: ModelSpec) -> str:
 
 ---
 
-### M2.2 — C++ model template (`.hpp`)
+### M2.2 - C++ model template (`.hpp`)
 
 **`_src/template_model.hpp.j2`** (Jinja2)
 
 ```cpp
-// AUTO-GENERATED — do not edit by hand
+// AUTO-GENERATED - do not edit by hand
 // Model: {{ spec.name }}
 #pragma once
 #include <cmath>
@@ -1521,12 +1521,12 @@ inline void {{ spec.name }}_dfun(
 ```
 
 The main `.cpp` template wraps the ring buffer, Heun loop, and monitor logic.
-The SWIG `.i` template exposes `integrate()`, `get_r_d()`, etc. — same
+The SWIG `.i` template exposes `integrate()`, `get_r_d()`, etc. - same
 pattern as `vbi/models/cpp/_src/mpr_sde.i`.
 
 ---
 
-### M2.3 — Build caching
+### M2.3 - Build caching
 
 **`vbi/simulator/backend/cpp/build.py`**
 
@@ -1546,11 +1546,11 @@ def build_or_load(spec: SimulationSpec) -> types.ModuleType:
 ```
 
 This is the same caching principle as TVB `spec.cache_key()`. Parameter sweeps
-that change only `G` or `eta` produce the same `.so` — no recompile.
+that change only `G` or `eta` produce the same `.so` - no recompile.
 
 ---
 
-### M2.4 — C++ Sweeper (OpenMP parallel loop)
+### M2.4 - C++ Sweeper (OpenMP parallel loop)
 
 The C++ sweep adds an outer OpenMP loop over parameter sets. The generated
 `.hpp` template gains a `sweep_integrate()` entry point:
@@ -1586,7 +1586,7 @@ void sweep_integrate(
 ```
 
 The Python `CppSweeper` calls `sweep_integrate()` via SWIG and returns numpy
-arrays directly — no Python loop.
+arrays directly - no Python loop.
 
 ### M2 validation test
 
@@ -1618,11 +1618,11 @@ baseline; C++ sweep FC matches Numba sweep; build cache works.
 
 ---
 
-## M3 — Numba-CUDA Backend  ✅ COMPLETE (pending GPU validation)
+## M3 - Numba-CUDA Backend  ✅ COMPLETE (pending GPU validation)
 
 **Feature extraction note:** Add `vbi/feature_extraction/features_utils_cuda.py` with `@cuda.jit` device functions `get_fc_cuda`, `get_fcd_cuda` as part of M3.
 
-**Goal:** Run the parameter sweep on GPU. The CUDA design is batch-first — the
+**Goal:** Run the parameter sweep on GPU. The CUDA design is batch-first - the
 primary kernel simulates N parameter sets simultaneously. A single-run mode is
 derived from the sweep (batch size 1). This is the highest-throughput backend
 for SBI training data generation.
@@ -1640,7 +1640,7 @@ vbi/tests/validation/test_mpr_cuda.py
 
 ---
 
-### M3.1 — CUDA kernel design (batch-first)
+### M3.1 - CUDA kernel design (batch-first)
 
 **Thread/block layout:**
 
@@ -1673,7 +1673,7 @@ def _cuda_sweep_kernel(
     if sim_idx >= n_samples or node >= n_nodes:
         return
 
-    # Each block has its own slice of buf_d — no cross-simulation interference
+    # Each block has its own slice of buf_d - no cross-simulation interference
     buf_sim = buf_d[sim_idx]        # (horizon, n_cvar, n_nodes)
     state   = cuda.local.array(n_sv, dtype=float64)   # registers per thread
 
@@ -1686,9 +1686,9 @@ def _cuda_sweep_kernel(
     for step in range(n_steps):
         c = _read_coupling_cuda(buf_sim, step, horizon, weights_d,
                                 delay_steps_d, node)
-        # Heun step — all state vars for this node
+        # Heun step - all state vars for this node
         _heun_cuda(state, c, base_params, param_sets[sim_idx], dt, rng, node)
-        # Write cvar to ring buffer (atomic not needed — only this thread owns node)
+        # Write cvar to ring buffer (atomic not needed - only this thread owns node)
         for cv in range(n_cvar):
             buf_sim[step % horizon, cv, node] = state[cvar_indices[cv]]
         # Record if past burn-in
@@ -1698,12 +1698,12 @@ def _cuda_sweep_kernel(
                 ts_d[sim_idx, ridx, sv, node] = state[sv]
 
     # After time loop: apply feature extraction (separate from monitors)
-    # get_fc_cuda / get_fcd_cuda from vbi.feature_extraction — CUDA variants
+    # get_fc_cuda / get_fcd_cuda from vbi.feature_extraction - CUDA variants
     get_fc_cuda(ts_d[sim_idx], out_fc_d[sim_idx], n_record, n_nodes)
 ```
 
 **Memory layout rationale:**
-- `buf_d` shape `(n_samples, horizon, n_cvar, n_nodes)` — each simulation owns
+- `buf_d` shape `(n_samples, horizon, n_cvar, n_nodes)` - each simulation owns
   a contiguous slice; blocks never touch each other's memory.
 - `ts_d` is optional: if only FC/FCD monitors are requested, `ts_d` can be a
   rolling window buffer rather than the full time series.
@@ -1712,7 +1712,7 @@ def _cuda_sweep_kernel(
 
 ---
 
-### M3.2 — CUDA dfun codegen
+### M3.2 - CUDA dfun codegen
 
 **`codegen.py`**
 
@@ -1721,10 +1721,10 @@ from numba import cuda
 
 def build_cuda_dfun(spec: ModelSpec):
     """
-    Generates a @cuda.jit device function (not a kernel — called from kernel).
+    Generates a @cuda.jit device function (not a kernel - called from kernel).
     Signature: _dfun_cuda(state_local, c, base_params, sweep_params) -> nothing
     Writes derivatives back into a local array.
-    Uses math.* (no numpy) — compatible with CUDA device functions.
+    Uses math.* (no numpy) - compatible with CUDA device functions.
     """
     _MATH_MAP_CUDA = {
         "exp": "math.exp", "log": "math.log",
@@ -1736,7 +1736,7 @@ def build_cuda_dfun(spec: ModelSpec):
 
 ---
 
-### M3.3 — Memory management
+### M3.3 - Memory management
 
 For large sweeps (>10 000 samples, 80 nodes), `ts_d` can exceed GPU memory.
 Two modes:
@@ -1760,7 +1760,7 @@ def test_cuda_single_matches_numba(n_nodes=80, duration=5000.0, dt=0.01):
     spec = _build_mpr_spec(n_nodes, dt, stochastic=False)
     nb_result   = Simulator(spec, backend="numba").run(duration)
     cuda_result = Simulator(spec, backend="cuda").run(duration)
-    # Float32 GPU vs float64 CPU — accept rtol=1e-3
+    # Float32 GPU vs float64 CPU - accept rtol=1e-3
     np.testing.assert_allclose(
         nb_result["raw"][1].mean(0), cuda_result["raw"][1].mean(0), rtol=1e-3)
 
@@ -1782,7 +1782,7 @@ def test_cuda_sweep_throughput(n_nodes=80, n_samples=2000, duration=5000.0):
 
 ---
 
-## M4 — JAX Backend  ← NEXT
+## M4 - JAX Backend  ← NEXT
 
 **Feature extraction note:** Extend `vbi/feature_extraction/features_utils_jax.py` (already partially exists) with `get_fc_jax`, `get_fcd_jax` compatible with `jax.vmap` as part of M4.3.
 
@@ -1802,7 +1802,7 @@ vbi/tests/validation/test_mpr_jax.py
 
 ---
 
-### M4.1 — JAX dfun codegen
+### M4.1 - JAX dfun codegen
 
 ```python
 import jax.numpy as jnp
@@ -1824,7 +1824,7 @@ def build_jax_dfun(spec: ModelSpec) -> Callable:
 
 ---
 
-### M4.2 — JAX simulator with `lax.scan`
+### M4.2 - JAX simulator with `lax.scan`
 
 ```python
 import jax
@@ -1857,7 +1857,7 @@ inference in VBI.
 
 ---
 
-### M4.3 — JAX Sweeper via `vmap`
+### M4.3 - JAX Sweeper via `vmap`
 
 The JAX backend's sweep is the most elegant: `jax.vmap` vectorizes the
 single-run function over a batch of parameter sets, and `jax.jit` compiles
@@ -1895,7 +1895,7 @@ class JaxSweeper:
 - `jax.grad(loss)(theta)` backpropagates through the entire simulation,
   enabling score-based and gradient-based SBI methods (e.g. SNPE-C,
   gradient matching, adjoint-based inference).
-- `jax.vmap` batches the sweep with zero Python overhead — all N simulations
+- `jax.vmap` batches the sweep with zero Python overhead - all N simulations
   run in a single compiled XLA program.
 - Works on CPU, GPU (CUDA), and TPU without code changes.
 
@@ -1945,20 +1945,20 @@ size scaling.
 
 ---
 
-## M5 — Model Coverage
+## M5 - Model Coverage
 
 Once all backends are verified on MPR, add remaining models as specs.
 Each model spec requires:
-1. `vbi/simulator/models/<name>.py` — `ModelSpec` instance
+1. `vbi/simulator/models/<name>.py` - `ModelSpec` instance
 2. Validation test against TVB (if available) or existing vbi model
 
 | Model | TVB reference | vbi reference |
 |-------|--------------|---------------|
-| MontbrioPopulationRate (MPR) | ✓ TVB | — |
+| MontbrioPopulationRate (MPR) | ✓ TVB | - |
 | JansenRit | ✓ TVB | `vbi/models/numba/jansen_rit.py` |
 | WilsonCowan | ✓ TVB | `vbi/models/numba/wilson_cowan.py` |
 | Epileptor (VEP) | ✓ TVB | `vbi/models/numba/vep.py` |
-| Generic2dOscillator | ✓ TVB | — |
+| Generic2dOscillator | ✓ TVB | - |
 | ReducedWongWang (RWW) | ✓ TVB | `vbi/models/numba/rww.py` |
 | GHB | ✗ no TVB | `vbi/models/numba/ghb.py` |
 | Stuart-Landau (SL) | ✗ no TVB | `vbi/models/numba/sl.py` |
@@ -1970,7 +1970,7 @@ standalone model.
 
 ---
 
-## M6 — Deprecation & Release
+## M6 - Deprecation & Release
 
 | Sub-package | Action | Version |
 |---|---|---|
@@ -2019,7 +2019,7 @@ def compute_delay_steps(tract_lengths, speed, dt) -> np.ndarray:
 
 ---
 
-## MF — Feature Extraction Pipeline (cross-cutting, all backends)
+## MF - Feature Extraction Pipeline (cross-cutting, all backends)
 
 **Goal:** Define a single user-facing `FeaturePipeline` API that works identically
 across all backends while dispatching to the right JIT-compiled implementation
@@ -2029,12 +2029,12 @@ as the NumPy tier; compiled variants are added per-backend milestone.
 
 ---
 
-### MF.0 — Two-tier architecture
+### MF.0 - Two-tier architecture
 
 Feature extraction splits into two tiers depending on where it runs:
 
 ```
-Tier 1 — Python level (NumPy backend + post-processing)
+Tier 1 - Python level (NumPy backend + post-processing)
     vbi/feature_extraction/calc_features.py
         extract_features(ts, fs, cfg, n_workers=N)
         get_features_by_domain(domain="statistical")
@@ -2042,33 +2042,33 @@ Tier 1 — Python level (NumPy backend + post-processing)
         report_cfg(cfg)
 
     Used for:
-    - Single Simulator runs (any backend — result already on CPU)
+    - Single Simulator runs (any backend - result already on CPU)
     - NumpySweeper (sequential; Python overhead acceptable)
     - Post-processing stored BOLD/tavg batches
     - Rich feature sets (100+ features, catch22, spectral, HMM, …)
 
-Tier 2 — JIT level (inside Numba prange / CUDA kernel / JAX scan)
+Tier 2 - JIT level (inside Numba prange / CUDA kernel / JAX scan)
     vbi/feature_extraction/features_utils_nb.py    (M1)
     vbi/feature_extraction/features_utils_cuda.py  (M3)
     vbi/feature_extraction/features_utils_jax.py   (M4, partially exists)
 
     Used for:
-    - NumbaSweeperCPU — @njit functions called inside prange
-    - CUDA sweeper    — @cuda.jit device functions inside kernel
-    - JAX sweeper     — jit+vmap compatible pure functions
+    - NumbaSweeperCPU - @njit functions called inside prange
+    - CUDA sweeper    - @cuda.jit device functions inside kernel
+    - JAX sweeper     - jit+vmap compatible pure functions
 
     Supported core set: fc, fcd_ks, mean, std, band_power
     (anything expressible as array ops on a (n_steps, n_nodes) buffer)
 ```
 
 **Why two tiers?** `extract_features()` is a Python-level function with dict
-dispatch, list appending, and pandas output — none of which can enter a Numba
+dispatch, list appending, and pandas output - none of which can enter a Numba
 `@njit` or CUDA kernel. The JIT tier supports only the subset of features that
 can be expressed as pure numeric kernels. The `FeaturePipeline` hides this split.
 
 ---
 
-### MF.1 — FeaturePipeline: cfg-first API
+### MF.1 - FeaturePipeline: cfg-first API
 
 `FeaturePipeline` wraps the existing cfg-dict machinery. Per-feature parameters
 live in the cfg dict (exactly where they already are); the pipeline only adds
@@ -2081,12 +2081,12 @@ from vbi.feature_extraction.features_settings import (
     get_features_by_domain, get_features_by_given_names, update_cfg
 )
 
-# Build and tune cfg — per-feature params stay in the cfg
+# Build and tune cfg - per-feature params stay in the cfg
 cfg = get_features_by_domain(domain="connectivity")
 cfg = get_features_by_given_names(cfg, names=["calc_fc", "calc_fcd"])
 cfg = update_cfg(cfg, "calc_fcd", {"window_size": 30})   # per-feature param
 
-# Wrap in FeaturePipeline — only sim-level concerns here
+# Wrap in FeaturePipeline - only sim-level concerns here
 pipeline = FeaturePipeline(cfg, signal="tavg", t_cut=500.0)
 
 # Single run
@@ -2121,11 +2121,11 @@ stat_vec = extract_features(ts=[sol["x"].T], cfg=cfg, fs=fs, n_workers=4).values
 
 ---
 
-### MF.2 — Internal dispatch: Tier 1 (Python) only for now
+### MF.2 - Internal dispatch: Tier 1 (Python) only for now
 
 ---
 
-### MF.3 — Backend-specific implementations (schedule)
+### MF.3 - Backend-specific implementations (schedule)
 
 | Backend | File | Features | Added in |
 |---------|------|----------|----------|
@@ -2150,12 +2150,12 @@ suite is available whenever results are back on the CPU (Tier 1 path).
 
 ---
 
-### MF.4 — Memory strategy for sweep feature extraction
+### MF.4 - Memory strategy for sweep feature extraction
 
 For large sweeps, the time-series buffer is the bottleneck:
 
 ```
-NumPy sweeper:    store full ts per run (ok — sequential; only 1 run in memory)
+NumPy sweeper:    store full ts per run (ok - sequential; only 1 run in memory)
 Numba prange:     ts_buf is thread-local (n_record × n_sv × n_nodes per thread)
                   feature written to pre-allocated out array; ts_buf discarded
 CUDA:             ts_d is (n_samples, n_record, n_sv, n_nodes) on GPU
@@ -2168,7 +2168,7 @@ the user explicitly requests `MonitorSpec(kind="raw")`.
 
 ---
 
-### MF.5 — BOLD + FCD workflow (common SBI pattern)
+### MF.5 - BOLD + FCD workflow (common SBI pattern)
 
 When the model is BOLD-based (RWW, MPR with BOLD monitor):
 
@@ -2189,7 +2189,7 @@ cfg = get_features_by_domain(domain="connectivity")
 df = extract_features(ts=bold_signals, fs=0.5, cfg=cfg, n_workers=8)
 ```
 
-Option A is the preferred path for new code — it works with all backends.
+Option A is the preferred path for new code - it works with all backends.
 Option B is the legacy path and remains fully supported for compatibility.
 
 ---
@@ -2208,26 +2208,26 @@ Option B is the legacy path and remains fully supported for compatibility.
 
 3. **BOLD monitor:** Does BOLD run at every integration step (internally) and
    output at a lower rate, or does it see sub-sampled `r`? Decision: follow TVB
-   — BOLD balloon model integrates at every step using its own Euler step
+   - BOLD balloon model integrates at every step using its own Euler step
    driven by `r`.
 
 ## What Remains
 
-**M4 (JAX) — minor gap**:
+**M4 (JAX) - minor gap**:
 
-No dedicated jax_/sweeper.py — JaxSweeper lives inside jax_/simulator.py. The milestone called for a separate file; this is a structural cleanup, not a missing feature.
+No dedicated jax_/sweeper.py - JaxSweeper lives inside jax_/simulator.py. The milestone called for a separate file; this is a structural cleanup, not a missing feature.
 
-**M5 — missing models:**
+**M5 - missing models:**
 
-Epileptor / VEP — in vbi/models/cpp/vep.py (old backend) but no vbi/simulator/models/vep.py spec
-GHB — in vbi/models/numba/ but no simulator spec
-Stuart-Landau (SL) — in vbi/models/numba/ but no simulator spec
-DampedOscillator — in vbi/models/numba/ but no simulator spec
-MF — missing:
+Epileptor / VEP - in vbi/models/cpp/vep.py (old backend) but no vbi/simulator/models/vep.py spec
+GHB - in vbi/models/numba/ but no simulator spec
+Stuart-Landau (SL) - in vbi/models/numba/ but no simulator spec
+DampedOscillator - in vbi/models/numba/ but no simulator spec
+MF - missing:
 
-features_utils_cuda.py — CUDA device functions for fc/fcd_ks inside the CUDA kernel (called for in M3/MF.3)
+features_utils_cuda.py - CUDA device functions for fc/fcd_ks inside the CUDA kernel (called for in M3/MF.3)
 
-**M6 — Deprecation & Release:**
+**M6 - Deprecation & Release:**
 
-Not started — no DeprecationWarning in vbi/models/pytorch/, vbi/models/cupy/, vbi/models/tvbk/ __init__ files yet (only scattered warnings in a few individual model files)
+Not started - no DeprecationWarning in vbi/models/pytorch/, vbi/models/cupy/, vbi/models/tvbk/ __init__ files yet (only scattered warnings in a few individual model files)
 Migration guide not written

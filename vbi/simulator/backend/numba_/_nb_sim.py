@@ -23,7 +23,7 @@ from vbi.feature_extraction.features_utils_nb import nb_extract
 
 
 # ---------------------------------------------------------------------------
-# Coupling — Linear (instant, no delays)
+# Coupling - Linear (instant, no delays)
 # ---------------------------------------------------------------------------
 
 @njit(cache=True)
@@ -48,7 +48,7 @@ def _coup_linear_instant(cvar_state, weights, G, a, b):
 
 
 # ---------------------------------------------------------------------------
-# Coupling — Kuramoto sinusoidal (instant, no delays)
+# Coupling - Kuramoto sinusoidal (instant, no delays)
 # ---------------------------------------------------------------------------
 
 @njit(cache=True)
@@ -69,7 +69,7 @@ def _coup_kuramoto_instant(cvar_state, weights, G, n_nodes, alpha):
 
 
 # ---------------------------------------------------------------------------
-# Coupling — Kuramoto sinusoidal (delayed, ring-buffer read)
+# Coupling - Kuramoto sinusoidal (delayed, ring-buffer read)
 # ---------------------------------------------------------------------------
 
 @njit(cache=True)
@@ -94,7 +94,7 @@ def _coup_kuramoto_delayed(srcbuf, step, horizon, weights, delay_steps, G, n_nod
 
 
 # ---------------------------------------------------------------------------
-# Coupling — Linear (delayed, ring-buffer read)
+# Coupling - Linear (delayed, ring-buffer read)
 # ---------------------------------------------------------------------------
 
 @njit(cache=True)
@@ -190,8 +190,8 @@ def nb_simulate_det(
     Deterministic (no noise) simulation loop.
 
     params      : (n_params, n_nodes) float64
-    srcbuf0     : (n_cvar, n_nodes, horizon) float64 — initial ring buffer
-    use_kuramoto: bool — use sinusoidal Kuramoto coupling instead of linear
+    srcbuf0     : (n_cvar, n_nodes, horizon) float64 - initial ring buffer
+    use_kuramoto: bool - use sinusoidal Kuramoto coupling instead of linear
     Returns     : (n_record, n_voi, n_nodes) float64
     """
     n_sv   = state0.shape[0]
@@ -278,10 +278,10 @@ def nb_simulate_stoch(
     Stochastic simulation loop.  Noise is generated inside the @njit function
     using Numba's thread-local RNG (seeded per call for reproducibility).
 
-    eff_noise_amp : (n_noise_vars,) float64 — amplitude * sqrt(dt) already resolved
-    noise_mask    : (n_sv,) bool — which state vars receive additive noise
-    seed          : int64 — seed for this run
-    use_kuramoto  : bool — use sinusoidal Kuramoto coupling instead of linear
+    eff_noise_amp : (n_noise_vars,) float64 - amplitude * sqrt(dt) already resolved
+    noise_mask    : (n_sv,) bool - which state vars receive additive noise
+    seed          : int64 - seed for this run
+    use_kuramoto  : bool - use sinusoidal Kuramoto coupling instead of linear
     Returns       : (n_record, n_voi, n_nodes) float64
     """
     np.random.seed(seed)
@@ -374,10 +374,10 @@ def nb_sweep_det(
     use_heun, sweep_param_indices, dfun_fn, use_kuramoto, alpha, stim_data, has_stimulus,
 ):
     """
-    Parallel sweep over param_sets rows — deterministic.
+    Parallel sweep over param_sets rows - deterministic.
 
     param_sets         : (n_samples, n_sweep_params) float64
-    sweep_param_indices: (n_sweep_params,) int64 — row index into params first axis
+    sweep_param_indices: (n_sweep_params,) int64 - row index into params first axis
     Returns            : (n_samples, n_record, n_voi, n_nodes)
     """
     n_samples = param_sets.shape[0]
@@ -421,9 +421,9 @@ def nb_sweep_stoch(
     use_heun, sweep_param_indices, seeds, dfun_fn, use_kuramoto, alpha, stim_data, has_stimulus,
 ):
     """
-    Parallel sweep over param_sets rows — stochastic.
+    Parallel sweep over param_sets rows - stochastic.
 
-    seeds : (n_samples,) int64 — unique seed per run for independent noise
+    seeds : (n_samples,) int64 - unique seed per run for independent noise
     Returns: (n_samples, n_record, n_voi, n_nodes)
     """
     n_samples = param_sets.shape[0]
@@ -455,7 +455,7 @@ def nb_sweep_stoch(
 
 
 # ---------------------------------------------------------------------------
-# Parallel deterministic sweep — inline feature extraction (Tier-2)
+# Parallel deterministic sweep - inline feature extraction (Tier-2)
 # ---------------------------------------------------------------------------
 
 @njit(parallel=True, cache=False)
@@ -473,7 +473,7 @@ def nb_sweep_det_feat(
     Parallel deterministic sweep with inline feature extraction.
 
     Features are computed inside prange from the thread-local time series;
-    only the feature vector is written to the global output — the full
+    only the feature vector is written to the global output - the full
     time series is never materialised across all samples simultaneously.
 
     Returns
@@ -493,7 +493,7 @@ def nb_sweep_det_feat(
             for node in range(n_nodes):
                 params_i[pidx, node] = val
 
-        # Run simulation — ts_i is thread-local (n_record, n_voi, n_nodes)
+        # Run simulation - ts_i is thread-local (n_record, n_voi, n_nodes)
         ts_i = nb_simulate_det(
             state0.copy(), srcbuf0.copy(),
             weights, delay_steps, horizon,
@@ -514,7 +514,7 @@ def nb_sweep_det_feat(
 
 
 # ---------------------------------------------------------------------------
-# Parallel stochastic sweep — inline feature extraction (Tier-2)
+# Parallel stochastic sweep - inline feature extraction (Tier-2)
 # ---------------------------------------------------------------------------
 
 @njit(parallel=True, cache=False)

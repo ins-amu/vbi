@@ -50,9 +50,9 @@ def run_sbc(posterior, simulator, prior, num_sbc_runs: int = 500,
     Returns
     -------
     dict with keys
-        ``ranks``  : ndarray (num_sbc_runs, param_dim) — integer ranks in
+        ``ranks``  : ndarray (num_sbc_runs, param_dim) - integer ranks in
                      [0, num_posterior_samples]
-        ``thetas`` : ndarray (num_sbc_runs, param_dim) — ground-truth θ*
+        ``thetas`` : ndarray (num_sbc_runs, param_dim) - ground-truth θ*
     """
     rng = np.random.RandomState(seed)
     thetas_star = prior.sample((num_sbc_runs,), seed=int(rng.randint(1 << 31)))
@@ -68,7 +68,7 @@ def run_sbc(posterior, simulator, prior, num_sbc_runs: int = 500,
         try:
             x_i = np.asarray(simulator(theta_i))
         except Exception as exc:
-            log.warning("SBC run %d: simulator failed (%s) — skipping.", i, exc)
+            log.warning("SBC run %d: simulator failed (%s) - skipping.", i, exc)
             ranks[i] = -1
             continue
 
@@ -204,9 +204,9 @@ def run_tarp(posterior, simulator, prior, num_runs: int = 500,
     Returns
     -------
     dict with keys
-        ``alphas`` : ndarray (num_runs,) — expected coverage levels
-        ``ecp``    : ndarray (num_runs,) — empirical coverage probabilities
-        ``ranks``  : ndarray (num_runs,) — raw rank fraction
+        ``alphas`` : ndarray (num_runs,) - expected coverage levels
+        ``ecp``    : ndarray (num_runs,) - empirical coverage probabilities
+        ``ranks``  : ndarray (num_runs,) - raw rank fraction
     """
     rng = np.random.RandomState(seed)
     thetas_star = prior.sample((num_runs,), seed=int(rng.randint(1 << 31)))
@@ -315,10 +315,10 @@ def c2st(samples_p: np.ndarray, samples_q: np.ndarray,
 
     Parameters
     ----------
-    samples_p : ndarray (N, D)  — samples from P (e.g. posterior)
-    samples_q : ndarray (N, D)  — samples from Q (e.g. prior or reference)
+    samples_p : ndarray (N, D)  - samples from P (e.g. posterior)
+    samples_q : ndarray (N, D)  - samples from Q (e.g. prior or reference)
     seed      : int
-    n_folds   : int  — cross-validation folds
+    n_folds   : int  - cross-validation folds
 
     Returns
     -------
@@ -352,7 +352,7 @@ def c2st(samples_p: np.ndarray, samples_q: np.ndarray,
 
 
 # ---------------------------------------------------------------------------
-# Visualisation — pairplot (delegates to vbi.plot.pairplot)
+# Visualisation - pairplot (delegates to vbi.plot.pairplot)
 # ---------------------------------------------------------------------------
 
 def pairplot(samples: np.ndarray, points=None, limits=None, labels=None,
@@ -367,7 +367,7 @@ def pairplot(samples: np.ndarray, points=None, limits=None, labels=None,
     Parameters
     ----------
     samples : ndarray (N, D)
-    points  : ndarray | list | None  — highlight specific parameter values
+    points  : ndarray | list | None  - highlight specific parameter values
     limits  : list[(lo, hi)] | None
     labels  : list[str] | None
     fig, axes : existing figure / axes to draw into (optional)
@@ -401,9 +401,9 @@ def conditional_pairplot(posterior, x_obs, n_samples: int = 1000,
     Parameters
     ----------
     posterior : Posterior
-    x_obs     : array_like  — observed data
+    x_obs     : array_like  - observed data
     n_samples : int
-    points    : array_like | None  — highlight (e.g. true parameters)
+    points    : array_like | None  - highlight (e.g. true parameters)
     labels    : list[str] | None
     seed      : int
     **pairplot_kwargs : forwarded to :func:`pairplot`
@@ -428,10 +428,10 @@ def plot_loss(loss_history, val_loss_history=None, ax=None,
 
     Parameters
     ----------
-    loss_history     : sequence of float — training loss per iteration
-    val_loss_history : sequence of float | None — validation loss
+    loss_history     : sequence of float - training loss per iteration
+    val_loss_history : sequence of float | None - validation loss
     ax               : matplotlib Axes | None
-    log_scale        : bool — use log y-axis
+    log_scale        : bool - use log y-axis
 
     Returns
     -------

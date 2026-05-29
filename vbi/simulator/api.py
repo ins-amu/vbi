@@ -8,7 +8,7 @@ from vbi.simulator.backend.base import load_backend, load_sweep_backend
 
 class Simulator:
     """
-    Single-run interface — exploration, debugging, TVB validation.
+    Single-run interface - exploration, debugging, TVB validation.
 
     Parameters
     ----------
@@ -44,7 +44,7 @@ class Simulator:
 
 class Sweeper:
     """
-    Parameter sweep interface — primary SBI use case.
+    Parameter sweep interface - primary SBI use case.
 
     Parameters
     ----------
@@ -54,11 +54,11 @@ class Sweeper:
 
     Examples
     --------
-    # Without pipeline — returns list of monitor dicts
+    # Without pipeline - returns list of monitor dicts
     sweeper = Sweeper(spec, sweep_spec, backend="numpy")
     results = sweeper.run(duration=5000.0)
 
-    # With pipeline — returns (labels, values) array
+    # With pipeline - returns (labels, values) array
     labels, values = sweeper.run(duration=5000.0)
 
     # As DataFrame (requires pandas)

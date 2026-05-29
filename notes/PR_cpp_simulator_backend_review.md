@@ -257,7 +257,7 @@ Location: `vbi/simulator/backend/cpp/codegen.py:78`
 Unknown names are returned unchanged:
 
 ```python
-return name  # unknown — let C++ catch it
+return name  # unknown - let C++ catch it
 ```
 
 That defers model expression mistakes to a compiler error, which is slower and less user-friendly than a Python-side validation error.

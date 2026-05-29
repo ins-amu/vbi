@@ -94,7 +94,7 @@ class _CppExprGen(_ast.NodeVisitor):
         if name in _BARE_TO_STD:
             return _BARE_TO_STD[name]
         raise ValueError(
-            f"Unknown name {name!r} in model expression — not a state variable, "
+            f"Unknown name {name!r} in model expression - not a state variable, "
             f"parameter, coupling term, or supported math function."
         )
 
@@ -133,7 +133,7 @@ class _CppExprGen(_ast.NodeVisitor):
             if fn in _BARE_TO_STD:
                 return f"{_BARE_TO_STD[fn]}({', '.join(args)})"
             raise ValueError(
-                f"Unknown function {fn!r} in model expression — "
+                f"Unknown function {fn!r} in model expression - "
                 f"not a supported math function."
             )
         raise ValueError(f"Unsupported call: {_ast.dump(node.func)}")
@@ -333,7 +333,7 @@ def get_noise_data(spec: SimulationSpec, n_steps: int) -> tuple[np.ndarray, np.n
     eff_amp = amp * np.sqrt(spec.integrator.dt)   # (n_noise_vars,)
 
     rng = np.random.default_rng(spec.integrator.noise_seed)
-    # Full (n_steps, n_sv, n_nodes) noise array — only noisy rows are non-zero
+    # Full (n_steps, n_sv, n_nodes) noise array - only noisy rows are non-zero
     noise = np.zeros((n_steps, n_sv, n_nodes), dtype=np.float64)
     for k, sv_idx in enumerate(ni):
         noise[:, sv_idx, :] = eff_amp[k] * rng.standard_normal((n_steps, n_nodes))

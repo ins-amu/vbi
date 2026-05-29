@@ -63,7 +63,7 @@ def _check_cpp_vs_numpy(model, n_nodes=8, duration=50.0, dt=0.1, coup_a=0.05):
 
 
 # ---------------------------------------------------------------------------
-# MPR (already tested in test_mpr_cpp.py — repeated here for completeness)
+# MPR (already tested in test_mpr_cpp.py - repeated here for completeness)
 # ---------------------------------------------------------------------------
 
 def test_mpr_cpp_vs_numpy_small():
@@ -79,7 +79,7 @@ def test_mpr_cpp_vs_numpy_medium():
 # ---------------------------------------------------------------------------
 
 def test_jr_cpp_vs_numpy_small():
-    """JR has 6 state variables and a sigmoid — tests exp() in dfun."""
+    """JR has 6 state variables and a sigmoid - tests exp() in dfun."""
     _check_cpp_vs_numpy(jansen_rit, n_nodes=6, duration=100.0, dt=0.1, coup_a=0.01)
 
 
@@ -109,7 +109,7 @@ def test_jr_cpp_stoch():
 # ---------------------------------------------------------------------------
 
 def test_wc_cpp_vs_numpy_small():
-    """WC has state bounds [0,1] and a shifted sigmoid — tests clamping."""
+    """WC has state bounds [0,1] and a shifted sigmoid - tests clamping."""
     _check_cpp_vs_numpy(wilson_cowan, n_nodes=6, duration=100.0, dt=0.1, coup_a=0.05)
 
 
@@ -162,7 +162,7 @@ def test_mpr_euler_cpp_vs_numpy():
 # ---------------------------------------------------------------------------
 
 def test_rww_cpp_vs_numpy_small():
-    """RWW: 1 SV with exp() in transfer function — tests C++ codegen for RWW."""
+    """RWW: 1 SV with exp() in transfer function - tests C++ codegen for RWW."""
     _check_cpp_vs_numpy(reduced_wong_wang, n_nodes=6, duration=100.0, dt=0.1, coup_a=0.02)
 
 

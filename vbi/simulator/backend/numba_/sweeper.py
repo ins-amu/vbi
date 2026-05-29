@@ -1,5 +1,5 @@
 """
-NumbaSweeperCPU — parallel parameter sweep using @njit(parallel=True) + prange.
+NumbaSweeperCPU - parallel parameter sweep using @njit(parallel=True) + prange.
 
 Each prange iteration runs one independent simulation with its own state copy,
 ring buffer, and (for stochastic) its own random seed.  The output is a
@@ -211,7 +211,7 @@ class NumbaSweeperCPU:
         Returns
         -------
         If sweep_spec.pipeline is None:
-            list of raw monitor dicts (one per run) — format matches NumpySweeper.
+            list of raw monitor dicts (one per run) - format matches NumpySweeper.
         If pipeline is set:
             (all_labels, values) where values shape (n_samples, n_params + n_features).
         """
@@ -221,7 +221,7 @@ class NumbaSweeperCPU:
         n_samples   = param_sets.shape[0]
 
         # ------------------------------------------------------------------
-        # Tier-2: JIT inline feature extraction — skip full raw materialisation
+        # Tier-2: JIT inline feature extraction - skip full raw materialisation
         # ------------------------------------------------------------------
         nb_spec = getattr(pipeline, "nb_extractor", None) if pipeline else None
 

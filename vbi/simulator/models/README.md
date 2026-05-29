@@ -1,6 +1,6 @@
 # VBI Simulator Models
 
-All models are defined as **declarative `ModelSpec` objects** — no subclassing required.
+All models are defined as **declarative `ModelSpec` objects** - no subclassing required.
 A model defines its state variables, parameters, coupling variables, and dfun equations
 as plain Python strings. The simulator backends (NumPy, Numba, C++, JAX) compile or
 execute these equations automatically.
@@ -10,22 +10,22 @@ execute these equations automatically.
 | Model object | Name | SVs | Dim | cvar | Noise vars | Bounds | Reference |
 |---|---|---|---|---|---|---|---|
 | `mpr` | MontbrioPopulationRate | r, V | 2 | r, V | r, V | r ≥ 0 | Montbrio et al. 2015 |
-| `jansen_rit` | JansenRit | y0–y5 | 6 | y1, y2 | y4 | — | Jansen & Rit 1995 |
+| `jansen_rit` | JansenRit | y0–y5 | 6 | y1, y2 | y4 | - | Jansen & Rit 1995 |
 | `wilson_cowan` | WilsonCowan | E, I | 2 | E, I | E, I | E,I ∈ [0,1] | Wilson & Cowan 1972 |
 | `reduced_wong_wang` | ReducedWongWang | S | 1 | S | S | S ∈ [0,1] | Deco et al. 2013 |
 | `wong_wang_exc_inh` | ReducedWongWangExcInh | S\_e, S\_i | 2 | S\_e | S\_e, S\_i | S\_e,S\_i ∈ [0,1] | Deco et al. 2014 |
 | `generic_2d_oscillator` | Generic2dOscillator | V, W | 2 | V | V, W | V∈[−2,4], W∈[−6,6] | FitzHugh 1961 |
-| `kuramoto` | Kuramoto | θ | 1 | θ | θ | — | Kuramoto 1975 |
+| `kuramoto` | Kuramoto | θ | 1 | θ | θ | - | Kuramoto 1975 |
 | `sup_hopf` | SupHopf | x, y | 2 | x, y | x, y | x,y ∈ [−5,5] | Deco et al. 2017 |
-| `linear` | Linear | x | 1 | x | x | x ∈ [−1,1] | — |
+| `linear` | Linear | x | 1 | x | x | x ∈ [−1,1] | - |
 | `larter_breakspear` | LarterBreakspear | V, W, Z | 3 | V | V | V,W,Z ∈ [−1.5,1.5] | Breakspear et al. 2003 |
 | `coombes_byrne_2d` | CoombesByrne2D | r, V | 2 | r, V | r, V | r ≥ 0 | Coombes & Byrne 2019 |
 | `gast_sd` | GastSchmidtKnosche\_SD | r, V, A, B | 4 | r, V | r, V | r ≥ 0 | Gast et al. 2020 |
 | `gast_sf` | GastSchmidtKnosche\_SF | r, V, A, B | 4 | r, V | r, V | r ≥ 0 | Gast et al. 2020 |
-| `vep` | VEP | x, y | 2 | x | x, y | — | Jirsa et al. 2014 |
+| `vep` | VEP | x, y | 2 | x | x, y | - | Jirsa et al. 2014 |
 | `ghb` | GHB | x, y | 2 | x, y | x, y | x,y ∈ [−5,5] | Deco et al. 2017 |
 | `sl` | StuartLandau | x, y | 2 | x, y | x, y | x,y ∈ [−5,5] | Stuart & Landau 1944 |
-| `damped_oscillator` | DampedOscillator | x, y | 2 | x | — | x,y ≥ 0 | Lotka 1925 |
+| `damped_oscillator` | DampedOscillator | x, y | 2 | x | - | x,y ≥ 0 | Lotka 1925 |
 
 ---
 
@@ -188,7 +188,7 @@ $$\dot{\theta} = \omega + c^{\rm net}$$
 **Key parameters:** `omega` (natural angular frequency, rad/ms).
 
 **Notes:**
-- `theta` has no bounds — the phase wraps naturally.
+- `theta` has no bounds - the phase wraps naturally.
 - For the classic sinusoidal Kuramoto coupling use
   `CouplingSpec(kind="kuramoto")` (computes `sin(θ_j − θ_i)` sums).
   With `kind="linear"` the coupling is a weighted average of phases, which is
@@ -351,7 +351,7 @@ $$\dot{V} = \frac{1}{\tau}\!\left(V^2 - \pi^2\tau^2 r^2 + \eta + J\tau r - A + I
 
 **Import:** `from vbi.simulator.models.vep import vep`
 
-Seizure-permittivity 2D model — a simplified Epileptor for virtual epileptic
+Seizure-permittivity 2D model - a simplified Epileptor for virtual epileptic
 patient (VEP) whole-brain simulations. `x` is the fast seizure-activity variable;
 `y` is the slow permittivity variable.
 
@@ -372,7 +372,7 @@ $$\dot{y} = \frac{1}{\tau}\!\left(4(x - \eta) - y - G\!\sum_j W_{ij}(x_j - x_i)\
   ```python
   node_params={"row_sum": weights.sum(axis=1)}
   ```
-- `eta` and `iext` are per-node heterogeneous parameters — pass via `node_params`.
+- `eta` and `iext` are per-node heterogeneous parameters - pass via `node_params`.
 - Reference: Jirsa VK et al. *Brain* 137(8):2210-2230, 2014.
 
 ---
@@ -399,7 +399,7 @@ frequency per node, rad/ms), `G` (global coupling strength).
   Uses two coupling channels: `c_x = G·Wx`, `c_y = G·Wy`.
   In `dfun_str`: `c_x - G*row_sum*x` and `c_y - G*row_sum*y`.
 - **`row_sum` must be set** via `node_params`.
-- `eta` and `omega` are per-node — pass via `node_params` for heterogeneous networks.
+- `eta` and `omega` are per-node - pass via `node_params` for heterogeneous networks.
 - Default `omega` ≈ 0.2513 rad/ms (40 Hz).
 - Reference: Deco G et al. *Sci Rep* 7:3095, 2017.
 
@@ -409,7 +409,7 @@ frequency per node, rad/ms), `G` (global coupling strength).
 
 **Import:** `from vbi.simulator.models.sl import sl`
 
-Stuart-Landau oscillator in Cartesian form — mathematically identical to `ghb`
+Stuart-Landau oscillator in Cartesian form - mathematically identical to `ghb`
 but with scalar (global) bifurcation parameter `a` and frequency `omega`.
 Use `sl` when all nodes share the same intrinsic dynamics; use `ghb` for
 heterogeneous networks.
@@ -450,7 +450,7 @@ $$\dot{y} = xy - y - by^2$$
 **Key parameters:** `a` (x-damping), `b` (y-damping).
 
 **Notes:**
-- No noise variables — deterministic only.
+- No noise variables - deterministic only.
 - Network coupling is not used; set `weights=np.zeros((N, N))` or run with `N=1`.
 - `x, y ≥ 0` enforced by lower bounds.
 - Reference: Lotka AJ, 1925; Volterra V, 1926.
@@ -550,11 +550,11 @@ my_model = ModelSpec(
 | `<param>` | Any parameter name from `ModelSpec.parameters` |
 | `<sv>` | Any state variable name from `ModelSpec.state_variables` |
 
-**Avoid** parameter names `c` and `c_<cvar_name>` — they are reserved for
+**Avoid** parameter names `c` and `c_<cvar_name>` - they are reserved for
 coupling aliases. For example, if `cvar=("V",)` then `c_V` is reserved; rename
 any parameter that would collide.
 
-Intermediate variables are **not** supported — inline them directly in the
+Intermediate variables are **not** supported - inline them directly in the
 expression string (see `larter_breakspear.py` for an example with five inlined
 intermediates).
 

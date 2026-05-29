@@ -1,5 +1,5 @@
 """
-Custom model demo — adding a user-defined model to the VBI simulator.
+Custom model demo - adding a user-defined model to the VBI simulator.
 
 This script shows the full workflow:
 
@@ -29,7 +29,7 @@ if str(_ROOT) not in sys.path:
 import numpy as np
 
 # ---------------------------------------------------------------------------
-# Step 1 — Define the custom model
+# Step 1 - Define the custom model
 # ---------------------------------------------------------------------------
 #
 # ModelSpec is the backend-agnostic description understood by every VBI
@@ -41,7 +41,7 @@ import numpy as np
 #   - 'c'                  the net coupling input at this node
 #   - exp, log, sin, cos, tanh, sqrt, abs, pi
 #
-# No 'np.' prefix — the code generator handles the namespace.
+# No 'np.' prefix - the code generator handles the namespace.
 
 from vbi.simulator.spec.model import ModelSpec, StateVar, Parameter
 
@@ -60,7 +60,7 @@ fitzhugh_nagumo = ModelSpec(
         Parameter("tau", 12.5,  "time-scale separation (1/tau multiplies dw/dt)"),
         Parameter("I",   0.5,   "external current"),
     ),
-    # v is the coupling variable — it enters other nodes' equations via c.
+    # v is the coupling variable - it enters other nodes' equations via c.
     cvar=("v",),
     dfun_str={
         "v": "v - (v**3) / 3.0 - w + I + c",
@@ -79,7 +79,7 @@ fitzhugh_nagumo = ModelSpec(
 )
 
 # ---------------------------------------------------------------------------
-# Step 2 — Register the model
+# Step 2 - Register the model
 # ---------------------------------------------------------------------------
 #
 # register_model() adds the model to the global lookup table used by
@@ -106,7 +106,7 @@ print()
 
 
 # ---------------------------------------------------------------------------
-# Step 3 — Run directly with Simulator
+# Step 3 - Run directly with Simulator
 # ---------------------------------------------------------------------------
 
 import argparse
@@ -148,7 +148,7 @@ print()
 
 
 # ---------------------------------------------------------------------------
-# Step 4 — Parameter sweep
+# Step 4 - Parameter sweep
 # ---------------------------------------------------------------------------
 
 from vbi.simulator import Sweeper
@@ -165,7 +165,7 @@ print()
 
 
 # ---------------------------------------------------------------------------
-# Step 5 — Use via config dict  (equivalent to loading a YAML file)
+# Step 5 - Use via config dict  (equivalent to loading a YAML file)
 # ---------------------------------------------------------------------------
 #
 # After register_model(), any config-dict or YAML file can reference the
@@ -203,7 +203,7 @@ print("    model: fitzhugh_nagumo")
 print("    ...")
 
 # ---------------------------------------------------------------------------
-# Step 6 — Visualization
+# Step 6 - Visualization
 # ---------------------------------------------------------------------------
 #
 # Run a clean deterministic simulation for plotting (raw monitor, no noise)
@@ -218,7 +218,7 @@ spec_plot = SimulationSpec(
 )
 
 t_raw, raw = Simulator(spec_plot, backend=args.backend).run(args.duration)["raw"]
-# raw shape: (time, sv, nodes) — pick node 0
+# raw shape: (time, sv, nodes) - pick node 0
 v_trace = raw[:, 0, 0]   # fast variable
 w_trace = raw[:, 1, 0]   # slow variable
 
@@ -240,7 +240,7 @@ try:
     fig, axes = plt.subplots(1, 3, figsize=(15, 4))
     fig.suptitle("FitzHugh-Nagumo custom model demo", fontsize=12)
 
-    # Panel 1 — time series
+    # Panel 1 - time series
     ax = axes[0]
     ax.plot(t_raw, v_trace, lw=1.2, label="v (fast)", color="tab:blue")
     ax.plot(t_raw, w_trace, lw=1.2, label="w (slow)", color="tab:orange")
@@ -251,7 +251,7 @@ try:
     ax.grid(alpha=0.25)
     ax.margins(x=0.01)
 
-    # Panel 2 — phase portrait
+    # Panel 2 - phase portrait
     ax = axes[1]
     # Show all nodes in the deterministic run as light traces; node 0 in bold
     for n in range(raw.shape[2]):
@@ -262,7 +262,7 @@ try:
     ax.set_title("Phase portrait")
     ax.grid(alpha=0.25)
 
-    # Panel 3 — mean v vs swept parameter I (bifurcation-style summary)
+    # Panel 3 - mean v vs swept parameter I (bifurcation-style summary)
     ax = axes[2]
     ax.plot(I_values, v_means, "o-", color="tab:green", lw=1.5, ms=5)
     ax.axvline(0.0, color="gray", lw=0.8, ls="--", alpha=0.5)
@@ -277,4 +277,4 @@ try:
     print(f"\nFigure saved → {out_path}")
 
 except ImportError:
-    print("\nmatplotlib not available — skipping plot.")
+    print("\nmatplotlib not available - skipping plot.")

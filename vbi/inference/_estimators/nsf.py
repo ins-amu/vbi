@@ -22,7 +22,7 @@ import math
 from dataclasses import dataclass, field
 from typing import Optional
 
-import numpy as _np               # plain numpy — used for non-differentiable ops
+import numpy as _np               # plain numpy - used for non-differentiable ops
 import autograd.numpy as anp
 from autograd import grad
 from tqdm.auto import trange
@@ -316,7 +316,7 @@ class NSFEstimator(MAFEstimator):
         return weights
 
     # ------------------------------------------------------------------
-    # MADE forward — outputs spline params instead of (mu, log_sig)
+    # MADE forward - outputs spline params instead of (mu, log_sig)
     # ------------------------------------------------------------------
 
     def _made_nsf_forward(self, y, ctx, lc, k, weights):

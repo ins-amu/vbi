@@ -1,8 +1,8 @@
 """
 sbi-compatible high-level inference API.
 
-SNPE mirrors ``sbi.inference.SNPE`` exactly — same method names, same kwarg
-names, same call signatures — but operates on numpy arrays and has no torch
+SNPE mirrors ``sbi.inference.SNPE`` exactly - same method names, same kwarg
+names, same call signatures - but operates on numpy arrays and has no torch
 dependency.
 
 Migration from sbi:
@@ -13,7 +13,7 @@ Migration from sbi:
 
     # After
     from vbi.inference import SNPE
-    theta, x = theta_np, x_np   # plain numpy — nothing else changes
+    theta, x = theta_np, x_np   # plain numpy - nothing else changes
 """
 from __future__ import annotations
 
@@ -31,7 +31,7 @@ log = logging.getLogger(__name__)
 
 class SNPE:
     """
-    Sequential Neural Posterior Estimation — torch-free, numpy-native.
+    Sequential Neural Posterior Estimation - torch-free, numpy-native.
 
     Mirrors ``sbi.inference.SNPE`` (NPE-C) API.  Multi-round sequential
     inference is supported via repeated ``append_simulations`` calls;
@@ -202,7 +202,7 @@ class SNPE:
             **Opt-in vbi extension (default False, not in sbi-compatible path).**
             If True, periodically samples the posterior and restores the
             last-healthy checkpoint when std drops below threshold.
-            Use with care — may stop training earlier than desired.
+            Use with care - may stop training earlier than desired.
         collapse_threshold : float
             Collapse declared when std < threshold × max_seen_std.
         check_every : int
@@ -303,7 +303,7 @@ class SNPE:
             ))
             self._estimator.train(**common)
         else:
-            # MDNEstimator uses base train() — subset of kwargs.
+            # MDNEstimator uses base train() - subset of kwargs.
             # patience counts windows (epochs), window_size converts steps→epochs.
             base_kwargs = {k: v for k, v in common.items()
                            if k in ("params", "features", "n_iter",
@@ -337,9 +337,9 @@ class SNPE:
         prior : prior object | None
             Uses the prior passed to ``__init__`` if None.
         sample_with : 'direct' | 'mcmc' | 'rejection'
-            'direct'    — ancestral sampling from the flow/mixture.
-            'mcmc'      — MCMC via MetropolisHastings or HMC.
-            'rejection' — rejection sampling against prior.
+            'direct'    - ancestral sampling from the flow/mixture.
+            'mcmc'      - MCMC via MetropolisHastings or HMC.
+            'rejection' - rejection sampling against prior.
         mcmc_method : 'mh' | 'hmc'
             MCMC algorithm when ``sample_with='mcmc'``.
             'hmc' requires a JAX-backend estimator.
@@ -419,7 +419,7 @@ class SNPE:
 
 class SNLE:
     """
-    Sequential Neural Likelihood Estimation — placeholder.
+    Sequential Neural Likelihood Estimation - placeholder.
 
     Full implementation planned for a future milestone.
     """

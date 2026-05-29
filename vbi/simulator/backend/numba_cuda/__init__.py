@@ -2,8 +2,8 @@
 VBI Numba-CUDA backend.
 
 Primary entry points (registered in api.py):
-    CudaSimulator  — single-run (batch-size 1, wraps sweeper)
-    CudaSweeperGPU — parallel sweep; each GPU thread runs one simulation
+    CudaSimulator  - single-run (batch-size 1, wraps sweeper)
+    CudaSweeperGPU - parallel sweep; each GPU thread runs one simulation
 
 Design decisions vs TVB's nb_hybrid_cuda_sweep.py
 --------------------------------------------------
@@ -16,9 +16,9 @@ Design decisions vs TVB's nb_hybrid_cuda_sweep.py
 GPU memory layout
 -----------------
 state  : (n_samples, n_sv, n_nodes) float32
-buf    : (n_samples, n_cvar, n_nodes, horizon) float32  — ring buffer
-ts_out : (n_samples, n_record, n_sv, n_nodes) float32  — time series output
-params : (n_samples, n_params) float32  — one row per sweep point
+buf    : (n_samples, n_cvar, n_nodes, horizon) float32  - ring buffer
+ts_out : (n_samples, n_record, n_sv, n_nodes) float32  - time series output
+params : (n_samples, n_params) float32  - one row per sweep point
 
 Prerequisites
 -------------

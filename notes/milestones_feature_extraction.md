@@ -1,4 +1,4 @@
-# Feature Extraction Milestones — `vbi/feature_extraction/`
+# Feature Extraction Milestones - `vbi/feature_extraction/`
 
 > **Context:** The simulator backends (M0–M4) are complete including
 > stimulation support across all backends (numpy, numba, C++, JAX, CUDA).
@@ -15,8 +15,8 @@
 | File | Status | Notes |
 |------|--------|-------|
 | `features_utils.py` | ✅ Complete | 68 functions, full NumPy, covers FC, FCD, power, coherence, etc. |
-| `features_utils_nb.py` | ⚠️ Partial | 7 `@njit` functions: `nb_mean`, `nb_std`, `nb_fc_flat`, `nb_fcd_mean`, `nb_extract`, `NbExtractorSpec` — used by Tier-2 numba sweep inline |
-| `features_utils_jax.py` | ⚠️ Partial | `get_fc`, `get_fcd` only — not vmap-compatible, not connected to sweeper |
+| `features_utils_nb.py` | ⚠️ Partial | 7 `@njit` functions: `nb_mean`, `nb_std`, `nb_fc_flat`, `nb_fcd_mean`, `nb_extract`, `NbExtractorSpec` - used by Tier-2 numba sweep inline |
+| `features_utils_jax.py` | ⚠️ Partial | `get_fc`, `get_fcd` only - not vmap-compatible, not connected to sweeper |
 | `features_utils_cuda.py` | ❌ Missing | Not yet created |
 | `pipeline.py` | ⚠️ Partial | `FeaturePipeline` works for NumPy only; no backend dispatch; no inline sweep integration for JAX/C++/CUDA |
 | `calc_features.py` | ✅ Exists | Legacy wrapper, kept for backward compat |
@@ -32,7 +32,7 @@
 - JAX sweeper does not yet feed into `FeaturePipeline` inline (vmap-compatible)
 - C++ sweeper has Tier-1 Python post-processing but no inline C++ feature loop
 - CUDA sweeper has no inline feature extraction
-- `FeaturePipeline` has no backend awareness — always uses NumPy
+- `FeaturePipeline` has no backend awareness - always uses NumPy
 - Stimulus is not yet supported inside feature pipelines (burn-in with stimulus)
 - No `features_utils_cuda.py`
 - `features_utils_jax.py` is not vmap-compatible and missing most features
@@ -40,7 +40,7 @@
 
 ---
 
-## MF1 — `FeaturePipeline` backend dispatch  *(numpy, numba)*
+## MF1 - `FeaturePipeline` backend dispatch  *(numpy, numba)*
 
 **Goal:** `FeaturePipeline` dispatches to the right implementation based on
 the backend that produced the data, without changing user code.
@@ -58,31 +58,31 @@ labels, values = pipeline.extract(monitor_result)
 - [ ] Validate that Numba Tier-1 matches NumPy to rtol=1e-4
 - [ ] Tests: `test_pipeline_backend_dispatch.py`
 
-**Effort:** Small — the numba functions already exist.
+**Effort:** Small - the numba functions already exist.
 
 ---
 
-## MF2 — Extend `features_utils_nb.py`  *(numba inline coverage)*
+## MF2 - Extend `features_utils_nb.py`  *(numba inline coverage)*
 
 **Goal:** Numba inline sweep (Tier-2) covers more features beyond the current
 `(mean, std, fc, fcd_ks)`.
 
 **Tasks:**
 
-- [ ] `nb_band_power(ts, dt, band_lo, band_hi)` — `@njit`, Welch or AR
-- [ ] `nb_psd_peak(ts, dt)` — dominant frequency
-- [ ] `nb_fcd_variance(fcd_matrix)` — variance of upper triangle
-- [ ] `nb_synchrony(ts)` — Kuramoto order parameter R from phase series
-- [ ] `nb_autocorr_decay(ts, max_lag)` — first zero-crossing of autocorrelation
+- [ ] `nb_band_power(ts, dt, band_lo, band_hi)` - `@njit`, Welch or AR
+- [ ] `nb_psd_peak(ts, dt)` - dominant frequency
+- [ ] `nb_fcd_variance(fcd_matrix)` - variance of upper triangle
+- [ ] `nb_synchrony(ts)` - Kuramoto order parameter R from phase series
+- [ ] `nb_autocorr_decay(ts, max_lag)` - first zero-crossing of autocorrelation
 - [ ] Extend `NbExtractorSpec` with flags for all new features
 - [ ] Extend `nb_extract` to include new features
 - [ ] Tests: add to `test_new_models_numba.py` Tier-2 sweep tests
 
-**Effort:** Medium — each function is self-contained `@njit`.
+**Effort:** Medium - each function is self-contained `@njit`.
 
 ---
 
-## MF3 — `features_utils_jax.py` — vmap-compatible  *(JAX sweeper inline)*
+## MF3 - `features_utils_jax.py` - vmap-compatible  *(JAX sweeper inline)*
 
 **Goal:** Full set of SBI-relevant features computable inside `jax.vmap` over
 the sweep batch.
@@ -94,23 +94,23 @@ Input shape: `(n_steps, n_nodes)` per simulation.
 
 - [ ] Refactor existing `get_fc`, `get_fcd` to accept batched input
       `(n_samples, n_steps, n_nodes)` with `jax.vmap`
-- [ ] `jax_mean(ts)` — spatial/temporal mean
-- [ ] `jax_std(ts)` — standard deviation
+- [ ] `jax_mean(ts)` - spatial/temporal mean
+- [ ] `jax_std(ts)` - standard deviation
 - [ ] `jax_fc(ts)` → `(n_nodes, n_nodes)` Pearson correlation
 - [ ] `jax_fcd_ks(ts, window)` → scalar KS statistic (differentiable approx)
-- [ ] `jax_band_power(ts, dt, lo, hi)` — FFT-based, differentiable
-- [ ] `jax_synchrony(phases)` — `|mean(exp(i*theta))|`
-- [ ] `JaxExtractorSpec` — mirrors `NbExtractorSpec`, flags for vmap batch
+- [ ] `jax_band_power(ts, dt, lo, hi)` - FFT-based, differentiable
+- [ ] `jax_synchrony(phases)` - `|mean(exp(i*theta))|`
+- [ ] `JaxExtractorSpec` - mirrors `NbExtractorSpec`, flags for vmap batch
 - [ ] Wire into `JaxSweeper._build_batch_runner`: inline `vmap` over features
 - [ ] Gradient compatibility: all functions must pass `jax.grad` through them
-- [ ] Tests: `test_new_models_jax.py` — add inline JAX feature tests
+- [ ] Tests: `test_new_models_jax.py` - add inline JAX feature tests
 
 **Effort:** Large. FCD KS requires a differentiable surrogate.
 The FFT path is straightforward. The vmap wiring needs care.
 
 ---
 
-## MF4 — `features_utils_cuda.py` — CUDA inline  *(CUDA sweeper inline)*
+## MF4 - `features_utils_cuda.py` - CUDA inline  *(CUDA sweeper inline)*
 
 **Goal:** Feature extraction inside the CUDA kernel, avoiding copy-back of
 full time series to host memory (the main CUDA bottleneck for large sweeps).
@@ -134,16 +134,16 @@ cuda_sweep_det kernel:
 **Tasks:**
 
 - [ ] Create `vbi/feature_extraction/features_utils_cuda.py`
-- [ ] `cuda_running_mean(acc, count, x)` — online mean update `@cuda.jit(device=True)`
-- [ ] `cuda_running_cov(acc_xx, acc_x, count, x)` — online covariance for FC
-- [ ] `cuda_fc_from_cov(cov, mean, n)` — normalize to Pearson r
-- [ ] `cuda_fcd_ks(ts_window, ...)` — sliding-window FCD, KS approx
-- [ ] `CudaExtractorSpec` — dataclass with flags and window sizes
+- [ ] `cuda_running_mean(acc, count, x)` - online mean update `@cuda.jit(device=True)`
+- [ ] `cuda_running_cov(acc_xx, acc_x, count, x)` - online covariance for FC
+- [ ] `cuda_fc_from_cov(cov, mean, n)` - normalize to Pearson r
+- [ ] `cuda_fcd_ks(ts_window, ...)` - sliding-window FCD, KS approx
+- [ ] `CudaExtractorSpec` - dataclass with flags and window sizes
 - [ ] Update `numba_cuda/codegen.py` to generate feature accumulation code
       inside the simulation kernel (alongside the existing ts_out path)
 - [ ] Update `CudaSweeper.run()` to accept `CudaExtractorSpec`, skip ts_out,
       return feature matrix directly
-- [ ] Tests: `test_mpr_cuda.py` — add inline feature extraction tests
+- [ ] Tests: `test_mpr_cuda.py` - add inline feature extraction tests
 - [ ] Benchmark: compare with Tier-1 (copy-back) path
 
 **Effort:** Large. Requires generating additional CUDA device code and
@@ -151,7 +151,7 @@ rethinking the ts_out vs feat_out dual-path in the kernel.
 
 ---
 
-## MF5 — C++ inline feature extraction  *(C++ sweeper)*
+## MF5 - C++ inline feature extraction  *(C++ sweeper)*
 
 **Goal:** FC and FCD computed inside the C++ sweep loop, never materializing
 the full `(n_samples, n_record, n_sv, n_nodes)` array.
@@ -165,28 +165,28 @@ The `sim_module.cpp.mako` template already generates the time-series loop.
 - [ ] Add Mako template section for inline feature accumulation loop
       (activated when `feature_mode=True` in `render_sim_module`)
 - [ ] Add `CppExtractorSpec` (mirrors `NbExtractorSpec`)
-- [ ] Wire into `CppSweeper.run()` — return `(labels, values)` directly
-- [ ] Tests: `test_cpp_sweep.py` — add inline feature tests
+- [ ] Wire into `CppSweeper.run()` - return `(labels, values)` directly
+- [ ] Tests: `test_cpp_sweep.py` - add inline feature tests
 
 **Effort:** Medium. The C++ template already generates loops; adding
 running statistics is straightforward.
 
 ---
 
-## MF6 — `FeaturePipeline` unified API across all backends
+## MF6 - `FeaturePipeline` unified API across all backends
 
 **Goal:** One pipeline object works correctly regardless of backend.
 
 ```python
 pipeline = FeaturePipeline(features=["fc", "fcd_ks", "mean"], t_cut=500.0)
 
-# Same call — backend detected from spec or passed explicitly
+# Same call - backend detected from spec or passed explicitly
 labels, values = sweeper.run(duration, pipeline=pipeline)
 ```
 
 **Tasks:**
 
-- [ ] `FeaturePipeline.backend` property — auto-detected from sweeper context
+- [ ] `FeaturePipeline.backend` property - auto-detected from sweeper context
 - [ ] Backend dispatch table:
   - `numpy` → `features_utils.py`
   - `numba` → `features_utils_nb.py` (Tier-2) or `features_utils.py` (Tier-1)
@@ -194,14 +194,14 @@ labels, values = sweeper.run(duration, pipeline=pipeline)
   - `cuda` → `features_utils_cuda.py` / CUDA kernel inline
   - `cpp` → C++ inline or Python post-processing
 - [ ] Stimulation-aware burn-in: `t_cut` applies after stimulus offset by default
-- [ ] `FeaturePipeline.from_config(dict)` — load from YAML/JSON for reproducibility
-- [ ] Tests: `test_pipeline.py` — extend with cross-backend consistency tests
+- [ ] `FeaturePipeline.from_config(dict)` - load from YAML/JSON for reproducibility
+- [ ] Tests: `test_pipeline.py` - extend with cross-backend consistency tests
 
 **Effort:** Medium design work; small implementation once MF1–MF5 done.
 
 ---
 
-## MF7 — SBI integration
+## MF7 - SBI integration
 
 **Goal:** End-to-end SBI workflow where `vbi` generates training data and
 passes directly to `sbi` or `lampe` without intermediate files.
@@ -225,9 +225,9 @@ passes directly to `sbi` or `lampe` without intermediate files.
 ```
 MF1 (small, unblocks MF6)
   → MF2 (medium, extends numba inline coverage)
-  → MF3 (large, JAX vmap + grad path — high value for gradient-based SBI)
+  → MF3 (large, JAX vmap + grad path - high value for gradient-based SBI)
   → MF5 (medium, C++ inline)
-  → MF4 (large, CUDA inline — highest throughput path)
+  → MF4 (large, CUDA inline - highest throughput path)
   → MF6 (medium, unifies everything)
   → MF7 (medium-large, SBI integration)
 ```
@@ -251,5 +251,5 @@ MF1 (small, unblocks MF6)
    per-node spatial patterns; similarly `alpha` could be per-node if moved to
    `node_params`. Design consistency with stimulus injection.
 
-5. **Multi-model sweeps**: can a single sweep mix models? Currently no — one
+5. **Multi-model sweeps**: can a single sweep mix models? Currently no - one
    `SimulationSpec` has one model. Relevant for hierarchical brain models.

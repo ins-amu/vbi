@@ -1,5 +1,5 @@
 """
-Tests for simulation cache — Step 2 of MI6.
+Tests for simulation cache - Step 2 of MI6.
 """
 import json
 import numpy as np
@@ -189,7 +189,7 @@ class TestSimCache:
             extract_from_cache(tmp_path, wrong_pipeline)
 
     def test_two_chunk_concatenation(self, tmp_path):
-        """Two chunks are concatenated correctly — total rows == N_SIM."""
+        """Two chunks are concatenated correctly - total rows == N_SIM."""
         theta, x, _, _ = simulate_for_vbi_sweep_cached(
             sim_spec=_make_spec(),
             prior=PRIOR,

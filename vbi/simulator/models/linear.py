@@ -13,7 +13,7 @@ linear = ModelSpec(
         "x": "gamma * x + c",
     },
     noise_variables=("x",),
-    reference="Linear relaxation model — baseline for stability analysis.",
+    reference="Linear relaxation model - baseline for stability analysis.",
     dfun_latex={
         "x": r"\gamma\,x + c^{\rm net}",
     },

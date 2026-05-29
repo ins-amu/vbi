@@ -42,15 +42,15 @@ def _patch_spec(base: SimulationSpec, param_names: list[str],
 
 class NumpySweeper:
     """
-    Reference sweep backend — sequential Python loop over parameter sets.
+    Reference sweep backend - sequential Python loop over parameter sets.
     Not optimised; used for validation of faster backends.
 
     Notes
     -----
     ``same_noise`` behaviour (from ``SweepSpec.same_noise``):
-      True  (default) — all sweep runs share ``base.integrator.noise_seed``,
+      True  (default) - all sweep runs share ``base.integrator.noise_seed``,
             giving identical stochastic forcing across parameter sets.
-      False — each run uses ``base_seed + run_index`` for independent noise.
+      False - each run uses ``base_seed + run_index`` for independent noise.
     """
 
     def __init__(self, spec: SimulationSpec, sweep_spec: SweepSpec):

@@ -17,17 +17,17 @@ Fast mode  (``pytest -m cuda_fast``):
 
 Tests
 -----
-test_cuda_single_matches_numba     — single run, deterministic, MPR
-test_cuda_single_model_isolated    — all models, isolated (coup_a=0)
-test_cuda_single_model_coupled_finite — all models, coupled, finite check
-test_cuda_stoch_runs               — stochastic run, finite output
-test_cuda_single_with_delays       — non-zero tract lengths
-test_cuda_sweep_matches_numba      — sweep, deterministic (selected models)
-test_cuda_sweep_new_models_finite  — sweep, chaotic/unbounded models
-test_cuda_sweep_stoch_unique       — stochastic sweep, unique trajectories
-test_cuda_sweep_80_nodes_finite    — brain-scale N=80
-test_cuda_sweep_pipeline_shape     — pipeline mode, shape + finite
-test_cuda_sweep_throughput         — benchmark, informational only
+test_cuda_single_matches_numba     - single run, deterministic, MPR
+test_cuda_single_model_isolated    - all models, isolated (coup_a=0)
+test_cuda_single_model_coupled_finite - all models, coupled, finite check
+test_cuda_stoch_runs               - stochastic run, finite output
+test_cuda_single_with_delays       - non-zero tract lengths
+test_cuda_sweep_matches_numba      - sweep, deterministic (selected models)
+test_cuda_sweep_new_models_finite  - sweep, chaotic/unbounded models
+test_cuda_sweep_stoch_unique       - stochastic sweep, unique trajectories
+test_cuda_sweep_80_nodes_finite    - brain-scale N=80
+test_cuda_sweep_pipeline_shape     - pipeline mode, shape + finite
+test_cuda_sweep_throughput         - benchmark, informational only
 """
 import time
 
@@ -175,7 +175,7 @@ def test_cuda_single_model_isolated(model, dt):
     spec = SimulationSpec(
         model=model,
         integrator=IntegratorSpec(method="heun", dt=dt, stochastic=False),
-        coupling=CouplingSpec("linear", a=0.0),   # isolated — no coupling
+        coupling=CouplingSpec("linear", a=0.0),   # isolated - no coupling
         monitors=(MonitorSpec("raw"),),
         weights=W,
     )
@@ -256,7 +256,7 @@ def test_cuda_sweep_matches_numba(model, param, values, dt, coup_a):
 @cuda_only
 @cuda_fast
 @pytest.mark.parametrize("model,param,values,dt,coup_a", [
-    # Sweep finite check only — models where coupling causes trajectory divergence.
+    # Sweep finite check only - models where coupling causes trajectory divergence.
     # Fast: 6 sweep points, 20 ms.
     (kuramoto,          "omega", np.linspace( 0.5,  2.0, 6), 0.1, 0.05),
     (larter_breakspear, "d_V",   np.linspace( 0.5,  0.65,6), 0.1, 0.05),
@@ -280,7 +280,7 @@ def test_cuda_sweep_new_models_finite(model, param, values, dt, coup_a):
 def test_cuda_sweep_stoch_unique():
     """Stochastic CUDA sweep: different parameter sets must produce different output."""
     spec       = _spec(mpr, n_nodes=5, stochastic=True)
-    # Same parameter value for all runs — only noise differs (same_noise=False required)
+    # Same parameter value for all runs - only noise differs (same_noise=False required)
     sweep_spec = SweepSpec(params={"eta": np.full(6, -4.6)}, same_noise=False)
     results    = Sweeper(spec, sweep_spec, backend="cuda").run(30.0)
 
@@ -288,7 +288,7 @@ def test_cuda_sweep_stoch_unique():
     for i in range(1, len(results)):
         di = results[i]["raw"][1]
         assert not np.array_equal(di, d0), \
-            f"CUDA stochastic run {i} identical to run 0 — seeds not independent"
+            f"CUDA stochastic run {i} identical to run 0 - seeds not independent"
 
 
 @cuda_only
@@ -385,7 +385,7 @@ def test_cuda_new_models_stochastic(model, dt, coup_a):
 
 
 # ---------------------------------------------------------------------------
-# Throughput benchmark (informational — never fails)
+# Throughput benchmark (informational - never fails)
 # ---------------------------------------------------------------------------
 
 @cuda_only
@@ -437,7 +437,7 @@ def test_cuda_same_noise_true_identical_trajectories():
         monitors=(MonitorSpec("raw"),),
         weights=_weights(6),
     )
-    # Two samples with the same parameter — shared noise must make them identical.
+    # Two samples with the same parameter - shared noise must make them identical.
     sweep_spec = SweepSpec(params={"eta": np.array([-4.6, -4.6])}, same_noise=True)
     results = Sweeper(spec, sweep_spec, backend="cuda").run(20.0)
     _, d0 = results[0]["raw"]
@@ -497,7 +497,7 @@ def test_cuda_sweep_G_outputs_differ():
     _, d0 = results[0]["raw"]
     _, d1 = results[-1]["raw"]
     assert not np.allclose(d0, d1, rtol=1e-4), \
-        "G sweep: outputs identical across G=0 and G=0.2 — sweep had no effect"
+        "G sweep: outputs identical across G=0 and G=0.2 - sweep had no effect"
 
 
 @cuda_only

@@ -1,5 +1,5 @@
 """
-CppSimulator — C++ pybind11 backend for VBI.
+CppSimulator - C++ pybind11 backend for VBI.
 
 Compiles a model-specific .so on first use (cache in ~/.cache/vbi/cpp).
 The run() interface is identical to NumpySimulator and NumbaSimulator.

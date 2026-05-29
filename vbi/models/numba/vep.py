@@ -31,7 +31,7 @@ def seed_rng(seed: int):
 
 
 # ------------------------------
-# JIT params (jitclass) — like in mpr.py
+# JIT params (jitclass) - like in mpr.py
 # ------------------------------
 
 vep_spec = [
@@ -558,7 +558,7 @@ class VEP_sde(BaseNumbaModel):
         else:
             p["iext"] = np.zeros(nn)
 
-        # Initial state placeholder — will be set in run() if None/not provided
+        # Initial state placeholder - will be set in run() if None/not provided
         if "initial_state" in p and p["initial_state"] is not None:
             p["initial_state"] = np.array(p["initial_state"], dtype=np.float64)
             self._initial_state_provided = True

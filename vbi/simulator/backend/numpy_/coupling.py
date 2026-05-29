@@ -36,7 +36,7 @@ class LinearCoupling:
         return self.G * self.a * result + self.b
 
     def compute_instant(self, cvar_state: np.ndarray) -> np.ndarray:
-        """Fast path for zero-delay (ODE) case — skips the ring buffer.
+        """Fast path for zero-delay (ODE) case - skips the ring buffer.
 
         Parameters
         ----------

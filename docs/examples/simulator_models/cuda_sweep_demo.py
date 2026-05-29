@@ -1,5 +1,5 @@
 """
-CUDA sweep demo — G sweep and same_noise control.
+CUDA sweep demo - G sweep and same_noise control.
 
 Demonstrates two features added to the CUDA backend:
 
@@ -7,9 +7,9 @@ Demonstrates two features added to the CUDA backend:
    G scales the coupling term for every sample without re-compiling the kernel.
 
 2. same_noise semantics.
-   same_noise=True  — all sweep samples share the same noise realisation.
+   same_noise=True  - all sweep samples share the same noise realisation.
                       Differences in output reflect only the swept parameter.
-   same_noise=False — each sample gets an independent noise seed.
+   same_noise=False - each sample gets an independent noise seed.
                       More realistic for SBI training data.
 
 Run:
@@ -100,7 +100,7 @@ print(f"  mean |r|  : {np.round(mean_activity, 4)}")
 
 
 # ---------------------------------------------------------------------------
-# 2. same_noise comparison — eta sweep
+# 2. same_noise comparison - eta sweep
 # ---------------------------------------------------------------------------
 
 print("\nRunning eta sweep with same_noise=True  …")
@@ -114,7 +114,7 @@ sweep_indep = SweepSpec(params={"eta": ETA_VALUES}, same_noise=False)
 results_indep = Sweeper(base_spec, sweep_indep, backend="cuda").run(DURATION)
 
 # Variance of the mean activity across sweep samples (lower with same_noise=True
-# when parameters are close together — noise no longer adds sample-to-sample spread)
+# when parameters are close together - noise no longer adds sample-to-sample spread)
 means_same = [float(res["tavg"][1][:, 0, :].mean()) for res in results_same]
 means_indep = [float(res["tavg"][1][:, 0, :].mean()) for res in results_indep]
 mean_delta = np.asarray(means_indep) - np.asarray(means_same)
@@ -166,7 +166,7 @@ def _plot(G_values, mean_activity, ETA_VALUES, means_same, means_indep):
     ax.plot(ETA_VALUES, means_indep, "^--", label="same_noise=False", color="seagreen")
     ax.set_xlabel("η (excitability)")
     ax.set_ylabel("Mean firing rate r (a.u.)")
-    ax.set_title("CUDA: eta sweep — noise sharing")
+    ax.set_title("CUDA: eta sweep - noise sharing")
     ax.legend()
     ax.grid(True, alpha=0.3)
 
@@ -186,4 +186,4 @@ if not args.no_plot:
     try:
         _plot(G_values, mean_activity, ETA_VALUES, means_same, means_indep)
     except ImportError:
-        print("matplotlib not available — skipping plot.")
+        print("matplotlib not available - skipping plot.")

@@ -102,10 +102,10 @@ def make_apt_loss(estimator, num_atoms: int, seed: int = 0):
 
         atom_idx  = _atom_select(B, K)          # (B, K) numpy int
         flat_idx  = atom_idx.flatten()           # (B*K,)
-        rep_idx   = np.repeat(np.arange(B), K)  # (B*K,) — which x_i each atom uses
+        rep_idx   = np.repeat(np.arange(B), K)  # (B*K,) - which x_i each atom uses
 
         # Expand features (B*K, F) and params (B*K, D)
-        # Features are pure data — numpy indexing is fine
+        # Features are pure data - numpy indexing is fine
         feat_exp = np.array(features)[rep_idx]   # (B*K, F) numpy
 
         # Apply embedding (if any) to the expanded features
@@ -117,7 +117,7 @@ def make_apt_loss(estimator, num_atoms: int, seed: int = 0):
             feat_exp_t = (jnp.array(feat_exp, dtype="f") if _is_jax
                           else anp.asarray(feat_exp, dtype="f"))
 
-        # Params for atoms — indexed with numpy (not optimised variable)
+        # Params for atoms - indexed with numpy (not optimised variable)
         params_np = np.array(params)
         params_exp_np = params_np[flat_idx]      # (B*K, D) numpy
         params_exp_t  = (jnp.array(params_exp_np, dtype="f") if _is_jax

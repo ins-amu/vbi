@@ -1,5 +1,5 @@
 """
-Tests for VBIInference diagnostic helpers — Step 6 of MI6.
+Tests for VBIInference diagnostic helpers - Step 6 of MI6.
 """
 import numpy as np
 import pytest

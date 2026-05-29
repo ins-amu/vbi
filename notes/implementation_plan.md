@@ -1,4 +1,4 @@
-# Multi-Backend Simulator — Implementation Plan
+# Multi-Backend Simulator - Implementation Plan
 
 ## Vision
 
@@ -17,7 +17,7 @@ The existing `vbi/models/{numba,cpp,cupy,pytorch,tvbk}/` tree is **not
 touched**. New work lives exclusively under `vbi/simulator/`. Both trees are
 importable simultaneously.
 
-### Phase 0 — Soft-deprecation notice (now, one release)
+### Phase 0 - Soft-deprecation notice (now, one release)
 - Add `DeprecationWarning` to `vbi/models/pytorch/__init__.py` and
   `vbi/models/cupy/__init__.py` (heaviest maintenance burden).
 - Do the same for `vbi/models/tvbk/` (hard TVB dependency).
@@ -26,15 +26,15 @@ importable simultaneously.
 - `vbi/models/numba/` and `vbi/models/cpp/` stay **stable** until the new
   backends reach feature parity (tracked by a milestone below).
 
-### Phase 1 — New backend lives alongside (this plan)
+### Phase 1 - New backend lives alongside (this plan)
 All new code goes into `vbi/simulator/`. Existing tests still pass; no breakage
 for users of `vbi/models/numba/` or `vbi/models/cpp/`.
 
-### Phase 2 — Parity declared
+### Phase 2 - Parity declared
 When the new Numba and C++ backends reproduce all existing models, add a
 migration guide and bump the minor version.
 
-### Phase 3 — Hard removal
+### Phase 3 - Hard removal
 Remove `pytorch`, `cupy`, `tvbk` sub-packages. Keep `numba` and `cpp` stubs
 that import from `vbi/simulator/` for one more release, then remove.
 
@@ -61,11 +61,11 @@ Python (NumPy) → Numba CPU → C++ → Numba-CUDA → JAX
 
 ### Inspiration from `tvb-root-hybrid-cpp`
 The reference project (`tvb/simulator/backend_cpp/`) separates concerns cleanly:
-- **Spec** (`spec.py`) — frozen dataclasses describing what to simulate, not
+- **Spec** (`spec.py`) - frozen dataclasses describing what to simulate, not
   how. `SimulationSpec`, `SubnetworkSpec`, `IntegratorSpec`, `ProjectionSpec`,
   `MonitorSpec`. Hashed for build-cache keying.
-- **Backend** — reads the spec, generates/compiles code, returns callable.
-- **Hybrid** (`hybrid/`) — Python-level network/coupling/monitor logic that
+- **Backend** - reads the spec, generates/compiles code, returns callable.
+- **Hybrid** (`hybrid/`) - Python-level network/coupling/monitor logic that
   wraps the compiled inner loop.
 
 This project follows the same pattern but owns all layers (no TVB simulator
@@ -77,14 +77,14 @@ dependency at runtime).
 
 ```
 vbi/
-├── models/             # EXISTING — do not change
+├── models/             # EXISTING - do not change
 │   ├── numba/          # stable
 │   ├── cpp/            # stable
 │   ├── cupy/           # deprecated → removal in vX.(Y+1)
 │   ├── pytorch/        # deprecated → removal in vX.(Y+1)
 │   └── tvbk/           # deprecated → removal in vX.(Y+1)
 │
-└── simulator/          # NEW — all new backend work lives here
+└── simulator/          # NEW - all new backend work lives here
     ├── __init__.py
     ├── spec/
     │   ├── model.py        # ModelSpec, StateVar, Parameter dataclasses
@@ -194,10 +194,10 @@ caching (same idea as `tvb-root-hybrid-cpp/spec.py`).
 
 `SimulationSpec` composes:
 - `ModelSpec`
-- `IntegratorSpec` — method (euler/heun), dt, stochastic flag, noise_nsig
-- `CouplingSpec` — type, parameters (a, b for linear; threshold, sigma for
+- `IntegratorSpec` - method (euler/heun), dt, stochastic flag, noise_nsig
+- `CouplingSpec` - type, parameters (a, b for linear; threshold, sigma for
   sigmoidal)
-- `MonitorSpec[]` — list of monitors with periods
+- `MonitorSpec[]` - list of monitors with periods
 - `weights`, `tract_lengths` arrays
 - `speed` (conduction velocity → delays)
 
@@ -227,9 +227,9 @@ buffer[node, time_step % horizon] = state[cvar, node]
 ```
 
 Coupling functions operate on the delayed state:
-- `Linear(a, b)` — `c_i = a * Σ_j w_ij * x_j(t - τ_ij) + b`
-- `Sigmoidal(midpoint, slope, amp)` — wrapped sigmoid
-- `Kuramoto` — phase-difference coupling
+- `Linear(a, b)` - `c_i = a * Σ_j w_ij * x_j(t - τ_ij) + b`
+- `Sigmoidal(midpoint, slope, amp)` - wrapped sigmoid
+- `Kuramoto` - phase-difference coupling
 
 The same Python implementation of the ring buffer is used in the NumPy
 backend. Numba and C++ backends get code-generated or specialized versions.
@@ -242,7 +242,7 @@ backend. Numba and C++ backends get code-generated or specialized versions.
 | `SubSample`| Every N steps (period in ms)               |
 | `Bold`     | Balloon-Windkessel haemodynamic response   |
 
-API: `monitor.record(t, state)` — all backends call the same Python-level
+API: `monitor.record(t, state)` - all backends call the same Python-level
 monitor for the NumPy backend. Numba/C++ backends accumulate into pre-allocated
 arrays and hand off to Python monitors only at monitor.period boundaries.
 
@@ -297,7 +297,7 @@ comparison after burn-in.
 
 ## Milestones
 
-### M0 — Spec & NumPy baseline (start here)
+### M0 - Spec & NumPy baseline (start here)
 - [ ] Define `StateVar`, `Parameter`, `ModelSpec` dataclasses
 - [ ] Write `IntegratorSpec`, `CouplingSpec`, `MonitorSpec`, `SimulationSpec`
 - [ ] Implement NumPy Euler integrator
@@ -305,35 +305,35 @@ comparison after burn-in.
 - [ ] Implement Raw and SubSample monitors
 - [ ] Port MPR spec, reproduce trajectory vs TVB reference
 
-### M1 — Numba CPU backend
+### M1 - Numba CPU backend
 - [ ] Code generator: `ModelSpec.dfun_str` → `@njit` function
 - [ ] Numba Heun integrator (deterministic + stochastic)
 - [ ] Numba ring-buffer (typed List or np array)
 - [ ] Validate Numba vs NumPy baseline on MPR, JansenRit, WilsonCowan
 
-### M2 — C++ backend
+### M2 - C++ backend
 - [ ] Code generator: `ModelSpec` → `.hpp` + `SimulationSpec` → CMake target
 - [ ] SWIG or pybind11 wrapper (reuse pattern from existing `vbi/models/cpp/`)
 - [ ] C++ Euler and Heun (det/stoch)
 - [ ] C++ ring buffer with idelays
 - [ ] Validate C++ vs NumPy baseline
 
-### M3 — Numba-CUDA backend
+### M3 - Numba-CUDA backend
 - [ ] CUDA kernel codegen from `ModelSpec.dfun_str`
 - [ ] GPU ring-buffer, coupling kernel
 - [ ] Parameter sweep parallelized over nodes or realizations
 
-### M4 — JAX backend
+### M4 - JAX backend
 - [ ] `jax.jit`-compiled dfun via `exec`-free string substitution
 - [ ] `jax.lax.scan`-based integration loop (supports `jit` + `grad`)
 - [ ] Validate JAX vs NumPy baseline
 
-### M5 — Model coverage
+### M5 - Model coverage
 - [ ] MPR, JansenRit, WilsonCowan, Epileptor, Generic2DOscillator
 - [ ] RWW (reduced Wong-Wang), GHB (if no TVB equivalent, use vbi reference)
 - [ ] Bold monitor (Balloon-Windkessel)
 
-### M6 — Deprecation milestones
+### M6 - Deprecation milestones
 - [ ] Numba parity → soft-deprecate `vbi/models/numba/`
 - [ ] C++ parity → soft-deprecate `vbi/models/cpp/`
 - [ ] Remove pytorch, cupy, tvbk in next minor release

@@ -71,8 +71,8 @@ class History:
         src_idx = np.arange(self.n_nodes)            # (n_nodes,)
 
         # Advanced indexing: buf[idx[src,tgt], cvar, src]
-        # idx  shape (n_nodes, n_nodes) — varies over tgt for fixed src
-        # src  shape (n_nodes, 1)       — selects the source node
+        # idx  shape (n_nodes, n_nodes) - varies over tgt for fixed src
+        # src  shape (n_nodes, 1)       - selects the source node
         # result shape (n_cvar, n_nodes, n_nodes) = (cvar, src, tgt)
         out = np.empty((self.n_cvar, self.n_nodes, self.n_nodes))
         for cv in range(self.n_cvar):

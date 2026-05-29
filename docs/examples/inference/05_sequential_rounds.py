@@ -1,5 +1,5 @@
 """
-Demo 5 — Sequential rounds: 1 round vs 2 rounds.
+Demo 5 - Sequential rounds: 1 round vs 2 rounds.
 
 Uses the 1-D Gaussian problem to show that a second round of simulation
 focused near the posterior concentrates samples closer to the true parameter.
@@ -24,7 +24,7 @@ N_POST      = 1000
 SEED        = 0
 # monitor_collapse=True (default) stops training automatically when the
 # posterior std drops below collapse_threshold * data_std.
-# This means max_num_epochs is just a safety cap — training stops
+# This means max_num_epochs is just a safety cap - training stops
 # long before it from either early stopping OR collapse prevention.
 max_num_epochs = 2000
 
@@ -39,7 +39,7 @@ s_true   = np.sqrt(1 / (prec_p + prec_l))
 mu_true  = s_true ** 2 * prec_l * x_obs[0, 0]
 
 print("=" * 55)
-print("Demo 5 — Sequential rounds")
+print("Demo 5 - Sequential rounds")
 print("=" * 55)
 print(f"  True theta = {TRUE_THETA},  x_obs = {x_obs[0,0]:.3f}")
 print(f"  Analytical posterior: mean={mu_true:.3f}  std={s_true:.3f}")
@@ -77,7 +77,7 @@ print(f"    std  = {samp1[:,0].std():.4f}  err = {se1:.4f}")
 # WHY we use round-2 data ONLY (not round1 + round2):
 #   Round 1 was sampled from the prior; round 2 from the posterior.
 #   Mixing both proposals without importance-weighting (APT / num_atoms)
-#   biases the estimator — the prior-sampled round 1 pulls the posterior
+#   biases the estimator - the prior-sampled round 1 pulls the posterior
 #   back toward the prior.
 #   → Correct fix: SNPE-C APT weights (MI3), which corrects for proposal mismatch.
 #   → Safe current fix: train on the focused round-2 data only (no bias,
@@ -88,10 +88,10 @@ theta2_rng = lambda n, s: post1.sample((n,), seed=s)
 theta2, x2 = simulate_from(theta2_rng, N_ROUND2, SEED + 1)
 
 inf2 = SNPE(prior=prior, density_estimator="maf")
-# NOTE: do NOT add theta1/x1 here without APT importance weights — it would
+# NOTE: do NOT add theta1/x1 here without APT importance weights - it would
 # bias the posterior.  Once MI3 (num_atoms) is implemented, uncomment below:
 # inf2.append_simulations(theta1, x1)  # round 1 (add when APT is available)
-inf2.append_simulations(theta2, x2)    # round 2 — focused near posterior
+inf2.append_simulations(theta2, x2)    # round 2 - focused near posterior
 est2 = inf2.train(
     training_batch_size=256, learning_rate=5e-4,
     stop_after_epochs=20, max_num_epochs=max_num_epochs, verbose=False,

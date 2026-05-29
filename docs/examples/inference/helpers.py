@@ -14,7 +14,7 @@ import matplotlib.pyplot as plt
 
 
 # ---------------------------------------------------------------------------
-# pairplot — posterior samples triangle plot
+# pairplot - posterior samples triangle plot
 # ---------------------------------------------------------------------------
 
 def pairplot(
@@ -98,7 +98,7 @@ def pairplot(
 
 
 # ---------------------------------------------------------------------------
-# posterior_1d — 1-D posterior with analytical overlay
+# posterior_1d - 1-D posterior with analytical overlay
 # ---------------------------------------------------------------------------
 
 def posterior_1d(
@@ -144,7 +144,7 @@ def posterior_1d(
 
 
 # ---------------------------------------------------------------------------
-# loss_plot — training and validation loss curves
+# loss_plot - training and validation loss curves
 # ---------------------------------------------------------------------------
 
 def loss_plot(
@@ -167,7 +167,7 @@ def loss_plot(
 
 
 # ---------------------------------------------------------------------------
-# coverage_plot — 90% CI coverage across multiple x_obs values
+# coverage_plot - 90% CI coverage across multiple x_obs values
 # ---------------------------------------------------------------------------
 
 def coverage_plot(

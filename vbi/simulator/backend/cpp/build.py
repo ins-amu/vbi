@@ -1,7 +1,7 @@
 """
 Build-cache and CMake/compiler invocation for the VBI C++ backend.
 
-Cache key = SHA-256 of SimulationSpec.cache_key() — same model+integrator+n_nodes
+Cache key = SHA-256 of SimulationSpec.cache_key() - same model+integrator+n_nodes
 → same .so.  Parameter sweeps that change only G/eta reuse the compiled binary.
 """
 from __future__ import annotations
@@ -61,7 +61,7 @@ def check_prerequisites() -> None:
         missing.append("pybind11")
         hints.append("  pip install pybind11")
 
-    # 3. A C++ compiler — accept cmake, c++, g++, or clang++ in PATH
+    # 3. A C++ compiler - accept cmake, c++, g++, or clang++ in PATH
     compiler_found = any(shutil.which(cmd) for cmd in ("cmake", "c++", "g++", "clang++"))
     if not compiler_found:
         missing.append("C++ compiler (cmake / g++ / clang++)")
@@ -177,7 +177,7 @@ def _compile(build_dir: Path, key: str, verbose: bool = False) -> Path:
         cmake_err = (exc.stderr or exc.stdout or "").strip()
 
     if verbose:
-        print(f"[vbi-cpp] CMake failed ({cmake_err}) — trying direct compiler")
+        print(f"[vbi-cpp] CMake failed ({cmake_err}) - trying direct compiler")
 
     try:
         return _direct_build(build_dir, key, verbose=verbose)

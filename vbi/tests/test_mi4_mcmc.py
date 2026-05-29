@@ -1,5 +1,5 @@
 """
-MI4 tests — MCMC posterior sampling.
+MI4 tests - MCMC posterior sampling.
 
 Covers:
   1. MetropolisHastings: samples shape, finiteness, stays near true posterior.
@@ -138,7 +138,7 @@ class TestHMC:
 
     def test_hmc_requires_jax_estimator(self, trained_1d):
         est, prior, x_obs, _, _ = trained_1d
-        # autograd MAFEstimator — should raise TypeError
+        # autograd MAFEstimator - should raise TypeError
         with pytest.raises(TypeError, match="JAX-backend"):
             HMC(est, prior=prior)
 

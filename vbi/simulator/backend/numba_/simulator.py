@@ -1,5 +1,5 @@
 """
-NumbaSimulator — single-run Numba CPU backend.
+NumbaSimulator - single-run Numba CPU backend.
 
 The @njit simulation loop returns a raw subsampled array.
 Python post-processing converts it to the same {kind: (t, data)} dict
@@ -37,7 +37,7 @@ def _apply_monitor(kind, m_spec, raw_data, raw_times, model):
     Convert raw subsampled array to a single monitor's (t, data).
 
     raw_data  : (n_record, n_sv, n_nodes)
-    raw_times : (n_record,) — time of each recorded step in ms
+    raw_times : (n_record,) - time of each recorded step in ms
     """
     voi = _resolve_voi(m_spec.variables, model)
 
@@ -124,7 +124,7 @@ class NumbaSimulator:
         self._params = build_params(spec)
         self._G_idx  = get_G_idx(spec.model)
         if self._G_idx < 0:
-            # No G in model — inject a constant row at the end
+            # No G in model - inject a constant row at the end
             G = np.asarray(spec.node_params.get("G", 1.0), dtype=np.float64)
             extra = np.empty((1, n_nodes), dtype=np.float64)
             if G.ndim == 0:
@@ -168,7 +168,7 @@ class NumbaSimulator:
 
         # For single-run: record every step (raw). Monitors are applied post-hoc.
         # For a 'raw' monitor we record all SVs; for others it's the same data
-        # — monitor post-processing selects VOI and temporal aggregation.
+        # - monitor post-processing selects VOI and temporal aggregation.
         record_period = 1   # always record every step for full monitor fidelity
         t_cut_step    = 0
         n_sv          = spec.model.n_sv

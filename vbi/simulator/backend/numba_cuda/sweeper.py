@@ -1,5 +1,5 @@
 """
-CudaSweeperGPU — parallel parameter sweep on GPU.
+CudaSweeperGPU - parallel parameter sweep on GPU.
 
 Memory layout: coalesced (sample index is LAST / innermost dimension).
 Connectivity:  dense (default for small N) or CSR sparse (default for N > 64
@@ -78,9 +78,9 @@ class CudaSweeperGPU:
     spec          : SimulationSpec
     sweep_spec    : SweepSpec
     connectivity  : "auto" | "dense" | "sparse"
-        "auto"   — use CSR sparse when weight matrix density < 50 %
-        "dense"  — always use the full (n_nodes × n_nodes) float32 matrix
-        "sparse" — always use CSR (w_data / w_indices / w_indptr)
+        "auto"   - use CSR sparse when weight matrix density < 50 %
+        "dense"  - always use the full (n_nodes × n_nodes) float32 matrix
+        "sparse" - always use CSR (w_data / w_indices / w_indptr)
     """
 
     def __init__(self, spec: SimulationSpec, sweep_spec: SweepSpec,
@@ -185,8 +185,8 @@ class CudaSweeperGPU:
 
         Returns
         -------
-        list[dict]        — when sweep_spec.pipeline is None
-        (labels, values)  — when pipeline is set
+        list[dict]        - when sweep_spec.pipeline is None
+        (labels, values)  - when pipeline is set
         """
         from numba import cuda
 
@@ -262,7 +262,7 @@ class CudaSweeperGPU:
 
         blocks = (n_samples + _TPB - 1) // _TPB
 
-        # Per-sample coupling scale — base value broadcast; overridden if G is swept.
+        # Per-sample coupling scale - base value broadcast; overridden if G is swept.
         coup_a_h = np.full(n_samples, self._coup_a, dtype=np.float32)
         if "G" in param_names:
             g_idx = param_names.index("G")

@@ -143,7 +143,7 @@ def nb_fcd_mean(ts, window_size):
 
 
 # ---------------------------------------------------------------------------
-# Combiner — called inside prange, writes into a pre-allocated buffer
+# Combiner - called inside prange, writes into a pre-allocated buffer
 # ---------------------------------------------------------------------------
 
 @njit(cache=True)
@@ -151,7 +151,7 @@ def nb_extract(ts_2d, do_mean, do_std, do_fc, do_fcd, fcd_window, out):
     """
     Fill pre-allocated `out` with the requested features.
 
-    Feature order (whichever are enabled) — matches Tier-1 (JSON) order:
+    Feature order (whichever are enabled) - matches Tier-1 (JSON) order:
         std_0 … std_{n-1}  |  mean_0 … mean_{n-1}
         fc_0_1 … fc_{n-2}_{n-1}  |  fcd_mean
 
@@ -163,7 +163,7 @@ def nb_extract(ts_2d, do_mean, do_std, do_fc, do_fcd, fcd_window, out):
     do_fc      : bool
     do_fcd     : bool
     fcd_window : int   sliding-window size for FCD (ignored if do_fcd=False)
-    out        : (n_features,) float64  — pre-allocated output buffer
+    out        : (n_features,) float64  - pre-allocated output buffer
     """
     _, n_nodes = ts_2d.shape
     idx = 0
@@ -193,7 +193,7 @@ def nb_extract(ts_2d, do_mean, do_std, do_fc, do_fcd, fcd_window, out):
 
 
 # ---------------------------------------------------------------------------
-# NbExtractorSpec — Python-level descriptor used by pipeline + sweeper
+# NbExtractorSpec - Python-level descriptor used by pipeline + sweeper
 # ---------------------------------------------------------------------------
 
 # Mapping from cfg feature name → attribute on NbExtractorSpec

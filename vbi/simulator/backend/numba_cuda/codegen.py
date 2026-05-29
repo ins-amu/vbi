@@ -1,7 +1,7 @@
 """
 Code generation for the Numba-CUDA backend.
 
-Memory layout — coalesced (tid is always the LAST dimension)
+Memory layout - coalesced (tid is always the LAST dimension)
 -------------------------------------------------------------
 Old layout (bad for GPU):
     state[n_samples, n_sv,   n_nodes]   thread tid reads state[tid, sv, node]
@@ -21,12 +21,12 @@ Connectivity
 Two modes are generated depending on the ``sparse`` flag:
 
 Dense (``sparse=False``):
-    Coupling: weights[node, src] — full (n_nodes × n_nodes) float32 matrix.
+    Coupling: weights[node, src] - full (n_nodes × n_nodes) float32 matrix.
     Best for small N or fully-connected topologies.
 
 CSR sparse (``sparse=True``):
     Coupling: w_data[nnz], w_indices[nnz], w_indptr[n_nodes+1]
-    Optional: idelays_csr[nnz]  — delay per non-zero edge (int32)
+    Optional: idelays_csr[nnz]  - delay per non-zero edge (int32)
     Best for large N with real connectomes (typical density 20–40 %).
 
 Thread layout (same for both):
@@ -187,7 +187,7 @@ def _generate_source(spec: ModelSpec, sparse: bool = False,
             "        for node in range(n_nodes):",
         ]
 
-        # Load state — coalesced: state[sv, node, tid]
+        # Load state - coalesced: state[sv, node, tid]
         K.append("")
         K.append("            # -- load state (coalesced) --")
         for i, s in enumerate(sv):
@@ -253,7 +253,7 @@ def _generate_source(spec: ModelSpec, sparse: bool = False,
                     K.append(f"                    _s{cv_i} += weights[node, _src] * state[{ci}, _src, tid]")
                 K.append(f"            coup[{cv_i}] = _coup_a_s * _s{cv_i} + coup_b")
 
-        # Stimulus injection — same point as all other backends
+        # Stimulus injection - same point as all other backends
         # stim_data layout: stim_data[step * n_cvar * n_nodes + cv * n_nodes + node]
         K.append("")
         K.append("            # -- stimulus injection --")
@@ -316,13 +316,13 @@ def _generate_source(spec: ModelSpec, sparse: bool = False,
             K.append(f"            if has_upper[{i}]:")
             K.append(f"                if _new_{s} > upper_bounds[{i}]: _new_{s} = upper_bounds[{i}]")
 
-        # write back — coalesced
+        # write back - coalesced
         K.append("")
         K.append("            # -- write back (coalesced) --")
         for i, s in enumerate(sv):
             K.append(f"            state[{i}, node, tid] = _new_{s}")
 
-        # ring buffer — coalesced: buf[cvar, node, slot, tid]
+        # ring buffer - coalesced: buf[cvar, node, slot, tid]
         K += [
             "",
             "        # -- ring buffer update --",
@@ -334,7 +334,7 @@ def _generate_source(spec: ModelSpec, sparse: bool = False,
             ci = f"cvar_indices[{cv_i}]"
             K.append(f"                buf[{cv_i}, node, _slot, tid] = state[{ci}, node, tid]")
 
-        # record — coalesced: ts_out[rec, sv, node, tid]
+        # record - coalesced: ts_out[rec, sv, node, tid]
         K += [
             "",
             "        # -- record --",
@@ -394,7 +394,7 @@ def build_params_matrix(spec: SimulationSpec, n_samples: int,
                         sweep_names: list[str] | None = None,
                         sweep_sets: np.ndarray | None = None) -> np.ndarray:
     """
-    Returns (n_params, n_samples) float32  — coalesced layout.
+    Returns (n_params, n_samples) float32  - coalesced layout.
     Base values broadcast; sweep columns overwritten per sample.
     """
     pnames  = list(spec.model.param_names)
@@ -418,7 +418,7 @@ def build_params_matrix(spec: SimulationSpec, n_samples: int,
 
 
 def build_initial_state(spec: SimulationSpec, n_samples: int) -> np.ndarray:
-    """(n_sv, n_nodes, n_samples) float32 — coalesced."""
+    """(n_sv, n_nodes, n_samples) float32 - coalesced."""
     n_sv    = spec.model.n_sv
     n_nodes = spec.n_nodes
     st = np.zeros((n_sv, n_nodes), dtype=np.float32)
@@ -431,7 +431,7 @@ def build_initial_state(spec: SimulationSpec, n_samples: int) -> np.ndarray:
 
 def build_ring_buffer(n_samples: int, n_cvar: int, n_nodes: int,
                       horizon: int, init_cvar: np.ndarray) -> np.ndarray:
-    """(n_cvar, n_nodes, horizon, n_samples) float32 — coalesced."""
+    """(n_cvar, n_nodes, horizon, n_samples) float32 - coalesced."""
     buf = np.zeros((n_cvar, n_nodes, horizon, n_samples), dtype=np.float32)
     for h in range(horizon):
         buf[:, :, h, :] = init_cvar[:, :, np.newaxis]
@@ -495,7 +495,7 @@ def generate_noise(spec: SimulationSpec, n_steps: int,
                    n_samples: int, seed_base: int,
                    same_noise: bool = False) -> np.ndarray:
     """
-    (n_steps, n_sv, n_nodes, n_samples) float32 — coalesced layout.
+    (n_steps, n_sv, n_nodes, n_samples) float32 - coalesced layout.
 
     same_noise=False (default): each sample gets seed = seed_base + sample_idx.
     same_noise=True: one noise draw (seed = seed_base) is broadcast to all samples.

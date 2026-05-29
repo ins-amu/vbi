@@ -59,12 +59,12 @@ def _last(t, d):
 
 
 # ---------------------------------------------------------------------------
-# Linear model — exact analytical solution
+# Linear model - exact analytical solution
 # ---------------------------------------------------------------------------
 
 class TestLinearDynamics:
     def test_exponential_decay(self):
-        """x(t) = x₀ · exp(γ·t) — numerically exact for small dt."""
+        """x(t) = x₀ · exp(γ·t) - numerically exact for small dt."""
         gamma = -5.0
         x0 = 0.5    # within bounds [-1, 1]; 2.0 would be clamped to 1.0
         dt = 0.001
@@ -123,7 +123,7 @@ class TestLinearDynamics:
 
 
 # ---------------------------------------------------------------------------
-# Kuramoto — phase evolves at natural frequency (uncoupled)
+# Kuramoto - phase evolves at natural frequency (uncoupled)
 # ---------------------------------------------------------------------------
 
 class TestKuramotoDynamics:
@@ -184,7 +184,7 @@ class TestKuramotoDynamics:
 
 
 # ---------------------------------------------------------------------------
-# Kuramoto — sinusoidal coupling (kind='kuramoto')
+# Kuramoto - sinusoidal coupling (kind='kuramoto')
 # ---------------------------------------------------------------------------
 
 class TestKuramotoCoupling:
@@ -312,7 +312,7 @@ class TestKuramotoCoupling:
 
 
 # ---------------------------------------------------------------------------
-# SupHopf — fixed point vs. limit cycle
+# SupHopf - fixed point vs. limit cycle
 # ---------------------------------------------------------------------------
 
 class TestSupHopfDynamics:
@@ -371,13 +371,13 @@ class TestSupHopfDynamics:
                                    err_msg=f"SupHopf: limit cycle radius wrong for a={a_val}")
 
     def test_two_cvar_coupling_accepted(self):
-        """SupHopf uses cvar=(x,y) — verify both coupling channels are used."""
+        """SupHopf uses cvar=(x,y) - verify both coupling channels are used."""
         assert sup_hopf.cvar == ("x", "y")
         assert len(sup_hopf.cvar_indices) == 2
 
 
 # ---------------------------------------------------------------------------
-# Generic2dOscillator — fixed points and limit cycles
+# Generic2dOscillator - fixed points and limit cycles
 # ---------------------------------------------------------------------------
 
 class TestGeneric2dOscillatorDynamics:
@@ -478,7 +478,7 @@ class TestGeneric2dOscillatorDynamics:
 
 
 # ---------------------------------------------------------------------------
-# LarterBreakspear — regime switch via d_V
+# LarterBreakspear - regime switch via d_V
 # ---------------------------------------------------------------------------
 
 class TestLarterBreakspearDynamics:
@@ -499,7 +499,7 @@ class TestLarterBreakspearDynamics:
             f"LarterBreakspear d_V=0.5: expected fixed point, got V range {V_range:.4f}"
 
     def test_limit_cycle_regime(self):
-        """d_V=0.57 (0.55–0.59): limit cycle — must show sustained oscillations."""
+        """d_V=0.57 (0.55–0.59): limit cycle - must show sustained oscillations."""
         spec = SimulationSpec(
             model=larter_breakspear,
             integrator=IntegratorSpec(method="heun", dt=0.1),
@@ -528,7 +528,7 @@ class TestLarterBreakspearDynamics:
 
 
 # ---------------------------------------------------------------------------
-# CoombesByrne2D — r must stay non-negative
+# CoombesByrne2D - r must stay non-negative
 # ---------------------------------------------------------------------------
 
 class TestCoombesByrne2DDynamics:
@@ -593,7 +593,7 @@ class TestCoombesByrne2DDynamics:
 
 
 # ---------------------------------------------------------------------------
-# GastSD / GastSF — adaptation dynamics
+# GastSD / GastSF - adaptation dynamics
 # ---------------------------------------------------------------------------
 
 class TestGastAdaptationDynamics:
@@ -637,7 +637,7 @@ class TestGastAdaptationDynamics:
         d_sd = _run_model(gast_sd)
         d_sf = _run_model(gast_sf)
         assert not np.allclose(d_sd, d_sf, rtol=1e-3), \
-            "GastSD and GastSF produce identical trajectories — V equations must differ"
+            "GastSD and GastSF produce identical trajectories - V equations must differ"
 
     def test_adaptation_variable_responds_to_r(self):
         """B (adaptation derivative) must be non-zero when r > 0."""

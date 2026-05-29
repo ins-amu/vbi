@@ -1,5 +1,5 @@
 """
-Validation tests for FeaturePipeline — cfg-dict integration with Simulator/Sweeper.
+Validation tests for FeaturePipeline - cfg-dict integration with Simulator/Sweeper.
 """
 import numpy as np
 import pytest

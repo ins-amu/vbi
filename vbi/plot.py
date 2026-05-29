@@ -207,7 +207,7 @@ def _kde_grid(x: np.ndarray, y: np.ndarray,
         inv = np.empty_like(idx)
         inv[idx] = np.arange(idx.size)
         C = cum[inv].reshape(Z.shape)
-        # Convert to "which level" label image for contour—return continuous map
+        # Convert to "which level" label image for contour-return continuous map
         Z = C
     else:
         Z = (Z - Z.min()) / (Z.max() - Z.min() + 1e-12)
@@ -848,7 +848,7 @@ def pairplot(
     """
     Plot samples in a 2D grid showing marginals and pairwise marginals.
 
-    NumPy-only drop-in replacement for ``sbi.analysis.pairplot`` — same
+    NumPy-only drop-in replacement for ``sbi.analysis.pairplot`` - same
     parameters and return value, no torch required.
     """
     # Back-compat alias

@@ -1,11 +1,11 @@
 """
-JAX backend demo — differentiable brain-network simulator.
+JAX backend demo - differentiable brain-network simulator.
 
 Demonstrates four unique capabilities of the JAX backend:
 
 1. Single-run simulation (Heun, with delays, subsample monitor)
 2. BOLD monitor (Balloon-Windkessel via lax.scan)
-3. Parameter sweep via jax.vmap — all samples in one JIT call
+3. Parameter sweep via jax.vmap - all samples in one JIT call
 4. Gradient of a loss through the full simulation (jax.grad)
 
 The JAX backend runs on CPU or GPU transparently.  Activate the vbienv
@@ -87,13 +87,13 @@ def _make_spec(model_name: str, n_nodes: int, dt: float,
 
 
 # ---------------------------------------------------------------------------
-# Demo 1 — single run
+# Demo 1 - single run
 # ---------------------------------------------------------------------------
 
 def demo_single_run(model_name: str, n_nodes: int, duration: float,
                     dt: float) -> None:
     print("\n" + "─" * 60)
-    print("  Demo 1 — Single run (subsample monitor)")
+    print("  Demo 1 - Single run (subsample monitor)")
     print("─" * 60)
 
     spec = _make_spec(model_name, n_nodes, dt,
@@ -105,7 +105,7 @@ def demo_single_run(model_name: str, n_nodes: int, duration: float,
     result = sim.run(duration)
     t_first = time.perf_counter() - t0
 
-    # Second call: compiled — much faster
+    # Second call: compiled - much faster
     t0 = time.perf_counter()
     result = sim.run(duration)
     t_cached = time.perf_counter() - t0
@@ -120,13 +120,13 @@ def demo_single_run(model_name: str, n_nodes: int, duration: float,
 
 
 # ---------------------------------------------------------------------------
-# Demo 2 — BOLD monitor
+# Demo 2 - BOLD monitor
 # ---------------------------------------------------------------------------
 
 def demo_bold(model_name: str, n_nodes: int, duration: float,
               dt: float) -> None:
     print("\n" + "─" * 60)
-    print("  Demo 2 — BOLD monitor (Balloon-Windkessel via lax.scan)")
+    print("  Demo 2 - BOLD monitor (Balloon-Windkessel via lax.scan)")
     print("─" * 60)
 
     tr = 2000.0   # ms
@@ -148,13 +148,13 @@ def demo_bold(model_name: str, n_nodes: int, duration: float,
 
 
 # ---------------------------------------------------------------------------
-# Demo 3 — parameter sweep via vmap
+# Demo 3 - parameter sweep via vmap
 # ---------------------------------------------------------------------------
 
 def demo_sweep(model_name: str, n_nodes: int, n_samples: int,
                duration: float, dt: float) -> None:
     print("\n" + "─" * 60)
-    print("  Demo 3 — Parameter sweep (jax.vmap, one JIT call)")
+    print("  Demo 3 - Parameter sweep (jax.vmap, one JIT call)")
     print("─" * 60)
 
     model, sweep_param, (lo, hi), _, coup_a = MODELS[model_name]
@@ -169,7 +169,7 @@ def demo_sweep(model_name: str, n_nodes: int, n_samples: int,
     sweep_spec = SweepSpec(params={sweep_param: np.linspace(lo, hi, n_samples)})
     sweeper = Sweeper(spec, sweep_spec, backend="jax")
 
-    # Warmup — first call compiles for (n_samples, n_nodes) batch
+    # Warmup - first call compiles for (n_samples, n_nodes) batch
     sweeper.run(duration)
 
     t0 = time.perf_counter()
@@ -185,17 +185,17 @@ def demo_sweep(model_name: str, n_nodes: int, n_samples: int,
 
 
 # ---------------------------------------------------------------------------
-# Demo 4 — gradient through simulation
+# Demo 4 - gradient through simulation
 # ---------------------------------------------------------------------------
 
 def demo_gradient(model_name: str, n_nodes: int, duration: float,
                   dt: float) -> None:
     print("\n" + "─" * 60)
-    print("  Demo 4 — jax.grad through the full simulation")
+    print("  Demo 4 - jax.grad through the full simulation")
     print("─" * 60)
 
     if not JAX_AVAILABLE:
-        print("  JAX not installed — skipping gradient demo.")
+        print("  JAX not installed - skipping gradient demo.")
         return
 
     from vbi.simulator.backend.jax_.simulator import JaxSimulator

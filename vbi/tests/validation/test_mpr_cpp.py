@@ -3,9 +3,9 @@ M2 validation: C++ backend must match the NumPy reference.
 
 Tests
 -----
-test_cpp_matches_numpy        — deterministic single run, rtol=1e-4
-test_cpp_stoch_runs           — stochastic run completes without error
-test_cpp_cache_reuse          — second build_or_load returns in < 200 ms
+test_cpp_matches_numpy        - deterministic single run, rtol=1e-4
+test_cpp_stoch_runs           - stochastic run completes without error
+test_cpp_cache_reuse          - second build_or_load returns in < 200 ms
 """
 import time
 import numpy as np
@@ -56,7 +56,7 @@ def _build_spec(n_nodes=10, dt=0.01, stochastic=False, seed=0):
 def test_cpp_matches_numpy():
     """C++ Heun deterministic must reproduce NumPy to rtol=1e-4."""
     spec     = _build_spec(n_nodes=10, dt=0.01, stochastic=False)
-    duration = 100.0   # ms — keep short for CI
+    duration = 100.0   # ms - keep short for CI
 
     sim_np  = Simulator(spec, backend="numpy")
     sim_cpp = Simulator(spec, backend="cpp")
@@ -87,4 +87,4 @@ def test_cpp_cache_reuse():
     build_or_load(spec)
     elapsed = time.perf_counter() - t0
 
-    assert elapsed < 0.2, f"Cache hit took {elapsed:.3f}s — expected < 0.2s"
+    assert elapsed < 0.2, f"Cache hit took {elapsed:.3f}s - expected < 0.2s"

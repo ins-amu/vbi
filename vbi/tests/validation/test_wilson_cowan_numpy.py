@@ -1,5 +1,5 @@
 """
-M0 validation: NumPy backend — deterministic Wilson-Cowan.
+M0 validation: NumPy backend - deterministic Wilson-Cowan.
 """
 
 import numpy as np

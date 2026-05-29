@@ -408,7 +408,7 @@ class MAFEstimator(ConditionalDensityEstimator):
         beta1, beta2, eps = 0.9, 0.999, 1e-8
 
         # Embedding is applied inside _get_log_prob (called by _loss_function),
-        # so we differentiate through _loss_function directly — no wrapper needed.
+        # so we differentiate through _loss_function directly - no wrapper needed.
         # APT: when loss_fn is provided it replaces _loss_function entirely.
         active_loss   = loss_fn if loss_fn is not None else self._loss_function
         gradient_func = grad(active_loss)
@@ -422,8 +422,8 @@ class MAFEstimator(ConditionalDensityEstimator):
 
         # ── Collapse monitoring setup ─────────────────────────────────────────
         # Two-checkpoint strategy:
-        #   best_val_weights    — best NLL on validation (may be collapsed)
-        #   last_healthy_weights — latest weights where posterior_std was OK
+        #   best_val_weights    - best NLL on validation (may be collapsed)
+        #   last_healthy_weights - latest weights where posterior_std was OK
         # When collapse is detected we restore last_healthy_weights, which
         # avoids restoring an already-collapsed best_val checkpoint.
         _data_std = p_tr_real.std(axis=0) + 1e-8   # (param_dim,)
@@ -432,7 +432,7 @@ class MAFEstimator(ConditionalDensityEstimator):
             _x_chk = (anp.atleast_2d(anp.asarray(x_check, dtype="f"))
                       if x_check is not None else f_tr[0:1].copy())
             _rng_chk = anp.random.RandomState(seed + 999)
-            # Separate "last healthy" checkpoint — distinct from best_val_weights.
+            # Separate "last healthy" checkpoint - distinct from best_val_weights.
             # best_val_weights tracks best NLL (may already be collapsed);
             # _last_healthy_weights tracks latest state where std was still OK.
             _last_healthy_weights = {k: w.copy() for k, w in self.weights.items()}
@@ -543,14 +543,14 @@ class MAFEstimator(ConditionalDensityEstimator):
                         self.weights = _last_healthy_weights
                         break
                     else:
-                        # Still healthy — save as the last known-good checkpoint
+                        # Still healthy - save as the last known-good checkpoint
                         _last_healthy_weights = {
                             k: w.copy() for k, w in self.weights.items()
                         }
                 except Exception as exc:
                     log.debug("Collapse monitor skipped at epoch %d: %s", epoch, exc)
 
-        # Restore best validation checkpoint — but NOT if collapse monitoring
+        # Restore best validation checkpoint - but NOT if collapse monitoring
         # already restored a "last healthy" checkpoint (which is the correct
         # weights to use; best_val_weights may be from a collapsed state).
         if n_val > 0 and not _stopped_for_collapse:
@@ -564,12 +564,12 @@ class MAFEstimator(ConditionalDensityEstimator):
 
 
 # ---------------------------------------------------------------------------
-# Legacy MAF (simpler, no ActNorm / z-scoring) — kept for backward compat
+# Legacy MAF (simpler, no ActNorm / z-scoring) - kept for backward compat
 # ---------------------------------------------------------------------------
 
 @dataclass
 class MAFEstimator0(ConditionalDensityEstimator):
-    """Original simpler MAF.  Deprecated — use MAFEstimator instead."""
+    """Original simpler MAF.  Deprecated - use MAFEstimator instead."""
 
     param_dim:    int = None
     feature_dim:  int = None

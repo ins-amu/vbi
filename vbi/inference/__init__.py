@@ -1,5 +1,5 @@
 """
-vbi.inference — torch-free SBI engine with sbi-compatible API.
+vbi.inference - torch-free SBI engine with sbi-compatible API.
 
 Quick start
 -----------
@@ -25,7 +25,7 @@ Replace::
 With::
 
     from vbi.inference import SNPE, BoxUniform
-    theta = theta_np   # plain numpy — nothing else changes
+    theta = theta_np   # plain numpy - nothing else changes
 """
 
 from ._api            import SNPE, SNLE, set_jax_device

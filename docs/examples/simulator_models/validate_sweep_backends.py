@@ -105,7 +105,7 @@ def _check_match(reference: list[np.ndarray], candidate: list[np.ndarray],
         return True, f"OK  (max_abs={max_abs:.2e}  max_rel={max_rel:.2e})"
     except AssertionError as e:
         msg = str(e).split("\n")[2] if "\n" in str(e) else str(e)
-        return False, f"FAIL  max_abs={max_abs:.2e}  max_rel={max_rel:.2e}  — {msg}"
+        return False, f"FAIL  max_abs={max_abs:.2e}  max_rel={max_rel:.2e}  - {msg}"
 
 
 # ---------------------------------------------------------------------------

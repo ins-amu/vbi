@@ -7,7 +7,7 @@ import numpy as np
 @dataclass(frozen=True)
 class IntegratorSpec:
     method: Literal["euler", "heun"] = "heun"
-    dt: float = 0.01                        # ms — must be > 0
+    dt: float = 0.01                        # ms - must be > 0
     stochastic: bool = False
 
     def __post_init__(self):

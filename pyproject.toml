@@ -9,7 +9,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "vbi"
 dynamic = ["version"]
-description = "Virtual brain inference — fast simulation and parameter estimation."
+description = "Virtual brain inference - fast simulation and parameter estimation."
 requires-python = ">=3.10"
 license = { text = "MIT" }
 authors = [
@@ -26,7 +26,7 @@ classifiers = [
 ]
 
 # ---------------------------------------------------------------------------
-# Core dependencies — always required (light, CPU-only simulation)
+# Core dependencies - always required (light, CPU-only simulation)
 # ---------------------------------------------------------------------------
 # Install:  pip install vbi
 #
@@ -73,7 +73,7 @@ jax = [
 ]
 
 # CUDA / Numba-CUDA backend (numba[cuda] is the same package as numba)
-# No extra packages needed — numba ships CUDA support.
+# No extra packages needed - numba ships CUDA support.
 # Requires NVIDIA GPU + CUDA toolkit installed on the system.
 # Install:  pip install vbi  (then ensure CUDA toolkit is on PATH)
 cuda = []
@@ -190,7 +190,7 @@ vbi = [
 testpaths = ["vbi/tests"]
 markers = [
     "slow: tests with long runtimes (>3 s each); skipped in fast CI",
-    "fast: alias — explicitly fast tests (always run)",
+    "fast: alias - explicitly fast tests (always run)",
     "cuda_fast: deterministic CUDA tests; short duration; GPU required",
     "cuda_slow: stochastic/large-N CUDA tests; GPU required",
     # Legacy aliases

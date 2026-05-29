@@ -1,5 +1,5 @@
 """
-Tests for VBIInference core — Step 3 of MI6.
+Tests for VBIInference core - Step 3 of MI6.
 """
 import numpy as np
 import pytest

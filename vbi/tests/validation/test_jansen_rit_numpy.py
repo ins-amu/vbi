@@ -1,5 +1,5 @@
 """
-M0 validation: NumPy backend — deterministic Jansen-Rit.
+M0 validation: NumPy backend - deterministic Jansen-Rit.
 """
 
 import numpy as np

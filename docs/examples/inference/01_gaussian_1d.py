@@ -1,5 +1,5 @@
 """
-Demo 1 — 1-D Gaussian with known analytical posterior.
+Demo 1 - 1-D Gaussian with known analytical posterior.
 
 Simulator:   x | theta ~ N(theta, sigma_lik)
 Prior:       theta ~ N(0, sigma_prior)
@@ -78,7 +78,7 @@ coverage_90  = np.mean(in_90ci)
 
 # ── Report ─────────────────────────────────────────────────────────────────────
 print("=" * 55)
-print("Demo 1 — 1-D Gaussian (known posterior)")
+print("Demo 1 - 1-D Gaussian (known posterior)")
 print("=" * 55)
 print(f"  sigma_lik={SIGMA_LIK}  sigma_prior={SIGMA_PRIOR}  N_train={N_TRAIN}")
 print()
@@ -104,7 +104,7 @@ print(f"  Mean absolute posterior std  error : {std_err_avg:.4f}")
 print(f"  90% CI coverage (expected 0.90)    : {coverage_90:.2f}")
 print()
 
-# Pass/fail thresholds — loose (fast training; tighten for quality benchmarks)
+# Pass/fail thresholds - loose (fast training; tighten for quality benchmarks)
 assert mean_err_avg  < 0.20, f"Posterior mean error too large: {mean_err_avg:.4f}"
 assert std_err_avg   < 0.15, f"Posterior std  error too large: {std_err_avg:.4f}"
 assert coverage_90   >= 0.6,  f"90% CI coverage too low: {coverage_90:.2f}"
@@ -123,7 +123,7 @@ try:
     s   = posterior.sample((2000,), x=x_s, seed=0)
     mu_t, s_t = analytical_posterior(1.5)
     posterior_1d(s[:, 0], true_mean=mu_t, true_std=s_t, x_obs_val=1.5,
-                 title="Demo 1 — posterior at x_obs=1.5",
+                 title="Demo 1 - posterior at x_obs=1.5",
                  out_path=out / "01_posterior_1d.png")
 
     # Fig 2: coverage across x range
@@ -138,7 +138,7 @@ try:
         e_hi.append(_np.percentile(s2, 95))
     coverage_plot(x_range, _np.array(t_means), _np.array(e_means),
                   _np.array(e_lo), _np.array(e_hi),
-                  title="Demo 1 — 90% CI coverage",
+                  title="Demo 1 - 90% CI coverage",
                   out_path=out / "01_coverage.png")
 except Exception as e:
     print(f"  (plots skipped: {e})")

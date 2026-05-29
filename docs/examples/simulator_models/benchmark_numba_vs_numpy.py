@@ -2,7 +2,7 @@
 Benchmark: NumPy vs Numba backend for parameter sweeps with feature extraction.
 
 NumPy sweeps serially (one simulation at a time).
-Numba sweeps in parallel via prange — each sweep point runs on a separate
+Numba sweeps in parallel via prange - each sweep point runs on a separate
 thread, so runtime scales with n_samples / n_threads rather than n_samples.
 
 Sweep sizes are kept small (≤20) so NumPy finishes in reasonable time.
@@ -118,7 +118,7 @@ def run_benchmark(n_nodes: int, duration: float, output: Path | None) -> None:
           f"t_cut={t_cut} ms")
     print(f"NumPy  : sequential  (1 thread, 1 simulation at a time)")
     print(f"Numba  : parallel    ({n_threads} threads via prange, "
-          f"{numba.threading_layer()})  — each sweep point runs on its own thread")
+          f"{numba.threading_layer()})  - each sweep point runs on its own thread")
     print(f"Feature tier: "
           f"{'Tier-2 JIT (nb_extract inside prange)' if pipeline.nb_extractor else 'Tier-1 Python'}")
     print()

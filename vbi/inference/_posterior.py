@@ -144,7 +144,7 @@ class Posterior:
         if x_2d.shape[0] == 1 and theta.shape[0] > 1:
             x_2d = np.repeat(x_2d, theta.shape[0], axis=0)
 
-        # Low-level API: log_prob(features, params) — note order swap here.
+        # Low-level API: log_prob(features, params) - note order swap here.
         # The SNPE estimator already encodes log p(theta|x); we do not add the
         # prior again here, which would double-count it and bias log_prob vs sample().
         return np.array(self._estimator.log_prob(x_2d, theta))

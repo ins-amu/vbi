@@ -1,5 +1,5 @@
 """
-Demo 3 — Two-moons benchmark.
+Demo 3 - Two-moons benchmark.
 
 The two-moons distribution is a classic 2-D SBI benchmark from the sbi
 paper (Cranmer et al. 2020).  There is no analytical posterior, but the
@@ -72,7 +72,7 @@ samples  = posterior.sample((N_POST,), x=x_obs, seed=0)   # (N_POST, 2)
 prior_samp = prior.sample((N_POST,), seed=1)               # (N_POST, 2)
 
 print("=" * 55)
-print("Demo 3 — Two-moons benchmark")
+print("Demo 3 - Two-moons benchmark")
 print("=" * 55)
 print(f"  x_obs = {x_obs[0]}")
 print(f"  Posterior mean : {samples.mean(axis=0).round(3)}")
@@ -118,10 +118,10 @@ try:
     from pathlib import Path
     out = Path(__file__).parent / "outputs"
 
-    # Posterior pairplot — should show two crescent-shaped modes
+    # Posterior pairplot - should show two crescent-shaped modes
     pairplot(samples, labels=["θ0", "θ1"],
              points=x_obs[0], points_label="x_obs=(0,0)",
-             title="Demo 3 — Two-moons posterior at x_obs=(0,0)",
+             title="Demo 3 - Two-moons posterior at x_obs=(0,0)",
              out_path=out / "03_two_moons_posterior.png")
 except Exception as e:
     print(f"  (plots skipped: {e})")

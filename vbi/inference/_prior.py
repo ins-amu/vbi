@@ -1,5 +1,5 @@
 """
-Prior distributions for SBI — torch-free, numpy-native.
+Prior distributions for SBI - torch-free, numpy-native.
 
 All priors expose the same interface as sbi's prior objects:
     prior.sample((n,))          → (n, d) ndarray
@@ -113,7 +113,7 @@ class Gaussian:
     Parameters
     ----------
     mean : array-like  shape (d,)
-    std  : array-like  shape (d,)  — standard deviations (not variances)
+    std  : array-like  shape (d,)  - standard deviations (not variances)
     """
 
     def __init__(self, mean, std, param_names=None):
@@ -188,7 +188,7 @@ class CustomPrior:
 
 
 # ---------------------------------------------------------------------------
-# MultivariateNormal — full covariance Gaussian
+# MultivariateNormal - full covariance Gaussian
 # ---------------------------------------------------------------------------
 
 class MultivariateNormal:
@@ -198,7 +198,7 @@ class MultivariateNormal:
     Parameters
     ----------
     mean : array-like  (d,)
-    cov  : array-like  (d, d)  — positive-definite covariance matrix
+    cov  : array-like  (d, d)  - positive-definite covariance matrix
     """
 
     def __init__(self, mean, cov, param_names=None):
@@ -243,7 +243,7 @@ class MultivariateNormal:
 
 
 # ---------------------------------------------------------------------------
-# LogNormal — log-normal marginals (independent per dimension)
+# LogNormal - log-normal marginals (independent per dimension)
 # ---------------------------------------------------------------------------
 
 class LogNormal:
@@ -254,8 +254,8 @@ class LogNormal:
 
     Parameters
     ----------
-    mean : array-like  (d,)  — mean of log(X)
-    std  : array-like  (d,)  — std of log(X)  (must be > 0)
+    mean : array-like  (d,)  - mean of log(X)
+    std  : array-like  (d,)  - std of log(X)  (must be > 0)
     """
 
     def __init__(self, mean, std, param_names=None):
@@ -299,7 +299,7 @@ class LogNormal:
 
 
 # ---------------------------------------------------------------------------
-# Gamma — positive-valued parameters (independent per dimension)
+# Gamma - positive-valued parameters (independent per dimension)
 # ---------------------------------------------------------------------------
 
 class Gamma:
@@ -308,8 +308,8 @@ class Gamma:
 
     Parameters
     ----------
-    concentration : array-like  (d,)  — shape parameter α > 0
-    rate          : array-like  (d,)  — rate parameter β > 0  (scale = 1/rate)
+    concentration : array-like  (d,)  - shape parameter α > 0
+    rate          : array-like  (d,)  - rate parameter β > 0  (scale = 1/rate)
     """
 
     def __init__(self, concentration, rate, param_names=None):
@@ -356,7 +356,7 @@ class Gamma:
 
 
 # ---------------------------------------------------------------------------
-# Beta — [0, 1]-valued parameters (independent per dimension)
+# Beta - [0, 1]-valued parameters (independent per dimension)
 # ---------------------------------------------------------------------------
 
 class Beta:
@@ -365,8 +365,8 @@ class Beta:
 
     Parameters
     ----------
-    alpha : array-like  (d,)  — α > 0
-    beta  : array-like  (d,)  — β > 0
+    alpha : array-like  (d,)  - α > 0
+    beta  : array-like  (d,)  - β > 0
     """
 
     def __init__(self, alpha, beta, param_names=None):
@@ -412,7 +412,7 @@ class Beta:
 
 
 # ---------------------------------------------------------------------------
-# MultipleIndependent — product of independent priors (mixed types)
+# MultipleIndependent - product of independent priors (mixed types)
 # ---------------------------------------------------------------------------
 
 class MultipleIndependent:
@@ -484,7 +484,7 @@ class MultipleIndependent:
 
 
 # ---------------------------------------------------------------------------
-# RestrictedPrior — truncated prior via constraint function
+# RestrictedPrior - truncated prior via constraint function
 # ---------------------------------------------------------------------------
 
 class RestrictedPrior:
@@ -545,7 +545,7 @@ class RestrictedPrior:
 
             if drawn > n * 100_000:
                 raise RuntimeError(
-                    f"RestrictedPrior: acceptance rate is too low — drew {drawn} "
+                    f"RestrictedPrior: acceptance rate is too low - drew {drawn} "
                     f"samples but only accepted {accepted} / {n}."
                 )
             if accepted > 0:

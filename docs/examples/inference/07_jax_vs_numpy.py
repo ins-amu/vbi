@@ -1,5 +1,5 @@
 """
-Demo 7 — JAX vs NumPy density estimators.
+Demo 7 - JAX vs NumPy density estimators.
 
 Uses the same 1-D Gaussian problem as Demo 1, where the posterior is known
 analytically, to compare each density estimator across backends:
@@ -27,7 +27,7 @@ import warnings
 import numpy as np
 
 os.environ.setdefault("MPLCONFIGDIR", "/tmp/matplotlib-vbi")
-# JAX_PLATFORMS defaults to "cpu" inside vbi.inference._backends — set it here
+# JAX_PLATFORMS defaults to "cpu" inside vbi.inference._backends - set it here
 # before any vbi import so the demo works even when this file is run first.
 os.environ.setdefault("JAX_PLATFORMS", "cpu")
 
@@ -138,7 +138,7 @@ def skip_message(exc: Exception) -> str:
 
 
 print("=" * 68)
-print("Demo 7 — JAX vs NumPy density estimators")
+print("Demo 7 - JAX vs NumPy density estimators")
 print("=" * 68)
 print(f"  N_train={N_TRAIN}  sigma_lik={SIGMA_LIK}  sigma_prior={SIGMA_PRIOR}")
 print(f"  estimators={','.join(DENSITY_ESTIMATORS)}")
@@ -193,14 +193,14 @@ try:
             true_std=s_t,
             x_obs_val=1.0,
             label_est=label,
-            title=f"Demo 7 — {label} posterior at x_obs=1.0",
+            title=f"Demo 7 - {label} posterior at x_obs=1.0",
             out_path=out / f"07_{r['backend']}_{r['de']}_posterior.png",
         )
         if r["loss_history"]:
             loss_plot(
                 r["loss_history"],
                 r["val_loss_history"],
-                title=f"Demo 7 — {label} loss curve",
+                title=f"Demo 7 - {label} loss curve",
                 out_path=out / f"07_{r['backend']}_{r['de']}_loss.png",
             )
 except Exception as e:

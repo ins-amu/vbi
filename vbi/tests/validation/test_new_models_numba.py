@@ -218,7 +218,7 @@ def test_heterogeneous_params_numba_matches_numpy(model, param, values, dt):
 
 
 # ---------------------------------------------------------------------------
-# Kuramoto sinusoidal coupling (kind='kuramoto') — Numba vs NumPy
+# Kuramoto sinusoidal coupling (kind='kuramoto') - Numba vs NumPy
 # ---------------------------------------------------------------------------
 
 class TestKuramotoCouplingNumba:

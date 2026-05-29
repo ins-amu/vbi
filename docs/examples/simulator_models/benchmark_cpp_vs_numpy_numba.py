@@ -2,9 +2,9 @@
 Benchmark: NumPy vs Numba vs C++ (serial and parallel) for parameter sweeps.
 
 NumPy runs sequentially in Python.
-Numba uses @njit(parallel=True) / prange — true thread parallelism within one process.
-C++ serial   — Python loop calling pybind11 run_simulation() per point.
-C++ parallel — ThreadPoolExecutor; each thread calls pybind11 (GIL released in C++).
+Numba uses @njit(parallel=True) / prange - true thread parallelism within one process.
+C++ serial   - Python loop calling pybind11 run_simulation() per point.
+C++ parallel - ThreadPoolExecutor; each thread calls pybind11 (GIL released in C++).
 
 Run from this directory:
     python benchmark_cpp_vs_numpy_numba.py
@@ -166,7 +166,7 @@ def _plot(rows, sweep_sizes, n_nodes, duration, n_workers):
     try:
         import matplotlib.pyplot as plt
     except ImportError:
-        print("matplotlib not available — skipping plot.")
+        print("matplotlib not available - skipping plot.")
         return
 
     ns,  t_np, t_nbs, t_nbp, t_cs, t_cp = zip(*rows)
@@ -184,7 +184,7 @@ def _plot(rows, sweep_sizes, n_nodes, duration, n_workers):
             markerfacecolor="white")
     ax.set_xlabel("n_samples")
     ax.set_ylabel("Wall time (s)")
-    ax.set_title(f"Sweep time — {n_nodes} nodes, {duration} ms")
+    ax.set_title(f"Sweep time - {n_nodes} nodes, {duration} ms")
     ax.legend(fontsize=9)
     ax.grid(True, alpha=0.3)
 

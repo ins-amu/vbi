@@ -1,5 +1,5 @@
 """
-Simulation and training utilities — sbi-compatible helpers.
+Simulation and training utilities - sbi-compatible helpers.
 
 MI0-utils: simulate_for_sbi, process_prior
 MI6:       simulate_for_vbi_sweep, simulate_for_vbi_sweep_cached, extract_from_cache
@@ -45,8 +45,8 @@ def simulate_for_vbi_sweep(
 
     Returns
     -------
-    theta          : (n, d_theta) float64  — parameter vectors
-    x              : (n, d_x)     float64  — feature vectors
+    theta          : (n, d_theta) float64  - parameter vectors
+    x              : (n, d_x)     float64  - feature vectors
     param_names    : list[str]
     feature_labels : list[str]
 
@@ -54,7 +54,7 @@ def simulate_for_vbi_sweep(
     -----
     The numpy/numba sweeper returns (labels, values) where
     values[:, :n_params] are the parameters and values[:, n_params:] are
-    the features — confirmed from NumpySweeper and NumbaSweeperCPU source.
+    the features - confirmed from NumpySweeper and NumbaSweeperCPU source.
     Rows where any feature value is non-finite are dropped.
     """
     from vbi.simulator.api import Sweeper
@@ -102,7 +102,7 @@ def simulate_for_vbi_sweep(
 
 
 # ---------------------------------------------------------------------------
-# Simulation cache — Step 2 of MI6
+# Simulation cache - Step 2 of MI6
 # ---------------------------------------------------------------------------
 
 def simulate_for_vbi_sweep_cached(
@@ -135,7 +135,7 @@ def simulate_for_vbi_sweep_cached(
     ----------
     sim_spec        : SimulationSpec
     prior           : prior object with ._resolved_param_names and .sample()
-    pipeline        : FeaturePipeline  — determines which signal to cache
+    pipeline        : FeaturePipeline  - determines which signal to cache
     num_simulations : int
     duration        : float  ms
     cache_dir       : str | Path  created if it doesn't exist
@@ -193,7 +193,7 @@ def simulate_for_vbi_sweep_cached(
         sweep_spec = SweepSpec(
             params=theta_chunk,
             param_names=tuple(param_names),
-            pipeline=None,  # raw output — no feature extraction yet
+            pipeline=None,  # raw output - no feature extraction yet
         )
         sweeper = Sweeper(sim_spec, sweep_spec, backend=sim_backend)
         results = sweeper.run(duration)  # list[{monitor_kind: (t, data)}]

@@ -1,5 +1,5 @@
 """
-Demo 8 — Backend speed benchmark: sbi (torch) vs vbi numpy vs vbi jax.
+Demo 8 - Backend speed benchmark: sbi (torch) vs vbi numpy vs vbi jax.
 
 Measures three things separately for each backend:
   1. Compilation / first-run overhead (JAX JIT; torch tracing for sbi).
@@ -184,7 +184,7 @@ def bench_sbi():
     compile_and_train = time.perf_counter() - t0
     post_sbi = inf_sbi.build_posterior(est_sbi)
 
-    # Sample timing — suppress sbi sampler tqdm (writes to stderr)
+    # Sample timing - suppress sbi sampler tqdm (writes to stderr)
     import io, contextlib
     x_obs_cond = x_obs_t.squeeze(0)
     t0 = time.perf_counter()
@@ -216,7 +216,7 @@ def bench_sbi():
 
 # ── Run ────────────────────────────────────────────────────────────────────────
 print("=" * 76)
-print("Demo 8 — Backend benchmark: sbi/torch vs vbi/numpy vs vbi/jax")
+print("Demo 8 - Backend benchmark: sbi/torch vs vbi/numpy vs vbi/jax")
 print("=" * 76)
 print("  Problem")
 print(f"    simulator    : 1-D Gaussian")

@@ -1,7 +1,7 @@
 """
 Structural correctness tests for the new ModelSpec objects.
 
-These tests do NOT run the simulator — they verify that the ModelSpec
+These tests do NOT run the simulator - they verify that the ModelSpec
 fields are internally consistent: correct dimensions, valid indices,
 matching keys, sensible bounds, etc.
 

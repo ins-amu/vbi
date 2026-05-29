@@ -1,5 +1,5 @@
 """
-VBIInference — end-to-end SBI workflow object.  MI6.
+VBIInference - end-to-end SBI workflow object.  MI6.
 
 Owns the full loop: prior sampling → sweep simulation → feature extraction
 → SNPE training → posterior.  Raw recordings can optionally be cached to
@@ -46,7 +46,7 @@ def _pack_estimator(est, data: dict) -> None:
     """
     import dataclasses, json
 
-    # Full constructor config — covers MAF/NSF/MDN non-default architectures.
+    # Full constructor config - covers MAF/NSF/MDN non-default architectures.
     if dataclasses.is_dataclass(est):
         config: dict = {}
         for f in dataclasses.fields(est):
@@ -445,7 +445,7 @@ class VBIInference:
         inference_backend : 'vbi' | 'sbi'
             Which inference engine to use for training and posterior.
             'vbi' (default) uses the built-in torch-free SNPE.
-            'sbi' uses ``sbi.inference.SNPE`` — requires ``sbi`` and ``torch``
+            'sbi' uses ``sbi.inference.SNPE`` - requires ``sbi`` and ``torch``
             to be installed.
         inference_engine : sbi.inference.SNPE | None
             Pass a pre-configured sbi SNPE object directly.  When set,
@@ -640,7 +640,7 @@ class VBIInference:
         return theta, x, []
 
     # ------------------------------------------------------------------
-    # Cache helper (static — usable without an instance)
+    # Cache helper (static - usable without an instance)
     # ------------------------------------------------------------------
 
     @staticmethod
@@ -675,7 +675,7 @@ class VBIInference:
         For the sbi backend, the trained estimator is written to a companion
         ``<stem>_sbi.pt`` file next to the ``.npz``.
 
-        NOT saved: ``sim_spec`` and ``pipeline`` — supply them on load.
+        NOT saved: ``sim_spec`` and ``pipeline`` - supply them on load.
 
         Parameters
         ----------
@@ -739,7 +739,7 @@ class VBIInference:
 
         Returns
         -------
-        VBIInference  fully reconstructed — ``train()`` and
+        VBIInference  fully reconstructed - ``train()`` and
                       ``build_posterior()`` work immediately.
         """
         from ._backends import resolve_backend, get_estimator_map
@@ -896,13 +896,13 @@ class VBIInference:
         from ._diagnostics import plot_loss as _plot_loss
 
         if self._last_estimator is None:
-            raise RuntimeError("No trained estimator — call train() first.")
+            raise RuntimeError("No trained estimator - call train() first.")
 
         train_loss = getattr(self._last_estimator, "loss_history", [])
         val_loss   = getattr(self._last_estimator, "val_loss_history", None)
         if not train_loss:
             raise RuntimeError(
-                "Loss history is empty — the estimator may have been loaded "
+                "Loss history is empty - the estimator may have been loaded "
                 "from a checkpoint (loss is not persisted)."
             )
         return _plot_loss(train_loss, val_loss)
@@ -929,7 +929,7 @@ class VBIInference:
 
         if self._last_estimator is None:
             raise RuntimeError(
-                "No trained estimator — call train() first."
+                "No trained estimator - call train() first."
             )
         posterior = self.build_posterior()
         samples   = posterior.sample((num_samples,), x=np.asarray(x_obs))
@@ -952,7 +952,7 @@ class VBIInference:
         Parameters
         ----------
         duration              : float  simulation length in ms; uses the last
-                                ``simulate()`` duration if None (not stored —
+                                ``simulate()`` duration if None (not stored -
                                 must supply explicitly).
         num_sbc_runs          : int
         num_posterior_samples : int
@@ -976,7 +976,7 @@ class VBIInference:
             )
         if self._last_estimator is None:
             raise RuntimeError(
-                "No trained estimator — call train() first."
+                "No trained estimator - call train() first."
             )
 
         posterior    = self.build_posterior()

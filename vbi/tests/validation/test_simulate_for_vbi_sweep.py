@@ -1,5 +1,5 @@
 """
-Tests for simulate_for_vbi_sweep — Step 1 of MI6.
+Tests for simulate_for_vbi_sweep - Step 1 of MI6.
 """
 import numpy as np
 import pytest

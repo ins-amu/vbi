@@ -177,7 +177,7 @@ def test_stochastic_sweep_unique_trajectories():
         monitors=(MonitorSpec(kind="raw"),),
         weights=_weights(5),
     )
-    # All eta identical — only noise differs between runs (same_noise=False)
+    # All eta identical - only noise differs between runs (same_noise=False)
     sweep_spec = SweepSpec(params={"eta": np.full(4, -4.6)}, same_noise=False)
     sweeper = CppSweeper(spec, sweep_spec)
     results = sweeper.run_serial(30.0)
@@ -186,7 +186,7 @@ def test_stochastic_sweep_unique_trajectories():
     for i in range(1, len(results)):
         di = results[i]["raw"][1]
         assert not np.array_equal(di, d0), \
-            f"Stochastic run {i} is identical to run 0 — seeds not independent"
+            f"Stochastic run {i} is identical to run 0 - seeds not independent"
 
 
 # ---------------------------------------------------------------------------

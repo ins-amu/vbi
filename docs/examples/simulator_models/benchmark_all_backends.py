@@ -20,7 +20,7 @@ Strategy
 
 Model choice
 ------------
-SupHopf (2 SVs, 2 params) — fast equations, good for benchmarking.
+SupHopf (2 SVs, 2 params) - fast equations, good for benchmarking.
 Can be overridden to Generic2dOscillator or MPR via CLI.
 
 Usage
@@ -88,7 +88,7 @@ MODELS = {
 # For brain-scale: --model mpr --n-nodes 80 --cuda-sizes 64 128 512 2048 4096 --repeats 1
 DEFAULT_MODEL    = "sup_hopf"
 DEFAULT_N_NODES  = 20
-DEFAULT_DURATION = 500.0   # ms  — 5000 steps per simulation (dt=0.1)
+DEFAULT_DURATION = 500.0   # ms  - 5000 steps per simulation (dt=0.1)
 DEFAULT_DT       = 0.1     # dt=0.1 ms → fast on all backends
 
 # CPU: kept ≤ 64 so NumPy finishes in seconds (cost is linear in n_samples)
@@ -115,7 +115,7 @@ def _weights(n: int, seed: int = 0) -> np.ndarray:
 
 def _make_spec(model_name: str, n_nodes: int, dt: float) -> SimulationSpec:
     model, _, _, _, coup_a = MODELS[model_name]
-    # Use tavg with period = 10*dt so n_record = duration/(10*dt) — manageable on GPU.
+    # Use tavg with period = 10*dt so n_record = duration/(10*dt) - manageable on GPU.
     # For CPU backends this makes no practical difference (they store on host RAM).
     tavg_period = round(10 * dt, 6)
     return SimulationSpec(
@@ -166,7 +166,7 @@ def warmup(spec: SimulationSpec, model_name: str, n_workers: int) -> None:
     try:
         from vbi.simulator.backend.numba_cuda import CUDA_AVAILABLE
         if CUDA_AVAILABLE:
-            print("  Warming up CUDA (JIT compile — may take 30-120 s)…",
+            print("  Warming up CUDA (JIT compile - may take 30-120 s)…",
                   end="", flush=True)
             Sweeper(spec, tiny, backend="cuda").run(100.0)
             print(" done.")
@@ -240,10 +240,10 @@ def benchmark_cuda(spec: SimulationSpec, model_name: str,
     try:
         from vbi.simulator.backend.numba_cuda import CUDA_AVAILABLE
         if not CUDA_AVAILABLE:
-            print("  CUDA not available — skipping GPU benchmark.")
+            print("  CUDA not available - skipping GPU benchmark.")
             return []
     except ImportError:
-        print("  numba[cuda] not installed — skipping GPU benchmark.")
+        print("  numba[cuda] not installed - skipping GPU benchmark.")
         return []
 
     print(f"\n{'n_samples':>10}  {'CUDA(s)':>10}  {'sam/s':>10}")
@@ -278,7 +278,7 @@ def benchmark_jax(spec: SimulationSpec, model_name: str,
         import jax
         platform = jax.default_backend()
     except ImportError:
-        print("  JAX not installed — skipping JAX benchmark.")
+        print("  JAX not installed - skipping JAX benchmark.")
         return []
 
     print(f"\n{'n_samples':>10}  {'JAX(s)':>10}  {'sam/s':>10}  {'platform':>10}")
@@ -358,7 +358,7 @@ def throughput_comparison(cpu_rows: list[dict], cuda_rows: list[dict],
 
 
 # ---------------------------------------------------------------------------
-# Plotting  — delegated to helpers.plot_sweep_benchmark
+# Plotting  - delegated to helpers.plot_sweep_benchmark
 # ---------------------------------------------------------------------------
 
 def plot_results(cpu_rows: list[dict], cuda_rows: list[dict],

@@ -24,7 +24,7 @@ def build_dfun(spec: ModelSpec) -> Callable:
 
     where:
         state    : (n_sv, n_nodes)
-        coupling : (n_cvar, n_nodes)  — one row per coupling variable
+        coupling : (n_cvar, n_nodes)  - one row per coupling variable
         params   : dict[str, scalar | (n_nodes,)]
 
     For each cvar name, injects  c_{name}  as a local (n_nodes,) variable.
@@ -109,7 +109,7 @@ def _resolve_noise_amplitude(spec: SimulationSpec, nsig: np.ndarray) -> np.ndarr
 # ---------------------------------------------------------------------------
 
 class NumpySimulator:
-    """Pure-NumPy reference backend — used for correctness validation."""
+    """Pure-NumPy reference backend - used for correctness validation."""
 
     def build(self, spec: SimulationSpec) -> None:
         self.spec = spec
@@ -209,20 +209,20 @@ class NumpySimulator:
         params = self._params
 
         def dfun_fn(state, coupling):
-            # coupling: (n_cvar, n_nodes) — passed directly; build_dfun unpacks by name
+            # coupling: (n_cvar, n_nodes) - passed directly; build_dfun unpacks by name
             return self._dfun(state, coupling, params)
 
         has_delays = self._has_delays
 
         for step in range(n_steps):
-            # 1. Coupling — fast instant path when all delays are zero
+            # 1. Coupling - fast instant path when all delays are zero
             if has_delays:
                 delayed = self._history.read_delayed(self._delay_steps)
                 coupling = self._coupling.compute(delayed, current_state=self._state)
             else:
                 coupling = self._coupling.compute_instant(self._state[cvar_idx])
 
-            # 1b. Stimulus — additive injection into coupling (same as TVB hybrid)
+            # 1b. Stimulus - additive injection into coupling (same as TVB hybrid)
             if self._stimuli:
                 t_ms = step * dt
                 for ci, amplitude, stim in self._stimuli:

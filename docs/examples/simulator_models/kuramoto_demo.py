@@ -87,7 +87,7 @@ def kuramoto_heun(
     if delays is not None:
         delay_steps = np.round(delays / dt).astype(int)
         horizon = int(delay_steps.max()) + 2
-        # Fill all horizon slots with theta0 — matches VBI History.initialize()
+        # Fill all horizon slots with theta0 - matches VBI History.initialize()
         buf = np.tile(theta0, (horizon, 1))  # (horizon, N)
     else:
         delay_steps = None
@@ -199,7 +199,7 @@ def save_comparison_plot(
                 ls="--", alpha=0.7)
     ax.set_ylabel("sin(θ)")
     ax.set_ylim(-1.15, 1.15)
-    ax.set_title(f"sin(θ) per node — solid: reference, dashed: VBI{subtitle}")
+    ax.set_title(f"sin(θ) per node - solid: reference, dashed: VBI{subtitle}")
     ax.legend(fontsize=7, ncol=N, loc="upper right")
 
     # --- panel 2: raw unwrapped phases ---

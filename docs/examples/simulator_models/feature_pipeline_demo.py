@@ -1,11 +1,11 @@
 """
-Feature extraction pipeline demo — MPR model.
+Feature extraction pipeline demo - MPR model.
 
 Demonstrates three use cases:
 
-1. Single run  — extract statistical features from one simulation.
-2. 1-D sweep   — vary the coupling weight cr in [0, 1] and collect features into a DataFrame.
-3. 2-D sweep   — joint grid over (cr, eta); saves a mean heat-map.
+1. Single run  - extract statistical features from one simulation.
+2. 1-D sweep   - vary the coupling weight cr in [0, 1] and collect features into a DataFrame.
+3. 2-D sweep   - joint grid over (cr, eta); saves a mean heat-map.
 
 Global coupling strength is set via CouplingSpec.a (same convention as TVB).
 Per-variable coupling weights cr and cv live on the model.
@@ -64,7 +64,7 @@ TRACT_LENGTH = 4.0           # mm
 SPEED        = 4.0           # mm/ms
 COUPLING_A   = 0.2           # global coupling strength via CouplingSpec.a (TVB convention)
 DURATION     = 2_000.0       # ms  (single run)
-SWEEP_DUR    = 1_000.0       # ms  (sweeps — shorter for speed)
+SWEEP_DUR    = 1_000.0       # ms  (sweeps - shorter for speed)
 T_CUT        = 500.0         # ms  burn-in to discard
 
 
@@ -153,7 +153,7 @@ def demo_1d_sweep(backend: str = "numpy") -> None:
 
 
 # ---------------------------------------------------------------------------
-# Demo 3: 2-D sweep over (cr, eta) — saves a mean-FC heat-map
+# Demo 3: 2-D sweep over (cr, eta) - saves a mean-FC heat-map
 # ---------------------------------------------------------------------------
 
 def demo_2d_sweep(backend: str = "numpy", output: Path | None = None) -> None:
@@ -214,7 +214,7 @@ def _save_heatmap(
 
 def demo_update_cfg() -> None:
     """Show how to tune per-feature parameters via update_cfg."""
-    print("\n=== Bonus: update_cfg — tune per-feature parameters ===")
+    print("\n=== Bonus: update_cfg - tune per-feature parameters ===")
 
     cfg = get_features_by_domain("statistical")
     cfg = get_features_by_given_names(cfg, ["calc_mean"])

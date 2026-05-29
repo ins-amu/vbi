@@ -12,7 +12,7 @@ Migration::
     # New (low-level, same classes)
     from vbi.inference import MDNEstimator, MAFEstimator
 
-    # New (sbi-compatible high-level API — recommended)
+    # New (sbi-compatible high-level API - recommended)
     from vbi.inference import SNPE, BoxUniform
 """
 import warnings

@@ -1,5 +1,5 @@
 """
-M0 validation: NumPy sweeper — shape, consistency, and pipeline hooks.
+M0 validation: NumPy sweeper - shape, consistency, and pipeline hooks.
 """
 import numpy as np
 import pytest

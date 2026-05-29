@@ -60,7 +60,7 @@ def _resolve_voi(variables: tuple[str, ...], model: ModelSpec) -> np.ndarray:
 # ---------------------------------------------------------------------------
 
 class Monitor(ABC):
-    """Abstract monitor — mirrors TVB Monitor interface."""
+    """Abstract monitor - mirrors TVB Monitor interface."""
     istep: int
     dt: float
     voi: np.ndarray
@@ -87,7 +87,7 @@ class RawMonitor(Monitor):
         self._data: list[np.ndarray] = []
 
     def sample(self, step: int, state: np.ndarray) -> None:
-        # Time label is step*dt — state AFTER the step-th integration step.
+        # Time label is step*dt - state AFTER the step-th integration step.
         # Step 0 therefore labels the state after the first integration step,
         # not the initial condition.  This matches the TVB Raw monitor convention.
         self._times.append(step * self.dt)
@@ -128,7 +128,7 @@ class SubSampleMonitor(Monitor):
 
 class TemporalAverageMonitor(Monitor):
     """Time-average over `period` ms windows. TVB: TemporalAverage.
-    Preferred for SBI — acts as a low-pass filter."""
+    Preferred for SBI - acts as a low-pass filter."""
 
     def configure(self, spec: MonitorSpec, model: ModelSpec, dt: float) -> None:
         self.dt = dt
@@ -199,7 +199,7 @@ class BoldMonitor(Monitor):
         self._data: list[np.ndarray] = []
 
     def sample(self, step: int, state: np.ndarray) -> None:
-        neural = state[self.voi[0]]    # (n_nodes,) — BOLD driving variable
+        neural = state[self.voi[0]]    # (n_nodes,) - BOLD driving variable
         if self._bw is None:
             self._bw = _bw_init(neural.shape[0])
 

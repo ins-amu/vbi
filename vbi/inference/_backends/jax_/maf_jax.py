@@ -39,7 +39,7 @@ def _cosine_lr(lr_max: float, lr_min: float, epoch: int, period: int) -> float:
 @dataclass
 class JaxMAFEstimator(JaxConditionalDensityEstimator):
     """
-    Masked Autoregressive Flow — JAX backend.
+    Masked Autoregressive Flow - JAX backend.
 
     Same interface as ``MAFEstimator`` (autograd version).
     """
@@ -325,7 +325,7 @@ class JaxMAFEstimator(JaxConditionalDensityEstimator):
         return out
 
     # ------------------------------------------------------------------
-    # Full training (overrides base — adds val split, LR schedule, etc.)
+    # Full training (overrides base - adds val split, LR schedule, etc.)
     # ------------------------------------------------------------------
 
     def train(
@@ -566,8 +566,8 @@ class JaxMAFEstimator(JaxConditionalDensityEstimator):
         Signature: (weights, m, v, features, params, lr, t) →
                    (new_weights, new_m, new_v, loss)
 
-        Everything — forward pass, backward pass, gradient clipping, and Adam
-        update — runs inside a single XLA kernel.  The caller only needs to
+        Everything - forward pass, backward pass, gradient clipping, and Adam
+        update - runs inside a single XLA kernel.  The caller only needs to
         extract the scalar ``loss`` (one sync point per step instead of ~3×N_keys).
         """
         loss_fn = self._loss_function
@@ -576,7 +576,7 @@ class JaxMAFEstimator(JaxConditionalDensityEstimator):
         def step(weights, m, v, features, params, lr, t):
             loss, g = jax.value_and_grad(loss_fn)(weights, features, params)
 
-            # Gradient clipping — fully inside jit
+            # Gradient clipping - fully inside jit
             if clip_max_norm is not None:
                 leaves   = jax.tree_util.tree_leaves(g)
                 total_sq = sum(jnp.sum(gi ** 2) for gi in leaves)
@@ -585,7 +585,7 @@ class JaxMAFEstimator(JaxConditionalDensityEstimator):
                                        jnp.float32(clip_max_norm) / (norm + 1e-12))
                 g = jax.tree_util.tree_map(lambda gi: gi * scale, g)
 
-            # Adam — fully inside jit
+            # Adam - fully inside jit
             m = jax.tree_util.tree_map(
                 lambda mk, gk: beta1 * mk + (1.0 - beta1) * gk, m, g)
             v = jax.tree_util.tree_map(

@@ -1,5 +1,5 @@
 """
-Demo 4 — MDN vs MAF on the same problem.
+Demo 4 - MDN vs MAF on the same problem.
 
 Uses the 1-D Gaussian with known analytical posterior (same as Demo 1)
 to directly compare MDNEstimator and MAFEstimator on:
@@ -73,7 +73,7 @@ def evaluate(density_estimator: str):
 
 
 print("=" * 60)
-print("Demo 4 — MDN vs MAF on 1-D Gaussian")
+print("Demo 4 - MDN vs MAF on 1-D Gaussian")
 print("=" * 60)
 print(f"  N_train={N_TRAIN}  sigma_lik={SIGMA_LIK}  sigma_prior={SIGMA_PRIOR}")
 print()
@@ -116,11 +116,11 @@ try:
         mu_t, s_t = analytical_posterior(1.0)
         posterior_1d(samp_p[:, 0], true_mean=mu_t, true_std=s_t,
                      x_obs_val=1.0, label_est=de.upper(),
-                     title=f"Demo 4 — {de.upper()} posterior at x_obs=1.0",
+                     title=f"Demo 4 - {de.upper()} posterior at x_obs=1.0",
                      out_path=out / f"04_{de}_posterior.png")
         loss_plot(est_p.loss_history,
                   getattr(est_p, "val_loss_history", None),
-                  title=f"Demo 4 — {de.upper()} loss curve",
+                  title=f"Demo 4 - {de.upper()} loss curve",
                   out_path=out / f"04_{de}_loss.png")
 except Exception as e:
     print(f"  (plots skipped: {e})")

@@ -192,7 +192,7 @@ class SimulationSpec:
             )
         model = _MODELS[model_key]
 
-        # Connectivity — delegate to prepare_connectivity for format flexibility
+        # Connectivity - delegate to prepare_connectivity for format flexibility
         from .connectivity import prepare_connectivity
         conn = d["connectivity"]
         if isinstance(conn, (str, Path)):
@@ -272,7 +272,7 @@ class SimulationSpec:
         )
 
     def cache_key(self) -> str:
-        """SHA-256 of a canonical payload — same spec → same compiled binary."""
+        """SHA-256 of a canonical payload - same spec → same compiled binary."""
         payload = {
             "model": self.model.name,
             "sv": list(self.model.sv_names),

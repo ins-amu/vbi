@@ -168,22 +168,22 @@ def plot_sweep_benchmark(
     """
     Three-panel benchmark figure.
 
-    Panel 1 — Wall time (log-log):
+    Panel 1 - Wall time (log-log):
         Measured CPU lines + dotted extrapolation to the GPU x-range.
         CUDA and JAX measured points.
 
-    Panel 2 — CPU speedup vs NumPy (linear scale).
+    Panel 2 - CPU speedup vs NumPy (linear scale).
 
-    Panel 3 — Throughput in samples/s (log-log):
+    Panel 3 - Throughput in samples/s (log-log):
         CPU plateau extrapolated with dotted lines.
         CUDA and JAX measured; crossover vs C++ parallel annotated.
 
     Parameters
     ----------
-    cpu_rows     : rows with t_np present — used for panels 1 and 2
+    cpu_rows     : rows with t_np present - used for panels 1 and 2
     cuda_rows    : list of dicts with keys n, t_cuda, rate
     jax_rows     : list of dicts with keys n, t_jax, rate_jax, platform (optional)
-    all_cpu_rows : full CPU rows including extended sizes without t_np —
+    all_cpu_rows : full CPU rows including extended sizes without t_np -
                    used for panel 3 throughput.  Falls back to cpu_rows if None.
     """
     jax_rows    = jax_rows    or []
@@ -192,7 +192,7 @@ def plot_sweep_benchmark(
     try:
         import matplotlib.pyplot as plt
     except ImportError:
-        print("matplotlib not available — skipping plot.")
+        print("matplotlib not available - skipping plot.")
         return
 
     cpu_max_n  = max(r["n"] for r in cpu_rows)   if cpu_rows  else 64
@@ -218,7 +218,7 @@ def plot_sweep_benchmark(
 
     fig, axes = plt.subplots(1, 3, figsize=(18, 5))
     fig.suptitle(
-        f"Sweep benchmark — {model_name}  |  {n_nodes} nodes  |  "
+        f"Sweep benchmark - {model_name}  |  {n_nodes} nodes  |  "
         f"{duration} ms  |  dt={dt} ms  |  {n_workers} CPU threads  |  "
         f"best-of-{repeats}",
         fontsize=10,
@@ -266,7 +266,7 @@ def plot_sweep_benchmark(
     ax.set_title("CPU speedup")
     ax.legend(fontsize=8, loc="best");  ax.grid(True, alpha=0.3)
 
-    # ---- Panel 3: throughput (log-log) — uses thru_rows (may extend cpu_rows) ----
+    # ---- Panel 3: throughput (log-log) - uses thru_rows (may extend cpu_rows) ----
     ax = axes[2]
     if thru_rows:
         for key, label, color, ls, marker, mfc in STYLES:

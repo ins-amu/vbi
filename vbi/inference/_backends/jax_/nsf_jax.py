@@ -6,7 +6,7 @@ Translation of nsf.py (autograd) to JAX.
 Critical difference from the autograd version: the RQ-spline bin-selection
 code used _np.array(x) conversions to run on plain numpy.  In JAX those
 conversions would break jit compilation.  The JAX version uses only
-jnp operations — bin selection via jnp.sum(cumw[:, :-1] <= x[:, None])
+jnp operations - bin selection via jnp.sum(cumw[:, :-1] <= x[:, None])
 is a fully differentiable-compatible comparison that works inside jit.
 """
 from __future__ import annotations
@@ -70,7 +70,7 @@ def _spline_params_jax(unnorm_w, unnorm_h, unnorm_d_inner, B, K):
 
 def _rq_forward_1d_jax(x, unnorm_w, unnorm_h, unnorm_d, B, K):
     """
-    Forward RQ-spline for one dimension — pure JAX, jit-safe.
+    Forward RQ-spline for one dimension - pure JAX, jit-safe.
 
     Bin selection uses jnp.sum(cumw[:, :-1] <= x[:, None]) instead of
     the _np.array conversion in the autograd version.
@@ -112,7 +112,7 @@ def _rq_forward_1d_jax(x, unnorm_w, unnorm_h, unnorm_d, B, K):
 
 def _rq_inverse_1d_jax(y, unnorm_w, unnorm_h, unnorm_d, B, K):
     """
-    Inverse RQ-spline — pure JAX, jit-safe.
+    Inverse RQ-spline - pure JAX, jit-safe.
     """
     N = y.shape[0]
     cumw, cumh, widths, heights, derivs = _spline_params_jax(
@@ -160,7 +160,7 @@ def _rq_inverse_1d_jax(y, unnorm_w, unnorm_h, unnorm_d, B, K):
 @dataclass
 class JaxNSFEstimator(JaxMAFEstimator):
     """
-    Neural Spline Flow — JAX backend.
+    Neural Spline Flow - JAX backend.
 
     Inherits all training infrastructure from JaxMAFEstimator.
     Only the inner transform differs: RQ-spline instead of affine.
@@ -223,7 +223,7 @@ class JaxNSFEstimator(JaxMAFEstimator):
         return weights
 
     # ------------------------------------------------------------------
-    # MADE forward — returns raw spline parameters
+    # MADE forward - returns raw spline parameters
     # ------------------------------------------------------------------
 
     def _made_nsf_forward(self, y, ctx, lc, k, weights):

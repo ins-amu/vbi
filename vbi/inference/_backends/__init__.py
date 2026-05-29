@@ -10,7 +10,7 @@ try:
 except ImportError:
     pass
 
-# Detect JAX without importing it — import is deferred until first actual use
+# Detect JAX without importing it - import is deferred until first actual use
 # so that set_jax_device() can still influence JAX_PLATFORMS.
 _JAX_AVAILABLE = importlib.util.find_spec("jax") is not None
 if _JAX_AVAILABLE:
@@ -34,9 +34,9 @@ def set_jax_device(device: str) -> None:
     Parameters
     ----------
     device : str
-        ``'cpu'``  — default; safe on any machine.
-        ``'gpu'`` / ``'cuda'`` — requires a CUDA-capable GPU with cuDNN.
-        ``'tpu'``  — requires a TPU runtime.
+        ``'cpu'``  - default; safe on any machine.
+        ``'gpu'`` / ``'cuda'`` - requires a CUDA-capable GPU with cuDNN.
+        ``'tpu'``  - requires a TPU runtime.
 
     Examples
     --------

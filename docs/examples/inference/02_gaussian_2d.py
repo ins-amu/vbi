@@ -1,9 +1,9 @@
 """
-Demo 2 — 2-D correlated Gaussian: checks that covariance structure is captured.
+Demo 2 - 2-D correlated Gaussian: checks that covariance structure is captured.
 
 Simulator:   x = A @ theta + noise,   noise ~ N(0, I * sigma²)
 Prior:       theta ~ Uniform([-3,-3], [3,3])
-Posterior:   theta | x  — analytically derived (linear-Gaussian)
+Posterior:   theta | x  - analytically derived (linear-Gaussian)
 
 With A = [[1,0],[0,1]] (identity) and BoxUniform prior, the posterior is
 approximately Gaussian near the observation, which lets us check that the
@@ -11,7 +11,7 @@ estimator recovers the right mean AND that the two parameters are inferred
 independently (zero covariance expected).
 
 We also add a cross-correlation case: x[0] = theta[0] + 0.5*theta[1] + noise,
-x[1] = theta[1] + noise  — here the joint posterior shows correlation.
+x[1] = theta[1] + noise  - here the joint posterior shows correlation.
 
 Expected runtime: < 15 seconds.
 """
@@ -27,7 +27,7 @@ rng = np.random.default_rng(SEED)
 
 # ── Case A: identity simulator (independent parameters) ───────────────────────
 print("=" * 60)
-print("Demo 2 — 2-D Gaussian (covariance structure)")
+print("Demo 2 - 2-D Gaussian (covariance structure)")
 print("=" * 60)
 
 prior = BoxUniform(low=np.array([-3., -3.]), high=np.array([3., 3.]))
@@ -49,7 +49,7 @@ mu_est  = samp.mean(axis=0)
 std_est = samp.std(axis=0)
 corr_est = np.corrcoef(samp[:, 0], samp[:, 1])[0, 1]
 
-print("\n  Case A — identity: x = theta + noise (params should be independent)")
+print("\n  Case A - identity: x = theta + noise (params should be independent)")
 print(f"  x_obs = {x_obs[0]}")
 print(f"  Posterior mean : {mu_est}  (expected ≈ {x_obs[0]})")
 print(f"  Posterior std  : {std_est}  (expected ≈ [{SIGMA:.2f}, {SIGMA:.2f}])")
@@ -87,7 +87,7 @@ mu_est2  = samp2.mean(axis=0)
 A_inv    = np.linalg.inv(A)
 mu_true2 = (A_inv @ x_obs2.T).T[0]
 
-print("\n  Case B — coupled: x0 = t0 + 0.5*t1, x1 = t1 (params should correlate)")
+print("\n  Case B - coupled: x0 = t0 + 0.5*t1, x1 = t1 (params should correlate)")
 print(f"  x_obs = {x_obs2[0]}")
 print(f"  Posterior mean : {mu_est2}  (expected ≈ {mu_true2})")
 print(f"  Correlation    : {corr2:.3f}  (expected < 0, coupling x0↔t1)")
@@ -108,16 +108,16 @@ try:
     from pathlib import Path
     out = Path(__file__).parent / "outputs"
 
-    # Case A — independent: should show no correlation
+    # Case A - independent: should show no correlation
     pairplot(samp, labels=["θ0", "θ1"],
              points=x_obs[0],   points_label="x_obs",
-             title="Demo 2A — independent params (x=θ+noise)",
+             title="Demo 2A - independent params (x=θ+noise)",
              out_path=out / "02a_pairplot_independent.png")
 
-    # Case B — coupled: should show negative correlation
+    # Case B - coupled: should show negative correlation
     pairplot(samp2, labels=["θ0", "θ1"],
              points=mu_true2,   points_label="analytical mean",
-             title="Demo 2B — coupled params (x0=θ0+0.5θ1)",
+             title="Demo 2B - coupled params (x0=θ0+0.5θ1)",
              out_path=out / "02b_pairplot_coupled.png")
 except Exception as e:
     print(f"  (plots skipped: {e})")

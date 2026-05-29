@@ -1,5 +1,5 @@
 """
-CppSweeper — serial and parallel parameter sweep using the C++ backend.
+CppSweeper - serial and parallel parameter sweep using the C++ backend.
 
 The compiled .so is loaded once per SimulationSpec (cache key).  Each sweep
 point runs run_simulation() with its own params copy; the C++ function releases
@@ -84,7 +84,7 @@ def _run_one(
 
 class CppSweeper:
     """
-    C++ parameter sweep — serial or parallel via threads.
+    C++ parameter sweep - serial or parallel via threads.
 
     Parameters
     ----------
@@ -110,7 +110,7 @@ class CppSweeper:
 
         self._mod = build_or_load(spec)
 
-        # Flat (n_params * n_nodes,) base params — sweep overrides individual rows
+        # Flat (n_params * n_nodes,) base params - sweep overrides individual rows
         self._base_params = np.ascontiguousarray(
             build_params_array(spec).ravel(), dtype=np.float64)
 
@@ -232,7 +232,7 @@ class CppSweeper:
                 for m in spec.monitors}
 
     # ------------------------------------------------------------------
-    # run — returns either list[dict] or (labels, values)
+    # run - returns either list[dict] or (labels, values)
     # ------------------------------------------------------------------
 
     def run(self, duration: float, parallel: bool | None = None,
@@ -256,7 +256,7 @@ class CppSweeper:
         Returns
         -------
         If sweep_spec.pipeline is None:
-            list[dict]  — one monitor-result dict per run
+            list[dict]  - one monitor-result dict per run
         If pipeline is set:
             (labels, values)  shape (n_samples, n_params + n_features)
         """
@@ -270,7 +270,7 @@ class CppSweeper:
         n_samples    = param_sets.shape[0]
         pipeline     = self.sweep.pipeline
 
-        # Resolved thread count — used both for the pool and as the default batch size.
+        # Resolved thread count - used both for the pool and as the default batch size.
         resolved_workers = (self.n_workers if self.n_workers and self.n_workers > 0
                             else os.cpu_count() or 4)
         workers = resolved_workers if use_parallel else None
@@ -349,7 +349,7 @@ class CppSweeper:
 
     def run_parallel(self, duration: float, n_workers: int | None = None,
                      batch_size: int | None = None):
-        """Parallel via Python ThreadPoolExecutor — n_workers threads, GIL released in C++."""
+        """Parallel via Python ThreadPoolExecutor - n_workers threads, GIL released in C++."""
         old = self.n_workers
         if n_workers is not None:
             self.n_workers = n_workers

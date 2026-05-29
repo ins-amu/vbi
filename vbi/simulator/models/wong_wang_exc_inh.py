@@ -3,7 +3,7 @@ from vbi.simulator.spec.model import ModelSpec, StateVar, Parameter
 # Defaults match TVB ReducedWongWangExcInh (Deco et al. 2014) exactly.
 # cvar=[S_e]: only excitatory gating couples long-range (TVB cvar=[0]).
 # G is extracted by the VBI simulator to pre-scale coupling, so c already equals
-# G * sum_j(w_ij * S_e_j) — do NOT multiply by G again in dfun_str.
+# G * sum_j(w_ij * S_e_j) - do NOT multiply by G again in dfun_str.
 # Transfer function: H(x) = x / (1 - exp(-d*x))  where x = a*input - b
 #
 # VBI naming → TVB naming:
@@ -41,7 +41,7 @@ wong_wang_exc_inh = ModelSpec(
     dfun_str={
         # x_e = a_e*(w_p*J_N*S_e - J_i*S_i + W_e*I_o + J_N*c + I_ext) - b_e
         # H_e = x_e / (1 - exp(-d_e*x_e))
-        # c already equals G*sum_j(w_ij*S_e_j) — G is pre-applied by VBI coupling
+        # c already equals G*sum_j(w_ij*S_e_j) - G is pre-applied by VBI coupling
         "S_e": (
             "-(S_e/tau_e) + (1-S_e) * gamma_e * "
             "((a_e*(w_p*J_N*S_e - J_i*S_i + W_e*I_o + J_N*c + I_ext) - b_e) / "

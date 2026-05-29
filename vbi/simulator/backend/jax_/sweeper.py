@@ -24,7 +24,7 @@ from .simulator import (
 
 class JaxSweeper:
     """
-    JAX sweep backend — jit + vmap over parameter sets.
+    JAX sweep backend - jit + vmap over parameter sets.
 
     The swept parameter values are batched into a dict of shape-(n_samples,)
     arrays.  jax.vmap maps over axis-0 of each value, giving each simulation
@@ -126,7 +126,7 @@ class JaxSweeper:
             noise_amp=self._noise_amp,
         )
 
-        # Pre-sample stimulus — same for all sweep samples
+        # Pre-sample stimulus - same for all sweep samples
         stim_np, _ = build_stim_data(spec, n_steps, dt)
         stim_jax = jnp.array(stim_np, dtype=self._dtype)   # (n_steps, n_cvar, n_nodes)
 

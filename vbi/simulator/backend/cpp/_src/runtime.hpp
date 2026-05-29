@@ -1,4 +1,4 @@
-// VBI C++ backend runtime — shared helpers.
+// VBI C++ backend runtime - shared helpers.
 // Layout convention: arrays are [sv/cvar/param * n_nodes + node]  (row-major, C order).
 #pragma once
 
@@ -11,7 +11,7 @@
 namespace vbi::runtime {
 
 // ---------------------------------------------------------------------------
-// RingBuffer — delayed coupling history
+// RingBuffer - delayed coupling history
 // Layout: buf[slot * (n_cvar * n_nodes) + cv * n_nodes + node]
 // ---------------------------------------------------------------------------
 

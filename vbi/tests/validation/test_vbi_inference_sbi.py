@@ -1,5 +1,5 @@
 """
-Tests for VBIInference with inference_backend='sbi' — Step 8 of MI6.
+Tests for VBIInference with inference_backend='sbi' - Step 8 of MI6.
 
 All tests are skipped if sbi/torch is not installed.
 """

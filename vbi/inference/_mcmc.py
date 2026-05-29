@@ -48,7 +48,7 @@ def r_hat(chains: np.ndarray) -> np.ndarray:
 
     Returns
     -------
-    ndarray (param_dim,)  — values near 1.0 indicate convergence.
+    ndarray (param_dim,)  - values near 1.0 indicate convergence.
     """
     chains = np.asarray(chains)
     if chains.ndim == 2:
@@ -245,8 +245,8 @@ class HMC:
     Requires a JAX-backend estimator (JaxMAFEstimator / JaxNSFEstimator /
     JaxMDNEstimator) so that ``jax.grad`` can flow through ``log_prob``.
 
-    The MCMC target is ``estimator.log_prob(x_obs, theta)`` — the trained SNPE
-    posterior — so direct sampling and HMC target the same distribution.  If a
+    The MCMC target is ``estimator.log_prob(x_obs, theta)`` - the trained SNPE
+    posterior - so direct sampling and HMC target the same distribution.  If a
     prior is supplied it is used only as a **support mask**: samples outside the
     prior support are rejected; no density is added.
 
@@ -310,7 +310,7 @@ class HMC:
         Return 0.0 inside prior support, -1e38 outside.
 
         Handles BoxUniform, Beta, Gamma, LogNormal, and MultipleIndependent.
-        Unbounded priors (Gaussian, MultivariateNormal) return 0.0 — their
+        Unbounded priors (Gaussian, MultivariateNormal) return 0.0 - their
         density is NOT added since the SNPE estimator already encodes it.
         RestrictedPrior must be rejected at construction time (not here).
         """

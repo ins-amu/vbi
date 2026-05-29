@@ -1,5 +1,5 @@
 """
-M4 validation: JAX backend — single-run and sweep.
+M4 validation: JAX backend - single-run and sweep.
 
 Gold standard: NumPy baseline (validated against TVB in test_mpr_numpy.py).
 
@@ -43,7 +43,7 @@ def _jx_sim(spec, duration):
 
 
 # ---------------------------------------------------------------------------
-# Single-run: deterministic — trajectory comparison
+# Single-run: deterministic - trajectory comparison
 # ---------------------------------------------------------------------------
 
 class TestDeterministicMatchesNumPy:
@@ -120,7 +120,7 @@ class TestDeterministicMatchesNumPy:
 
 
 # ---------------------------------------------------------------------------
-# Single-run: stochastic — moment comparison
+# Single-run: stochastic - moment comparison
 # ---------------------------------------------------------------------------
 
 class TestStochasticMoments:
@@ -208,7 +208,7 @@ class TestGradient:
         n_steps = round(200.0 / spec.integrator.dt)  # concrete int
 
         def loss(G_val):
-            # _run_core(params, n_steps) — n_steps is a concrete Python int
+            # _run_core(params, n_steps) - n_steps is a concrete Python int
             params = {**sim._params, "G": G_val}
             result = sim._run_core(params, n_steps)
             _, data = result["subsample"]   # data is a JAX array (not yet numpy)
@@ -373,7 +373,7 @@ class TestSweep:
         )
         results = Sweeper(spec, sweep_spec, backend="jax").run(100.0)
         # With same_noise=True and no coupling, first recorded state = after 10 steps
-        # — noise is the ONLY difference driver. With coupling=0, G has no effect.
+        # - noise is the ONLY difference driver. With coupling=0, G has no effect.
         # All runs must be numerically identical.
         _, d0 = results[0]["subsample"]
         for i in range(1, n_G):
@@ -406,7 +406,7 @@ class TestSweep:
             "same_noise=False: runs 0 and 1 should differ (independent noise)"
 
     def test_sweep_throughput(self):
-        """Record throughput — not a pass/fail, but logs samples/s."""
+        """Record throughput - not a pass/fail, but logs samples/s."""
         n_nodes = 10
         n_samples = 50
         W, D = make_weights(n_nodes)

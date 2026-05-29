@@ -30,7 +30,7 @@ done
 
 ## Pass/fail thresholds
 
-All thresholds are intentionally **loose** — these demos use short training
+All thresholds are intentionally **loose** - these demos use short training
 (300 epochs max, early stopping at 20) for speed.  The numbers will improve
 with longer training (`max_num_epochs=2000`, `stop_after_epochs=50`).
 
@@ -42,8 +42,8 @@ increase those parameters and tighten the `assert` thresholds accordingly.
 | Feature | Demo to add |
 |---------|------------|
 | NSF density estimator | Covered as an opt-in column in `07_jax_vs_numpy.py`; optionally add NSF to `04_mdn_vs_maf.py` |
-| Rejection sampling | `01_gaussian_1d.py` — add `reject_outside_prior=True` check |
-| SBC | `06_sbc_coverage.py` — rank uniformity test |
-| TARP | `07_tarp_coverage.py` — expected coverage plot |
-| Embedding network | `08_embedding_net.py` — raw time series as x |
-| Sequential APT | `05_sequential_rounds.py` — add APT-weighted round comparison |
+| Rejection sampling | `01_gaussian_1d.py` - add `reject_outside_prior=True` check |
+| SBC | `06_sbc_coverage.py` - rank uniformity test |
+| TARP | `07_tarp_coverage.py` - expected coverage plot |
+| Embedding network | `08_embedding_net.py` - raw time series as x |
+| Sequential APT | `05_sequential_rounds.py` - add APT-weighted round comparison |

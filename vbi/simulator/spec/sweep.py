@@ -11,7 +11,7 @@ class SweepSpec:
     Parameters
     ----------
     params : dict[str, np.ndarray] | np.ndarray
-        Either a dict {param_name: 1-D values} — outer product gives the grid —
+        Either a dict {param_name: 1-D values} - outer product gives the grid -
         or a 2-D array of shape (n_samples, n_params) with param_names provided.
     param_names : tuple[str, ...] | None
         Required when params is an ndarray; ignored when params is a dict.
@@ -23,7 +23,7 @@ class SweepSpec:
         If None, sweeper returns the raw monitor output dict.
     same_noise : bool
         JAX backend only.  When True (default), all sweep runs share the same
-        noise realisation — each node still gets distinct noise in time, but two
+        noise realisation - each node still gets distinct noise in time, but two
         runs at different parameter values are driven by identical stochastic
         forcing.  This isolates the effect of the swept parameter from stochastic
         variability, enabling variance-reduced sensitivity analysis.

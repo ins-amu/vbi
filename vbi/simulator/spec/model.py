@@ -38,7 +38,7 @@ class ModelSpec:
     Only these symbols may appear: state variable names, parameter names, 'c'
     (coupling input, scalar per node), and the math functions:
         exp, log, sin, cos, tanh, sqrt, abs, pi
-    No 'np.' prefix — the code generator injects the namespace.
+    No 'np.' prefix - the code generator injects the namespace.
 
     dfun_latex maps each state variable name to a LaTeX string for the RHS
     of its differential equation.  Used by describe() to render equations in
@@ -168,7 +168,7 @@ class ModelSpec:
         lines += ["| Name | Init | Noise | Bounds |",
                   "|------|:----:|:-----:|--------|"]
         for sv in self.state_variables:
-            noise = "✓" if sv.noise else "—"
+            noise = "✓" if sv.noise else "-"
             lo = str(sv.lower_bound) if sv.lower_bound is not None else "−∞"
             hi = str(sv.upper_bound) if sv.upper_bound is not None else "+∞"
             lines.append(f"| `{sv.name}` | {sv.default_init} | {noise} | [{lo}, {hi}] |")

@@ -1,5 +1,5 @@
 """
-Demo 6 — vbi.inference vs sbi: head-to-head on 1-D and 2-D Gaussians.
+Demo 6 - vbi.inference vs sbi: head-to-head on 1-D and 2-D Gaussians.
 
 Both implementations are trained on identical data with identical hyper-
 parameters.  Results are compared against the known analytical posterior.
@@ -160,7 +160,7 @@ def main():
     x_tr_1d     = theta_tr_1d + rng.normal(0, SIGMA_LIK, theta_tr_1d.shape).astype("f")
 
     print("=" * 68)
-    print("Demo 6 — vbi.inference vs sbi (1-D Gaussian, known posterior)")
+    print("Demo 6 - vbi.inference vs sbi (1-D Gaussian, known posterior)")
     print("=" * 68)
     print(f"  N_train={N_TRAIN}  sigma_lik={SIGMA_LIK}  sigma_prior={SIGMA_PRIOR}")
     print(f"  Analytical posterior std: {analytical_posterior_1d(1.0)[1]:.4f}")
@@ -184,7 +184,7 @@ def main():
         sbi_ok = True
     except ImportError:
         sbi_ok = False
-        print("  sbi not installed — skipping comparison.")
+        print("  sbi not installed - skipping comparison.")
         print("  Install with: pip install sbi")
 
     if sbi_ok:
@@ -210,7 +210,7 @@ def main():
     print()
 
     # ── per-observation detail for vbi/maf ────────────────────────────────────
-    print("  Detail — vbi/maf per observation:")
+    print("  Detail - vbi/maf per observation:")
     print(f"  {'x_obs':>6}  {'true_mean':>10}  {'est_mean':>10}  "
           f"{'true_std':>9}  {'est_std':>8}  {'in 90%CI':>10}")
     print("  " + "-" * 58)
@@ -245,9 +245,9 @@ def main():
             print(f"  • vbi/maf is {speed_ratio:.1f}× faster to train than sbi/maf")
             print(f"  • sbi/maf has {1/acc_ratio:.1f}× better posterior mean accuracy")
             print(f"  • vbi/maf std slightly overestimates (est {vbi_maf[3]+0.2967:.3f}"
-                  f" vs true 0.297) — expected at 300 epochs without PyTorch tuning")
-    print("  • vbi/mdn needs improvement (high std error) — tracked in milestones")
-    print("  • Both 90% CI coverage = 1.0 — posterior is conservative, not misleading")
+                  f" vs true 0.297) - expected at 300 epochs without PyTorch tuning")
+    print("  • vbi/mdn needs improvement (high std error) - tracked in milestones")
+    print("  • Both 90% CI coverage = 1.0 - posterior is conservative, not misleading")
     print()
 
     # ── optional: visualisation ────────────────────────────────────────────────
@@ -265,7 +265,7 @@ def main():
             mu_t, s_t = analytical_posterior_1d(1.0)
             posterior_1d(samp_vbi[:, 0], true_mean=mu_t, true_std=s_t,
                          x_obs_val=1.0, label_est="vbi/maf",
-                         title="Demo 6 — vbi/maf posterior at x_obs=1.0",
+                         title="Demo 6 - vbi/maf posterior at x_obs=1.0",
                          out_path=out / "06_vbi_maf_vs_analytical.png")
 
         if sbi_ok:
@@ -303,7 +303,7 @@ def main():
                         label="analytical")
                 ax.set_xlabel("θ"); ax.set_ylabel("density")
                 ax.legend(fontsize=8)
-                ax.set_title("Demo 6 — vbi/maf vs sbi/maf at x_obs=1.0")
+                ax.set_title("Demo 6 - vbi/maf vs sbi/maf at x_obs=1.0")
                 fig.tight_layout()
                 p = out / "06_vbi_vs_sbi_posterior.png"
                 p.parent.mkdir(parents=True, exist_ok=True)

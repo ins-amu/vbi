@@ -1,5 +1,5 @@
 """
-M1 validation: Numba CPU backend — single-run and sweep.
+M1 validation: Numba CPU backend - single-run and sweep.
 
 Gold standard: NumPy baseline (validated against TVB in test_mpr_numpy.py).
 All Numba results must match NumPy to rtol=1e-4 (deterministic) or
@@ -37,7 +37,7 @@ def _nb_sim(spec, duration):
 
 
 # ---------------------------------------------------------------------------
-# Single-run: deterministic — must match NumPy exactly (rtol=1e-4)
+# Single-run: deterministic - must match NumPy exactly (rtol=1e-4)
 # ---------------------------------------------------------------------------
 
 class TestDeterministicMatchesNumPy:
@@ -108,7 +108,7 @@ class TestDelaysMatchNumPy:
 
 
 # ---------------------------------------------------------------------------
-# Single-run: stochastic — first-moment comparison
+# Single-run: stochastic - first-moment comparison
 # ---------------------------------------------------------------------------
 
 class TestStochasticMoments:
@@ -160,7 +160,7 @@ class TestStochasticMoments:
 
 
 # ---------------------------------------------------------------------------
-# Sweep: deterministic — shapes and single-run consistency
+# Sweep: deterministic - shapes and single-run consistency
 # ---------------------------------------------------------------------------
 
 class TestSweepDeterministic:
@@ -234,7 +234,7 @@ class TestSweepDeterministic:
 
 
 # ---------------------------------------------------------------------------
-# Throughput (informational — never fails)
+# Throughput (informational - never fails)
 # ---------------------------------------------------------------------------
 
 class TestThroughput:

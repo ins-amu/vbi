@@ -9,7 +9,7 @@ class FeaturePipeline:
     extraction machinery.
 
     Per-feature parameters (window sizes, band ranges, etc.) belong in the
-    cfg dict — built with get_features_by_domain / get_features_by_given_names /
+    cfg dict - built with get_features_by_domain / get_features_by_given_names /
     update_cfg as usual.  This class only adds the three sim-level concerns:
     which monitor signal to consume, how much burn-in to discard, and (in
     future milestones) which JIT backend to dispatch to.
@@ -72,10 +72,10 @@ class FeaturePipeline:
 
         # Normalise shape to (n_nodes, n_steps)
         if ts_cut.ndim == 3:
-            # (n_steps, n_voi, n_nodes) — tavg / subsample / raw monitors
+            # (n_steps, n_voi, n_nodes) - tavg / subsample / raw monitors
             ts_2d = ts_cut[:, 0, :].T
         elif ts_cut.ndim == 2:
-            # (n_steps, n_nodes) — bold monitor
+            # (n_steps, n_nodes) - bold monitor
             ts_2d = ts_cut.T
         else:
             raise ValueError(
@@ -98,7 +98,7 @@ class FeaturePipeline:
         Parameters
         ----------
         monitor_result : dict
-            Output of Simulator.run() — {monitor_kind: (times_ms, data)}.
+            Output of Simulator.run() - {monitor_kind: (times_ms, data)}.
 
         Returns
         -------
