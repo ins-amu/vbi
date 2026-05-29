@@ -280,8 +280,8 @@ def test_cuda_sweep_new_models_finite(model, param, values, dt, coup_a):
 def test_cuda_sweep_stoch_unique():
     """Stochastic CUDA sweep: different parameter sets must produce different output."""
     spec       = _spec(mpr, n_nodes=5, stochastic=True)
-    # Same parameter value for all runs — only noise differs
-    sweep_spec = SweepSpec(params={"eta": np.full(6, -4.6)})
+    # Same parameter value for all runs — only noise differs (same_noise=False required)
+    sweep_spec = SweepSpec(params={"eta": np.full(6, -4.6)}, same_noise=False)
     results    = Sweeper(spec, sweep_spec, backend="cuda").run(30.0)
 
     d0 = results[0]["raw"][1]

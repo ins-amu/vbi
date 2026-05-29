@@ -137,13 +137,16 @@ class CudaSimulator:
         stim_flat = np.ascontiguousarray(stim_np.ravel(), dtype=np.float32)
         stim_d    = cuda.to_device(stim_flat)
 
+        # Kernel indexes coup_a by [tid]; wrap scalar in a 1-element device array.
+        coup_a_d = cuda.to_device(np.array([self._coup_a], dtype=np.float32))
+
         common = [state_d, buf_d] + conn + [
             params_d, cvar_idx_d,
             lo_d, hlo_d, hi_d, hhi_d,
             np.int32(self._horizon), dt,
             np.int32(n_steps), np.int32(n_record),
             np.int32(t_cut), np.int32(period),
-            self._coup_a, self._coup_b,
+            coup_a_d, self._coup_b,
             self._has_delays, self._use_heun,
             stim_d, has_stimulus,
         ]
