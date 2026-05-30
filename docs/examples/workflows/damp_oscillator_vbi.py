@@ -73,12 +73,16 @@ N = 1
 W = np.zeros((N, N))
 D = np.zeros((N, N))
 
+dt = 0.1
+monitor = MonitorSpec("raw")
+coupling = CouplingSpec("linear", a=0.0)   # no coupling (a=0.0)
+sim_backend = "cpp"
+
 sim_spec = SimulationSpec(
     model         = damped_oscillator,
-    integrator    = IntegratorSpec(method="heun", dt=0.1),
-    coupling      = CouplingSpec("linear", a=0.0),
-    monitors      = (MonitorSpec("subsample", period=0.1),),
-    # Use MonitorSpec("raw") for full dt-resolution signal instead.
+    integrator    = IntegratorSpec(method="heun", dt=dt),
+    coupling      = coupling,
+    monitors      = (monitor,),
     weights       = W,
     tract_lengths = D,
     speed         = 4.0,
@@ -95,17 +99,17 @@ T_CUT      = 20.0    # ms  (discard initial transient)
 # Run a single simulation at the true parameters for visual check
 sim_spec_true = SimulationSpec(
     model         = damped_oscillator,
-    integrator    = IntegratorSpec(method="heun", dt=0.1),
-    coupling      = CouplingSpec("linear", a=0.0),
-    monitors      = (MonitorSpec("subsample", period=0.1),),
+    integrator    = IntegratorSpec(method="heun", dt=dt),
+    coupling      = coupling,
+    monitors      = (monitor,),
     weights       = W,
     tract_lengths = D,
     speed         = 4.0,
     node_params   = {"a": np.array([THETA_TRUE[0]]),
                      "b": np.array([THETA_TRUE[1]])},
 )
-result_true = Simulator(sim_spec_true, backend="numpy").run(DURATION)
-t_obs, ts_obs = result_true["subsample"]       # ts: (T, 2, 1)
+result_true = Simulator(sim_spec_true, backend=sim_backend).run(DURATION)
+t_obs, ts_obs = result_true["raw"]       # ts: (T, 2, 1)
 
 fig, axes = plt.subplots(2, 1, figsize=(6, 4), sharex=True)
 for i, (sv, color) in enumerate([("x", "steelblue"), ("y", "tomato")]):
@@ -137,7 +141,7 @@ cfg = get_features_by_given_names(cfg, ["calc_mean", "calc_std"])
 
 pipeline = FeaturePipeline(
     cfg,
-    signal = "subsample",
+    signal = "raw",
     t_cut  = T_CUT,
     voi    = None,      # use ALL state variables (x and y)
 )
@@ -211,8 +215,8 @@ print("\n" + "=" * 62)
 print("Summary")
 print("=" * 62)
 print(f"  Model    : DampedOscillator  (N=1, no coupling)")
-print(f"  Backend  : numba (sim) + auto (inference)")
-print(f"  Monitor  : subsample  period=0.1 ms")
+print(f"  Backend  : {sim_backend} (sim) + auto (inference)")
+print(f"  Monitor  : raw")
 print(f"  Features : {labels}  (voi=None → both SVs)")
 print(f"  N sims   : {N_SIM}  ×  {DURATION} ms")
 print(f"  True θ   : a={THETA_TRUE[0]}, b={THETA_TRUE[1]}")
