@@ -167,7 +167,7 @@ inf = VBIInference(
     prior             = prior,
     pipeline          = pipeline,
     density_estimator = "maf",
-    sim_backend       = "numba",   # simulation JIT-compiled; feature extraction via Python (voi=None)
+    sim_backend       = sim_backend,
     backend           = "auto",
     show_progress_bars = True,
 )
