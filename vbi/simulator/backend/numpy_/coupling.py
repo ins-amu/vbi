@@ -74,6 +74,32 @@ class SigmoidalCoupling:
         return self.G * self.a * result + self.b
 
 
+class DifferenceCoupling:
+    """
+    c[0, tgt] = sum_src W[tgt, src] * (x[0, src] - x[1, src])
+    c[1, tgt] = 0
+
+    Provides the raw weighted PSP difference without gain or nonlinearity.
+    G and sigmoid are applied inside the model dfun (e.g. G * S(c_y1) for JR).
+    Requires exactly 2 coupling variables.
+    """
+
+    def __init__(self, weights: np.ndarray):
+        self.weights = weights
+
+    def compute(self, delayed_state: np.ndarray,
+                current_state: np.ndarray | None = None) -> np.ndarray:
+        # delayed_state: (2, n_nodes, n_nodes) where [cvar, src, tgt]
+        diff = delayed_state[0] - delayed_state[1]    # (n_nodes, n_nodes)
+        result = np.einsum('ts,st->t', self.weights, diff)  # (n_nodes,)
+        return np.stack([result, np.zeros_like(result)])    # (2, n_nodes)
+
+    def compute_instant(self, cvar_state: np.ndarray) -> np.ndarray:
+        diff = cvar_state[0] - cvar_state[1]    # (n_nodes,)
+        result = self.weights @ diff             # (n_nodes,)
+        return np.stack([result, np.zeros_like(result)])    # (2, n_nodes)
+
+
 class KuramotoCoupling:
     """
     c[tgt] = (G/N) Σ_src W[tgt,src] sin(θ_src(t-τ) − θ_tgt(t) + alpha)
@@ -103,11 +129,13 @@ class KuramotoCoupling:
 
 
 def build_coupling(spec: CouplingSpec, weights: np.ndarray,
-                   G: float) -> LinearCoupling | SigmoidalCoupling | KuramotoCoupling:
+                   G: float) -> LinearCoupling | SigmoidalCoupling | KuramotoCoupling | DifferenceCoupling:
     if spec.kind == "linear":
         return LinearCoupling(spec, weights, G)
     if spec.kind == "sigmoidal":
         return SigmoidalCoupling(spec, weights, G)
     if spec.kind == "kuramoto":
         return KuramotoCoupling(weights, G, alpha=spec.alpha)
+    if spec.kind == "difference":
+        return DifferenceCoupling(weights)
     raise ValueError(f"Unknown coupling kind: {spec.kind!r}")

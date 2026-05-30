@@ -10,8 +10,8 @@ The model
 ---------
 Six-dimensional JR neural-mass model per node (Jansen & Rit 1995).
 Stochastic (additive noise on y4, the excitatory interneuron velocity).
-Long-range coupling enters the excitatory drive of each node (linear
-coupling on the y1-y2 cvar, as in TVB).
+Long-range coupling enters the excitatory drive of each node via
+G * S(W @ (y1-y2)), using CouplingSpec(kind="difference").
 
 Parameters to infer
 -------------------
@@ -103,7 +103,7 @@ T_CUT       = 0.0    # ms
 SIM_BACKEND = "numba"
 
 # True parameters: G=1.5, C1=135 (= J * a_2 = 135 * 1.0)
-G_TRUE  = 1.5
+G_TRUE  = 0.1
 A2_TRUE = 1.0          # a_2 = C1 / J = 135 / 135
 
 # Prior: G ∈ [0, 5], C1 ∈ [130, 300] → a_2 ∈ [130/135, 300/135]
@@ -126,7 +126,7 @@ integrator = IntegratorSpec(
 sim_spec = SimulationSpec(
     model         = jansen_rit,
     integrator    = integrator,
-    coupling      = CouplingSpec("linear", a=1.0),
+    coupling      = CouplingSpec("difference"),
     monitors      = (MonitorSpec("tavg", period=PERIOD),),
     weights       = W,
     tract_lengths = D,
@@ -139,7 +139,7 @@ sim_spec = SimulationSpec(
 sim_spec_true = SimulationSpec(
     model         = jansen_rit,
     integrator    = integrator,
-    coupling      = CouplingSpec("linear", a=G_TRUE),
+    coupling      = CouplingSpec("difference"),
     monitors      = (MonitorSpec("tavg", period=PERIOD),),
     weights       = W,
     tract_lengths = D,
@@ -147,6 +147,7 @@ sim_spec_true = SimulationSpec(
     node_params   = {
         "mu":  np.full(N_NODES, MU),
         "a_2": np.full(N_NODES, A2_TRUE),
+        "G":   G_TRUE,
     },
 )
 
