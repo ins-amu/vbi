@@ -33,12 +33,10 @@ Workflow
 1. Build SimulationSpec (single node, no coupling).
 2. Define prior and feature pipeline.
 3. Build VBIInference.
-4. Round 1: simulate + train MAF + build posterior.
+4. Simulate + train MAF + build posterior (single round).
 5. Plot loss and pairplot.
-6. Save / load checkpoint.
-7. Round 2: posterior-focused simulation (sequential SNPE).
 
-Expected runtime: ~2–4 min  (numba backend, 2000 simulations × 200 ms).
+Expected runtime: ~2–4 min  (numba backend, 2000 simulations × 250 ms).
 """
 
 from pathlib import Path
@@ -76,7 +74,7 @@ D = np.zeros((N, N))
 dt = 0.1
 monitor = MonitorSpec("raw")
 coupling = CouplingSpec("linear", a=0.0)   # no coupling (a=0.0)
-sim_backend = "cpp"
+sim_backend = "numba"
 
 sim_spec = SimulationSpec(
     model         = damped_oscillator,
