@@ -112,12 +112,13 @@ class NumbaSimulator:
         dt      = spec.integrator.dt
         n_nodes = spec.n_nodes
 
-        if spec.coupling.kind not in ("linear", "kuramoto"):
+        if spec.coupling.kind not in ("linear", "kuramoto", "difference"):
             raise NotImplementedError(
-                f"Numba backend supports 'linear' and 'kuramoto' coupling; "
+                f"Numba backend supports 'linear', 'kuramoto', and 'difference' coupling; "
                 f"got {spec.coupling.kind!r}."
             )
-        self._use_kuramoto = spec.coupling.kind == "kuramoto"
+        self._use_kuramoto  = spec.coupling.kind == "kuramoto"
+        self._use_difference = spec.coupling.kind == "difference"
         self._alpha = np.float64(spec.coupling.alpha)
 
         self._dfun  = build_numba_dfun(spec.model)
@@ -190,7 +191,7 @@ class NumbaSimulator:
                 self._eff_noise_amp, self._noise_mask,
                 record_period, t_cut_step, n_sv, voi_indices,
                 self._use_heun, np.int64(spec.integrator.noise_seed),
-                self._dfun, self._use_kuramoto, self._alpha,
+                self._dfun, self._use_kuramoto, self._use_difference, self._alpha,
                 stim_data, has_stimulus,
             )
         else:
@@ -203,7 +204,7 @@ class NumbaSimulator:
                 self._lower_bounds, self._has_lower,
                 self._upper_bounds, self._has_upper,
                 record_period, t_cut_step, n_sv, voi_indices,
-                self._use_heun, self._dfun, self._use_kuramoto, self._alpha,
+                self._use_heun, self._dfun, self._use_kuramoto, self._use_difference, self._alpha,
                 stim_data, has_stimulus,
             )
 

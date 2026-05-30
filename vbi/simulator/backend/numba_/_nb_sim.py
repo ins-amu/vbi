@@ -123,6 +123,47 @@ def _coup_linear_delayed(srcbuf, step, horizon, weights, delay_steps, G, a, b):
 
 
 # ---------------------------------------------------------------------------
+# Coupling - Difference (instant, no delays)
+# ---------------------------------------------------------------------------
+
+@njit(cache=True)
+def _coup_difference_instant(cvar_state, weights):
+    """
+    c[0, tgt] = sum_src W[tgt, src] * (cvar[0, src] - cvar[1, src])
+    c[1, tgt] = 0
+    No G or sigmoid — applied inside the model dfun (e.g. G * S(c_y1) for JR).
+    """
+    n_nodes = cvar_state.shape[1]
+    out = np.zeros((2, n_nodes))
+    for tgt in range(n_nodes):
+        s = 0.0
+        for src in range(n_nodes):
+            s += weights[tgt, src] * (cvar_state[0, src] - cvar_state[1, src])
+        out[0, tgt] = s
+    return out
+
+
+@njit(cache=True)
+def _coup_difference_delayed(srcbuf, step, horizon, weights, delay_steps):
+    """
+    c[0, tgt] = sum_src W[tgt, src] * (y1[src, t-tau] - y2[src, t-tau])
+    c[1, tgt] = 0
+    srcbuf : (2, n_nodes, horizon)
+    """
+    n_nodes = srcbuf.shape[1]
+    out = np.zeros((2, n_nodes))
+    t = step - 1
+    for tgt in range(n_nodes):
+        s = 0.0
+        for src in range(n_nodes):
+            d = delay_steps[src, tgt]
+            idx = (t - d + horizon) % horizon
+            s += weights[tgt, src] * (srcbuf[0, src, idx] - srcbuf[1, src, idx])
+        out[0, tgt] = s
+    return out
+
+
+# ---------------------------------------------------------------------------
 # Integrators  (dfun_fn passed as first-class @njit function)
 # ---------------------------------------------------------------------------
 
@@ -184,15 +225,16 @@ def nb_simulate_det(
     has_delays, cvar_indices,
     lower_bounds, has_lower, upper_bounds, has_upper,
     record_period, t_cut_step, n_voi, voi_indices,
-    use_heun, dfun_fn, use_kuramoto, alpha, stim_data, has_stimulus,
+    use_heun, dfun_fn, use_kuramoto, use_difference, alpha, stim_data, has_stimulus,
 ):
     """
     Deterministic (no noise) simulation loop.
 
-    params      : (n_params, n_nodes) float64
-    srcbuf0     : (n_cvar, n_nodes, horizon) float64 - initial ring buffer
-    use_kuramoto: bool - use sinusoidal Kuramoto coupling instead of linear
-    Returns     : (n_record, n_voi, n_nodes) float64
+    params        : (n_params, n_nodes) float64
+    srcbuf0       : (n_cvar, n_nodes, horizon) float64 - initial ring buffer
+    use_kuramoto  : bool - sinusoidal Kuramoto coupling
+    use_difference: bool - raw W@(x0-x1) coupling (G/sigmoid applied in dfun)
+    Returns       : (n_record, n_voi, n_nodes) float64
     """
     n_sv   = state0.shape[0]
     n_nodes = state0.shape[1]
@@ -213,6 +255,9 @@ def nb_simulate_det(
                 coupling = _coup_kuramoto_delayed(
                     srcbuf, step, horizon, weights, delay_steps, G, n_nodes,
                     state[cvar_indices[0]], alpha)
+            elif use_difference:
+                coupling = _coup_difference_delayed(
+                    srcbuf, step, horizon, weights, delay_steps)
             else:
                 coupling = _coup_linear_delayed(
                     srcbuf, step, horizon, weights, delay_steps, G, a, b)
@@ -222,6 +267,8 @@ def nb_simulate_det(
                 cvar_state[cv] = state[cvar_indices[cv]]
             if use_kuramoto:
                 coupling = _coup_kuramoto_instant(cvar_state, weights, G, n_nodes, alpha)
+            elif use_difference:
+                coupling = _coup_difference_instant(cvar_state, weights)
             else:
                 coupling = _coup_linear_instant(cvar_state, weights, G, a, b)
 
@@ -272,7 +319,7 @@ def nb_simulate_stoch(
     lower_bounds, has_lower, upper_bounds, has_upper,
     eff_noise_amp, noise_mask,
     record_period, t_cut_step, n_voi, voi_indices,
-    use_heun, seed, dfun_fn, use_kuramoto, alpha, stim_data, has_stimulus,
+    use_heun, seed, dfun_fn, use_kuramoto, use_difference, alpha, stim_data, has_stimulus,
 ):
     """
     Stochastic simulation loop.  Noise is generated inside the @njit function
@@ -281,7 +328,8 @@ def nb_simulate_stoch(
     eff_noise_amp : (n_noise_vars,) float64 - amplitude * sqrt(dt) already resolved
     noise_mask    : (n_sv,) bool - which state vars receive additive noise
     seed          : int64 - seed for this run
-    use_kuramoto  : bool - use sinusoidal Kuramoto coupling instead of linear
+    use_kuramoto  : bool - sinusoidal Kuramoto coupling
+    use_difference: bool - raw W@(x0-x1) coupling (G/sigmoid applied in dfun)
     Returns       : (n_record, n_voi, n_nodes) float64
     """
     np.random.seed(seed)
@@ -305,6 +353,9 @@ def nb_simulate_stoch(
                 coupling = _coup_kuramoto_delayed(
                     srcbuf, step, horizon, weights, delay_steps, G, n_nodes,
                     state[cvar_indices[0]], alpha)
+            elif use_difference:
+                coupling = _coup_difference_delayed(
+                    srcbuf, step, horizon, weights, delay_steps)
             else:
                 coupling = _coup_linear_delayed(
                     srcbuf, step, horizon, weights, delay_steps, G, a, b)
@@ -314,6 +365,8 @@ def nb_simulate_stoch(
                 cvar_state[cv] = state[cvar_indices[cv]]
             if use_kuramoto:
                 coupling = _coup_kuramoto_instant(cvar_state, weights, G, n_nodes, alpha)
+            elif use_difference:
+                coupling = _coup_difference_instant(cvar_state, weights)
             else:
                 coupling = _coup_linear_instant(cvar_state, weights, G, a, b)
 
@@ -371,7 +424,7 @@ def nb_sweep_det(
     has_delays, cvar_indices,
     lower_bounds, has_lower, upper_bounds, has_upper,
     record_period, t_cut_step, n_voi, voi_indices,
-    use_heun, sweep_param_indices, dfun_fn, use_kuramoto, alpha, stim_data, has_stimulus,
+    use_heun, sweep_param_indices, dfun_fn, use_kuramoto, use_difference, alpha, stim_data, has_stimulus,
 ):
     """
     Parallel sweep over param_sets rows - deterministic.
@@ -400,7 +453,7 @@ def nb_sweep_det(
             has_delays, cvar_indices,
             lower_bounds, has_lower, upper_bounds, has_upper,
             record_period, t_cut_step, n_voi, voi_indices,
-            use_heun, dfun_fn, use_kuramoto, alpha, stim_data, has_stimulus,
+            use_heun, dfun_fn, use_kuramoto, use_difference, alpha, stim_data, has_stimulus,
         )
 
     return out
@@ -418,7 +471,7 @@ def nb_sweep_stoch(
     lower_bounds, has_lower, upper_bounds, has_upper,
     eff_noise_amp, noise_mask,
     record_period, t_cut_step, n_voi, voi_indices,
-    use_heun, sweep_param_indices, seeds, dfun_fn, use_kuramoto, alpha, stim_data, has_stimulus,
+    use_heun, sweep_param_indices, seeds, dfun_fn, use_kuramoto, use_difference, alpha, stim_data, has_stimulus,
 ):
     """
     Parallel sweep over param_sets rows - stochastic.
@@ -447,7 +500,7 @@ def nb_sweep_stoch(
             lower_bounds, has_lower, upper_bounds, has_upper,
             eff_noise_amp, noise_mask,
             record_period, t_cut_step, n_voi, voi_indices,
-            use_heun, seeds[i], dfun_fn, use_kuramoto,
+            use_heun, seeds[i], dfun_fn, use_kuramoto, use_difference,
             alpha, stim_data, has_stimulus,
         )
 
@@ -467,7 +520,7 @@ def nb_sweep_det_feat(
     record_period, t_cut_step, n_voi, voi_indices,
     use_heun, sweep_param_indices,
     do_mean, do_std, do_fc, do_fcd, fcd_window, n_features, n_voi_feat,
-    dfun_fn, use_kuramoto, alpha, stim_data, has_stimulus,
+    dfun_fn, use_kuramoto, use_difference, alpha, stim_data, has_stimulus,
 ):
     """
     Parallel deterministic sweep with inline feature extraction.
@@ -507,7 +560,7 @@ def nb_sweep_det_feat(
             has_delays, cvar_indices,
             lower_bounds, has_lower, upper_bounds, has_upper,
             record_period, t_cut_step, n_voi, voi_indices,
-            use_heun, dfun_fn, use_kuramoto, alpha, stim_data, has_stimulus,
+            use_heun, dfun_fn, use_kuramoto, use_difference, alpha, stim_data, has_stimulus,
         )
 
         # Flatten n_voi_feat VOIs into channels: (n_record, n_channels)
@@ -537,7 +590,7 @@ def nb_sweep_stoch_feat(
     record_period, t_cut_step, n_voi, voi_indices,
     use_heun, sweep_param_indices, seeds,
     do_mean, do_std, do_fc, do_fcd, fcd_window, n_features, n_voi_feat,
-    dfun_fn, use_kuramoto, alpha, stim_data, has_stimulus,
+    dfun_fn, use_kuramoto, use_difference, alpha, stim_data, has_stimulus,
 ):
     """
     Parallel stochastic sweep with inline feature extraction.
@@ -568,7 +621,7 @@ def nb_sweep_stoch_feat(
             lower_bounds, has_lower, upper_bounds, has_upper,
             eff_noise_amp, noise_mask,
             record_period, t_cut_step, n_voi, voi_indices,
-            use_heun, seeds[i], dfun_fn, use_kuramoto,
+            use_heun, seeds[i], dfun_fn, use_kuramoto, use_difference,
             alpha, stim_data, has_stimulus,
         )
 

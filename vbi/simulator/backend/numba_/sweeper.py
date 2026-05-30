@@ -52,12 +52,13 @@ class NumbaSweeperCPU:
         dt      = spec.integrator.dt
         n_nodes = spec.n_nodes
 
-        if spec.coupling.kind not in ("linear", "kuramoto"):
+        if spec.coupling.kind not in ("linear", "kuramoto", "difference"):
             raise NotImplementedError(
-                f"Numba backend supports 'linear' and 'kuramoto' coupling; "
+                f"Numba backend supports 'linear', 'kuramoto', and 'difference' coupling; "
                 f"got {spec.coupling.kind!r}."
             )
-        self._use_kuramoto = spec.coupling.kind == "kuramoto"
+        self._use_kuramoto   = spec.coupling.kind == "kuramoto"
+        self._use_difference = spec.coupling.kind == "difference"
         self._alpha = np.float64(spec.coupling.alpha)
 
         self._dfun   = build_numba_dfun(spec.model)
@@ -172,7 +173,7 @@ class NumbaSweeperCPU:
                 self._eff_noise_amp, self._noise_mask,
                 record_period, t_cut_step, n_voi, voi_indices,
                 self._use_heun, self._sweep_param_indices, seeds,
-                self._dfun, self._use_kuramoto, self._alpha,
+                self._dfun, self._use_kuramoto, self._use_difference, self._alpha,
                 stim_data, has_stimulus,
             )
         else:
@@ -185,7 +186,7 @@ class NumbaSweeperCPU:
                 self._upper_bounds, self._has_upper,
                 record_period, t_cut_step, n_voi, voi_indices,
                 self._use_heun, self._sweep_param_indices, self._dfun,
-                self._use_kuramoto, self._alpha,
+                self._use_kuramoto, self._use_difference, self._alpha,
                 stim_data, has_stimulus,
             )
 
@@ -277,12 +278,12 @@ class NumbaSweeperCPU:
                     nb_spec.do_fc, nb_spec.do_fcd,
                     np.int64(nb_spec.fcd_window), np.int64(n_feat),
                     np.int64(n_voi_feat),
-                    self._dfun, self._use_kuramoto, self._alpha,
+                    self._dfun, self._use_kuramoto, self._use_difference, self._alpha,
                     stim_data, has_stimulus,
                 )
             else:
                 feat_vals = nb_sweep_det_feat(
-                    *common_args, self._use_kuramoto, self._alpha,
+                    *common_args, self._use_kuramoto, self._use_difference, self._alpha,
                     stim_data, has_stimulus,
                 )
 
