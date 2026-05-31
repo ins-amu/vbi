@@ -112,13 +112,13 @@ class NumbaSimulator:
         dt      = spec.integrator.dt
         n_nodes = spec.n_nodes
 
-        if spec.coupling.kind not in ("linear", "kuramoto", "difference"):
+        if spec.coupling.kind not in ("linear", "kuramoto", "jr_sigmoidal"):
             raise NotImplementedError(
-                f"Numba backend supports 'linear', 'kuramoto', and 'difference' coupling; "
+                f"Numba backend supports 'linear', 'kuramoto', and 'jr_sigmoidal' coupling; "
                 f"got {spec.coupling.kind!r}."
             )
-        self._use_kuramoto  = spec.coupling.kind == "kuramoto"
-        self._use_difference = spec.coupling.kind == "difference"
+        self._use_kuramoto    = spec.coupling.kind == "kuramoto"
+        self._use_jr_sigmoidal = spec.coupling.kind == "jr_sigmoidal"
         self._alpha = np.float64(spec.coupling.alpha)
 
         self._dfun  = build_numba_dfun(spec.model)
@@ -139,6 +139,22 @@ class NumbaSimulator:
 
         self._a = np.float64(spec.coupling.a)
         self._b = np.float64(spec.coupling.b)
+
+        if self._use_jr_sigmoidal:
+            _pnames = list(spec.model.param_names)
+            for _pn in ("nu_max", "r", "v0"):
+                if _pn not in _pnames:
+                    raise ValueError(
+                        f"CouplingSpec(kind='jr_sigmoidal') requires model parameters "
+                        f"'nu_max', 'r', 'v0'. Model {spec.model.name!r} is missing {_pn!r}."
+                    )
+            self._nu_max_jr = np.float64(self._params[_pnames.index("nu_max"), 0])
+            self._r_jr      = np.float64(self._params[_pnames.index("r"),      0])
+            self._v0_jr     = np.float64(self._params[_pnames.index("v0"),     0])
+        else:
+            self._nu_max_jr = np.float64(0.0)
+            self._r_jr      = np.float64(0.0)
+            self._v0_jr     = np.float64(0.0)
 
         self._state0      = build_initial_state(spec)
         self._cvar_indices = np.array(spec.model.cvar_indices, dtype=np.int64)
@@ -191,7 +207,8 @@ class NumbaSimulator:
                 self._eff_noise_amp, self._noise_mask,
                 record_period, t_cut_step, n_sv, voi_indices,
                 self._use_heun, np.int64(spec.integrator.noise_seed),
-                self._dfun, self._use_kuramoto, self._use_difference, self._alpha,
+                self._dfun, self._use_kuramoto, self._use_jr_sigmoidal,
+                self._nu_max_jr, self._r_jr, self._v0_jr, self._alpha,
                 stim_data, has_stimulus,
             )
         else:
@@ -204,7 +221,8 @@ class NumbaSimulator:
                 self._lower_bounds, self._has_lower,
                 self._upper_bounds, self._has_upper,
                 record_period, t_cut_step, n_sv, voi_indices,
-                self._use_heun, self._dfun, self._use_kuramoto, self._use_difference, self._alpha,
+                self._use_heun, self._dfun, self._use_kuramoto, self._use_jr_sigmoidal,
+                self._nu_max_jr, self._r_jr, self._v0_jr, self._alpha,
                 stim_data, has_stimulus,
             )
 

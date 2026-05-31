@@ -190,26 +190,6 @@ def _sigmoidal_coupling(
     return G * a * jnp.einsum("ts,cs->ct", weights, sig) + b
 
 
-def _difference_coupling_instant(
-        cvar_state: jnp.ndarray, weights: jnp.ndarray) -> jnp.ndarray:
-    """c[0,tgt] = W @ (x[0]-x[1]); c[1,tgt]=0.  No G scaling."""
-    diff = cvar_state[0] - cvar_state[1]
-    wsum = jnp.einsum("ts,s->t", weights, diff)
-    return jnp.stack([wsum, jnp.zeros_like(wsum)])
-
-
-def _read_delayed_difference_coupling(
-        buf, step, delay_steps: jnp.ndarray,
-        weights: jnp.ndarray, horizon: int, n_nodes: int) -> jnp.ndarray:
-    """Delayed difference coupling: c[0,tgt] = W@(y1[t-tau]-y2[t-tau]); c[1]=0."""
-    idx_time = (step - delay_steps) % horizon
-    src_idx = jnp.arange(n_nodes, dtype=jnp.int32)
-    flat_idx = idx_time * n_nodes + src_idx[None, :]
-    delayed_y1 = buf[:, 0, :].reshape(-1)[flat_idx]    # (N, N)
-    delayed_y2 = buf[:, 1, :].reshape(-1)[flat_idx]    # (N, N)
-    wsum = jnp.sum(weights * (delayed_y1 - delayed_y2), axis=1)  # (N,)
-    return jnp.stack([wsum, jnp.zeros_like(wsum)])
-
 
 def _kuramoto_coupling_instant(
         cvar_state: jnp.ndarray, weights: jnp.ndarray,
@@ -310,11 +290,10 @@ def _make_step_fn(
                     buf, step, delay_steps, weights,
                     G, horizon, n_nodes, state, coup_alpha)
             return _kuramoto_coupling_instant(state[cvar_idx], weights, G, n_nodes, coup_alpha)
-        if coup_kind == "difference":
-            if has_delays:
-                return _read_delayed_difference_coupling(
-                    buf, step, delay_steps, weights, horizon, n_nodes)
-            return _difference_coupling_instant(state[cvar_idx], weights)
+        if coup_kind == "jr_sigmoidal":
+            raise NotImplementedError(
+                "JAX backend does not yet support 'jr_sigmoidal' coupling."
+            )
         if has_delays:
             return _read_delayed_coupling(
                 buf, step, delay_steps, weights,

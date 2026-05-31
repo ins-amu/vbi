@@ -74,30 +74,6 @@ class SigmoidalCoupling:
         return self.G * self.a * result + self.b
 
 
-class DifferenceCoupling:
-    """
-    c[0, tgt] = sum_src W[tgt, src] * (x[0, src] - x[1, src])
-    c[1, tgt] = 0
-
-    Provides the raw weighted difference without gain or nonlinearity.
-    Requires exactly 2 coupling variables.
-    """
-
-    def __init__(self, weights: np.ndarray):
-        self.weights = weights
-
-    def compute(self, delayed_state: np.ndarray,
-                current_state: np.ndarray | None = None) -> np.ndarray:
-        # delayed_state: (2, n_nodes, n_nodes) where [cvar, src, tgt]
-        diff = delayed_state[0] - delayed_state[1]    # (n_nodes, n_nodes)
-        result = np.einsum('ts,st->t', self.weights, diff)  # (n_nodes,)
-        return np.stack([result, np.zeros_like(result)])    # (2, n_nodes)
-
-    def compute_instant(self, cvar_state: np.ndarray) -> np.ndarray:
-        diff = cvar_state[0] - cvar_state[1]    # (n_nodes,)
-        result = self.weights @ diff             # (n_nodes,)
-        return np.stack([result, np.zeros_like(result)])    # (2, n_nodes)
-
 
 class JRSigmoidalCoupling:
     """
@@ -180,16 +156,13 @@ def build_coupling(
     weights: np.ndarray,
     G: float,
     model_params: dict | None = None,
-) -> (LinearCoupling | SigmoidalCoupling | KuramotoCoupling
-      | DifferenceCoupling | JRSigmoidalCoupling):
+) -> LinearCoupling | SigmoidalCoupling | KuramotoCoupling | JRSigmoidalCoupling:
     if spec.kind == "linear":
         return LinearCoupling(spec, weights, G)
     if spec.kind == "sigmoidal":
         return SigmoidalCoupling(spec, weights, G)
     if spec.kind == "kuramoto":
         return KuramotoCoupling(weights, G, alpha=spec.alpha)
-    if spec.kind == "difference":
-        return DifferenceCoupling(weights)
     if spec.kind == "jr_sigmoidal":
         p = model_params or {}
         return JRSigmoidalCoupling(

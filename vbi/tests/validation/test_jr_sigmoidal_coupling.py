@@ -192,15 +192,16 @@ class TestJRSigmoidalSimulation:
         assert data.shape[1] == 6   # 6 state variables
         assert data.shape[2] == 4   # 4 nodes
 
-    def test_differs_from_difference_coupling(self):
-        # jr_sigmoidal (W@S(x)) must produce a different trajectory than
-        # difference coupling (S(W@x) applied in dfun) for nonzero weights.
-        spec_jr   = _jr_spec(2, "jr_sigmoidal")
-        spec_diff = _jr_spec(2, "difference")
-        _, data_jr   = Simulator(spec_jr,   backend="numpy").run(20.0)["raw"]
-        _, data_diff = Simulator(spec_diff, backend="numpy").run(20.0)["raw"]
-        assert not np.allclose(data_jr, data_diff), (
-            "jr_sigmoidal and difference coupling must produce different trajectories"
+    def test_differs_from_linear_coupling(self):
+        # jr_sigmoidal applies a sigmoid per source node before weighting;
+        # linear coupling scales the raw state without any nonlinearity.
+        # The two must produce different trajectories for nonzero weights.
+        spec_jr  = _jr_spec(2, "jr_sigmoidal")
+        spec_lin = _jr_spec(2, "linear")
+        _, data_jr  = Simulator(spec_jr,  backend="numpy").run(20.0)["raw"]
+        _, data_lin = Simulator(spec_lin, backend="numpy").run(20.0)["raw"]
+        assert not np.allclose(data_jr, data_lin), (
+            "jr_sigmoidal and linear coupling must produce different trajectories"
         )
 
     def test_with_delays_is_finite(self):
