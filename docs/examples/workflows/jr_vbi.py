@@ -11,7 +11,7 @@ The model
 Six-dimensional JR neural-mass model per node (Jansen & Rit 1995).
 Stochastic (additive noise on y4, the excitatory interneuron velocity).
 Long-range coupling enters the excitatory drive of each node via
-G * S(W @ (y1-y2)), using CouplingSpec(kind="difference").
+G * W @ S(y1-y2), using CouplingSpec(kind="jr_sigmoidal").
 
 Parameters to infer
 -------------------
@@ -95,15 +95,15 @@ print(f"\n  Connectivity : {N_NODES} nodes   "
 
 # ── 2 - Simulation settings (match jansen_rit_sde_numba_cde.ipynb) ─────────────
 
-DT          = 0.05     # ms
+DT          = 0.1     # ms
 PERIOD      = 1.0      # ms  (tavg → fs = 1000 Hz)
 FS_HZ       = 1000.0 / PERIOD
 DURATION    = 2500.0   # ms
 T_CUT       = 0.0    # ms
-SIM_BACKEND = "numba"
+SIM_BACKEND = "numpy"
 
 # True parameters: G=1.5, C1=135 (= J * a_2 = 135 * 1.0)
-G_TRUE  = 0.1
+G_TRUE  = 1.5
 A2_TRUE = 1.0          # a_2 = C1 / J = 135 / 135
 
 # Prior: G ∈ [0, 5], C1 ∈ [130, 300] → a_2 ∈ [130/135, 300/135]
@@ -126,7 +126,7 @@ integrator = IntegratorSpec(
 sim_spec = SimulationSpec(
     model         = jansen_rit,
     integrator    = integrator,
-    coupling      = CouplingSpec("difference"),
+    coupling      = CouplingSpec("jr_sigmoidal"),
     monitors      = (MonitorSpec("tavg", period=PERIOD),),
     weights       = W,
     tract_lengths = D,
@@ -139,7 +139,7 @@ sim_spec = SimulationSpec(
 sim_spec_true = SimulationSpec(
     model         = jansen_rit,
     integrator    = integrator,
-    coupling      = CouplingSpec("difference"),
+    coupling      = CouplingSpec("jr_sigmoidal"),
     monitors      = (MonitorSpec("tavg", period=PERIOD),),
     weights       = W,
     tract_lengths = D,
@@ -163,7 +163,6 @@ plot_jr_timeseries_psd(
     t_window_ms = (1500, 2501),
 )
 print(f"  Time-series → {OUT_DIR/'jr_vbi_timeseries.png'}")
-exit(0)
 # ── 5 - Feature pipeline ───────────────────────────────────────────────────────
 
 pipeline = build_jr_spectral_pipeline(FS_HZ, t_cut=T_CUT, voi=1)

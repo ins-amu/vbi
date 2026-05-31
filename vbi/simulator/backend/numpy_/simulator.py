@@ -122,7 +122,7 @@ class NumpySimulator:
         self._has_delays = spec.has_delays
         self._delay_steps = spec.delay_steps(dt)
         self._history = History(spec.horizon(dt), len(spec.model.cvar), n_nodes)
-        self._coupling = build_coupling(spec.coupling, spec.weights, G)
+        self._coupling = build_coupling(spec.coupling, spec.weights, G, self._params)
         self._integrator = build_integrator(spec.integrator.method,
                                             spec.integrator.stochastic)
         self._monitors = [build_monitor(m, spec.model, dt)

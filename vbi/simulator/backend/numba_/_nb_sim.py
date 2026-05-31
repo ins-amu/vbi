@@ -131,7 +131,7 @@ def _coup_difference_instant(cvar_state, weights):
     """
     c[0, tgt] = sum_src W[tgt, src] * (cvar[0, src] - cvar[1, src])
     c[1, tgt] = 0
-    No G or sigmoid — applied inside the model dfun (e.g. G * S(c_y1) for JR).
+    No G or sigmoid applied here.
     """
     n_nodes = cvar_state.shape[1]
     out = np.zeros((2, n_nodes))

@@ -79,8 +79,7 @@ class DifferenceCoupling:
     c[0, tgt] = sum_src W[tgt, src] * (x[0, src] - x[1, src])
     c[1, tgt] = 0
 
-    Provides the raw weighted PSP difference without gain or nonlinearity.
-    G and sigmoid are applied inside the model dfun (e.g. G * S(c_y1) for JR).
+    Provides the raw weighted difference without gain or nonlinearity.
     Requires exactly 2 coupling variables.
     """
 
@@ -98,6 +97,54 @@ class DifferenceCoupling:
         diff = cvar_state[0] - cvar_state[1]    # (n_nodes,)
         result = self.weights @ diff             # (n_nodes,)
         return np.stack([result, np.zeros_like(result)])    # (2, n_nodes)
+
+
+class JRSigmoidalCoupling:
+    """
+    c[0, tgt] = sum_src W[tgt, src] * S(y1[src] - y2[src])
+    c[1, tgt] = 0
+
+    where S(v) = 2*nu_max / (1 + exp(r*(v0 - v)))  is the JR sigmoid.
+
+    Sigmoid is applied per source node before structural weighting, giving the
+    TVB/JR-style firing-rate drive:  G * W @ S(y1 - y2).
+    G is NOT applied here; it is multiplied in the model dfun (c_y1 is already
+    the weighted incoming firing-rate drive).
+    Requires exactly 2 coupling variables (y1, y2).
+    """
+
+    def __init__(self, weights: np.ndarray,
+                 nu_max: float | np.ndarray,
+                 r: float | np.ndarray,
+                 v0: float | np.ndarray):
+        self.weights = weights
+        self.nu_max = np.asarray(nu_max, dtype=np.float64)
+        self.r = np.asarray(r, dtype=np.float64)
+        self.v0 = np.asarray(v0, dtype=np.float64)
+
+    def _sigmoid(self, v: np.ndarray) -> np.ndarray:
+        return 2.0 * self.nu_max / (1.0 + np.exp(self.r * (self.v0 - v)))
+
+    def compute_instant(self, cvar_state: np.ndarray) -> np.ndarray:
+        diff = cvar_state[0] - cvar_state[1]           # (n_nodes,)
+        sigm = self._sigmoid(diff)                      # (n_nodes,)
+        result = self.weights @ sigm                    # (n_nodes,)
+        return np.stack([result, np.zeros_like(result)])
+
+    def compute(self, delayed_state: np.ndarray,
+                current_state: np.ndarray | None = None) -> np.ndarray:
+        # delayed_state: (2, n_nodes, n_nodes)  [cvar, src, tgt]
+        diff = delayed_state[0] - delayed_state[1]      # (n_src, n_tgt)
+        nu_max = self.nu_max
+        r = self.r
+        v0 = self.v0
+        if nu_max.ndim == 1:
+            nu_max = nu_max[:, np.newaxis]
+            r = r[:, np.newaxis]
+            v0 = v0[:, np.newaxis]
+        sigm = 2.0 * nu_max / (1.0 + np.exp(r * (v0 - diff)))   # (n_src, n_tgt)
+        result = np.einsum('ts,st->t', self.weights, sigm)        # (n_tgt,)
+        return np.stack([result, np.zeros_like(result)])
 
 
 class KuramotoCoupling:
@@ -128,8 +175,13 @@ class KuramotoCoupling:
         return c[np.newaxis, :]
 
 
-def build_coupling(spec: CouplingSpec, weights: np.ndarray,
-                   G: float) -> LinearCoupling | SigmoidalCoupling | KuramotoCoupling | DifferenceCoupling:
+def build_coupling(
+    spec: CouplingSpec,
+    weights: np.ndarray,
+    G: float,
+    model_params: dict | None = None,
+) -> (LinearCoupling | SigmoidalCoupling | KuramotoCoupling
+      | DifferenceCoupling | JRSigmoidalCoupling):
     if spec.kind == "linear":
         return LinearCoupling(spec, weights, G)
     if spec.kind == "sigmoidal":
@@ -138,4 +190,12 @@ def build_coupling(spec: CouplingSpec, weights: np.ndarray,
         return KuramotoCoupling(weights, G, alpha=spec.alpha)
     if spec.kind == "difference":
         return DifferenceCoupling(weights)
+    if spec.kind == "jr_sigmoidal":
+        p = model_params or {}
+        return JRSigmoidalCoupling(
+            weights,
+            nu_max=p.get("nu_max", 0.0025),
+            r=p.get("r", 0.56),
+            v0=p.get("v0", 5.52),
+        )
     raise ValueError(f"Unknown coupling kind: {spec.kind!r}")
