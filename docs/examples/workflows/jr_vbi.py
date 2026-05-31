@@ -23,9 +23,10 @@ Parameters to infer
 
 Observable
 ----------
-``y1`` (excitatory dendritic potential, VOI index 1) via temporal-average
-monitor at 1 ms resolution (1 kHz).  Spectral features are averaged
-across all 84 cortical nodes, matching the notebook's ``average=True``.
+``y1 - y2`` (excitatory minus inhibitory dendritic potential, VOI indices
+1 and 2) via temporal-average monitor at 1 ms resolution (1 kHz).  Spectral
+features are averaged across all 84 cortical nodes, matching the notebook's
+``average=True``.
 
 Features
 --------
@@ -100,11 +101,11 @@ PERIOD      = 1.0      # ms  (tavg → fs = 1000 Hz)
 FS_HZ       = 1000.0 / PERIOD
 DURATION    = 2500.0   # ms
 T_CUT       = 0.0    # ms
-SIM_BACKEND = "numpy"
+SIM_BACKEND = "numba"
 
 # True parameters: G=1.5, C1=135 (= J * a_2 = 135 * 1.0)
 G_TRUE  = 1.5
-A2_TRUE = 1.0          # a_2 = C1 / J = 135 / 135
+A2_TRUE = 1.5          # a_2 = C1 / J 
 
 # Prior: G ∈ [0, 5], C1 ∈ [130, 300] → a_2 ∈ [130/135, 300/135]
 G_LOW,  G_HIGH  = 0.0, 5.0
@@ -165,7 +166,7 @@ plot_jr_timeseries_psd(
 print(f"  Time-series → {OUT_DIR/'jr_vbi_timeseries.png'}")
 # ── 5 - Feature pipeline ───────────────────────────────────────────────────────
 
-pipeline = build_jr_spectral_pipeline(FS_HZ, t_cut=T_CUT, voi=1)
+pipeline = build_jr_spectral_pipeline(FS_HZ, t_cut=T_CUT, voi=(1, 2))
 
 labels, values = pipeline.extract(result_true)
 print(f"\n  Feature dim    : {len(labels)}")
@@ -249,7 +250,7 @@ print(f"  Model    : JansenRit  ({N_NODES} nodes, stochastic)")
 print(f"  Backend  : {SIM_BACKEND} (sim) + auto (inference)")
 print(f"  Monitor  : tavg  period={PERIOD} ms  (fs={FS_HZ:.0f} Hz)")
 print(f"  Noise    : amplitude={NOISE_AMP} on y4,  mu={MU}")
-print(f"  Features : {len(labels)}-D spectral  (voi=y1, avg across nodes)")
+print(f"  Features : {len(labels)}-D spectral  (voi=y1-y2, avg across nodes)")
 print(f"  N sims   : {N_SIM}  ×  {DURATION} ms")
 print(f"  True θ   : G={G_TRUE},  a_2={A2_TRUE}  (C1={A2_TRUE*135:.0f})")
 print(f"  Post mean: {np.round(samples.mean(0), 4)}")

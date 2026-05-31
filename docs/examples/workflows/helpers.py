@@ -20,7 +20,7 @@ from vbi.feature_extraction import (
 def build_jr_spectral_pipeline(
     fs_hz: float,
     t_cut: float = 500.0,
-    voi: int | None = 1,
+    voi: int | tuple[int, int] | None = (1, 2),
 ) -> FeaturePipeline:
     """
     Spectral feature pipeline for Jansen-Rit inference.
@@ -32,8 +32,8 @@ def build_jr_spectral_pipeline(
     ----------
     fs_hz  : sampling frequency in Hz (= 1000 / tavg_period_ms)
     t_cut  : burn-in to discard in ms
-    voi    : state-variable index to use; 1 = y1 (excitatory dendritic
-             potential, the standard EEG proxy for JR)
+    voi    : state-variable index or difference to use; (1, 2) = y1 - y2,
+             the standard EEG/LFP proxy for JR.
     """
     cfg = get_features_by_domain("spectral")
     cfg = get_features_by_given_names(
