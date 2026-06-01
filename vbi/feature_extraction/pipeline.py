@@ -24,12 +24,14 @@ class FeaturePipeline:
         Burn-in to discard in ms before extracting features.
         When used with NumbaSweeperCPU the time array already starts at
         t_cut, so this has no additional effect (searchsorted returns 0).
-    voi : int | None
+    voi : int | tuple[int, int] | None
         Which VOI (state-variable index) to use from a 3-D monitor output
         ``(n_steps, n_voi, n_nodes)``.
 
         * ``0`` (default) — use only VOI 0 (backward-compatible; correct for
           most brain models where VOI 0 is the primary output variable).
+        * ``(a, b)`` — use the derived channel ``VOI[a] - VOI[b]``. Useful for
+          Jansen-Rit EEG/LFP proxy ``y1 - y2``.
         * ``None`` — use **all** VOIs; the resulting feature matrix has
           ``n_voi × n_nodes`` channels.  Useful for models with multiple
           meaningful state variables, e.g. DampedOscillator (x and y).
@@ -57,7 +59,7 @@ class FeaturePipeline:
         cfg: dict,
         signal: str = "tavg",
         t_cut: float = 500.0,
-        voi: int | None = 0,
+        voi: int | tuple[int, int] | None = 0,
     ):
         self.cfg = cfg
         self.signal = signal
@@ -87,14 +89,22 @@ class FeaturePipeline:
         fs = 1000.0 / dt_ms
 
         # Normalise shape to (n_channels, n_steps) for feature functions.
-        # n_channels = n_nodes         (when voi is an int)
-        # n_channels = n_voi * n_nodes (when voi is None → all VOIs)
+        # n_channels = n_nodes         (when voi is an int or a difference tuple)
+        # n_channels = n_voi * n_nodes (when voi is None -> all VOIs)
         if ts_cut.ndim == 3:
             # (n_steps, n_voi, n_nodes) - tavg / subsample / raw monitors
             if self.voi is None:
-                # flatten all VOIs: (n_steps, n_voi, n_nodes) → (n_voi*n_nodes, n_steps)
+                # flatten all VOIs: (n_steps, n_voi, n_nodes) -> (n_voi*n_nodes, n_steps)
                 n_steps, n_voi, n_nodes = ts_cut.shape
                 ts_2d = ts_cut.reshape(n_steps, n_voi * n_nodes).T
+            elif isinstance(self.voi, tuple):
+                if len(self.voi) != 2:
+                    raise ValueError(
+                        "FeaturePipeline voi tuple must contain exactly two "
+                        "indices: (positive_idx, negative_idx)."
+                    )
+                pos, neg = self.voi
+                ts_2d = (ts_cut[:, pos, :] - ts_cut[:, neg, :]).T
             else:
                 ts_2d = ts_cut[:, self.voi, :].T
         elif ts_cut.ndim == 2:
@@ -175,8 +185,14 @@ class FeaturePipeline:
             flag = _PYTHON_TIER_COMPAT[name]
             setattr(spec, flag, True)
 
-        # voi=None  → use all VOIs (-1 is a sentinel; sweeper resolves to n_sv)
-        # voi=0     → VOI 0 only (default, backward-compatible)
-        spec.n_voi_feat = -1 if self.voi is None else 1
+        if isinstance(self.voi, tuple):
+            pos, neg = self.voi
+            spec.n_voi_feat   = 1
+            spec.voi_diff_pos = int(pos)
+            spec.voi_diff_neg = int(neg)
+        else:
+            # voi=None  -> use all VOIs (-1 is a sentinel; sweeper resolves to n_sv)
+            # voi=0     -> VOI 0 only (default, backward-compatible)
+            spec.n_voi_feat = -1 if self.voi is None else 1
 
         return spec

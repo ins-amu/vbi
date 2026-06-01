@@ -272,6 +272,7 @@ class NumbaSweeperCPU:
                 nb_spec.do_fc, nb_spec.do_fcd,
                 np.int64(nb_spec.fcd_window), np.int64(n_feat),
                 np.int64(n_voi_feat),
+                np.int64(nb_spec.voi_diff_pos), np.int64(nb_spec.voi_diff_neg),
                 self._dfun,
             )
 
@@ -296,6 +297,7 @@ class NumbaSweeperCPU:
                     nb_spec.do_fc, nb_spec.do_fcd,
                     np.int64(nb_spec.fcd_window), np.int64(n_feat),
                     np.int64(n_voi_feat),
+                    np.int64(nb_spec.voi_diff_pos), np.int64(nb_spec.voi_diff_neg),
                     self._dfun, self._use_kuramoto, self._use_jr_sigmoidal,
                     self._nu_max_jr, self._r_jr, self._v0_jr, self._alpha,
                     stim_data, has_stimulus,

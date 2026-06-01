@@ -81,6 +81,28 @@ class TestPipelineSingleRun:
         labels, values = pipeline.extract(result)
         assert len(values) > 0
 
+    def test_voi_tuple_extracts_difference_channel(self):
+        """A two-index VOI tuple must expose VOI[a] - VOI[b] per node."""
+        cfg = get_features_by_domain(domain="statistical")
+        cfg = get_features_by_given_names(cfg, names=["calc_mean"])
+        pipeline = FeaturePipeline(cfg, signal="tavg", t_cut=0.0, voi=(1, 2))
+
+        t = np.array([0.0, 1.0, 2.0])
+        ts = np.array([
+            [[0.0, 0.0], [3.0, 5.0], [1.0, 2.0]],
+            [[0.0, 0.0], [4.0, 7.0], [1.5, 2.5]],
+            [[0.0, 0.0], [5.0, 9.0], [2.0, 3.0]],
+        ])
+
+        ts_2d, fs = pipeline._prepare(t, ts)
+
+        expected = np.array([
+            [2.0, 2.5, 3.0],
+            [3.0, 4.5, 6.0],
+        ])
+        np.testing.assert_allclose(ts_2d, expected)
+        assert fs == 1000.0
+
 
 # ---------------------------------------------------------------------------
 # NumPy sweeper with FeaturePipeline

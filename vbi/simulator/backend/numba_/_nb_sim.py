@@ -545,6 +545,7 @@ def nb_sweep_det_feat(
     record_period, t_cut_step, n_voi, voi_indices,
     use_heun, sweep_param_indices,
     do_mean, do_std, do_fc, do_fcd, fcd_window, n_features, n_voi_feat,
+    voi_diff_pos, voi_diff_neg,
     dfun_fn, use_kuramoto, use_jr_sigmoidal, nu_max_jr, r_jr, v0_jr, alpha,
     stim_data, has_stimulus,
 ):
@@ -591,11 +592,14 @@ def nb_sweep_det_feat(
             stim_data, has_stimulus,
         )
 
-        # Flatten n_voi_feat VOIs into channels: (n_record, n_channels)
         ts_2d = np.empty((n_record, n_channels))
-        for v in range(n_voi_feat):
+        if voi_diff_pos >= 0:
             for nd in range(n_nodes):
-                ts_2d[:, v * n_nodes + nd] = ts_i[:, v, nd]
+                ts_2d[:, nd] = ts_i[:, voi_diff_pos, nd] - ts_i[:, voi_diff_neg, nd]
+        else:
+            for v in range(n_voi_feat):
+                for nd in range(n_nodes):
+                    ts_2d[:, v * n_nodes + nd] = ts_i[:, v, nd]
 
         feat_buf = np.empty(n_features)
         nb_extract(ts_2d, do_mean, do_std, do_fc, do_fcd, fcd_window, feat_buf)
@@ -618,6 +622,7 @@ def nb_sweep_stoch_feat(
     record_period, t_cut_step, n_voi, voi_indices,
     use_heun, sweep_param_indices, seeds,
     do_mean, do_std, do_fc, do_fcd, fcd_window, n_features, n_voi_feat,
+    voi_diff_pos, voi_diff_neg,
     dfun_fn, use_kuramoto, use_jr_sigmoidal, nu_max_jr, r_jr, v0_jr, alpha,
     stim_data, has_stimulus,
 ):
@@ -656,9 +661,13 @@ def nb_sweep_stoch_feat(
         )
 
         ts_2d = np.empty((n_record, n_channels))
-        for v in range(n_voi_feat):
+        if voi_diff_pos >= 0:
             for nd in range(n_nodes):
-                ts_2d[:, v * n_nodes + nd] = ts_i[:, v, nd]
+                ts_2d[:, nd] = ts_i[:, voi_diff_pos, nd] - ts_i[:, voi_diff_neg, nd]
+        else:
+            for v in range(n_voi_feat):
+                for nd in range(n_nodes):
+                    ts_2d[:, v * n_nodes + nd] = ts_i[:, v, nd]
 
         feat_buf = np.empty(n_features)
         nb_extract(ts_2d, do_mean, do_std, do_fc, do_fcd, fcd_window, feat_buf)

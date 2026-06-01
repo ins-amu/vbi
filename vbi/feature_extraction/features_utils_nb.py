@@ -228,12 +228,14 @@ class NbExtractorSpec:
      -1             — all VOIs; the sweeper resolves this to model.n_sv at
                       run time and flattens (n_voi, n_nodes) into n_channels.
     """
-    do_mean:    bool = False
-    do_std:     bool = False
-    do_fc:      bool = False
-    do_fcd:     bool = False
-    fcd_window: int  = 30
-    n_voi_feat: int  = 1   # 1 = VOI 0 only; -1 = all VOIs (resolved by sweeper)
+    do_mean:      bool = False
+    do_std:       bool = False
+    do_fc:        bool = False
+    do_fcd:       bool = False
+    fcd_window:   int  = 30
+    n_voi_feat:   int  = 1   # 1 = VOI 0 only; -1 = all VOIs (resolved by sweeper)
+    voi_diff_pos: int  = -1  # >=0: compute VOI[pos]-VOI[neg] as single channel; -1 = disabled
+    voi_diff_neg: int  = -1
 
     def n_features(self, n_channels: int) -> int:
         """n_channels = n_voi_feat * n_nodes (after VOI flattening)."""

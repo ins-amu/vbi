@@ -108,6 +108,54 @@ def _sweep_numpy_with_progress(
     return all_labels, values
 
 
+def _sweep_numba_with_progress(
+    sim_spec, theta, duration, num_simulations, param_names, pipeline,
+    same_noise: bool = False, n_chunks: int = 10,
+):
+    """
+    Run a numba sweep in chunks so tqdm shows real intermediate progress.
+
+    The numba prange kernel is a single blocking call, so the only way to
+    get intermediate updates is to split theta into batches and run each
+    batch separately.  JIT compilation is cached, so only the first chunk
+    pays the compile cost (via _jit_warmup called before this).
+    """
+    from vbi.simulator.api import Sweeper
+    from vbi.simulator.spec.sweep import SweepSpec
+    try:
+        from tqdm.auto import tqdm as _tqdm
+    except ImportError:
+        _tqdm = None
+
+    chunk_size = max(1, (num_simulations + n_chunks - 1) // n_chunks)
+    all_labels = None
+    all_rows = []
+
+    desc = f"Simulating {num_simulations}×{duration:.0f}ms [numba]"
+    pbar = _tqdm(total=num_simulations, desc=desc, unit="sim") if _tqdm else None
+
+    for start in range(0, num_simulations, chunk_size):
+        end = min(start + chunk_size, num_simulations)
+        chunk_spec = SweepSpec(
+            params      = theta[start:end],
+            param_names = tuple(param_names),
+            pipeline    = pipeline,
+            same_noise  = same_noise,
+        )
+        sweeper = Sweeper(sim_spec, chunk_spec, backend="numba")
+        labels, values = sweeper.run(duration)
+        if all_labels is None:
+            all_labels = labels
+        all_rows.append(values)
+        if pbar is not None:
+            pbar.update(end - start)
+
+    if pbar is not None:
+        pbar.close()
+
+    return all_labels, np.concatenate(all_rows, axis=0)
+
+
 def simulate_for_vbi_sweep(
     sim_spec,
     prior,
@@ -188,19 +236,14 @@ def simulate_for_vbi_sweep(
         if sim_backend == "numba":
             _jit_warmup(sim_spec, sweep_spec, duration, show_progress_bars)
 
-        sweeper = Sweeper(sim_spec, sweep_spec, backend=sim_backend)
-        if show_progress_bars:
-            try:
-                from tqdm.auto import tqdm as _tqdm
-                desc = (
-                    f"Simulating {num_simulations}×{duration:.0f}ms [{sim_backend}]"
-                )
-                with _tqdm(total=num_simulations, desc=desc, unit="sim") as pbar:
-                    labels, values = sweeper.run(duration)
-                    pbar.update(num_simulations)
-            except ImportError:
-                labels, values = sweeper.run(duration)
+        if show_progress_bars and sim_backend == "numba":
+            labels, values = _sweep_numba_with_progress(
+                sim_spec, theta, duration, num_simulations,
+                param_names, pipeline,
+                same_noise=sweep_spec.same_noise,
+            )
         else:
+            sweeper = Sweeper(sim_spec, sweep_spec, backend=sim_backend)
             labels, values = sweeper.run(duration)
 
     feature_labels = list(labels[n_params:])
