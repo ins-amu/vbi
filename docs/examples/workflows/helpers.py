@@ -11,6 +11,7 @@ from scipy import signal as sp_signal
 
 from vbi.feature_extraction import (
     FeaturePipeline,
+    FeaturePruner,
     get_features_by_domain,
     get_features_by_given_names,
     update_cfg,
@@ -22,6 +23,7 @@ def build_jr_spectral_pipeline(
     t_cut: float = 500.0,
     voi: int | tuple[int, int] | None = (1, 2),
     signal: str = "tavg",
+    pruner=FeaturePruner(min_std=1e-4, max_corr=0.98),
 ) -> FeaturePipeline:
     """
     Spectral feature pipeline for Jansen-Rit inference.
@@ -36,6 +38,10 @@ def build_jr_spectral_pipeline(
     voi    : state-variable index or difference to use; (1, 2) = y1 - y2,
              the standard EEG/LFP proxy for JR.
     signal : monitor output key to extract features from.
+    pruner : FeaturePruner | None
+        Optional pruner to attach to the pipeline.  Not applied automatically;
+        call ``pipeline.pruner.fit_transform(x, labels)`` after the sweep.
+        Example: ``pruner=FeaturePruner(min_std=1e-4, max_corr=0.98)``.
     """
     cfg = get_features_by_domain("spectral")
     cfg = get_features_by_given_names(
@@ -44,7 +50,7 @@ def build_jr_spectral_pipeline(
     for key in ("spectrum_stats", "spectrum_auc", "spectrum_moments"):
         update_cfg(cfg, key, {"fs": fs_hz, "method": "welch", "average": True})
 
-    return FeaturePipeline(cfg, signal=signal, t_cut=t_cut, voi=voi)
+    return FeaturePipeline(cfg, signal=signal, t_cut=t_cut, voi=voi, pruner=pruner)
 
 
 def plot_jr_timeseries_psd(

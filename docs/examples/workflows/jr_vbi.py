@@ -204,6 +204,12 @@ print(f"\n  Simulating {N_SIM} × {DURATION} ms …", flush=True)
 theta, x = inf.simulate(N_SIM, DURATION, seed=0)
 print(f"  theta {theta.shape}   x {x.shape}")
 
+# Prune x_obs with the same mask fitted on the sweep (x already pruned inside simulate())
+if pipeline.pruner is not None:
+    x_obs = pipeline.pruner.transform(x_obs)
+    print(f"\n{pipeline.pruner.summary()}")
+    print(f"  x_obs (pruned) : {np.round(x_obs, 4)}")
+
 print("  Training MAF …", flush=True)
 estimator = inf.train(
     training_batch_size = 256,
@@ -250,7 +256,8 @@ print(f"  Model    : JansenRit  ({N_NODES} nodes, stochastic)")
 print(f"  Backend  : {SIM_BACKEND} (sim) + auto (inference)")
 print(f"  Monitor  : raw  dt={DT} ms  (fs={FS_HZ:.0f} Hz)")
 print(f"  Noise    : amplitude={NOISE_AMP} on y4,  mu={MU}")
-print(f"  Features : {len(labels)}-D spectral  (voi=y1-y2, avg across nodes)")
+n_feat_final = x_obs.shape[0]
+print(f"  Features : {n_feat_final}-D spectral  (voi=y1-y2, avg across nodes)")
 print(f"  N sims   : {N_SIM}  ×  {DURATION} ms")
 print(f"  True θ   : G={G_TRUE},  a_2={A2_TRUE}  (C1={A2_TRUE*135:.0f})")
 print(f"  Post mean: {np.round(samples.mean(0), 4)}")

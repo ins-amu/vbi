@@ -543,6 +543,17 @@ class VBIInference:
                 **common, cache_dir=cache_dir, chunk_size=chunk_size
             )
 
+        # Apply feature pruning if the pipeline carries a FeaturePruner.
+        # Round 1: fit the mask on this sweep's x, then transform.
+        # Round 2+: reuse the already-fitted mask (same feature selection).
+        pruner = getattr(self._pipeline, "pruner", None)
+        if pruner is not None:
+            if pruner.kept_mask_ is None:
+                x, feat_labels = pruner.fit_transform(x, list(feat_labels))
+            else:
+                x = pruner.transform(x)
+                feat_labels = list(pruner.kept_labels_)
+
         if self._param_names is None:
             self._param_names = param_names
         if self._feature_labels is None:
