@@ -21,6 +21,7 @@ def build_jr_spectral_pipeline(
     fs_hz: float,
     t_cut: float = 500.0,
     voi: int | tuple[int, int] | None = (1, 2),
+    signal: str = "tavg",
 ) -> FeaturePipeline:
     """
     Spectral feature pipeline for Jansen-Rit inference.
@@ -30,10 +31,11 @@ def build_jr_spectral_pipeline(
 
     Parameters
     ----------
-    fs_hz  : sampling frequency in Hz (= 1000 / tavg_period_ms)
+    fs_hz  : sampling frequency in Hz
     t_cut  : burn-in to discard in ms
     voi    : state-variable index or difference to use; (1, 2) = y1 - y2,
              the standard EEG/LFP proxy for JR.
+    signal : monitor output key to extract features from.
     """
     cfg = get_features_by_domain("spectral")
     cfg = get_features_by_given_names(
@@ -42,7 +44,7 @@ def build_jr_spectral_pipeline(
     for key in ("spectrum_stats", "spectrum_auc", "spectrum_moments"):
         update_cfg(cfg, key, {"fs": fs_hz, "method": "welch", "average": True})
 
-    return FeaturePipeline(cfg, signal="tavg", t_cut=t_cut, voi=voi)
+    return FeaturePipeline(cfg, signal=signal, t_cut=t_cut, voi=voi)
 
 
 def plot_jr_timeseries_psd(
@@ -87,9 +89,9 @@ def plot_jr_timeseries_psd(
 
     # Right: mean PSD across all nodes of y1 - y2
     freqs, psd = sp_signal.welch(
-        y_eeg.T, fs=fs_hz, nperseg=min(512, ts.shape[0] // 4)
+        y_eeg.T, fs=fs_hz, nperseg=max(512, ts.shape[0] // 1)
     )
-    axes[1].semilogy(freqs, psd.mean(axis=0), lw=1.2, color="steelblue")
+    axes[1].plot(freqs, psd.mean(axis=0), lw=1.2, color="steelblue")
     axes[1].set_xlim(0, 80)
     axes[1].set_xlabel("Frequency (Hz)")
     axes[1].set_ylabel("PSD")
