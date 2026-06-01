@@ -24,7 +24,7 @@ Parameters to infer
 Observable
 ----------
 ``y1 - y2`` (excitatory minus inhibitory dendritic potential, VOI indices
-1 and 2) via temporal-average monitor at 1 ms resolution (1 kHz).  Spectral
+1 and 2) via raw monitor at integration-step resolution.  Spectral
 features are averaged across all 84 cortical nodes, matching the notebook's
 ``average=True``.
 
@@ -96,11 +96,10 @@ print(f"\n  Connectivity : {N_NODES} nodes   "
 
 # ── 2 - Simulation settings (match jansen_rit_sde_numba_cde.ipynb) ─────────────
 
-DT          = 0.1     # ms
-PERIOD      = 1.0      # ms  (tavg → fs = 1000 Hz)
-FS_HZ       = 1000.0 / PERIOD
+DT          = 0.1      # ms
+FS_HZ       = 1000.0 / DT
 DURATION    = 2500.0   # ms
-T_CUT       = 0.0    # ms
+T_CUT       = 500.0    # ms
 SIM_BACKEND = "numba"
 
 # True parameters: G=1.5, C1=135 (= J * a_2 = 135 * 1.0)
@@ -128,7 +127,7 @@ sim_spec = SimulationSpec(
     model         = jansen_rit,
     integrator    = integrator,
     coupling      = CouplingSpec("jr_sigmoidal"),
-    monitors      = (MonitorSpec("tavg", period=PERIOD),),
+    monitors      = (MonitorSpec("raw"),),
     weights       = W,
     tract_lengths = D,
     speed         = 4.0,
@@ -141,7 +140,7 @@ sim_spec_true = SimulationSpec(
     model         = jansen_rit,
     integrator    = integrator,
     coupling      = CouplingSpec("jr_sigmoidal"),
-    monitors      = (MonitorSpec("tavg", period=PERIOD),),
+    monitors      = (MonitorSpec("raw"),),
     weights       = W,
     tract_lengths = D,
     speed         = 4.0,
@@ -155,7 +154,7 @@ sim_spec_true = SimulationSpec(
 print(f"\n  Reference simulation  G={G_TRUE}, a_2={A2_TRUE} "
       f"(C1={A2_TRUE * 135:.0f})…", flush=True)
 result_true = Simulator(sim_spec_true, backend=SIM_BACKEND).run(DURATION)
-t_obs, ts_obs = result_true["tavg"]   # (T, n_sv, N)
+t_obs, ts_obs = result_true["raw"]   # (T, n_sv, N)
 
 plot_jr_timeseries_psd(
     t_obs, ts_obs, FS_HZ,
@@ -164,9 +163,10 @@ plot_jr_timeseries_psd(
     t_window_ms = (1500, 2501),
 )
 print(f"  Time-series → {OUT_DIR/'jr_vbi_timeseries.png'}")
+exit(0)
 # ── 5 - Feature pipeline ───────────────────────────────────────────────────────
 
-pipeline = build_jr_spectral_pipeline(FS_HZ, t_cut=T_CUT, voi=(1, 2))
+pipeline = build_jr_spectral_pipeline(FS_HZ, t_cut=T_CUT, voi=(1, 2), signal="raw")
 
 labels, values = pipeline.extract(result_true)
 print(f"\n  Feature dim    : {len(labels)}")
@@ -198,7 +198,7 @@ print(f"\n  {inf}")
 
 # ── 8 - Simulate + train + posterior ───────────────────────────────────────────
 
-N_SIM = 1000
+N_SIM = 500
 
 print(f"\n  Simulating {N_SIM} × {DURATION} ms …", flush=True)
 theta, x = inf.simulate(N_SIM, DURATION, seed=0)
@@ -248,7 +248,7 @@ print("Summary")
 print("=" * 62)
 print(f"  Model    : JansenRit  ({N_NODES} nodes, stochastic)")
 print(f"  Backend  : {SIM_BACKEND} (sim) + auto (inference)")
-print(f"  Monitor  : tavg  period={PERIOD} ms  (fs={FS_HZ:.0f} Hz)")
+print(f"  Monitor  : raw  dt={DT} ms  (fs={FS_HZ:.0f} Hz)")
 print(f"  Noise    : amplitude={NOISE_AMP} on y4,  mu={MU}")
 print(f"  Features : {len(labels)}-D spectral  (voi=y1-y2, avg across nodes)")
 print(f"  N sims   : {N_SIM}  ×  {DURATION} ms")

@@ -35,6 +35,23 @@ class FeaturePipeline:
         * ``None`` — use **all** VOIs; the resulting feature matrix has
           ``n_voi × n_nodes`` channels.  Useful for models with multiple
           meaningful state variables, e.g. DampedOscillator (x and y).
+    pruner : FeaturePruner | None
+        Optional :class:`~vbi.feature_extraction.pruner.FeaturePruner` to
+        associate with this pipeline.  It is **not** applied automatically
+        inside :meth:`extract` (pruning requires many simulation rows);
+        attach it here so that downstream code (inference scripts, notebooks)
+        can access it via ``pipeline.pruner`` without carrying a separate
+        variable.
+
+        Typical workflow::
+
+            pruner = FeaturePruner(min_std=1e-4, max_corr=0.98)
+            pipeline = FeaturePipeline(cfg, signal="raw", t_cut=500.0,
+                                       voi=(1, 2), pruner=pruner)
+
+            theta, x = inf.simulate(N_SIM, DURATION)
+            x, labels = pipeline.pruner.fit_transform(x, feature_labels)
+            x_obs_pruned = pipeline.pruner.transform(x_obs[None])[0]
 
     Examples
     --------
@@ -60,11 +77,13 @@ class FeaturePipeline:
         signal: str = "tavg",
         t_cut: float = 500.0,
         voi: int | tuple[int, int] | None = 0,
+        pruner=None,
     ):
         self.cfg = cfg
         self.signal = signal
         self.t_cut = t_cut
         self.voi = voi
+        self.pruner = pruner
 
     # ------------------------------------------------------------------
     # Internal helpers
