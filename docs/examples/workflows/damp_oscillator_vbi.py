@@ -24,7 +24,7 @@ Use ``MonitorSpec('raw')`` for the full dt-resolution signal (larger memory).
 
 Features
 --------
-Pipeline uses ``voi=None`` to expose **both** state variables (x and y) as
+Pipeline uses ``voi="all"`` to expose **both** state variables (x and y) as
 separate channels.  Select whichever statistical / spectral features suit
 the problem — the user should customise the feature list in section 3.
 
@@ -42,20 +42,28 @@ Expected runtime: ~2–4 min  (numba backend, 2000 simulations × 250 ms).
 from pathlib import Path
 import numpy as np
 import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 from vbi.simulator.models.damped_oscillator import damped_oscillator
 from vbi.simulator.spec import (
-    SimulationSpec, IntegratorSpec, CouplingSpec, MonitorSpec,
+    SimulationSpec,
+    IntegratorSpec,
+    CouplingSpec,
+    MonitorSpec,
 )
 from vbi.simulator import Simulator
 from vbi.feature_extraction import (
-    FeaturePipeline, get_features_by_domain, get_features_by_given_names,
+    FeaturePipeline,
+    get_features_by_domain,
+    get_features_by_given_names,
 )
 from vbi.inference import (
-    VBIInference, BoxUniform,
-    pairplot, plot_loss,
+    VBIInference,
+    BoxUniform,
+    pairplot,
+    plot_loss,
 )
 
 OUT = Path(__file__).parent / "outputs"
@@ -73,41 +81,40 @@ D = np.zeros((N, N))
 
 dt = 0.1
 monitor = MonitorSpec("raw")
-coupling = CouplingSpec("linear", a=0.0)   # no coupling (a=0.0)
+coupling = CouplingSpec("linear", a=0.0)  # no coupling (a=0.0)
 sim_backend = "numba"
 
 sim_spec = SimulationSpec(
-    model         = damped_oscillator,
-    integrator    = IntegratorSpec(method="heun", dt=dt),
-    coupling      = coupling,
-    monitors      = (monitor,),
-    weights       = W,
-    tract_lengths = D,
-    speed         = 4.0,
+    model=damped_oscillator,
+    integrator=IntegratorSpec(method="heun", dt=dt),
+    coupling=coupling,
+    monitors=(monitor,),
+    weights=W,
+    tract_lengths=D,
+    speed=4.0,
 )
 
 # ── 2 - True parameters and observed data ────────────────────────────────────
 
-THETA_TRUE = np.array([0.1, 0.05])   # a=0.1, b=0.05
-PRIOR_LOW  = np.array([0.0, 0.0])
+THETA_TRUE = np.array([0.1, 0.05])  # a=0.1, b=0.05
+PRIOR_LOW = np.array([0.0, 0.0])
 PRIOR_HIGH = np.array([1.0, 1.0])
-DURATION   = 250.0   # ms  (system reaches steady state by ~100 ms)
-T_CUT      = 20.0    # ms  (discard initial transient)
+DURATION = 250.0  # ms  (system reaches steady state by ~100 ms)
+T_CUT = 20.0  # ms  (discard initial transient)
 
 # Run a single simulation at the true parameters for visual check
 sim_spec_true = SimulationSpec(
-    model         = damped_oscillator,
-    integrator    = IntegratorSpec(method="heun", dt=dt),
-    coupling      = coupling,
-    monitors      = (monitor,),
-    weights       = W,
-    tract_lengths = D,
-    speed         = 4.0,
-    node_params   = {"a": np.array([THETA_TRUE[0]]),
-                     "b": np.array([THETA_TRUE[1]])},
+    model=damped_oscillator,
+    integrator=IntegratorSpec(method="heun", dt=dt),
+    coupling=coupling,
+    monitors=(monitor,),
+    weights=W,
+    tract_lengths=D,
+    speed=4.0,
+    node_params={"a": np.array([THETA_TRUE[0]]), "b": np.array([THETA_TRUE[1]])},
 )
 result_true = Simulator(sim_spec_true, backend=sim_backend).run(DURATION)
-t_obs, ts_obs = result_true["raw"]       # ts: (T, 2, 1)
+t_obs, ts_obs = result_true["raw"]  # ts: (T, 2, 1)
 
 fig, axes = plt.subplots(2, 1, figsize=(6, 4), sharex=True)
 for i, (sv, color) in enumerate([("x", "steelblue"), ("y", "tomato")]):
@@ -116,9 +123,7 @@ for i, (sv, color) in enumerate([("x", "steelblue"), ("y", "tomato")]):
     axes[i].spines["right"].set_visible(False)
     axes[i].spines["top"].set_visible(False)
 axes[-1].set_xlabel("t (ms)")
-axes[0].set_title(
-    f"True dynamics  a={THETA_TRUE[0]}, b={THETA_TRUE[1]}", fontsize=10
-)
+axes[0].set_title(f"True dynamics  a={THETA_TRUE[0]}, b={THETA_TRUE[1]}", fontsize=10)
 fig.tight_layout()
 fig.savefig(OUT / "do_vbi_timeseries.png", dpi=120)
 plt.close(fig)
@@ -127,7 +132,7 @@ print(f"  Time-series → {OUT/'do_vbi_timeseries.png'}")
 
 # ── 3 - Feature pipeline ──────────────────────────────────────────────────────
 #
-# voi=None exposes BOTH state variables (x = channel 0, y = channel 1).
+# voi="all" exposes BOTH state variables (x = channel 0, y = channel 1).
 # Select the features you want by editing get_features_by_given_names below.
 # Available statistical features include: calc_mean, calc_std, calc_skewness,
 #   calc_kurtosis, calc_energy, calc_rms, calc_max, calc_min, ...
@@ -139,9 +144,9 @@ cfg = get_features_by_given_names(cfg, ["calc_mean", "calc_std"])
 
 pipeline = FeaturePipeline(
     cfg,
-    signal = "raw",
-    t_cut  = T_CUT,
-    voi    = None,      # use ALL state variables (x and y)
+    signal="raw",
+    t_cut=T_CUT,
+    voi="all",  # use ALL state variables (x and y)
 )
 
 # Confirm feature labels on the true-parameter run
@@ -153,21 +158,21 @@ print(f"  (4 features: std_x, std_y, mean_x, mean_y)")
 # ── 4 - Prior ─────────────────────────────────────────────────────────────────
 
 prior = BoxUniform(
-    low         = PRIOR_LOW,
-    high        = PRIOR_HIGH,
-    param_names = ["a", "b"],
+    low=PRIOR_LOW,
+    high=PRIOR_HIGH,
+    param_names=["a", "b"],
 )
 
 # ── 5 - Build VBIInference ────────────────────────────────────────────────────
 
 inf = VBIInference(
-    sim_spec          = sim_spec,
-    prior             = prior,
-    pipeline          = pipeline,
-    density_estimator = "maf",
-    sim_backend       = sim_backend,
-    backend           = "auto",
-    show_progress_bars = True,
+    sim_spec=sim_spec,
+    prior=prior,
+    pipeline=pipeline,
+    density_estimator="maf",
+    sim_backend=sim_backend,
+    backend="auto",
+    show_progress_bars=True,
 )
 print(f"\n  {inf}")
 
@@ -181,12 +186,14 @@ print(f"  theta {theta.shape}   x {x.shape}")
 
 print("  Training MAF …", flush=True)
 estimator = inf.train(
-    training_batch_size = 256,
-    learning_rate       = 5e-4,
-    stop_after_epochs   = 20,
-    max_num_epochs      = 500,
+    training_batch_size=256,
+    learning_rate=5e-4,
+    stop_after_epochs=20,
+    max_num_epochs=500,
 )
-print(f"  Best val loss : {estimator.best_val_loss:.4f}  (epoch {estimator.best_epoch})")
+print(
+    f"  Best val loss : {estimator.best_val_loss:.4f}  (epoch {estimator.best_epoch})"
+)
 
 fig_loss = inf.plot_loss()
 fig_loss.savefig(OUT / "do_vbi_loss.png", dpi=120)
@@ -194,7 +201,7 @@ plt.close(fig_loss)
 print(f"  Loss curve    → {OUT/'do_vbi_loss.png'}")
 
 posterior = inf.build_posterior(estimator)
-x_obs     = values   # feature vector at THETA_TRUE
+x_obs = values  # feature vector at THETA_TRUE
 
 samples = posterior.sample((5000,), x=x_obs[None], seed=0)
 print(f"\n  Posterior samples : {samples.shape}")
@@ -215,7 +222,7 @@ print("=" * 62)
 print(f"  Model    : DampedOscillator  (N=1, no coupling)")
 print(f"  Backend  : {sim_backend} (sim) + auto (inference)")
 print(f"  Monitor  : raw")
-print(f"  Features : {labels}  (voi=None → both SVs)")
+print(f"  Features : {labels}  (voi="all" → both SVs)")
 print(f"  N sims   : {N_SIM}  ×  {DURATION} ms")
 print(f"  True θ   : a={THETA_TRUE[0]}, b={THETA_TRUE[1]}")
 print(f"  Post mean: {np.round(samples.mean(0), 4)}")
