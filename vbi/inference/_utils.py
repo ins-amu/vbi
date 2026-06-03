@@ -110,7 +110,7 @@ def _sweep_numpy_with_progress(
 
 def _sweep_numba_with_progress(
     sim_spec, theta, duration, num_simulations, param_names, pipeline,
-    same_noise: bool = False, n_chunks: int = 10,
+    same_noise: bool = False, n_workers: int | None = None,
 ):
     """
     Run a numba sweep in chunks so tqdm shows real intermediate progress.
@@ -119,7 +119,11 @@ def _sweep_numba_with_progress(
     get intermediate updates is to split theta into batches and run each
     batch separately.  JIT compilation is cached, so only the first chunk
     pays the compile cost (via _jit_warmup called before this).
+
+    n_workers controls both the numba thread count and the number of chunks
+    (one chunk per worker).  If None, all available threads are used.
     """
+    import numba
     from vbi.simulator.api import Sweeper
     from vbi.simulator.spec.sweep import SweepSpec
     try:
@@ -127,6 +131,12 @@ def _sweep_numba_with_progress(
     except ImportError:
         _tqdm = None
 
+    if n_workers is None:
+        n_workers = numba.get_num_threads()
+    else:
+        numba.set_num_threads(n_workers)
+
+    n_chunks = max(1, n_workers)
     chunk_size = max(1, (num_simulations + n_chunks - 1) // n_chunks)
     all_labels = None
     all_rows = []
@@ -167,6 +177,7 @@ def simulate_for_vbi_sweep(
     proposal=None,
     x_obs=None,
     show_progress_bars: bool = True,
+    n_workers: int | None = None,
 ) -> tuple[np.ndarray, np.ndarray, list[str], list[str]]:
     """
     Sample parameters, run a VBI sweep, extract features.
@@ -184,6 +195,9 @@ def simulate_for_vbi_sweep(
         When set, sample theta from posterior instead of prior.
         Requires x_obs to be supplied.
     x_obs           : ndarray | None  required when proposal is not None
+    n_workers       : int | None
+        Number of threads for the numba backend.  None = use all available.
+        Also controls the number of progress-bar chunks (one chunk per worker).
 
     Returns
     -------
@@ -241,6 +255,7 @@ def simulate_for_vbi_sweep(
                 sim_spec, theta, duration, num_simulations,
                 param_names, pipeline,
                 same_noise=sweep_spec.same_noise,
+                n_workers=n_workers,
             )
         else:
             sweeper = Sweeper(sim_spec, sweep_spec, backend=sim_backend)

@@ -76,7 +76,7 @@ class FeaturePipeline:
         cfg: dict,
         signal: str = "tavg",
         t_cut: float = 500.0,
-        voi: int | tuple[int, int] | None = 0,
+        voi: int | tuple[int, int] | str | None = 0,
         pruner=None,
     ):
         self.cfg = cfg
@@ -109,10 +109,10 @@ class FeaturePipeline:
 
         # Normalise shape to (n_channels, n_steps) for feature functions.
         # n_channels = n_nodes         (when voi is an int or a difference tuple)
-        # n_channels = n_voi * n_nodes (when voi is None -> all VOIs)
+        # n_channels = n_voi * n_nodes (when voi is "all" -> all VOIs)
         if ts_cut.ndim == 3:
             # (n_steps, n_voi, n_nodes) - tavg / subsample / raw monitors
-            if self.voi is None:
+            if self.voi in ("all", None):
                 # flatten all VOIs: (n_steps, n_voi, n_nodes) -> (n_voi*n_nodes, n_steps)
                 n_steps, n_voi, n_nodes = ts_cut.shape
                 ts_2d = ts_cut.reshape(n_steps, n_voi * n_nodes).T
@@ -210,8 +210,8 @@ class FeaturePipeline:
             spec.voi_diff_pos = int(pos)
             spec.voi_diff_neg = int(neg)
         else:
-            # voi=None  -> use all VOIs (-1 is a sentinel; sweeper resolves to n_sv)
+            # voi="all" -> use all VOIs (-1 is a sentinel; sweeper resolves to n_sv)
             # voi=0     -> VOI 0 only (default, backward-compatible)
-            spec.n_voi_feat = -1 if self.voi is None else 1
+            spec.n_voi_feat = -1 if self.voi in ("all", None) else 1
 
         return spec

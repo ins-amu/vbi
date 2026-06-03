@@ -494,6 +494,7 @@ class VBIInference:
         x_obs=None,
         cache_dir=None,
         chunk_size: int = 500,
+        n_workers: int | None = None,
     ) -> tuple[np.ndarray, np.ndarray]:
         """
         Sample parameters and run the sweep simulator.
@@ -517,6 +518,10 @@ class VBIInference:
         chunk_size : int
             Simulations per chunk (only used when cache_dir is set).
             Tune to stay within GPU/RAM budget.
+        n_workers : int | None
+            Number of threads for the numba backend.  None = use all available
+            (``numba.get_num_threads()``).  Also sets the number of progress-bar
+            chunks when ``show_progress_bars=True``.
 
         Returns
         -------
@@ -534,6 +539,7 @@ class VBIInference:
             proposal            = proposal,
             x_obs               = x_obs,
             show_progress_bars  = self._show_progress_bars,
+            n_workers           = n_workers,
         )
 
         if cache_dir is None:
