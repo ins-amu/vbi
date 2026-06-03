@@ -1038,3 +1038,159 @@ def coverage_plot(
     ax.spines["top"].set_visible(False)
     fig.tight_layout()
     return fig
+
+
+# ---------------------------------------------------------------------------
+# plot_feature_scatter
+# ---------------------------------------------------------------------------
+
+def plot_feature_scatter(
+    theta,
+    x,
+    x_obs,
+    feature_labels=None,
+    true_params=None,
+    param_labels=None,
+    param_idx=None,
+    max_samples: int = 2000,
+    out_path=None,
+    n_cols: int = 4,
+    dpi: int = 140,
+):
+    """
+    Scatter plot of each feature vs each selected parameter, with observed
+    feature point overlaid.  One figure is produced per selected parameter.
+
+    Parameters
+    ----------
+    theta         : (n_sim, n_params) array of sampled parameters
+    x             : (n_sim, n_feat) array of simulation features
+    x_obs         : (n_feat,) observed features
+    feature_labels: list of feature names, length n_feat
+    true_params   : scalar or array of true parameter values, one per entry
+                    in param_idx (or per column of theta if param_idx is None)
+    param_labels  : x-axis labels for each selected parameter;
+                    defaults to θ_0, θ_1, …
+    param_idx     : list of column indices into theta to plot;
+                    None = all columns
+    max_samples   : randomly subsample training rows to at most this many
+    out_path      : Path or str; if multiple params are selected the stem is
+                    suffixed with _param0, _param1, …  Pass None to skip saving.
+    n_cols        : max feature panels per row
+    dpi           : save resolution
+
+    Returns
+    -------
+    list of matplotlib Figure, one per selected parameter
+    """
+    from pathlib import Path as _Path
+    from matplotlib import pyplot as _plt
+
+    theta = np.asarray(theta)
+    x = np.asarray(x)
+    x_obs = np.asarray(x_obs)
+
+    if theta.ndim != 2 or x.ndim != 2:
+        raise ValueError(
+            f"Expected theta and x to be 2-D, got {theta.shape}, {x.shape}."
+        )
+    if x_obs.shape[0] != x.shape[1]:
+        raise ValueError(
+            f"x_obs has {x_obs.shape[0]} features but training x has {x.shape[1]}."
+        )
+
+    # subsample if too many simulations
+    n_sim = theta.shape[0]
+    if n_sim > max_samples:
+        rng = np.random.default_rng(0)
+        idx = rng.choice(n_sim, size=max_samples, replace=False)
+        theta = theta[idx]
+        x = x[idx]
+
+    # resolve parameter selection
+    n_params_total = theta.shape[1]
+    if param_idx is None:
+        param_idx = list(range(n_params_total))
+    param_idx = list(param_idx)
+
+    # broadcast scalar true_params to one value per selected parameter
+    if true_params is not None:
+        true_params = np.atleast_1d(np.asarray(true_params, dtype=float))
+        if true_params.shape[0] == 1:
+            true_params = np.broadcast_to(true_params, (len(param_idx),))
+        if true_params.shape[0] != len(param_idx):
+            raise ValueError(
+                f"true_params has {true_params.shape[0]} values but "
+                f"{len(param_idx)} parameters are selected."
+            )
+
+    # feature and parameter labels
+    n_feat = x.shape[1]
+    feat_labels = list(feature_labels or [])
+    if len(feat_labels) != n_feat:
+        feat_labels = [f"feature_{i}" for i in range(n_feat)]
+
+    if param_labels is None:
+        param_labels = [f"$\\theta_{{{k}}}$" for k in param_idx]
+    param_labels = list(param_labels)
+    if len(param_labels) != len(param_idx):
+        param_labels = [f"$\\theta_{{{k}}}$" for k in param_idx]
+
+    # one figure per selected parameter
+    n_cols_eff = min(n_cols, n_feat)
+    n_rows = int(np.ceil(n_feat / n_cols_eff))
+    out_path = _Path(out_path) if out_path is not None else None
+    figures = []
+
+    for fig_i, (col, plabel) in enumerate(zip(param_idx, param_labels)):
+        param_vals = theta[:, col]
+        true_val = float(true_params[fig_i]) if true_params is not None else None
+
+        fig, axes = _plt.subplots(
+            n_rows,
+            n_cols_eff,
+            figsize=(3.8 * n_cols_eff, 2.8 * n_rows),
+            squeeze=False,
+        )
+
+        for i, ax in enumerate(axes.flat):
+            if i >= n_feat:
+                ax.axis("off")
+                continue
+            ax.scatter(
+                param_vals, x[:, i], s=18, alpha=0.55,
+                color="steelblue", edgecolor="none",
+            )
+            if true_val is not None:
+                ax.scatter(
+                    [true_val], [x_obs[i]],
+                    s=70, marker="*", color="crimson",
+                    edgecolor="black", linewidth=0.4, zorder=3,
+                    label="x_obs" if i == 0 else None,
+                )
+                ax.axvline(true_val, color="crimson", lw=0.9, alpha=0.55)
+            ax.set_title(feat_labels[i], fontsize=8)
+            ax.set_xlabel(plabel)
+            ax.set_ylabel("feature")
+            ax.spines["right"].set_visible(False)
+            ax.spines["top"].set_visible(False)
+
+        if true_val is not None:
+            axes.flat[0].legend(frameon=False, fontsize=8)
+
+        n_shown = min(n_sim, max_samples)
+        fig.suptitle(
+            f"Training features vs {plabel}  (n={n_shown:,})", fontsize=12
+        )
+        fig.tight_layout(rect=(0, 0, 1, 0.97))
+
+        if out_path is not None:
+            if len(param_idx) == 1:
+                save_path = out_path
+            else:
+                save_path = out_path.with_stem(f"{out_path.stem}_param{fig_i}")
+            fig.savefig(save_path, dpi=dpi, bbox_inches="tight")
+
+        figures.append(fig)
+
+    return figures
