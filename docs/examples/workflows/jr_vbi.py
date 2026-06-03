@@ -131,7 +131,7 @@ FS_HZ = 1000.0 / DT
 DURATION = 2500.0  # ms
 T_CUT = 500.0  # ms
 SIM_BACKEND = "numba"
-INFERENCE_BACKEND = "sbi"
+INFERENCE_BACKEND = "vbi"
 
 # True parameters for the reference run: G=1.5, a_2=1.0 (C1=135)
 G_TRUE = 1.5
@@ -306,10 +306,10 @@ print(f"  Feature scatter → {feature_scatter_path}")
 
 print("  Training MAF …", flush=True)
 estimator = inf.train(
-    # training_batch_size=256,
-    # learning_rate=5e-4,
-    # stop_after_epochs=30,
-    # max_num_epochs=500,
+    training_batch_size=256,
+    learning_rate=2e-4,
+    stop_after_epochs=100,
+    max_num_epochs=1000,
 )
 best_val_loss = getattr(estimator, "best_val_loss", None)
 best_epoch = getattr(estimator, "best_epoch", None)
