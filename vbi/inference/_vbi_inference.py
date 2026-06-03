@@ -714,6 +714,55 @@ class VBIInference:
         x     = np.concatenate([r[1] for r in rounds], axis=0).astype(np.float32)
         return theta, x, []
 
+    def append_simulations(
+        self,
+        theta,
+        x,
+        *,
+        param_names: list[str] | tuple[str, ...] | None = None,
+        feature_labels: list[str] | tuple[str, ...] | None = None,
+        proposal=None,
+    ) -> "VBIInference":
+        """
+        Append precomputed ``(theta, x)`` pairs to the active inference engine.
+
+        This is useful when features are re-extracted from cached raw recordings
+        rather than produced by :meth:`simulate`.
+        """
+        theta = np.asarray(theta, dtype=np.float64)
+        x = np.asarray(x, dtype=np.float64)
+        if theta.ndim != 2 or x.ndim != 2:
+            raise ValueError(f"theta and x must be 2-D, got {theta.shape}, {x.shape}.")
+        if theta.shape[0] != x.shape[0]:
+            raise ValueError(
+                f"theta and x must have the same row count, got "
+                f"{theta.shape[0]} and {x.shape[0]}."
+            )
+
+        if param_names is not None:
+            self._param_names = list(param_names)
+        elif self._param_names is None:
+            self._param_names = list(getattr(self._prior, "_resolved_param_names", []))
+
+        if feature_labels is not None:
+            self._feature_labels = list(feature_labels)
+
+        self._sim_rounds.append((theta.copy(), x.copy()))
+
+        if self._inference_backend == "vbi":
+            self._snpe.append_simulations(theta, x, proposal=proposal)
+        else:
+            import torch
+
+            theta_t = torch.tensor(theta, dtype=torch.float32)
+            x_t = torch.tensor(x, dtype=torch.float32)
+            if proposal is not None:
+                self._sbi_engine.append_simulations(theta_t, x_t, proposal=proposal)
+            else:
+                self._sbi_engine.append_simulations(theta_t, x_t)
+
+        return self
+
     # ------------------------------------------------------------------
     # Cache helper (static - usable without an instance)
     # ------------------------------------------------------------------
