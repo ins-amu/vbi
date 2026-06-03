@@ -32,6 +32,7 @@ from vbi.simulator.spec.coupling import CouplingSpec
 from vbi.simulator.spec.integrator import IntegratorSpec
 from vbi.simulator.spec.monitor import MonitorSpec
 from vbi.simulator.spec.simulation import SimulationSpec
+from vbi.simulator.spec.connectivity import Connectivity
 
 
 D = vbi.LoadSample(nn=84)
@@ -85,9 +86,7 @@ spec = SimulationSpec(
     ),
     coupling=CouplingSpec(kind="linear", a=1.0),
     monitors=(MonitorSpec(kind="bold", variables=("S_e",), tr=tr),),
-    weights=weights,
-    tract_lengths=np.zeros_like(weights),
-    speed=1.0,
+    connectivity=Connectivity(weights, speed=1.0),
     node_params=node_params,
 )
 

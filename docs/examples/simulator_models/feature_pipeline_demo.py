@@ -40,6 +40,7 @@ with quiet_optional_imports():
     from vbi.simulator import Simulator, Sweeper
     from vbi.simulator.models.mpr import mpr
     from vbi.simulator.spec import (
+        Connectivity,
         CouplingSpec,
         IntegratorSpec,
         MonitorSpec,
@@ -93,9 +94,7 @@ def make_spec(a: float = COUPLING_A) -> SimulationSpec:
         integrator=IntegratorSpec(method="heun", dt=DT),
         coupling=CouplingSpec(kind="linear", a=a, b=0.0),
         monitors=(MonitorSpec(kind="tavg", period=1.0),),
-        weights=weights,
-        tract_lengths=tract_lengths,
-        speed=SPEED,
+        connectivity=Connectivity(weights, tract_lengths, speed=SPEED),
         node_params=node_params,
     )
 

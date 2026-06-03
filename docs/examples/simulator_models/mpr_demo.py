@@ -35,6 +35,7 @@ with quiet_optional_imports():
     from vbi.simulator.spec.integrator import IntegratorSpec
     from vbi.simulator.spec.monitor import MonitorSpec
     from vbi.simulator.spec.simulation import SimulationSpec
+from vbi.simulator.spec.connectivity import Connectivity
 
 
 NOTEBOOK_PARAMS = {
@@ -69,9 +70,7 @@ def build_vbi_spec(method: str) -> SimulationSpec:
         integrator=IntegratorSpec(method=method, dt=NOTEBOOK_PARAMS["dt"]),
         coupling=CouplingSpec(kind="linear", a=1.0, b=0.0),
         monitors=(MonitorSpec(kind="raw"),),
-        weights=weights,
-        tract_lengths=tract_lengths,
-        speed=NOTEBOOK_PARAMS["speed"],
+        connectivity=Connectivity(weights, tract_lengths, speed=NOTEBOOK_PARAMS["speed"]),
         node_params=node_params,
     )
 

@@ -41,6 +41,7 @@ except Exception:
 from vbi.simulator import Sweeper
 from vbi.simulator.models.mpr import mpr
 from vbi.simulator.spec import (
+    Connectivity,
     CouplingSpec,
     IntegratorSpec,
     MonitorSpec,
@@ -75,7 +76,7 @@ base_spec = SimulationSpec(
     ),
     coupling=CouplingSpec("linear", a=1.0),  # a=1 so that G is the only scale
     monitors=(MonitorSpec("tavg", period=1.0),),
-    weights=W,
+    connectivity=Connectivity(W),
 )
 
 

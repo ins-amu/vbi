@@ -52,6 +52,7 @@ from vbi.simulator.spec import (
     IntegratorSpec,
     CouplingSpec,
     MonitorSpec,
+    Connectivity,
 )
 from vbi.simulator import Simulator
 from vbi.feature_extraction import (
@@ -76,22 +77,19 @@ print("=" * 62)
 # ── 1 - SimulationSpec (single node, no coupling) ─────────────────────────────
 
 N = 1
-W = np.zeros((N, N))
-D = np.zeros((N, N))
-
 dt = 0.1
 monitor = MonitorSpec("raw")
 coupling = CouplingSpec("linear", a=0.0)  # no coupling (a=0.0)
 sim_backend = "numba"
+
+conn = Connectivity(weights=np.zeros((N, N)))
 
 sim_spec = SimulationSpec(
     model=damped_oscillator,
     integrator=IntegratorSpec(method="heun", dt=dt),
     coupling=coupling,
     monitors=(monitor,),
-    weights=W,
-    tract_lengths=D,
-    speed=4.0,
+    connectivity=conn,
 )
 
 # ── 2 - True parameters and observed data ────────────────────────────────────
@@ -108,9 +106,7 @@ sim_spec_true = SimulationSpec(
     integrator=IntegratorSpec(method="heun", dt=dt),
     coupling=coupling,
     monitors=(monitor,),
-    weights=W,
-    tract_lengths=D,
-    speed=4.0,
+    connectivity=conn,
     node_params={"a": np.array([THETA_TRUE[0]]), "b": np.array([THETA_TRUE[1]])},
 )
 result_true = Simulator(sim_spec_true, backend=sim_backend).run(DURATION)

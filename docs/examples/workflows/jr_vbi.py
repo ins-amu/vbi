@@ -69,7 +69,7 @@ from vbi.simulator.spec import (
     IntegratorSpec,
     CouplingSpec,
     MonitorSpec,
-    prepare_connectivity,
+    Connectivity,
 )
 from vbi.simulator.models.jansen_rit import jansen_rit
 from vbi.inference import (
@@ -112,16 +112,15 @@ print("=" * 62)
 
 # ── 1 - Connectivity ───────────────────────────────────────────────────────────
 
-W, D = prepare_connectivity(
+conn = Connectivity.from_file(
     weights=DATA_DIR / "weights.txt",
-    tract_lengths=DATA_DIR / "tract_lengths.txt",
+    tract_lengths=None,  # delays ignored for JR
     normalize=True,
 )
-D = np.zeros_like(D)
-N_NODES = W.shape[0]
+N_NODES = conn.n_nodes
 print(
     f"\n  Connectivity : {N_NODES} nodes   "
-    f"W ∈ [{W.min():.4f}, {W.max():.4f}]   delays ignored"
+    f"W ∈ [{conn.weights.min():.4f}, {conn.weights.max():.4f}]   delays ignored"
 )
 
 # ── 2 - Simulation settings (match jansen_rit_sde_numba_cde.ipynb) ─────────────
@@ -161,9 +160,7 @@ sim_spec = SimulationSpec(
     integrator=integrator,
     coupling=CouplingSpec("jr_sigmoidal"),
     monitors=(MonitorSpec("raw"),),
-    weights=W,
-    tract_lengths=D,
-    speed=4.0,
+    connectivity=conn,
     node_params={
         "mu": np.full(N_NODES, MU),
         "G": G_TRUE,
@@ -177,9 +174,7 @@ sim_spec_true = SimulationSpec(
     integrator=integrator,
     coupling=CouplingSpec("jr_sigmoidal"),
     monitors=(MonitorSpec("raw"),),
-    weights=W,
-    tract_lengths=D,
-    speed=4.0,
+    connectivity=conn,
     node_params={
         "mu": np.full(N_NODES, MU),
         "a_2": np.full(N_NODES, A2_TRUE),

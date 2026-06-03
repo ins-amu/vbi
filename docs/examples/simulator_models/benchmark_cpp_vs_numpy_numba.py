@@ -32,6 +32,7 @@ from vbi.simulator.api import Sweeper
 from vbi.simulator.models.mpr import mpr
 from vbi.simulator.spec import (
     CouplingSpec,
+    Connectivity,
     IntegratorSpec,
     MonitorSpec,
     SimulationSpec,
@@ -66,7 +67,7 @@ def make_spec(n_nodes: int, dt: float) -> SimulationSpec:
         integrator=IntegratorSpec(method="heun", dt=dt, stochastic=False),
         coupling=CouplingSpec(kind="linear", a=0.1, b=0.0),
         monitors=(MonitorSpec(kind="raw"),),
-        weights=W,
+        connectivity=Connectivity(W),
     )
 
 

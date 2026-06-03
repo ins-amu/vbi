@@ -41,6 +41,7 @@ from vbi.simulator.spec.coupling import CouplingSpec
 from vbi.simulator.spec.integrator import IntegratorSpec
 from vbi.simulator.spec.monitor import MonitorSpec
 from vbi.simulator.spec.simulation import SimulationSpec
+from vbi.simulator.spec.connectivity import Connectivity
 
 
 # ---------------------------------------------------------------------------
@@ -153,9 +154,7 @@ def run_vbi(
         integrator=IntegratorSpec(method="heun", dt=dt),
         coupling=CouplingSpec(kind="kuramoto", alpha=alpha),
         monitors=(MonitorSpec(kind="raw"),),
-        weights=weights,
-        tract_lengths=tract_lengths,
-        speed=speed,
+        connectivity=Connectivity(weights, tract_lengths, speed=speed),
         node_params={"omega": omega, "G": G},
     )
 

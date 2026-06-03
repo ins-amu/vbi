@@ -31,6 +31,7 @@ with quiet_optional_imports():
     from vbi.simulator.spec.integrator import IntegratorSpec
     from vbi.simulator.spec.monitor import MonitorSpec
     from vbi.simulator.spec.simulation import SimulationSpec
+    from vbi.simulator.spec.connectivity import Connectivity
     from vbi.simulator.spec.stimulus import StimSpec
 
 
@@ -47,8 +48,7 @@ def build_spec(stimulus: StimSpec | None = None) -> SimulationSpec:
         integrator=IntegratorSpec(method="euler", dt=DT, stochastic=False),
         coupling=CouplingSpec(kind="linear", a=0.0),
         monitors=(MonitorSpec(kind="raw", variables=("V",)),),
-        weights=weights,
-        tract_lengths=np.zeros_like(weights),
+        connectivity=Connectivity(weights),
         stimuli=() if stimulus is None else (stimulus,),
     )
 

@@ -40,7 +40,7 @@ except ImportError:
 
 from vbi.simulator import Simulator, Sweeper
 from vbi.simulator.spec import (
-    SimulationSpec, IntegratorSpec, CouplingSpec, MonitorSpec,
+    SimulationSpec, IntegratorSpec, CouplingSpec, MonitorSpec, Connectivity,
 )
 from vbi.simulator.spec.sweep import SweepSpec
 from vbi.simulator.models.mpr        import mpr
@@ -81,8 +81,7 @@ def _make_spec(model_name: str, n_nodes: int, dt: float,
         integrator=IntegratorSpec(method="heun", dt=dt),
         coupling=CouplingSpec("linear", a=coup_a),
         monitors=(monitor,),
-        weights=_weights(n_nodes),
-        tract_lengths=_tract_lengths(n_nodes),
+        connectivity=Connectivity(_weights(n_nodes), _tract_lengths(n_nodes)),
     )
 
 
@@ -163,8 +162,7 @@ def demo_sweep(model_name: str, n_nodes: int, n_samples: int,
         integrator=IntegratorSpec(method="heun", dt=dt),
         coupling=CouplingSpec("linear", a=coup_a),
         monitors=(MonitorSpec("subsample", period=max(dt * 10, 1.0)),),
-        weights=_weights(n_nodes),
-        tract_lengths=_tract_lengths(n_nodes),
+        connectivity=Connectivity(_weights(n_nodes), _tract_lengths(n_nodes)),
     )
     sweep_spec = SweepSpec(params={sweep_param: np.linspace(lo, hi, n_samples)})
     sweeper = Sweeper(spec, sweep_spec, backend="jax")
@@ -206,8 +204,7 @@ def demo_gradient(model_name: str, n_nodes: int, duration: float,
         integrator=IntegratorSpec(method="heun", dt=dt),
         coupling=CouplingSpec("linear", a=coup_a),
         monitors=(MonitorSpec("subsample", period=max(dt * 10, 1.0)),),
-        weights=_weights(n_nodes),
-        tract_lengths=_tract_lengths(n_nodes),
+        connectivity=Connectivity(_weights(n_nodes), _tract_lengths(n_nodes)),
     )
 
     sim = JaxSimulator()

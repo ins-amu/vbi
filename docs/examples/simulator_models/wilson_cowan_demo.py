@@ -25,6 +25,7 @@ with quiet_optional_imports():
     from vbi.simulator.spec.integrator import IntegratorSpec
     from vbi.simulator.spec.monitor import MonitorSpec
     from vbi.simulator.spec.simulation import SimulationSpec
+from vbi.simulator.spec.connectivity import Connectivity
 
 
 WC_PARAMS = {
@@ -94,9 +95,7 @@ def build_vbi_spec(
         ),
         coupling=CouplingSpec(kind="linear", a=params["coupling_strength"]),
         monitors=(MonitorSpec(kind="raw"),),
-        weights=weights,
-        tract_lengths=np.zeros_like(weights),
-        speed=1.0,
+        connectivity=Connectivity(weights, speed=1.0),
         node_params=node_params,
     )
 
