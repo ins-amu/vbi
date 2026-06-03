@@ -18,6 +18,63 @@ from vbi.feature_extraction import (
 )
 
 
+def plot_feature_scatter(theta, x, x_obs, feature_labels, true_a2, out_path):
+    theta = np.asarray(theta)
+    x = np.asarray(x)
+    x_obs = np.asarray(x_obs)
+
+    if x.ndim != 2 or theta.ndim != 2:
+        raise ValueError(f"Expected theta and x to be 2-D, got {theta.shape}, {x.shape}.")
+    if x_obs.shape[0] != x.shape[1]:
+        raise ValueError(
+            f"x_obs has {x_obs.shape[0]} features but training x has {x.shape[1]}."
+        )
+
+    labels = list(feature_labels or [])
+    if len(labels) != x.shape[1]:
+        labels = [f"feature_{i}" for i in range(x.shape[1])]
+
+    n_feat = x.shape[1]
+    n_cols = min(4, n_feat)
+    n_rows = int(np.ceil(n_feat / n_cols))
+    fig, axes = plt.subplots(
+        n_rows,
+        n_cols,
+        figsize=(3.8 * n_cols, 2.8 * n_rows),
+        squeeze=False,
+    )
+
+    a2 = theta[:, 0]
+    for i, ax in enumerate(axes.flat):
+        if i >= n_feat:
+            ax.axis("off")
+            continue
+        ax.scatter(a2, x[:, i], s=18, alpha=0.7, color="steelblue", edgecolor="none")
+        ax.scatter(
+            [true_a2],
+            [x_obs[i]],
+            s=70,
+            marker="*",
+            color="crimson",
+            edgecolor="black",
+            linewidth=0.4,
+            zorder=3,
+            label="x_obs",
+        )
+        ax.axvline(true_a2, color="crimson", lw=0.9, alpha=0.55)
+        ax.set_title(labels[i], fontsize=8)
+        ax.set_xlabel(r"$a_2$")
+        ax.set_ylabel("feature")
+        ax.spines["right"].set_visible(False)
+        ax.spines["top"].set_visible(False)
+
+    axes.flat[0].legend(frameon=False, fontsize=8)
+    fig.suptitle("Training features vs a_2 with observed feature point", fontsize=12)
+    fig.tight_layout(rect=(0, 0, 1, 0.97))
+    fig.savefig(out_path, dpi=140, bbox_inches="tight")
+    plt.close(fig)
+
+
 def build_jr_spectral_pipeline(
     fs_hz: float,
     t_cut: float = 500.0,
@@ -45,9 +102,9 @@ def build_jr_spectral_pipeline(
     """
     cfg = get_features_by_domain("spectral")
     cfg = get_features_by_given_names(
-        cfg, ["spectrum_stats", "spectrum_auc", "spectrum_moments"]
+        cfg, ["spectrum_stats", "spectrum_moments"]
     )
-    for key in ("spectrum_stats", "spectrum_auc", "spectrum_moments"):
+    for key in ("spectrum_stats", "spectrum_moments"):
         update_cfg(cfg, key, {"fs": fs_hz, "method": "welch", "average": True})
 
     return FeaturePipeline(cfg, signal=signal, t_cut=t_cut, voi=voi, pruner=pruner)

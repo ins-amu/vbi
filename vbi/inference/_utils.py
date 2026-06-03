@@ -295,6 +295,7 @@ def simulate_for_vbi_sweep_cached(
     proposal=None,
     x_obs=None,
     show_progress_bars: bool = True,
+    n_workers: int | None = None,
 ) -> tuple[np.ndarray, np.ndarray, list[str], list[str]]:
     """
     Run a VBI sweep in chunks, write raw monitor recordings to disk, then
@@ -322,6 +323,8 @@ def simulate_for_vbi_sweep_cached(
     seed            : int | None
     proposal        : Posterior | None
     x_obs           : ndarray | None  required when proposal is set
+    n_workers       : int | None
+        Number of threads for the numba backend.  None = use all available.
 
     Returns
     -------
@@ -345,6 +348,11 @@ def simulate_for_vbi_sweep_cached(
 
     cache_dir = Path(cache_dir)
     cache_dir.mkdir(parents=True, exist_ok=True)
+
+    if sim_backend == "numba" and n_workers is not None:
+        import numba
+
+        numba.set_num_threads(n_workers)
 
     param_names = prior._resolved_param_names
     signal = pipeline.signal
