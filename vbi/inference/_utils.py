@@ -425,15 +425,26 @@ def simulate_for_vbi_sweep_cached(
     with open(cache_dir / "metadata.json", "w") as fh:
         json.dump(meta, fh, indent=2)
 
-    theta_out, x_out, feat_labels = _extract_from_cache_impl(cache_dir, pipeline)
+    theta_out, x_out, feat_labels = _extract_from_cache_impl(
+        cache_dir, pipeline,
+        n_workers=n_workers,
+        show_progress_bars=show_progress_bars,
+    )
     return theta_out, x_out, param_names, feat_labels
 
 
 def _extract_from_cache_impl(
     cache_dir,
     pipeline,
+    n_workers: int | None = None,
+    show_progress_bars: bool = False,
 ) -> tuple[np.ndarray, np.ndarray, list[str]]:
-    """Internal: load chunks, extract features, return (theta, x, feat_labels)."""
+    """
+    Load cached chunks, preprocess time series, then call extract_features()
+    which has its own multiprocessing.Pool-based parallel path (n_workers).
+    """
+    from vbi.feature_extraction.calc_features import extract_features
+
     cache_dir = Path(cache_dir)
     with open(cache_dir / "metadata.json") as fh:
         meta = json.load(fh)
@@ -446,36 +457,40 @@ def _extract_from_cache_impl(
             f"re-simulate with the new signal."
         )
 
+    # Load all chunks and apply pipeline preprocessing (t_cut + voi selection).
+    # This reduces each raw recording to a compact (n_channels, n_steps) array
+    # before handing the batch to extract_features.
     theta_rows: list[np.ndarray] = []
-    x_rows:     list[np.ndarray] = []
-    feat_labels: list[str] | None = None
+    ts_rows:    list[np.ndarray] = []
+    fs: float | None = None
 
     for chunk_idx in range(meta["n_chunks"]):
         chunk_path = cache_dir / f"chunk_{chunk_idx:04d}.npz"
-        chunk  = np.load(chunk_path)
-        theta_c = chunk["theta"]                    # (actual_chunk, d_theta)
-        ts_c    = chunk["ts"]                       # (actual_chunk, n_record, ...)
-        t_c     = chunk["t"]                        # (n_record,)
-
+        chunk   = np.load(chunk_path)
+        theta_c = chunk["theta"]
+        ts_c    = chunk["ts"]
+        t_c     = chunk["t"]
         for i in range(len(theta_c)):
-            monitor_result = {cached_signal: (t_c, ts_c[i].astype(np.float64))}
-            labels_i, vals_i = pipeline.extract(monitor_result)
-            if feat_labels is None:
-                feat_labels = labels_i
-            elif labels_i != feat_labels:
-                raise ValueError(
-                    f"Feature labels changed at chunk {chunk_idx}, row {i}: "
-                    f"expected {feat_labels}, got {labels_i}. "
-                    "The pipeline may be data-dependent; ensure it produces "
-                    "consistent labels across all cached samples."
-                )
+            ts_2d, fs_i = pipeline._prepare(t_c, ts_c[i].astype(np.float64))
             theta_rows.append(theta_c[i])
-            x_rows.append(vals_i)
+            ts_rows.append(ts_2d)
+            if fs is None:
+                fs = fs_i
+        del chunk, ts_c
 
-        del chunk, ts_c  # free chunk memory
+    ts_all = np.stack(ts_rows)   # (n_sims, n_channels, n_steps)
+    n_workers_eff = n_workers if n_workers is not None else 1
+
+    result = extract_features(
+        ts_all, fs, pipeline.cfg,
+        n_workers=n_workers_eff,
+        verbose=show_progress_bars,
+        output_type="list",
+    )
+    feat_vals_list, feat_labels = result   # list[array], list[str]
 
     theta_out = np.stack(theta_rows).astype(np.float64)
-    x_out     = np.stack(x_rows).astype(np.float64)
+    x_out     = np.array([np.asarray(v) for v in feat_vals_list], dtype=np.float64)
 
     valid = np.all(np.isfinite(x_out), axis=1)
     n_dropped = int((~valid).sum())
@@ -491,6 +506,7 @@ def _extract_from_cache_impl(
 def extract_from_cache(
     cache_dir,
     pipeline,
+    n_workers: int | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
     """
     Load cached raw recordings and extract features with a (possibly new) pipeline.
@@ -499,13 +515,16 @@ def extract_from_cache(
     ----------
     cache_dir : str | Path  directory written by simulate_for_vbi_sweep_cached
     pipeline  : FeaturePipeline
+    n_workers : int | None
+        Number of parallel worker processes for feature extraction.
+        None uses all available CPUs; 1 runs sequentially.
 
     Returns
     -------
     theta : (n, d_theta) float64
     x     : (n, d_x)     float64
     """
-    theta, x, _ = _extract_from_cache_impl(cache_dir, pipeline)
+    theta, x, _ = _extract_from_cache_impl(cache_dir, pipeline, n_workers=n_workers)
     return theta, x
 
 
