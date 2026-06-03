@@ -10,6 +10,7 @@ from .integrator import IntegratorSpec
 from .coupling import CouplingSpec
 from .monitor import MonitorSpec
 from .stimulus import StimSpec
+from .connectivity import Connectivity
 
 
 _MODEL_REGISTRY: "dict | None" = None
@@ -90,70 +91,49 @@ class SimulationSpec:
     integrator : IntegratorSpec
     coupling : CouplingSpec
     monitors : tuple[MonitorSpec, ...]
-    weights : np.ndarray
-        (n_nodes, n_nodes) structural connectivity; weights[tgt, src].
-    tract_lengths : np.ndarray
-        (n_nodes, n_nodes) delay distances in mm; tract_lengths[src, tgt].
-    speed : float
-        Conduction velocity in mm/ms (default 4.0 mm/ms = 4 m/s).
+    connectivity : Connectivity
+        Structural connectivity (weights, tract_lengths, speed, optional metadata).
     node_params : dict[str, np.ndarray]
         Per-node parameter overrides, e.g. {"eta": np.full(80, -4.6)}.
         Overrides ModelSpec.parameters defaults for named entries.
     """
-    model: ModelSpec
-    integrator: IntegratorSpec
-    coupling: CouplingSpec
-    monitors: tuple[MonitorSpec, ...]
-    weights: np.ndarray
-    tract_lengths: np.ndarray | None = None  # None → zero delays (pure ODE/SDE)
-    speed: float = 4.0
-    node_params: dict[str, np.ndarray] = field(default_factory=dict)
-    stimuli: tuple[StimSpec, ...] = field(default_factory=tuple)
+    model:        ModelSpec
+    integrator:   IntegratorSpec
+    coupling:     CouplingSpec
+    monitors:     tuple[MonitorSpec, ...]
+    connectivity: Connectivity
+    node_params:  dict[str, np.ndarray] = field(default_factory=dict)
+    stimuli:      tuple[StimSpec, ...] = field(default_factory=tuple)
 
-    def __post_init__(self):
-        # Coerce weights and tract_lengths to float64 ndarray (accepts lists etc.)
-        object.__setattr__(self, "weights",
-                           np.asarray(self.weights, dtype=np.float64))
-        if self.tract_lengths is None:
-            object.__setattr__(self, "tract_lengths",
-                               np.zeros_like(self.weights))
-        else:
-            object.__setattr__(self, "tract_lengths",
-                               np.asarray(self.tract_lengths, dtype=np.float64))
-        # Shape / value validation
-        w = self.weights
-        tl = self.tract_lengths
-        if w.ndim != 2 or w.shape[0] != w.shape[1]:
-            raise ValueError(
-                f"weights must be a square 2-D array; got shape {w.shape}."
-            )
-        if tl.shape != w.shape:
-            raise ValueError(
-                f"tract_lengths shape {tl.shape} must match weights shape {w.shape}."
-            )
-        if np.any(tl < 0):
-            raise ValueError(
-                "tract_lengths must be non-negative; found negative values."
-            )
-        if self.speed <= 0:
-            raise ValueError(
-                f"speed must be > 0 mm/ms; got speed={self.speed!r}."
-            )
+    # ------------------------------------------------------------------
+    # Delegation properties — backends use these without change
+    # ------------------------------------------------------------------
+
+    @property
+    def weights(self) -> np.ndarray:
+        return self.connectivity.weights
+
+    @property
+    def tract_lengths(self) -> np.ndarray:
+        return self.connectivity.tract_lengths
+
+    @property
+    def speed(self) -> float:
+        return self.connectivity.speed
 
     @property
     def n_nodes(self) -> int:
-        return self.weights.shape[0]
+        return self.connectivity.n_nodes
 
     @property
     def has_delays(self) -> bool:
         """True only when at least one tract length is non-zero."""
-        return bool(self.tract_lengths.any())
+        return self.connectivity.has_delays
 
     def delay_steps(self, dt: float | None = None) -> np.ndarray:
         """(n_nodes, n_nodes) int32 array of delay in integration steps."""
         _dt = dt if dt is not None else self.integrator.dt
-        raw = self.tract_lengths / (self.speed * _dt)
-        return np.round(raw).astype(np.int32)
+        return self.connectivity.delay_steps(_dt)
 
     def horizon(self, dt: float | None = None) -> int:
         """Ring-buffer depth = max delay + 1."""
@@ -192,32 +172,24 @@ class SimulationSpec:
             )
         model = _MODELS[model_key]
 
-        # Connectivity - delegate to prepare_connectivity for format flexibility
-        from .connectivity import prepare_connectivity
-        conn = d["connectivity"]
-        if isinstance(conn, (str, Path)):
-            path = Path(conn)
+        # Connectivity
+        raw_conn = d["connectivity"]
+        speed = float(d.get("speed", 4.0))
+        if isinstance(raw_conn, Connectivity):
+            connectivity = raw_conn
+        elif isinstance(raw_conn, (str, Path)):
+            path = Path(raw_conn)
             if path.suffix.lower() == ".npz":
-                npz = np.load(path)
-                weights       = npz["weights"]
-                tract_lengths = npz.get("tract_lengths")
-                weights, tract_lengths = prepare_connectivity(
-                    weights, tract_lengths, normalize=False
-                )
+                connectivity = Connectivity.load(path)
             else:
-                # .txt / .csv / .npy
-                weights, tract_lengths = prepare_connectivity(
-                    path, normalize=False
-                )
-        elif isinstance(conn, dict):
-            weights       = np.asarray(conn["weights"])
-            tl_raw        = conn.get("tract_lengths")
-            tract_lengths = np.asarray(tl_raw) if tl_raw is not None else None
-            weights, tract_lengths = prepare_connectivity(
-                weights, tract_lengths, normalize=False
-            )
+                connectivity = Connectivity.from_file(path, normalize=False, speed=speed)
+        elif isinstance(raw_conn, dict):
+            weights = np.asarray(raw_conn["weights"])
+            tl_raw  = raw_conn.get("tract_lengths")
+            tl      = np.asarray(tl_raw) if tl_raw is not None else None
+            connectivity = Connectivity(weights=weights, tract_lengths=tl, speed=speed)
         else:
-            weights, tract_lengths = prepare_connectivity(conn, normalize=False)
+            connectivity = Connectivity.from_file(raw_conn, normalize=False, speed=speed)
 
         # Integrator
         integrator = IntegratorSpec(
@@ -248,7 +220,7 @@ class SimulationSpec:
 
         # node_params: scalar values broadcast to per-node arrays
         raw_np = d.get("node_params", {})
-        n_nodes = weights.shape[0]
+        n_nodes = connectivity.n_nodes
         node_params = {
             k: (np.full(n_nodes, float(v)) if np.isscalar(v) else np.asarray(v))
             for k, v in raw_np.items()
@@ -265,9 +237,7 @@ class SimulationSpec:
             integrator   = integrator,
             coupling     = coupling,
             monitors     = monitors,
-            weights      = weights,
-            tract_lengths = tract_lengths,
-            speed        = float(d.get("speed", 4.0)),
+            connectivity = connectivity,
             node_params  = node_params,
         )
 
