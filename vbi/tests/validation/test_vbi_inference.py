@@ -116,12 +116,31 @@ class TestVBIInferenceCore:
             theta_sim.astype(np.float32), theta_stored, decimal=5
         )
 
+    def test_append_simulations(self):
+        inf = _make_inf()
+        theta = np.array([[0.2, -5.5], [0.4, -4.5]], dtype=float)
+        x = np.array([[1.0, 2.0], [3.0, 4.0]], dtype=float)
+        inf.append_simulations(
+            theta,
+            x,
+            param_names=["G", "eta"],
+            feature_labels=["f0", "f1"],
+        )
+
+        theta_stored, x_stored, _ = inf.get_simulations()
+        np.testing.assert_array_equal(theta_stored, theta.astype(np.float32))
+        np.testing.assert_array_equal(x_stored, x.astype(np.float32))
+        assert inf._param_names == ["G", "eta"]
+        assert inf._feature_labels == ["f0", "f1"]
+        assert inf._snpe.n_simulations == 2
+
     def test_simulate_with_cache(self, tmp_path):
         inf = _make_inf()
         theta, x = inf.simulate(
             N_SIM, DURATION, seed=6,
             cache_dir=tmp_path / "cache",
             chunk_size=10,
+            n_workers=2,
         )
         assert theta.shape[0] == N_SIM
         assert (tmp_path / "cache" / "metadata.json").exists()
