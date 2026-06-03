@@ -284,11 +284,11 @@ class MAFEstimator(ConditionalDensityEstimator):
         verbose: bool = True,
         validation_fraction: float = 0.1,
         stop_after_epochs: int = 20,
-        early_stopping_delta: float | None = None,
+        early_stopping_delta: float | None = 0.0,
         clip_max_norm: float | None = 5.0,
         resume_training: bool = False,
         # ── LR schedule ──────────────────────────────────────────────────
-        lr_schedule: str | None = "cosine",
+        lr_schedule: str | None = None,
         lr_min: float = 1e-5,
         lr_period: int = 500,
         # ── Posterior collapse prevention (opt-in; not in sbi-compatible default)
@@ -301,7 +301,7 @@ class MAFEstimator(ConditionalDensityEstimator):
     ):
         """
         Train with Adam, optional mini-batches, train/val split, early stopping,
-        cosine LR annealing, and posterior-collapse monitoring.
+        optional cosine LR annealing, and posterior-collapse monitoring.
 
         Parameters
         ----------

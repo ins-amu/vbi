@@ -210,7 +210,7 @@ pipeline = build_jr_spectral_pipeline(
     t_cut=T_CUT,
     voi=(1, 2),
     signal="raw",
-    # pruner=FeaturePruner(min_std=1e-4, max_corr=0.98),
+    pruner=FeaturePruner(min_std=1e-4, max_corr=0.98),
 )
 
 labels, values = pipeline.extract(result_true)
@@ -306,10 +306,10 @@ print(f"  Feature scatter → {feature_scatter_path}")
 
 print("  Training MAF …", flush=True)
 estimator = inf.train(
-    training_batch_size=256,
-    learning_rate=2e-4,
-    stop_after_epochs=100,
-    max_num_epochs=1000,
+    # training_batch_size=256,
+    # learning_rate=5e-4,
+    # stop_after_epochs=100,
+    # max_num_epochs=1000,
 )
 best_val_loss = getattr(estimator, "best_val_loss", None)
 best_epoch = getattr(estimator, "best_epoch", None)

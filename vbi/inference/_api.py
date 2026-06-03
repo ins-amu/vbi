@@ -172,7 +172,7 @@ class SNPE:
         self,
         # sbi-compatible kwargs (same names and defaults as sbi 0.26)
         training_batch_size: int        = 200,
-        learning_rate: float            = 5e-4,
+        learning_rate: float            = 2e-4,
         validation_fraction: float      = 0.1,
         stop_after_epochs: int          = 20,
         max_num_epochs: int             = 2000,
@@ -182,8 +182,8 @@ class SNPE:
         resume_training: bool           = False,
         verbose: bool | None            = None,   # overrides show_progress_bars + show_train_summary
         # Collapse-prevention (not in sbi; vbi.inference extension)
-        early_stopping_delta: float | None = None,
-        lr_schedule: str | None         = "cosine",
+        early_stopping_delta: float | None = 0.0,
+        lr_schedule: str | None         = None,
         lr_min: float                   = 1e-5,
         lr_period: int                  = 500,
         monitor_collapse: bool          = False,
@@ -209,9 +209,9 @@ class SNPE:
         stop_after_epochs : int
             Stop if validation loss does not improve for this many epochs.
         max_num_epochs : int
-            Hard cap on training epochs.  With ``monitor_collapse=True`` the
-            training will stop automatically before this limit when the
-            posterior collapses, so you rarely need to tune this manually.
+            Hard cap on training epochs.  VBI uses a finite default instead
+            of sbi's effectively-unlimited sentinel so progress bars remain
+            readable.
         clip_max_norm : float | None
             Global gradient norm clip.  None disables clipping.
         num_atoms : int
@@ -220,12 +220,13 @@ class SNPE:
             Alias for verbose tqdm output.
         early_stopping_delta : float | None
             Minimum validation-loss improvement to reset patience counter.
-            None → auto: 1e-4 when lr_schedule='cosine', else 0.0.
-            With cosine LR, tiny late-epoch improvements (< lr_min × grad)
-            would otherwise keep patience at 0 forever.
+            Default 0.0 matches sbi's "any improvement resets patience" behavior.
+            Passing None enables VBI's auto floor: 1e-4 when
+            lr_schedule='cosine', else 0.0.
         lr_schedule : 'cosine' | None
             Cosine-anneal ``learning_rate`` → ``lr_min`` over the first
-            ``lr_period`` epochs, then stay at lr_min.  None keeps lr fixed.
+            ``lr_period`` epochs, then stay at lr_min.  None keeps lr fixed
+            and matches sbi's default behavior.
         lr_min : float
             Floor for cosine LR schedule.
         lr_period : int

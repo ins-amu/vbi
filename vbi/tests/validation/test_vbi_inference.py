@@ -1,6 +1,7 @@
 """
 Tests for VBIInference core - Step 3 of MI6.
 """
+import inspect
 import numpy as np
 import pytest
 from vbi.simulator.spec import MonitorSpec
@@ -46,6 +47,22 @@ def _make_inf():
 
 
 class TestVBIInferenceCore:
+
+    def test_snpe_train_defaults_match_sbi_style(self):
+        from vbi.inference._api import SNPE
+
+        sig = inspect.signature(SNPE.train)
+        assert sig.parameters["training_batch_size"].default == 200
+        assert sig.parameters["learning_rate"].default == 2e-4
+        assert sig.parameters["validation_fraction"].default == 0.1
+        assert sig.parameters["stop_after_epochs"].default == 20
+        assert sig.parameters["max_num_epochs"].default == 2000
+        assert sig.parameters["clip_max_norm"].default == 5.0
+        assert sig.parameters["num_atoms"].default == 10
+        assert sig.parameters["resume_training"].default is False
+        assert sig.parameters["show_train_summary"].default is False
+        assert sig.parameters["early_stopping_delta"].default == 0.0
+        assert sig.parameters["lr_schedule"].default is None
 
     def test_repr(self):
         inf = _make_inf()
