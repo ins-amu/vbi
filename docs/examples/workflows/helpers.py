@@ -23,7 +23,7 @@ def build_jr_spectral_pipeline(
     t_cut: float = 500.0,
     voi: int | tuple[int, int] | None = (1, 2),
     signal: str = "tavg",
-    pruner=FeaturePruner(min_std=1e-4, max_corr=0.98),
+    pruner=None,
 ) -> FeaturePipeline:
     """
     Spectral feature pipeline for Jansen-Rit inference.
