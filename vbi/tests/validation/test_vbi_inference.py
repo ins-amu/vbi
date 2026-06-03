@@ -6,6 +6,7 @@ import pytest
 from vbi.simulator.spec import MonitorSpec
 from vbi.feature_extraction import (
     FeaturePipeline,
+    FeaturePruner,
     get_features_by_domain,
     get_features_by_given_names,
 )
@@ -258,3 +259,62 @@ class TestVBIInferenceSaveLoad:
         )
         assert inf2._last_estimator is None
         assert inf2._snpe.n_simulations == N_SIM
+
+    def test_load_restores_feature_pruner_state(self, tmp_path):
+        pipeline = _stat_pipeline()
+        pipeline.pruner = FeaturePruner(min_std=1e-4, max_corr=0.98)
+        inf = VBIInference(
+            sim_spec=_make_spec(),
+            prior=PRIOR,
+            pipeline=pipeline,
+            density_estimator="maf",
+            sim_backend="numpy",
+            backend="numpy",
+            show_progress_bars=False,
+        )
+        inf.simulate(N_SIM, DURATION, seed=17)
+        assert pipeline.pruner.kept_mask_ is not None
+        original_mask = pipeline.pruner.kept_mask_.copy()
+        original_labels = list(pipeline.pruner.kept_labels_)
+
+        inf.save(tmp_path / "ckpt.npz")
+
+        pipeline2 = _stat_pipeline()
+        pipeline2.pruner = FeaturePruner()
+        inf2 = VBIInference.load(
+            tmp_path / "ckpt.npz",
+            sim_spec=_make_spec(),
+            pipeline=pipeline2,
+            prior=PRIOR,
+        )
+
+        np.testing.assert_array_equal(pipeline2.pruner.kept_mask_, original_mask)
+        assert pipeline2.pruner.kept_labels_ == original_labels
+        assert inf2._feature_labels == original_labels
+
+    def test_load_attaches_saved_feature_pruner(self, tmp_path):
+        pipeline = _stat_pipeline()
+        pipeline.pruner = FeaturePruner(min_std=1e-4, max_corr=0.98)
+        inf = VBIInference(
+            sim_spec=_make_spec(),
+            prior=PRIOR,
+            pipeline=pipeline,
+            density_estimator="maf",
+            sim_backend="numpy",
+            backend="numpy",
+            show_progress_bars=False,
+        )
+        inf.simulate(N_SIM, DURATION, seed=18)
+        inf.save(tmp_path / "ckpt.npz")
+
+        pipeline2 = _stat_pipeline()
+        assert pipeline2.pruner is None
+        VBIInference.load(
+            tmp_path / "ckpt.npz",
+            sim_spec=_make_spec(),
+            pipeline=pipeline2,
+            prior=PRIOR,
+        )
+
+        assert pipeline2.pruner is not None
+        assert pipeline2.pruner.kept_mask_ is not None

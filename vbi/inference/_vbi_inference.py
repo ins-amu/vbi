@@ -244,6 +244,59 @@ def _parse_pipeline(d: dict):
     )
 
 
+def _pack_pruner(pruner, data: dict) -> None:
+    """Persist fitted FeaturePruner state into a checkpoint data dict."""
+    if pruner is None or getattr(pruner, "kept_mask_", None) is None:
+        return
+
+    import json
+
+    data["pruner__min_std"] = np.array(float(pruner.min_std))
+    data["pruner__max_corr"] = np.array(float(pruner.max_corr))
+    data["pruner__remove_nan"] = np.array(bool(pruner.remove_nan))
+    data["pruner__kept_mask"] = np.asarray(pruner.kept_mask_, dtype=bool)
+    data["pruner__kept_labels"] = np.array("|".join(pruner.kept_labels_ or []))
+    data["pruner__n_original"] = np.array(
+        -1 if pruner._n_original is None else int(pruner._n_original)
+    )
+    data["pruner__removed_reason"] = np.array(
+        json.dumps(getattr(pruner, "_removed_reason", {}))
+    )
+
+
+def _unpack_pruner(d, pipeline) -> None:
+    """Restore fitted FeaturePruner state onto ``pipeline.pruner`` if present."""
+    if "pruner__kept_mask" not in d:
+        return
+
+    import json
+    from vbi.feature_extraction import FeaturePruner
+
+    pruner = getattr(pipeline, "pruner", None)
+    if pruner is None:
+        pruner = FeaturePruner(
+            min_std=float(d["pruner__min_std"]),
+            max_corr=float(d["pruner__max_corr"]),
+            remove_nan=bool(d["pruner__remove_nan"]),
+        )
+        pipeline.pruner = pruner
+
+    pruner.min_std = float(d["pruner__min_std"])
+    pruner.max_corr = float(d["pruner__max_corr"])
+    pruner.remove_nan = bool(d["pruner__remove_nan"])
+    pruner.kept_mask_ = np.asarray(d["pruner__kept_mask"], dtype=bool)
+
+    labels_raw = str(d["pruner__kept_labels"])
+    pruner.kept_labels_ = labels_raw.split("|") if labels_raw else []
+
+    n_original = int(d["pruner__n_original"])
+    pruner._n_original = None if n_original < 0 else n_original
+    if "pruner__removed_reason" in d:
+        pruner._removed_reason = json.loads(str(d["pruner__removed_reason"]))
+    else:
+        pruner._removed_reason = {}
+
+
 # ---------------------------------------------------------------------------
 # SBC simulator helper  (Step 6)
 # ---------------------------------------------------------------------------
@@ -520,8 +573,8 @@ class VBIInference:
             Tune to stay within GPU/RAM budget.
         n_workers : int | None
             Number of threads for the numba backend.  None = use all available
-            (``numba.get_num_threads()``).  Also sets the number of progress-bar
-            chunks when ``show_progress_bars=True``.
+            (``numba.get_num_threads()``).  Also sets the progress batch size
+            when ``show_progress_bars=True``.
 
         Returns
         -------
@@ -724,6 +777,8 @@ class VBIInference:
             torch.save(self._last_estimator, sbi_path)
             log.info("VBIInference sbi estimator saved to %s", sbi_path)
 
+        _pack_pruner(getattr(self._pipeline, "pruner", None), data)
+
         # -- metadata --------------------------------------------------------
         data["meta__feature_labels"]    = np.array("|".join(self._feature_labels or []))
         data["meta__param_names"]       = np.array("|".join(self._param_names or []))
@@ -791,6 +846,8 @@ class VBIInference:
         pn_raw = str(d["meta__param_names"])
         inf._feature_labels = fl_raw.split("|") if fl_raw else []
         inf._param_names    = pn_raw.split("|") if pn_raw else []
+
+        _unpack_pruner(d, inf._pipeline)
 
         if "sim__theta_all" in d and "sim__x_all" in d:
             theta_all = np.asarray(d["sim__theta_all"])

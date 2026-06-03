@@ -120,8 +120,8 @@ def _sweep_numba_with_progress(
     batch separately.  JIT compilation is cached, so only the first chunk
     pays the compile cost (via _jit_warmup called before this).
 
-    n_workers controls both the numba thread count and the number of chunks
-    (one chunk per worker).  If None, all available threads are used.
+    n_workers controls the numba thread count and the progress batch size.
+    If None, all available threads are used.
     """
     import numba
     from vbi.simulator.api import Sweeper
@@ -136,8 +136,7 @@ def _sweep_numba_with_progress(
     else:
         numba.set_num_threads(n_workers)
 
-    n_chunks = max(1, n_workers)
-    chunk_size = max(1, (num_simulations + n_chunks - 1) // n_chunks)
+    chunk_size = max(1, n_workers)
     all_labels = None
     all_rows = []
 
@@ -197,7 +196,7 @@ def simulate_for_vbi_sweep(
     x_obs           : ndarray | None  required when proposal is not None
     n_workers       : int | None
         Number of threads for the numba backend.  None = use all available.
-        Also controls the number of progress-bar chunks (one chunk per worker).
+        Also controls the progress batch size for the numba progress path.
 
     Returns
     -------
