@@ -134,7 +134,7 @@ INFERENCE_BACKEND = "vbi"
 
 # True parameters for the reference run: G=1.5, a_2=1.0 (C1=135)
 G_TRUE = 1.5
-A2_TRUE = 1.0  # a_2 = C1 / J
+A2_TRUE = 1.5  # a_2 = C1 / J
 J = 135.0
 
 # Prior: C1 ∈ [130, 300] → a_2 ∈ [130/135, 300/135]
@@ -223,7 +223,7 @@ prior = BoxUniform(
 )
 
 # ── 7 - VBIInference ───────────────────────────────────────────────────────────
-
+# Load cached simulations
 if ARGS.reuse_simulations:
     if not (CACHE_DIR / "metadata.json").exists():
         raise FileNotFoundError(
@@ -296,7 +296,14 @@ else:
 
 feature_labels = list(inf._feature_labels or [])
 feature_scatter_path = OUT_DIR / "jr_vbi_feature_scatter.png"
-plot_feature_scatter(theta, x, x_obs, feature_labels, A2_TRUE, feature_scatter_path)
+plot_feature_scatter(
+    theta,
+    x,
+    x_obs,
+    feature_labels=feature_labels,
+    true_params=A2_TRUE,
+    out_path=feature_scatter_path,
+)
 print(f"  Feature scatter → {feature_scatter_path}")
 
 print("  Training MAF …", flush=True)

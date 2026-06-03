@@ -371,7 +371,17 @@ def simulate_for_vbi_sweep_cached(
 
     n_chunks = (num_simulations + chunk_size - 1) // chunk_size
 
-    for chunk_idx in range(n_chunks):
+    try:
+        from tqdm.auto import tqdm as _tqdm
+    except ImportError:
+        _tqdm = None
+
+    _chunk_iter = range(n_chunks)
+    if show_progress_bars and _tqdm is not None:
+        desc = f"Simulating {num_simulations}×{duration:.0f}ms [{sim_backend}]"
+        _chunk_iter = _tqdm(_chunk_iter, total=n_chunks, desc=desc, unit="chunk")
+
+    for chunk_idx in _chunk_iter:
         start = chunk_idx * chunk_size
         end   = min(start + chunk_size, num_simulations)
         theta_chunk = theta_all[start:end]
