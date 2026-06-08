@@ -30,7 +30,7 @@ with quiet_optional_imports():
     from vbi.simulator.spec.integrator import IntegratorSpec
     from vbi.simulator.spec.monitor import MonitorSpec
     from vbi.simulator.spec.simulation import SimulationSpec
-from vbi.simulator.spec.connectivity import Connectivity
+    from vbi.simulator.spec.connectivity import Connectivity
 
 
 JR_PARAMS = {

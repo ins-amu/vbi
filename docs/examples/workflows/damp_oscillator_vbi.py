@@ -80,7 +80,7 @@ N = 1
 dt = 0.1
 monitor = MonitorSpec("raw")
 coupling = CouplingSpec("linear", a=0.0)  # no coupling (a=0.0)
-sim_backend = "numba"
+integrator_backend = "numba"
 
 conn = Connectivity(weights=np.zeros((N, N)))
 
@@ -109,7 +109,7 @@ sim_spec_true = SimulationSpec(
     connectivity=conn,
     node_params={"a": np.array([THETA_TRUE[0]]), "b": np.array([THETA_TRUE[1]])},
 )
-result_true = Simulator(sim_spec_true, backend=sim_backend).run(DURATION)
+result_true = Simulator(sim_spec_true, backend=integrator_backend).run(DURATION)
 t_obs, ts_obs = result_true["raw"]  # ts: (T, 2, 1)
 
 fig, axes = plt.subplots(2, 1, figsize=(6, 4), sharex=True)
@@ -166,8 +166,8 @@ inf = VBIInference(
     prior=prior,
     pipeline=pipeline,
     density_estimator="maf",
-    sim_backend=sim_backend,
-    backend="auto",
+    integrator_backend=integrator_backend,
+    estimator_backend="auto",
     show_progress_bars=True,
 )
 print(f"\n  {inf}")
@@ -216,7 +216,7 @@ print("\n" + "=" * 62)
 print("Summary")
 print("=" * 62)
 print(f"  Model    : DampedOscillator  (N=1, no coupling)")
-print(f"  Backend  : {sim_backend} (sim) + auto (inference)")
+print(f"  Backend  : {integrator_backend} (sim) + auto (inference)")
 print(f"  Monitor  : raw")
 print(f"  Features : {labels}  (voi="all" → both SVs)")
 print(f"  N sims   : {N_SIM}  ×  {DURATION} ms")
