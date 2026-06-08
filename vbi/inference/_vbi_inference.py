@@ -301,7 +301,7 @@ def _unpack_pruner(d, pipeline) -> None:
 # SBC simulator helper  (Step 6)
 # ---------------------------------------------------------------------------
 
-def _make_simulator_fn(sim_spec, prior, pipeline, sim_backend, duration):
+def _make_simulator_fn(sim_spec, prior, pipeline, integrator_backend, duration):
     """
     Return a callable ``theta_1d -> x_1d`` suitable for :func:`run_sbc`.
 
@@ -320,7 +320,7 @@ def _make_simulator_fn(sim_spec, prior, pipeline, sim_backend, duration):
             param_names = tuple(param_names),
             pipeline    = pipeline,
         )
-        sweeper = Sweeper(sim_spec, sweep_spec, backend=sim_backend)
+        sweeper = Sweeper(sim_spec, sweep_spec, backend=integrator_backend)
         labels, values = sweeper.run(duration)
         n_params = len(param_names)
         x_1d = values[0, n_params:].astype(np.float64)
@@ -462,9 +462,9 @@ class VBIInference:
         Must expose ``._resolved_param_names``, ``.sample()``, ``.log_prob()``.
     pipeline : FeaturePipeline
     density_estimator : 'maf' | 'mdn' | 'nsf'
-    sim_backend : str
+    integrator_backend : str
         Backend for the Sweeper ('numpy' | 'numba' | 'cuda' | 'jax').
-    backend : str
+    estimator_backend : str
         Backend for the density estimator ('auto' | 'numpy' | 'jax').
     show_progress_bars : bool
     embedding_net : EmbeddingNet | None
@@ -485,8 +485,8 @@ class VBIInference:
         prior,
         pipeline,
         density_estimator: str = "maf",
-        sim_backend: str = "numba",
-        backend: str = "auto",
+        integrator_backend: str = "numba",
+        estimator_backend: str = "auto",
         show_progress_bars: bool = True,
         embedding_net=None,
         inference_backend: str = "vbi",
@@ -508,7 +508,7 @@ class VBIInference:
         self._sim_spec            = sim_spec
         self._prior               = prior
         self._pipeline            = pipeline
-        self._sim_backend         = sim_backend
+        self._integrator_backend  = integrator_backend
         self._de_type             = density_estimator
         self._show_progress_bars  = show_progress_bars
         self._feature_labels: list[str] | None = None
@@ -529,7 +529,7 @@ class VBIInference:
             self._snpe              = SNPE(
                 prior               = prior,
                 density_estimator   = density_estimator,
-                backend             = backend,
+                backend             = estimator_backend,
                 show_progress_bars  = show_progress_bars,
                 embedding_net       = embedding_net,
             )
@@ -587,7 +587,7 @@ class VBIInference:
             pipeline            = self._pipeline,
             num_simulations     = num_simulations,
             duration            = duration,
-            sim_backend         = self._sim_backend,
+            sim_backend         = self._integrator_backend,
             seed                = seed,
             proposal            = proposal,
             x_obs               = x_obs,
@@ -832,8 +832,8 @@ class VBIInference:
         data["meta__feature_labels"]    = np.array("|".join(self._feature_labels or []))
         data["meta__param_names"]       = np.array("|".join(self._param_names or []))
         data["meta__density_estimator"] = np.array(self._de_type)
-        data["meta__sim_backend"]       = np.array(self._sim_backend)
-        data["meta__inference_backend"] = np.array(self._inference_backend)
+        data["meta__integrator_backend"] = np.array(self._integrator_backend)
+        data["meta__inference_backend"]  = np.array(self._inference_backend)
         data["meta__n_rounds"]          = np.array(len(self._sim_rounds))
         # VBI-only: persist the resolved estimator backend string
         vbi_backend = self._snpe._backend if self._snpe is not None else "numpy"
@@ -874,8 +874,11 @@ class VBIInference:
         d    = np.load(path, allow_pickle=False)
 
         de_type            = str(d["meta__density_estimator"])
-        sim_backend        = str(d["meta__sim_backend"])
-        backend            = str(d["meta__backend"])
+        integrator_backend = str(d["meta__integrator_backend"]) \
+                             if "meta__integrator_backend" in d \
+                             else str(d["meta__sim_backend"]) \
+                             if "meta__sim_backend" in d else "numba"
+        estimator_backend  = str(d["meta__backend"])
         inference_backend  = str(d["meta__inference_backend"]) \
                              if "meta__inference_backend" in d else "vbi"
 
@@ -884,8 +887,8 @@ class VBIInference:
             prior              = prior,
             pipeline           = pipeline,
             density_estimator  = de_type,
-            sim_backend        = sim_backend,
-            backend            = backend,
+            integrator_backend = integrator_backend,
+            estimator_backend  = estimator_backend,
             show_progress_bars = show_progress_bars,
             embedding_net      = embedding_net,
             inference_backend  = inference_backend,
@@ -914,7 +917,7 @@ class VBIInference:
             inf._sim_rounds = [(theta_all.astype(np.float64), x_all.astype(np.float64))]
 
         if "est__param_dim" in d and inf._inference_backend == "vbi":
-            backend_resolved = resolve_backend(backend)
+            backend_resolved = resolve_backend(estimator_backend)
             de_map           = get_estimator_map(backend_resolved)
             EstCls           = de_map[de_type]
             est = _unpack_estimator(d, EstCls)
@@ -976,9 +979,9 @@ class VBIInference:
 
             inference:
               density_estimator: maf
-              inference_backend: vbi   # 'vbi' (default) or 'sbi'
-              sim_backend: numba
-              backend: auto
+              inference_backend: vbi        # 'vbi' (default) or 'sbi'
+              integrator_backend: numba
+              estimator_backend: auto
               training:              # stored as default_train_kwargs
                 training_batch_size: 256
                 stop_after_epochs: 30
@@ -998,9 +1001,11 @@ class VBIInference:
             prior             = prior,
             pipeline          = pipeline,
             density_estimator = infer_cfg.get("density_estimator", "maf"),
-            inference_backend = infer_cfg.get("inference_backend", "vbi"),
-            sim_backend       = infer_cfg.get("sim_backend", "numba"),
-            backend           = infer_cfg.get("backend", "auto"),
+            inference_backend  = infer_cfg.get("inference_backend", "vbi"),
+            integrator_backend = infer_cfg.get("integrator_backend",
+                                               infer_cfg.get("sim_backend", "numba")),
+            estimator_backend  = infer_cfg.get("estimator_backend",
+                                               infer_cfg.get("backend", "auto")),
         )
         inf._default_train_kwargs = dict(infer_cfg.get("training", {}))
         return inf
@@ -1110,7 +1115,7 @@ class VBIInference:
         posterior    = self.build_posterior()
         simulator_fn = _make_simulator_fn(
             self._sim_spec, self._prior, self._pipeline,
-            self._sim_backend, duration,
+            self._integrator_backend, duration,
         )
         return _run_sbc(
             posterior            = posterior,
@@ -1131,7 +1136,7 @@ class VBIInference:
             f"VBIInference("
             f"density_estimator={self._de_type!r}, "
             f"inference_backend={self._inference_backend!r}, "
-            f"sim_backend={self._sim_backend!r}, "
+            f"integrator_backend={self._integrator_backend!r}, "
             f"n_rounds={len(self._sim_rounds)}, "
             f"n_sims={n_sims})"
         )
