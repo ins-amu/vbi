@@ -296,6 +296,7 @@ def simulate_for_vbi_sweep_cached(
     x_obs=None,
     show_progress_bars: bool = True,
     n_workers: int | None = None,
+    extract_features_after: bool = True,
 ) -> tuple[np.ndarray, np.ndarray, list[str], list[str]]:
     """
     Run a VBI sweep in chunks, write raw monitor recordings to disk, then
@@ -325,6 +326,9 @@ def simulate_for_vbi_sweep_cached(
     x_obs           : ndarray | None  required when proposal is set
     n_workers       : int | None
         Number of threads for the numba backend.  None = use all available.
+    extract_features_after : bool
+        If False, write the raw simulation cache and return without feature
+        extraction.  This is intended for profiling the simulation/cache step.
 
     Returns
     -------
@@ -424,6 +428,9 @@ def simulate_for_vbi_sweep_cached(
     }
     with open(cache_dir / "metadata.json", "w") as fh:
         json.dump(meta, fh, indent=2)
+
+    if not extract_features_after:
+        return theta_all, np.empty((theta_all.shape[0], 0)), param_names, []
 
     theta_out, x_out, feat_labels = _extract_from_cache_impl(
         cache_dir, pipeline,
