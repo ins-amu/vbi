@@ -48,8 +48,8 @@ def _minimal_config(conn_path: str) -> dict:
         },
         "inference": {
             "density_estimator": "maf",
-            "sim_backend":       "numpy",
-            "backend":           "numpy",
+            "integrator_backend": "numpy",
+            "estimator_backend":  "numpy",
             "training": {
                 "training_batch_size": 64,
                 "stop_after_epochs":   3,
@@ -118,10 +118,10 @@ class TestFromConfigDict:
         samples = post.sample((30,), x=x_obs)
         assert samples.shape == (30, 2)
 
-    def test_sim_backend_set(self, tmp_path):
+    def test_integrator_backend_set(self, tmp_path):
         conn = _write_connectivity(tmp_path)
         inf = VBIInference.from_config(_minimal_config(conn))
-        assert inf._sim_backend == "numpy"
+        assert inf._integrator_backend == "numpy"
 
     def test_de_type_set(self, tmp_path):
         conn = _write_connectivity(tmp_path)

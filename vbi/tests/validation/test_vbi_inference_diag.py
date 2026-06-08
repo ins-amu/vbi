@@ -29,7 +29,7 @@ DURATION = 200.0
 def _trained_inf():
     inf = VBIInference(
         sim_spec=_make_spec(), prior=PRIOR, pipeline=_stat_pipeline(),
-        sim_backend="numpy", backend="numpy", show_progress_bars=False,
+        integrator_backend="numpy", estimator_backend="numpy", show_progress_bars=False,
     )
     inf.simulate(N_SIM, DURATION, seed=0)
     inf.train(stop_after_epochs=3, max_num_epochs=5)
@@ -47,7 +47,7 @@ class TestPlotLoss:
     def test_raises_before_train(self):
         inf = VBIInference(
             sim_spec=_make_spec(), prior=PRIOR, pipeline=_stat_pipeline(),
-            sim_backend="numpy", backend="numpy", show_progress_bars=False,
+            integrator_backend="numpy", estimator_backend="numpy", show_progress_bars=False,
         )
         with pytest.raises(RuntimeError, match="train"):
             inf.plot_loss()
@@ -65,7 +65,7 @@ class TestPairplot:
     def test_raises_before_train(self):
         inf = VBIInference(
             sim_spec=_make_spec(), prior=PRIOR, pipeline=_stat_pipeline(),
-            sim_backend="numpy", backend="numpy", show_progress_bars=False,
+            integrator_backend="numpy", estimator_backend="numpy", show_progress_bars=False,
         )
         with pytest.raises(RuntimeError, match="train"):
             inf.pairplot(np.zeros(4))
@@ -81,7 +81,7 @@ class TestRunSBC:
     def test_raises_before_train(self):
         inf = VBIInference(
             sim_spec=_make_spec(), prior=PRIOR, pipeline=_stat_pipeline(),
-            sim_backend="numpy", backend="numpy", show_progress_bars=False,
+            integrator_backend="numpy", estimator_backend="numpy", show_progress_bars=False,
         )
         inf.simulate(N_SIM, DURATION, seed=1)
         with pytest.raises(RuntimeError, match="train"):

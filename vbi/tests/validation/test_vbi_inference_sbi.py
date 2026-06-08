@@ -37,7 +37,7 @@ def _make_sbi_inf():
         prior             = PRIOR,
         pipeline          = _stat_pipeline(),
         density_estimator = "maf",
-        sim_backend       = "numpy",
+        integrator_backend = "numpy",
         inference_backend = "sbi",
         show_progress_bars = False,
     )
@@ -142,7 +142,7 @@ class TestVBIInferenceSBIBackend:
             sim_spec        = _make_spec(),
             prior           = PRIOR,
             pipeline        = _stat_pipeline(),
-            sim_backend     = "numpy",
+            integrator_backend = "numpy",
             inference_engine = sbi_snpe,
         )
         assert inf._inference_backend == "sbi"

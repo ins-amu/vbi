@@ -40,8 +40,8 @@ def _make_inf():
         prior             = PRIOR,
         pipeline          = _stat_pipeline(),
         density_estimator = "maf",
-        sim_backend       = "numpy",
-        backend           = "numpy",
+        integrator_backend = "numpy",
+        estimator_backend  = "numpy",
         show_progress_bars = False,
     )
 
@@ -304,8 +304,8 @@ class TestVBIInferenceSaveLoad:
             prior=PRIOR,
             pipeline=pipeline,
             density_estimator="maf",
-            sim_backend="numpy",
-            backend="numpy",
+            integrator_backend="numpy",
+            estimator_backend="numpy",
             show_progress_bars=False,
         )
         inf.simulate(N_SIM, DURATION, seed=17)
@@ -336,8 +336,8 @@ class TestVBIInferenceSaveLoad:
             prior=PRIOR,
             pipeline=pipeline,
             density_estimator="maf",
-            sim_backend="numpy",
-            backend="numpy",
+            integrator_backend="numpy",
+            estimator_backend="numpy",
             show_progress_bars=False,
         )
         inf.simulate(N_SIM, DURATION, seed=18)
