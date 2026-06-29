@@ -102,6 +102,7 @@ docs = [
     "nbformat",
     "nbsphinx",
     "furo",
+    "pypandoc_binary",
 ]
 
 # All dependencies (torch, cupy, sbi, features, dev tools, docs, notebooks)
@@ -115,6 +116,7 @@ all = [
     "nbformat",
     "nbsphinx",
     "furo",
+    "pypandoc_binary",
     # "ipywidgets",
 ]
 
@@ -127,6 +129,7 @@ all-docker = [
     "nbformat",
     "nbsphinx",
     "furo",
+    "pypandoc_binary",
     # "ipywidgets",
 ]
 

@@ -5,7 +5,7 @@ nbsphinx
 cloud_sptheme
 sphinx_bootstrap_theme
 setuptools_scm 
-pandoc
+pypandoc_binary
 sphinx_rtd_theme 
 myst_parser   
 sphinx-autoapi

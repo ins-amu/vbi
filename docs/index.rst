@@ -175,6 +175,14 @@ Publications & Citations
 
    publication
 
+Third-Party Licenses
+--------------------
+
+.. toctree::
+   :maxdepth: 1
+
+   third_party_licenses
+
 Brain Models
 ------------
 
