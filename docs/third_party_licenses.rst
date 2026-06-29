@@ -115,6 +115,9 @@ Documentation Dependencies
    * - `Furo <https://pradyunsg.me/furo>`_
      - MIT
      - https://github.com/pradyunsg/furo/blob/main/LICENSE
+   * - `pypandoc <https://github.com/JessicaTegner/pypandoc>`_
+     - MIT
+     - https://github.com/JessicaTegner/pypandoc/blob/master/LICENSE
 
 Build Dependencies
 ------------------

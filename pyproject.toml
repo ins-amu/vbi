@@ -13,7 +13,7 @@ name = "vbi"
 dynamic = ["version"]
 description = "Virtual brain inference."
 requires-python = ">=3.8"
-license = { text = "MIT" }
+license = { text = "Apache-2.0" }
 authors = [
     { name = "Abolfazl Ziaeemehr", email = "a.ziaeemehr@gmail.com" },
     { name = "Meysam Hashemi", email = "meysam.hashemi@gmail.com" },

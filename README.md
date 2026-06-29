@@ -15,6 +15,34 @@
 </p>
 
 
+## Statement of Need
+
+Whole-brain network modeling - also known as *virtual brain modeling* - combines
+computational models of neural dynamics with individual structural connectivity derived
+from neuroimaging data. A central challenge in this field is *model inversion*: given
+observed recordings (EEG, MEG, fMRI, SEEG), how do we identify the set of control
+parameters that best reproduces the measured brain dynamics? This inverse problem is
+high-dimensional, computationally expensive, and subject to significant uncertainty,
+making it inaccessible with traditional optimization or MCMC approaches at the scale
+required for clinical translation.
+
+**VBI addresses this gap** by providing a unified, open-source toolkit that integrates:
+
+- **Fast simulations** via GPU-accelerated (CuPy), JIT-compiled (Numba/JAX), and C++ backends for a library of established whole-brain models (Jansen-Rit, Wilson-Cowan, Wong-Wang, MPR, VEP, and others);
+- **Feature extraction** with a taxonomy of summary statistics linking simulated and empirical neuroimaging data;
+- **Simulation-based inference (SBI)** using deep neural density estimators (via the `sbi` package) to obtain full posterior distributions over model parameters.
+
+The primary audience is computational neuroscientists and neuroimaging researchers who
+work with personalized brain models, as well as clinical researchers exploring virtual
+brain twins for precision medicine applications (e.g., epilepsy, multiple sclerosis,
+Parkinson's disease). While general-purpose SBI libraries such as
+[sbi](https://sbi-dev.github.io/sbi/) and simulation frameworks such as
+[The Virtual Brain (TVB)](https://www.thevirtualbrain.org) exist independently, VBI
+provides the end-to-end pipeline - from biophysically realistic simulation to
+probabilistic parameter estimation - specifically designed and validated for whole-brain
+network models, substantially lowering the barrier to applying these methods in
+neuroscience research.
+
 ## Installation
 
 ### Quick Start
