@@ -1,3 +1,8 @@
+"""Generic Hopf Bifurcation (GHB) oscillator model — Numba JIT-compiled backend.
+
+Implements a network of generic Hopf bifurcation oscillators (Stuart-Landau
+amplitude equations) for modelling near-critical brain dynamics.
+"""
 import warnings
 import numpy as np
 from numba import njit

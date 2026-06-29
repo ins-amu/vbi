@@ -1,3 +1,4 @@
+"""VBI test suite runner — collects and executes all short and long tests."""
 import os
 import unittest
 import importlib

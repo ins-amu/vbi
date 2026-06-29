@@ -1,3 +1,13 @@
+"""Wong-Wang neural mass model — Numba JIT-compiled backend.
+
+Implements the reduced Wong-Wang (2006) model for large-scale resting-state
+brain dynamics with BOLD haemodynamic output.
+
+Reference
+---------
+Wong, K.-F. & Wang, X.-J. (2006). A recurrent network mechanism of time
+integration in perceptual decisions. *Journal of Neuroscience*, 26(4), 1314–1328.
+"""
 import warnings
 import numpy as np
 from copy import copy

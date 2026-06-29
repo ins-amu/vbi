@@ -1,3 +1,13 @@
+"""Montbrió-Pazó-Roxin (MPR) mean-field model — Numba JIT-compiled backend.
+
+Implements the MPR exact mean-field reduction for networks of QIF neurons
+with optional BOLD haemodynamic output.
+
+Reference
+---------
+Montbrió, E., Pazó, D., & Roxin, A. (2015). Macroscopic description for
+networks of spiking neurons. *Physical Review X*, 5(2), 021028.
+"""
 import warnings
 import numpy as np
 from copy import copy

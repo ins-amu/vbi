@@ -1,3 +1,8 @@
+"""Damped Oscillator (Lotka-Volterra-like) model — C++/SWIG backend Python wrapper.
+
+Python interface to the SWIG-wrapped C++ 2D competitive oscillator,
+used as a simple test case for validating the VBI inference pipeline.
+"""
 import os
 from typing import Any
 import numpy as np

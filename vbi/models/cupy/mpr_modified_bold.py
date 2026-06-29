@@ -1,3 +1,8 @@
+"""MPR model with modified Balloon-Windkessel BOLD — CuPy GPU-accelerated backend.
+
+A variant of the Montbrió-Pazó-Roxin model that uses an alternative
+parameterisation of the haemodynamic forward model.
+"""
 import warnings
 from vbi.models.cupy.mpr import MPR_sde
 

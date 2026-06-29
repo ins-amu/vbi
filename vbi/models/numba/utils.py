@@ -1,3 +1,8 @@
+"""Utility functions for Numba-based VBI model backends.
+
+Provides JIT-compiled helper routines (e.g., boundary checks, vector
+operations) shared across the Numba model implementations.
+"""
 import numpy as np
 from numba.extending import register_jitable
 from vbi.utils import print_valid_parameters

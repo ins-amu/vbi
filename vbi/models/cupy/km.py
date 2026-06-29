@@ -1,3 +1,13 @@
+"""Kuramoto oscillator model — CuPy GPU-accelerated backend.
+
+GPU implementation of the generalised Kuramoto model with heterogeneous
+natural frequencies, phase lags, and stochastic noise.
+
+Reference
+---------
+Kuramoto, Y. (1984). *Chemical Oscillations, Waves, and Turbulence.*
+Springer, Berlin.
+"""
 import tqdm
 import numpy as np
 from vbi.models.cupy.utils import *

@@ -1,3 +1,18 @@
+"""Plotting utilities for VBI simulation results and inference outputs.
+
+Provides functions for visualising time series, functional connectivity (FC)
+matrices, posterior distributions (corner plots), and SBI diagnostics.
+Most functions work without PyTorch or SBI installed.
+
+Main functions
+--------------
+pairplot
+    Corner/pair plot of posterior samples.
+plot_fc
+    Visualise a functional connectivity matrix.
+plot_ts
+    Plot multivariate time series.
+"""
 # ---------------------------
 # Pairplot (no torch required)
 # ---------------------------

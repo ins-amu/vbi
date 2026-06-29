@@ -1,3 +1,13 @@
+"""Virtual Epileptic Patient (VEP) model — C++/SWIG backend Python wrapper.
+
+Python interface to the SWIG-wrapped C++ VEP implementation for large-scale
+epilepsy simulations.
+
+Reference
+---------
+Jirsa, V.K. et al. (2014). On the nature of seizure dynamics.
+*Brain*, 137(8), 2210–2230.
+"""
 import os
 import numpy as np
 from copy import deepcopy

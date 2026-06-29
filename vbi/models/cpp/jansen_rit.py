@@ -1,3 +1,14 @@
+"""Jansen-Rit neural mass model — C++/SWIG backend Python wrapper.
+
+Python interface to the SWIG-wrapped C++ implementation of the Jansen-Rit
+(1995) model, supporting both instantaneous (SDE) and delay (SDDE) variants.
+
+Reference
+---------
+Jansen, B.H. & Rit, V.G. (1995). Electroencephalogram and visual evoked
+potential generation in a mathematical model of coupled cortical columns.
+*Biological Cybernetics*, 73(4), 357–366.
+"""
 import os
 import numpy as np
 from os.path import join

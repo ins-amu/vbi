@@ -1,3 +1,13 @@
+"""Wong-Wang neural mass model — CuPy GPU-accelerated backend.
+
+Implements the reduced Wong-Wang model for large-scale resting-state
+brain dynamics with BOLD output on NVIDIA GPUs.
+
+Reference
+---------
+Wong, K.-F. & Wang, X.-J. (2006). A recurrent network mechanism of time
+integration in perceptual decisions. *Journal of Neuroscience*, 26(4), 1314–1328.
+"""
 import os
 import tqdm
 import logging

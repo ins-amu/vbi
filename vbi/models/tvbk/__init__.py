@@ -1,3 +1,10 @@
+"""The Virtual Brain Kernel (TVBK) model backend for VBI.
+
+Provides an interface to models implemented with the TVB-Kernel library.
+
+.. note::
+    Requires ``tvbk`` to be installed separately.
+"""
 
 
 try:

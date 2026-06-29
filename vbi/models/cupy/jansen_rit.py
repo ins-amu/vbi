@@ -1,3 +1,14 @@
+"""Jansen-Rit neural mass model — CuPy GPU-accelerated backend.
+
+Implements the Jansen-Rit (1995) model for whole-brain network simulations
+on NVIDIA GPUs using CuPy.
+
+Reference
+---------
+Jansen, B.H. & Rit, V.G. (1995). Electroencephalogram and visual evoked
+potential generation in a mathematical model of coupled cortical columns.
+*Biological Cybernetics*, 73(4), 357–366.
+"""
 import tqdm
 import numpy as np
 from vbi.models.cupy.utils import *

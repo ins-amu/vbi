@@ -1,3 +1,4 @@
+"""Tests for the MPR model CuPy GPU backend."""
 import unittest
 import numpy as np
 import networkx as nx

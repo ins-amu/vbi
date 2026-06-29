@@ -1,3 +1,13 @@
+"""Wilson-Cowan neural mass model — C++/SWIG backend Python wrapper.
+
+Python interface to the SWIG-wrapped C++ Wilson-Cowan implementation
+supporting Euler, Heun, and RK4 integration schemes.
+
+Reference
+---------
+Wilson, H.R. & Cowan, J.D. (1972). Excitatory and inhibitory interactions
+in localized populations of model neurons. *Biophysical Journal*, 12(1), 1–24.
+"""
 import numpy as np
 
 from vbi.models.cpp.base import BaseModel

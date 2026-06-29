@@ -1,3 +1,13 @@
+"""Virtual Epileptic Patient (VEP) model — Numba JIT-compiled backend.
+
+Implements a simplified two-variable Epileptor formulation for a network of
+brain regions, used in the Virtual Epileptic Patient pipeline.
+
+Reference
+---------
+Jirsa, V.K. et al. (2014). On the nature of seizure dynamics.
+*Brain*, 137(8), 2210–2230.
+"""
 import warnings
 import numpy as np
 from typing import Dict, Any

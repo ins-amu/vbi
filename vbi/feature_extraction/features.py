@@ -1,3 +1,15 @@
+"""Core feature-extraction functions for VBI.
+
+Implements a comprehensive library of summary statistics for neuroimaging
+time series, including:
+
+- Functional connectivity (FC) and functional connectivity dynamics (FCD)
+- Spectral features (power spectral density, peak frequency, etc.)
+- Phase-based measures (PLV, coherence, Kuramoto order parameter)
+- Information-theoretic measures via JIDT (transfer entropy, mutual
+  information) — requires JPype and Java JDK
+- Signal statistics (variance, autocorrelation, Hurst exponent, etc.)
+"""
 import vbi
 import numpy as np
 import scipy.signal

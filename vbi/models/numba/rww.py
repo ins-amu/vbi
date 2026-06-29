@@ -1,3 +1,13 @@
+"""Reduced Wong-Wang (rWW) model — Numba JIT-compiled backend.
+
+Implements the Deco et al. (2013) reduced mean-field formulation of the
+Wong-Wang model for large-scale resting-state fMRI simulations.
+
+Reference
+---------
+Deco, G. et al. (2013). Resting-state human brain dynamics are best described
+by locally coupled electrical activity. *PLOS Computational Biology*, 9(8).
+"""
 import numpy as np
 from copy import copy
 from numba import njit, jit

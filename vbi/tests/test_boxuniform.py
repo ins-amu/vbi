@@ -1,3 +1,4 @@
+"""Tests for the BoxUniform prior distribution used in VBI inference."""
 import unittest
 import numpy as np
 import pytest

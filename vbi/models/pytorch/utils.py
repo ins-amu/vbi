@@ -1,3 +1,8 @@
+"""Utility functions for PyTorch-based VBI model backends.
+
+Provides helper routines for tensor handling, parameter management, and
+other shared operations used in the PyTorch brain-model implementations.
+"""
 from typing import Optional, Union
 import numpy as np
 import time

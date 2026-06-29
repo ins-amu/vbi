@@ -1,3 +1,15 @@
+"""Low-level utility functions and helpers for VBI feature extraction.
+
+Provides signal-processing helpers, JIDT JVM initialisation, statistical
+utilities, and other shared routines used by the feature-extraction modules.
+
+JIDT dependency
+---------------
+Some functions use the Java Information Dynamics Toolkit (JIDT) via JPype.
+``infodynamics.jar`` is bundled with VBI; a Java JDK (>= 8) and the
+``JPype1`` Python package must be installed separately.  See the
+installation guide for details.
+"""
 import vbi
 import scipy
 import numpy as np

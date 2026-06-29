@@ -1,3 +1,26 @@
+"""Virtual Brain Inference (VBI) — probabilistic inference toolkit for whole-brain network models.
+
+VBI integrates fast forward simulations (C++, Numba, CuPy, and JAX backends),
+a taxonomy of summary-statistic feature extractors, and simulation-based
+inference (SBI) using deep neural density estimators to estimate posterior
+distributions over biophysical model parameters from neuroimaging data.
+
+Subpackages
+-----------
+models
+    Brain-model implementations across Numba, CuPy, C++, JAX, and PyTorch backends.
+feature_extraction
+    Summary statistics, information-theoretic measures, and feature pipelines.
+dataset
+    Dataset loading and management utilities.
+
+Functions
+---------
+tests()
+    Run the VBI test suite.
+test_imports()
+    Check availability of optional dependencies (torch, sbi, cupy, …).
+"""
 import os
 from .tests.test_suite import run_tests
 from .utils import test_imports

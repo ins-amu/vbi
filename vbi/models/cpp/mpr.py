@@ -1,3 +1,13 @@
+"""Montbrió-Pazó-Roxin (MPR) mean-field model — C++/SWIG backend Python wrapper.
+
+Python interface to the SWIG-wrapped C++ MPR implementation with optional
+BOLD haemodynamic output.
+
+Reference
+---------
+Montbrió, E., Pazó, D., & Roxin, A. (2015). Macroscopic description for
+networks of spiking neurons. *Physical Review X*, 5(2), 021028.
+"""
 import numpy as np
 from typing import Union
 from copy import deepcopy
