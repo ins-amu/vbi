@@ -18,7 +18,7 @@ jobs:
 
     - name: Install Python package (compiles C++ extensions)
       run: |
-        python -m pip install .[inference]
+        python -m pip install -e .[inference]
 
     - name: Run tests
       run: |
