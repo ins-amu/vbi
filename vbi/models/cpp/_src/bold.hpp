@@ -1,3 +1,29 @@
+/**
+ * @file bold.hpp
+ * @brief Balloon-Windkessel hemodynamic models for converting neural activity
+ *        to BOLD (fMRI) signals.
+ *
+ * Provides two variants of the Balloon-Windkessel model:
+ *   - **BOLD_2D**: 2-state model (vasodilatory signal s, CBF f); a simplified
+ *     linearised approximation suitable for fast forward simulation.
+ *   - **BOLD_4D**: 4-state model (s, f, CBV v, dHb q); the full nonlinear
+ *     Balloon model for higher-fidelity BOLD predictions.
+ *
+ * **Model references:**
+ * - Buxton, R.B. et al. (1998). Dynamics of blood flow and oxygenation changes
+ *   during brain activation: the Balloon model. *MRM*, 39(6), 855–864.
+ * - Friston, K.J. et al. (2000). Nonlinear responses in fMRI: the Balloon
+ *   model, Volterra kernels, and other hemodynamics.
+ *   *NeuroImage*, 12(4), 466–477.
+ * - Stephan, K.E. et al. (2007). Comparing hemodynamic models with DCM.
+ *   *NeuroImage*, 38(3), 387–401.
+ *
+ * Both classes expose a single-step `integrate()` method that advances the
+ * hemodynamic state by one time step @p dt_b and returns the BOLD signal
+ * contribution for that step.  They are designed to be called from within a
+ * neural simulation loop.
+ */
+
 #ifndef BOLD_HPP
 #define BOLD_HPP
 
@@ -17,22 +43,50 @@ typedef std::vector<dim1f> dim2f;
 using std::string;
 using std::vector;
 
+/**
+ * @brief Simplified 2-state Balloon-Windkessel BOLD model.
+ *
+ * State vector per node (2×N flat vector):
+ * | Index range | Variable | Description |
+ * |-------------|----------|-------------|
+ * | [0,   N)    | s        | Vasodilatory signal |
+ * | [N,  2N)    | f        | Log-normalised cerebral blood flow (CBF) |
+ *
+ * The BOLD output is a linear function of (f - 1).
+ *
+ * Supports Euler (`eulerDeterministic`) and Heun (`heunDeterministic`)
+ * integration methods, selected by the @p integration_method string.
+ */
 class BOLD_2D
 {
 private:
-    size_t N;
-    double dt_b;
-    double PAR_rho;
-    double PAR_e;
-    double PAR_taus;
-    double PAR_tauf;
-    double PAR_k1;
-    double PAR_eps;
-    double inv_taus;
-    double inv_tauf;
-    std::string integration_method;
+    size_t N;         ///< Number of network nodes
+    double dt_b;      ///< Integration time step [s]
+    double PAR_rho;   ///< Resting oxygen extraction fraction ρ
+    double PAR_e;     ///< Neural efficacy ε (scales neural→vascular drive)
+    double PAR_taus;  ///< Signal decay time constant τ_s [s]
+    double PAR_tauf;  ///< Auto-regulation time constant τ_f [s]
+    double PAR_k1;    ///< BOLD signal scaling coefficient k1
+    double PAR_eps;   ///< Ratio of intra- to extra-vascular signal ε
+    double inv_taus;  ///< 1 / τ_s (precomputed)
+    double inv_tauf;  ///< 1 / τ_f (precomputed)
+    std::string integration_method; ///< "eulerDeterministic" or "heunDeterministic"
 
 public:
+    /**
+     * @brief Construct a BOLD_2D model.
+     *
+     * @param N                  Number of network nodes.
+     * @param dt                 Integration time step [s].
+     * @param integration_method "eulerDeterministic" or "heunDeterministic"
+     *                           (default "heunDeterministic").
+     * @param rho                Resting oxygen extraction fraction (default 0.8).
+     * @param e                  Neural efficacy (default 0.02).
+     * @param taus               Signal decay time constant [s] (default 0.8).
+     * @param tauf               Auto-regulation time constant [s] (default 0.4).
+     * @param k1                 BOLD scaling coefficient (default 5.6).
+     * @param eps                Intra/extra-vascular ratio (default 0.5).
+     */
     BOLD_2D(
         size_t N,
         double dt,
@@ -58,7 +112,25 @@ public:
 
         this->integration_method = integration_method;
     }
-    // ------------------------------------------------------------------------
+
+    /**
+     * @brief Evaluate the 2-state BOLD right-hand side.
+     *
+     * For each node i:
+     * ```
+     *   ds/dt  = eps * vec_in[i + index] - s[i] / taus - (f[i] - 1) / tauf
+     *   df/dt  = s[i]
+     * ```
+     * where @p index selects which component of @p vec_in drives the model
+     * (0 for r, num_nodes for v in MPR-type models).
+     *
+     * @param x       Current state [s0..sN-1, f0..fN-1] (length 2N).
+     * @param dxdt    Output derivative (length 2N, pre-allocated).
+     * @param t       Current time [s] (unused).
+     * @param vec_in  Neural activity vector driving the BOLD model.
+     * @param index   Offset into @p vec_in selecting the relevant component.
+     * @return        Reference to @p dxdt.
+     */
     dim1 bold_derivate(const dim1 &x,
                        dim1 &dxdt,
                        const double t,
@@ -73,7 +145,16 @@ public:
         }
         return dxdt;
     }
-    // ------------------------------------------------------------------------
+
+    /**
+     * @brief Advance the BOLD state by one Euler step.
+     *
+     * @param y0        Current state [s, f] (length 2N), modified in-place.
+     * @param t         Current time [s].
+     * @param vec_in    Neural activity vector.
+     * @param num_nodes Number of nodes (= N).
+     * @param index     Offset into @p vec_in.
+     */
     void eulerDeterministic(dim1 &y0,
                             const double t,
                             const dim1 &vec_in,
@@ -87,7 +168,16 @@ public:
         for (size_t i = 0; i < n; ++i)
             y0[i] += dydt[i] * dt_b;
     }
-    // ------------------------------------------------------------------------
+
+    /**
+     * @brief Advance the BOLD state by one Heun step.
+     *
+     * @param y0        Current state [s, f] (length 2N), modified in-place.
+     * @param t         Current time [s].
+     * @param vec_in    Neural activity vector.
+     * @param num_nodes Number of nodes (= N).
+     * @param index     Offset into @p vec_in.
+     */
     void heunDeterministic(dim1 &y0,
                            const double t,
                            const dim1 &vec_in,
@@ -106,7 +196,20 @@ public:
         for (size_t i = 0; i < n; ++i)
             y0[i] += 0.5 * dt_b * (k1[i] + k2[i]);
     }
-    // ------------------------------------------------------------------------
+
+    /**
+     * @brief Advance the hemodynamic state and return the BOLD signal.
+     *
+     * Updates @p y0 in-place and returns the BOLD signal vector:
+     * `BOLD[i] = (100 / rho) * e * k1 * (f[i] - 1)`
+     *
+     * @param y0        Current state (length 2N), modified in-place.
+     * @param t         Current time [s].
+     * @param vec_in    Neural activity driving the BOLD model.
+     * @param num_nodes Number of nodes.
+     * @param component "r" (index = 0) or "v" (index = num_nodes).
+     * @return          BOLD signal vector (length N).
+     */
     dim1 integrate(dim1 &y0,
                    const double t,
                    const dim1 &vec_in,
@@ -138,33 +241,72 @@ public:
     }
 };
 
+/**
+ * @brief Full 4-state nonlinear Balloon-Windkessel BOLD model.
+ *
+ * State vector per node (4×N flat vector):
+ * | Index range | Variable | Description |
+ * |-------------|----------|-------------|
+ * | [0,   N)    | s        | Vasodilatory signal |
+ * | [N,  2N)    | f        | Log-normalised CBF |
+ * | [2N, 3N)    | v        | Log-normalised cerebral blood volume (CBV) |
+ * | [3N, 4N)    | q        | Log-normalised deoxyhaemoglobin content |
+ *
+ * The BOLD output is the nonlinear sum:
+ * `BOLD = V0 * (K1*(1-q) + K2*(1-q/v) + K3*(1-v))`
+ *
+ * Supports Euler (`eulerDeterministic`) and Heun (`heunDeterministic`)
+ * integration methods.
+ */
 class BOLD_4D
 {
 
 private:
-    size_t N;
-    double dt_b;
-    double PAR_alpha;
-    double PAR_tauo;
-    double PAR_taus;
-    double PAR_tauf;
-    double PAR_k1;
-    double PAR_k2;
-    double PAR_k3;
-    double PAR_E0;
-    double PAR_V0;
-    double PAR_TE;
-    double PAR_eps;
-    double PAR_nu0;
-    double PAR_r0;
-    std::string integration_method;
+    size_t N;         ///< Number of network nodes
+    double dt_b;      ///< Integration time step [s]
+    double PAR_alpha; ///< Grubb's vessel stiffness exponent α
+    double PAR_tauo;  ///< Haemodynamic transit time τ_o [s]
+    double PAR_taus;  ///< Signal decay time constant τ_s [s]
+    double PAR_tauf;  ///< Auto-regulation time constant τ_f [s]
+    double PAR_k1;    ///< BOLD signal coefficient K1 (derived)
+    double PAR_k2;    ///< BOLD signal coefficient K2 (derived)
+    double PAR_k3;    ///< BOLD signal coefficient K3 (derived)
+    double PAR_E0;    ///< Resting oxygen extraction fraction E0
+    double PAR_V0;    ///< Resting blood volume fraction V0
+    double PAR_TE;    ///< Echo time TE [s]
+    double PAR_eps;   ///< Ratio of intra- to extra-vascular signal ε
+    double PAR_nu0;   ///< Frequency offset at outer vessel surface ν0 [Hz]
+    double PAR_r0;    ///< Slope of intravascular relaxation rate r0 [1/s]
+    std::string integration_method; ///< "eulerDeterministic" or "heunDeterministic"
 
-    double inv_taus;
-    double inv_tauf;
-    double inv_tauo;
-    double inv_alpha;
+    double inv_taus;  ///< 1 / τ_s (precomputed)
+    double inv_tauf;  ///< 1 / τ_f (precomputed)
+    double inv_tauo;  ///< 1 / τ_o (precomputed)
+    double inv_alpha; ///< 1 / α   (precomputed)
 
 public:
+    /**
+     * @brief Construct a BOLD_4D model.
+     *
+     * K1, K2, K3, and the inverse time constants are computed automatically
+     * from the given parameters.
+     *
+     * @param N                  Number of network nodes.
+     * @param dt                 Integration time step [s].
+     * @param integration_method "eulerDeterministic" or "heunDeterministic"
+     *                           (default "heunDeterministic").
+     * @param alpha  Grubb's stiffness exponent (default 0.32).
+     * @param tauo   Transit time [s] (default 0.98).
+     * @param taus   Signal decay time [s] (default 1.54).
+     * @param tauf   Auto-regulation time [s] (default 1.44).
+     * @param E0     Resting oxygen extraction fraction (default 0.4).
+     * @param V0     Resting blood volume fraction [%] (default 4.0).
+     * @param TE     Echo time [s] (default 0.04).
+     * @param nu0    Frequency offset [Hz] (default 40.3).
+     * @param r0     Intravascular relaxation rate slope [1/s] (default 25.0).
+     * @param eps    Intra/extra-vascular ratio (default 0.5).
+     * @param RBM    Regional BOLD model variant (currently only 1 is supported).
+     */
     BOLD_4D(
         size_t N,
         double dt,
@@ -211,7 +353,26 @@ public:
             exit(EXIT_FAILURE);
         }
     }
-    //     // ------------------------------------------------------------------------
+
+    /**
+     * @brief Evaluate the 4-state BOLD right-hand side.
+     *
+     * For each node i:
+     * ```
+     *   ds/dt  = vec_in[i+index] - s[i]/taus - (f[i]-1)/tauf
+     *   df/dt  = s[i]
+     *   dv/dt  = (f[i] - v[i]^(1/alpha)) / (tauo * v[i])
+     *   dq/dt  = (f[i]*(1-(1-E0)^(1/f[i]))/E0 - v[i]^(1/alpha)*q[i]/v[i]) / (tauo*q[i])
+     * ```
+     * Variables are stored in log-space so that v,q remain positive.
+     *
+     * @param x       Current state [s, f, v, q] (length 4N).
+     * @param dxdt    Output derivative (length 4N, pre-allocated).
+     * @param t       Current time [s] (unused).
+     * @param vec_in  Neural activity vector.
+     * @param index   Offset into @p vec_in.
+     * @return        Reference to @p dxdt.
+     */
     dim1 bold_derivate(const dim1 &x,
                        dim1 &dxdt,
                        const double t,
@@ -231,7 +392,16 @@ public:
         }
         return dxdt;
     }
-    //     // ------------------------------------------------------------------------
+
+    /**
+     * @brief Advance the 4-state BOLD state by one Euler step.
+     *
+     * @param y0        Current state (length 4N), modified in-place.
+     * @param t         Current time [s].
+     * @param vec_in    Neural activity vector.
+     * @param num_nodes Number of nodes.
+     * @param index     Offset into @p vec_in.
+     */
     void eulerDeterministic(dim1 &y0,
                             const double t,
                             const dim1 &vec_in,
@@ -245,7 +415,16 @@ public:
         for (size_t i = 0; i < n; ++i)
             y0[i] += dydt[i] * dt_b;
     }
-    // ------------------------------------------------------------------------
+
+    /**
+     * @brief Advance the 4-state BOLD state by one Heun step.
+     *
+     * @param y0        Current state (length 4N), modified in-place.
+     * @param t         Current time [s].
+     * @param vec_in    Neural activity vector.
+     * @param num_nodes Number of nodes.
+     * @param index     Offset into @p vec_in.
+     */
     void heunDeterministic(dim1 &y0,
                            const double t,
                            const dim1 &vec_in,
@@ -264,7 +443,20 @@ public:
         for (size_t i = 0; i < n; ++i)
             y0[i] += 0.5 * dt_b * (k1[i] + k2[i]);
     }
-    //     // ------------------------------------------------------------------------
+
+    /**
+     * @brief Advance the hemodynamic state and return the BOLD signal.
+     *
+     * Updates @p y0 in-place and computes the nonlinear BOLD signal:
+     * `BOLD[i] = V0 * (K1*(1-q[i]) + K2*(1-q[i]/v[i]) + K3*(1-v[i]))`
+     *
+     * @param y0        Current state (length 4N), modified in-place.
+     * @param t         Current time [s].
+     * @param vec_in    Neural activity vector.
+     * @param num_nodes Number of nodes.
+     * @param component "r" (index = 0) or "v" (index = num_nodes).
+     * @return          BOLD signal vector (length N).
+     */
     dim1 integrate(dim1 &y0,
                    const double t,
                    const dim1 &vec_in,

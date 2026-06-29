@@ -1,3 +1,32 @@
+/**
+ * @file mpr_sde.hpp
+ * @brief Montbrió-Pazó-Roxin (MPR) mean-field neural mass model with
+ *        stochastic noise and optional BOLD hemodynamic output.
+ *
+ * Implements the exact mean-field reduction of a network of quadratic
+ * integrate-and-fire (QIF) neurons derived by Montbrió et al. (2015).
+ * The two collective variables per node are:
+ *   - r : population-mean firing rate [spikes/s]
+ *   - v : population-mean membrane potential [mV]
+ *
+ * Optionally computes the BOLD (fMRI) signal via the Balloon-Windkessel
+ * hemodynamic model (Friston et al., 2000; Stephan et al., 2007).
+ *
+ * **Model references:**
+ * - Montbrió, E., Pazó, D., & Roxin, A. (2015). Macroscopic description for
+ *   networks of spiking neurons. *Physical Review X*, 5(2), 021028.
+ *   https://doi.org/10.1103/PhysRevX.5.021028
+ * - Friston, K.J. et al. (2000). Nonlinear responses in fMRI: the Balloon
+ *   model, Volterra kernels, and other hemodynamics.
+ *   *NeuroImage*, 12(4), 466–477.
+ *
+ * **State-vector layout** (flat vector of length 2×N):
+ * | Index range | Variable | Description |
+ * |-------------|----------|-------------|
+ * | [0,   N)    | r        | Mean firing rate per node [spikes/s] |
+ * | [N,  2N)    | v        | Mean membrane potential per node [mV] |
+ */
+
 #ifndef MPR_SDE_HPP
 #define MPR_SDE_HPP
 
@@ -18,28 +47,55 @@ typedef std::vector<dim1> dim2;
 typedef std::vector<float> dim1f;
 typedef std::vector<dim1f> dim2f;
 
+/**
+ * @brief Parameters of the Balloon-Windkessel hemodynamic model.
+ *
+ * Default values are from Friston et al. (2000) / Stephan et al. (2007).
+ * K1, K2, K3 are derived quantities computed from the other parameters.
+ *
+ * @see MPR_sde::bold_step
+ */
 struct BoldParams
 {
-    double kappa = 0.65;
-    double gamma = 0.41;
-    double tau = 0.98;
-    double alpha = 0.32;
-    double epsilon = 0.34;
-    double Eo = 0.4;
-    double TE = 0.04;
-    double vo = 0.08;
-    double r0 = 25.0;
-    double theta0 = 40.3;
-    double rtol = 1e-5;
-    double atol = 1e-8;
-    double dt_b = 0.001;
-    double K1 = 4.3 * theta0 * Eo * TE;
-    double K2 = epsilon * r0 * Eo * TE;
-    double K3 = 1 - epsilon;
-    double ialpha = 1 / alpha;
+    double kappa   = 0.65;  ///< Rate of signal decay [1/s]
+    double gamma   = 0.41;  ///< Rate of flow-dependent elimination [1/s]
+    double tau     = 0.98;  ///< Haemodynamic transit time [s]
+    double alpha   = 0.32;  ///< Grubb's vessel stiffness exponent
+    double epsilon = 0.34;  ///< Ratio of intra- to extra-vascular signal
+    double Eo      = 0.4;   ///< Resting oxygen extraction fraction
+    double TE      = 0.04;  ///< Echo time [s]
+    double vo      = 0.08;  ///< Resting blood volume fraction
+    double r0      = 25.0;  ///< Slope of intravascular relaxation rate [1/s]
+    double theta0  = 40.3;  ///< Frequency offset at the outer surface of vessels [Hz]
+    double rtol    = 1e-5;  ///< Relative tolerance (reserved for adaptive integration)
+    double atol    = 1e-8;  ///< Absolute tolerance (reserved for adaptive integration)
+    double dt_b    = 0.001; ///< BOLD integration sub-step [s]
+    double K1      = 4.3 * theta0 * Eo * TE;   ///< BOLD signal coefficient K1 (derived)
+    double K2      = epsilon * r0 * Eo * TE;    ///< BOLD signal coefficient K2 (derived)
+    double K3      = 1 - epsilon;               ///< BOLD signal coefficient K3 (derived)
+    double ialpha  = 1 / alpha;                 ///< 1/alpha (precomputed)
 
+    /** @brief Default constructor — uses literature default values. */
     BoldParams() = default;
 
+    /**
+     * @brief Construct with custom hemodynamic parameters.
+     *
+     * K1, K2, K3, and ialpha are recomputed automatically.
+     *
+     * @param kappa   Rate of signal decay [1/s].
+     * @param gamma   Rate of flow-dependent elimination [1/s].
+     * @param tau     Haemodynamic transit time [s].
+     * @param alpha   Grubb's vessel stiffness exponent.
+     * @param epsilon Ratio of intra- to extra-vascular signal.
+     * @param Eo      Resting oxygen extraction fraction.
+     * @param TE      Echo time [s].
+     * @param vo      Resting blood volume fraction.
+     * @param r0      Slope of intravascular relaxation rate [1/s].
+     * @param theta0  Frequency offset at outer vessel surface [Hz].
+     * @param rtol    Relative tolerance.
+     * @param atol    Absolute tolerance.
+     */
     BoldParams(double kappa, double gamma, double tau,
                double alpha, double epsilon, double Eo, double TE,
                double vo, double r0, double theta0, double rtol,
@@ -55,47 +111,82 @@ struct BoldParams
     }
 };
 
+/**
+ * @brief MPR mean-field model with SDE and optional BOLD output.
+ *
+ * Integrates the Montbrió-Pazó-Roxin equations for N network nodes using
+ * the Heun SDE scheme.  Noise amplitudes for r and v are scaled differently
+ * (rNoise = sqrt(2*noise_amp), vNoise = sqrt(4*noise_amp)).
+ *
+ * Optionally records:
+ *   - The r,v time series downsampled by @p rv_decimate.
+ *   - The BOLD signal sampled at repetition time @p tr.
+ */
 class MPR_sde
 {
 
 private:
-    dim1 delta;
-    dim1 tau;
-    dim1 eta;
-    dim1 J;
-    dim1 i_app;
-    double dt;
-    double dt_b;
-    double G;
+    dim1 delta;      ///< Half-width of Lorentzian heterogeneity (per node) [Hz]
+    dim1 tau;        ///< Membrane time constant (per node) [ms]
+    dim1 eta;        ///< Mean excitability (per node) [mV]
+    dim1 J;          ///< Synaptic weight (per node)
+    dim1 i_app;      ///< Applied current (per node)
+    double dt;       ///< Neural SDE integration time step [s]
+    double dt_b;     ///< BOLD sub-step time [s]
+    double G;        ///< Global inter-node coupling strength
 
-    double rNoise;
-    double vNoise;
-    double noise_amp;
+    double rNoise;     ///< Noise amplitude for firing-rate variable r
+    double vNoise;     ///< Noise amplitude for membrane-potential variable v
+    double noise_amp;  ///< Raw noise amplitude parameter
 
-    size_t num_nodes;
-    size_t num_steps;
-    size_t rv_decimate;
-    size_t idx_cut;
-    unsigned RECORD_RV;
-    unsigned RECORD_BOLD;
+    size_t num_nodes;    ///< Number of network nodes
+    size_t num_steps;    ///< Total integration steps = t_end / dt
+    size_t rv_decimate;  ///< Decimation factor for r,v recording
+    size_t idx_cut;      ///< Step index at which recording starts (= t_cut/dt)
+    unsigned RECORD_RV;  ///< Flag: record r,v time series (non-zero = yes)
+    unsigned RECORD_BOLD;///< Flag: record BOLD signal (non-zero = yes)
 
-    double t_end;
-    double t_cut;
-    double tr; // TR: repetition time [time interval for bold sampling]
-    vector<vector<unsigned>> adjlist;
+    double t_end;   ///< Total simulation time [s]
+    double t_cut;   ///< Transient period to discard [s]
+    double tr;      ///< BOLD repetition time (sampling interval) [s]
+    vector<vector<unsigned>> adjlist; ///< Sparse adjacency list
 
-    dim2 weights;
-    dim1 t_arr;
-    int fix_seed;
-    dim1 initial_state;
-    BoldParams bp;
+    dim2 weights;        ///< N×N inter-node weight matrix
+    dim1 t_arr;          ///< Temporary time array
+    int fix_seed;        ///< Seed flag forwarded to rng()
+    dim1 initial_state;  ///< Flat initial state vector [r0..rN-1, v0..vN-1]
+    BoldParams bp;       ///< Balloon-Windkessel hemodynamic parameters
 
 public:
-    dim2 bold_d;
-    dim1 bold_t;
-    dim2 r_d;
-    dim1 r_t;
+    dim2 bold_d; ///< BOLD signal, shape (n_bold_samples) × N
+    dim1 bold_t; ///< BOLD time array, length n_bold_samples
+    dim2 r_d;    ///< Firing-rate time series (decimated), shape n_rv × (2N)
+    dim1 r_t;    ///< Time array for r_d, length n_rv
 
+    /**
+     * @brief Construct an MPR_sde simulator.
+     *
+     * @param dt          Neural SDE time step [s].
+     * @param dt_b        BOLD integration sub-step [s].
+     * @param rv_decimate Decimation factor for recording r,v (1 = every step).
+     * @param weights     N×N inter-node coupling weight matrix.
+     * @param initial_state Flat initial state [r0..rN-1, v0..vN-1] (length 2N).
+     * @param delta       Per-node Lorentzian half-width (heterogeneity) [Hz].
+     * @param tau         Per-node membrane time constant [ms].
+     * @param eta         Per-node mean excitability [mV].
+     * @param J           Per-node synaptic weight.
+     * @param i_app       Per-node applied current.
+     * @param noise_amp   Noise amplitude (rNoise=sqrt(2*noise_amp)*sqrt(dt),
+     *                    vNoise=sqrt(4*noise_amp)*sqrt(dt)).
+     * @param G           Global coupling strength.
+     * @param t_end       Total simulation time [s].
+     * @param t_cut       Transient period to discard [s].
+     * @param tr          BOLD repetition time (sampling interval) [s].
+     * @param RECORD_RV   Non-zero to record r,v time series.
+     * @param RECORD_BOLD Non-zero to record BOLD signal.
+     * @param fix_seed    RNG seed flag (0 = random, non-zero = fixed).
+     * @param bp          Balloon-Windkessel hemodynamic parameters.
+     */
     MPR_sde(double dt,
             double dt_b,
             size_t rv_decimate,
@@ -136,6 +227,21 @@ public:
         adjlist = adjmat_to_adjlist(weights);
     }
 
+    /**
+     * @brief Evaluate the MPR mean-field right-hand side.
+     *
+     * For node i:
+     * ```
+     *   dr/dt = (delta[i] / (tau[i]^2 * pi) + 2*r[i]*v[i]) / tau[i]
+     *   dv/dt = (v[i]^2 + i_app[i] + eta[i] + J[i]*tau[i]*r[i]
+     *            - pi^2*tau[i]^2*r[i]^2 + G*cpl[i]) / tau[i]
+     * ```
+     * where cpl[i] = sum_j weights[i][j] * r[j].
+     *
+     * @param x     Current state vector [r0..rN-1, v0..vN-1] (length 2N).
+     * @param dxdt  Output derivative vector (length 2N, pre-allocated).
+     * @param t     Current time [s] (unused; kept for API consistency).
+     */
     void f_mpr(
         const dim1 &x,
         dim1 &dxdt,
@@ -158,6 +264,19 @@ public:
         }
     }
 
+    /**
+     * @brief Perform one Heun SDE step for the r,v state vector.
+     *
+     * Noise amplitudes differ between the r and v components:
+     *   - r: rNoise = sqrt(dt * 2 * noise_amp)
+     *   - v: vNoise = sqrt(dt * 4 * noise_amp)
+     *
+     * Firing rate r is clipped to zero if it goes negative (physically
+     * meaningless).
+     *
+     * @param y  State vector [r0..rN-1, v0..vN-1], modified in-place.
+     * @param t  Current time [s].
+     */
     void heun_step(dim1 &y, const double t)
     {
         std::normal_distribution<> normal(0, 1);
@@ -190,6 +309,23 @@ public:
         }
     }
 
+    /**
+     * @brief Perform one Balloon-Windkessel BOLD integration sub-step.
+     *
+     * Integrates the haemodynamic state variables (vasodilatory signal s,
+     * CBF f, log-CBF ftilde, log-CBV vtilde, log-dHb qtilde, CBV v, dHb q)
+     * using a forward-Euler step of size @p dtt.
+     *
+     * @param r_in   Firing-rate input to the BOLD model (length N).
+     * @param s      Vasodilatory signal (2 × N ping-pong buffer).
+     * @param f      Cerebral blood flow (2 × N).
+     * @param ftilde Log-normalised CBF (2 × N).
+     * @param vtilde Log-normalised CBV (2 × N).
+     * @param qtilde Log-normalised deoxyhaemoglobin (2 × N).
+     * @param v      Cerebral blood volume (2 × N).
+     * @param q      Deoxyhaemoglobin content (2 × N).
+     * @param dtt    Sub-step size [s].
+     */
     void bold_step(
         const dim1 &r_in,
         dim2 &s,
@@ -226,9 +362,19 @@ public:
             qtilde[0][i] = qtilde[1][i];
             v[0][i] = v[1][i];
             q[0][i] = q[1][i];
-        }        
+        }
     }
 
+    /**
+     * @brief Run the full simulation.
+     *
+     * Advances the neural state with Heun SDE steps and, if RECORD_BOLD is
+     * set, drives the Balloon-Windkessel model to produce a BOLD signal
+     * sampled every @p tr seconds.  r,v data are recorded every @p rv_decimate
+     * steps (if RECORD_RV is set).
+     *
+     * Output is stored in the public members bold_d, bold_t, r_d, r_t.
+     */
     void integrate()
     {
         unsigned n = num_nodes;
@@ -308,19 +454,23 @@ public:
         }
     }
 
+    /** @brief Return the BOLD signal time series (shape n_bold × N). */
     dim2 get_bold_d()
     {
         return bold_d;
     }
+    /** @brief Return the BOLD sampling time array (length n_bold). */
     dim1 get_bold_t()
     {
         return bold_t;
     }
 
+    /** @brief Return the decimated r,v time series (shape n_rv × 2N). */
     dim2 get_r_d()
     {
         return r_d;
     }
+    /** @brief Return the time array for the r,v recording (length n_rv). */
     dim1 get_r_t()
     {
         return r_t;

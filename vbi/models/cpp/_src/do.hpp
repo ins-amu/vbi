@@ -1,3 +1,24 @@
+/**
+ * @file do.hpp
+ * @brief Damped Oscillator (DO) — a 2D competitive (Lotka-Volterra-like)
+ *        nonlinear oscillator for testing and benchmarking VBI inference.
+ *
+ * The model describes two interacting populations (x, y) with self-damping
+ * and cross-inhibition, making it a useful toy system for validating the
+ * inference pipeline before applying it to more complex brain models.
+ *
+ * **Equations:**
+ * ```
+ *   dx/dt = x - x*y - a*x^2
+ *   dy/dt = x*y - y - b*y^2
+ * ```
+ * where @p a and @p b are intraspecific competition (self-damping) parameters.
+ *
+ * **State vector:** [x, y] (length 2).
+ *
+ * Supports Euler and fourth-order Runge-Kutta (RK4) integration.
+ */
+
 #include <vector>
 #include <string>
 #include <assert.h>
@@ -9,23 +30,39 @@ using std::vector;
 typedef std::vector<double> dim1;
 typedef std::vector<dim1> dim2;
 
+/**
+ * @brief Damped Oscillator — 2D competitive nonlinear ODE for benchmarking.
+ *
+ * Used as a simple testbed for the VBI inference pipeline (simulation-based
+ * inference of parameters a and b).
+ */
 class DO
 {
 private:
-    double dt;
-    double PAR_a;
-    double PAR_b;
+    double dt;       ///< Integration time step [s]
+    double PAR_a;    ///< Self-damping coefficient for population x
+    double PAR_b;    ///< Self-damping coefficient for population y
 
-    size_t dimension;
-    size_t num_steps;
-    double t_final;
-    double t_initial;
+    size_t dimension;  ///< State-space dimension (= 2)
+    size_t num_steps;  ///< Total integration steps = (t_final - t_initial) / dt
+    double t_final;    ///< Simulation end time [s]
+    double t_initial;  ///< Simulation start time [s]
 
-    dim1 times;
-    dim2 states;
-    dim1 initial_state;
+    dim1 times;        ///< Time array of length num_steps
+    dim2 states;       ///< State trajectory, shape num_steps × 2
+    dim1 initial_state;///< Initial state [x0, y0]
 
 public:
+    /**
+     * @brief Construct a DO simulator.
+     *
+     * @param dt        Integration time step [s].
+     * @param a         Self-damping coefficient for x.
+     * @param b         Self-damping coefficient for y.
+     * @param t_initial Simulation start time [s].
+     * @param t_final   Simulation end time [s].
+     * @param y         Initial state vector [x0, y0] (length 2).
+     */
     DO(double dt,    // time step
        double a, // parameter
        double b,
@@ -48,6 +85,18 @@ public:
         times.resize(num_steps);
     }
 
+    /**
+     * @brief Evaluate the system right-hand side.
+     *
+     * ```
+     *   dxdt[0] = x - x*y - a*x^2
+     *   dxdt[1] = x*y - y - b*y^2
+     * ```
+     *
+     * @param x     Current state [x, y].
+     * @param dxdt  Output derivative vector (pre-allocated, length 2).
+     * @param t     Current time [s] (unused; kept for API consistency).
+     */
     void derivative(const vector<double> &x,
              vector<double> &dxdt,
              const double t)
@@ -56,6 +105,12 @@ public:
         dxdt[1] = x[0] * x[1] - x[1] - PAR_b * x[1] * x[1];
     }
 
+    /**
+     * @brief Run the full simulation using the Euler scheme.
+     *
+     * Records the full state trajectory in @c states and the time array
+     * in @c times.
+     */
     void eulerIntegrate()
     {
         size_t n = dimension;
@@ -74,6 +129,11 @@ public:
         }
     }
 
+    /**
+     * @brief Perform one Euler step, updating @p y in-place.
+     * @param y  State vector [x, y], modified in-place.
+     * @param t  Current time [s].
+     */
     void euler(dim1& y, const double t)
     {
         size_t n = y.size();
@@ -114,6 +174,12 @@ public:
     //         y[i] += 0.5 * (dydt[i] + dydt[i]) * dt;
     // }
 
+    /**
+     * @brief Run the full simulation using the RK4 scheme.
+     *
+     * Records the full state trajectory in @c states and the time array
+     * in @c times.
+     */
     void rk4Integrate()
     {
         states[0] = initial_state;
@@ -129,6 +195,11 @@ public:
         }
     }
 
+    /**
+     * @brief Perform one fourth-order Runge-Kutta step, updating @p y in-place.
+     * @param y  State vector [x, y], modified in-place.
+     * @param t  Current time [s].
+     */
     void rk4(dim1&y, const double t)
     {
 
@@ -154,10 +225,19 @@ public:
             y[i] += (k1[i] + 2.0 * (k2[i] + k3[i]) + k4[i]) * c_dt;
     }
 
+    /**
+     * @brief Return the full state trajectory.
+     * @return dim2 of shape num_steps × 2.
+     */
     dim2 get_coordinates()
     {
         return states;
     }
+
+    /**
+     * @brief Return the time array.
+     * @return dim1 of length num_steps.
+     */
     dim1 get_times()
     {
         return times;

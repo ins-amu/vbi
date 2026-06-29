@@ -1,3 +1,17 @@
+/**
+ * @file utility.hpp
+ * @brief Common type aliases, utility functions, and RNG helpers shared by all
+ *        VBI C++ model backends.
+ *
+ * Provides:
+ *   - 1-D / 2-D vector type aliases (dim1, dim2, …)
+ *   - Adjacency-matrix to adjacency-list conversion
+ *   - Mathematical helpers (moving average, matrix–vector multiply)
+ *   - Cross-platform memory and wall-clock timing
+ *   - A seeded/random Mersenne-Twister RNG (rng())
+ *   - File / folder existence checks and matrix I/O
+ */
+
 #ifndef UTILITY_HPP
 #define UTILITY_HPP
 
@@ -32,11 +46,20 @@
 using std::string;
 using std::vector;
 
+/** @brief 1-D vector of doubles. */
 typedef std::vector<double> dim1;
+/** @brief 1-D vector of unsigned integers. */
 typedef std::vector<unsigned> dim1I;
+/** @brief 2-D vector of doubles (vector of dim1). */
 typedef std::vector<std::vector<double>> dim2;
+/** @brief 2-D vector of unsigned integers. */
 typedef std::vector<std::vector<unsigned>> dim2I;
 
+/**
+ * @brief Check whether a file exists on disk.
+ * @param filename Path to the file.
+ * @return true if the file exists, false otherwise.
+ */
 bool fileExists(const std::string &filename)
 {
     struct stat buf;
@@ -47,6 +70,11 @@ bool fileExists(const std::string &filename)
     return false;
 }
 
+/**
+ * @brief Check whether a directory exists on disk.
+ * @param path Path to the directory.
+ * @return true if the path exists and is a directory, false otherwise.
+ */
 bool folderExists(const std::string &path)
 {
     struct stat st;
@@ -61,6 +89,15 @@ bool folderExists(const std::string &path)
         return false;
 }
 
+/**
+ * @brief Convert a weighted adjacency matrix to a sparse adjacency list.
+ *
+ * Only edges with |A[i][j]| > 1e-8 are retained, which avoids iterating over
+ * zero-weight entries in the inner simulation loops.
+ *
+ * @param A  Square N×N adjacency / weight matrix.
+ * @return   adjlist[i] lists the indices j of all neighbours of node i.
+ */
 std::vector<std::vector<unsigned>> adjmat_to_adjlist(const dim2 &A)
 {
     size_t n = A.size();
@@ -99,6 +136,16 @@ std::vector<std::vector<unsigned>> adjmat_to_adjlist(const dim2 &A)
 //     return adjlist;
 // }
 
+/**
+ * @brief Compute a non-overlapping block moving average.
+ *
+ * Partitions @p vec into consecutive blocks of size @p window and returns the
+ * mean of each block.  The output length is floor(size / window).
+ *
+ * @param vec    Input time series.
+ * @param window Block size (number of samples to average).
+ * @return       Downsampled signal of length floor(vec.size() / window).
+ */
 dim1 moving_average(const dim1 &vec, const size_t window)
 {
     size_t size = vec.size();
@@ -118,7 +165,12 @@ dim1 moving_average(const dim1 &vec, const size_t window)
     return vec_out;
 }
 
-// adding vectors
+/**
+ * @brief Element-wise addition of two double vectors, writing the result into @p c.
+ * @param a  First operand.
+ * @param b  Second operand (same size as @p a).
+ * @param c  Output vector (must be pre-allocated to the same size).
+ */
 void add(const vector<double> &a, const vector<double> &b, vector<double> &c)
 {
     // c need to be allocated memory.
@@ -127,6 +179,12 @@ void add(const vector<double> &a, const vector<double> &b, vector<double> &c)
               { return a + b; });
 }
 
+/**
+ * @brief Mixed-precision element-wise addition (float + double → float).
+ * @param a  Float operand.
+ * @param b  Double operand (same size as @p a).
+ * @param c  Float output vector (pre-allocated).
+ */
 void add(const vector<float> &a, const vector<double> &b, vector<float> &c)
 {
     assert(a.size() == b.size());
@@ -136,6 +194,11 @@ void add(const vector<float> &a, const vector<double> &b, vector<float> &c)
         c[i] = a[i] + b[i];
 }
 
+/**
+ * @brief Compute the arithmetic mean of a vector.
+ * @param numbers  Input values.
+ * @return         Mean, or 0 if the vector is empty.
+ */
 double average(std::vector<double> const &numbers)
 {
     if (numbers.empty())
@@ -151,6 +214,11 @@ double average(std::vector<double> const &numbers)
     // return std::reduce(v.begin(), v.end()) / count;
 }
 
+/**
+ * @brief Compute the column-wise mean of a 2-D matrix V (shape nt × n).
+ * @param V  Input matrix stored as vector-of-rows.
+ * @return   dim1 of length n containing the mean over all rows.
+ */
 dim1 average(dim2 &V)
 {
     // size_t num_nodes = (axis == "COL") ? V.size() : V[0].size();
@@ -166,6 +234,13 @@ dim1 average(dim2 &V)
     return out;
 }
 
+/**
+ * @brief Return the peak resident-set size of the current process in kilobytes.
+ *
+ * Uses Windows PSAPI on Windows and getrusage on POSIX systems.
+ *
+ * @return Peak RSS in KB.
+ */
 long get_mem_usage()
 {
     // measure memory usage
@@ -183,6 +258,11 @@ long get_mem_usage()
 #endif
 }
 
+/**
+ * @brief Print elapsed wall time in h/min/s format.
+ * @param wtime   Wall time in seconds.
+ * @param cptime  CPU time in seconds (currently unused, reserved for future use).
+ */
 void display_timing(double wtime, double cptime)
 {
     (void)cptime; // Mark as intentionally unused
@@ -199,6 +279,17 @@ void display_timing(double wtime, double cptime)
     // printf ("CPU  Time : %d hours and %d minutes and %.4f seconds.\n",ch,cpmin,csec);
 }
 
+/**
+ * @brief Load a matrix from a whitespace-delimited text file.
+ *
+ * @tparam T       Element type (e.g., double, int).
+ * @param filename Path to the text file.
+ * @param row      Number of rows to read.
+ * @param col      Number of columns to read.
+ * @return         row × col matrix as a vector of vectors.
+ *
+ * Exits with code 2 if the file is not found.
+ */
 template <typename T>
 inline std::vector<std::vector<T>> load_matrix(
     const std::string filename,
@@ -243,6 +334,13 @@ inline std::vector<std::vector<T>> load_matrix(
     }
 }
 
+/**
+ * @brief Return the current wall-clock time in seconds.
+ *
+ * Uses QueryPerformanceCounter on Windows and gettimeofday on POSIX.
+ *
+ * @return Wall time in seconds (double precision).
+ */
 double get_wall_time()
 {
     /*!
@@ -268,6 +366,16 @@ double get_wall_time()
 #endif
 }
 
+/**
+ * @brief Return a reference to a shared Mersenne-Twister RNG instance.
+ *
+ * When @p fix_seed is true the generator is seeded with the constant 2,
+ * ensuring reproducible noise realisations across calls.  When false, a
+ * fresh seed from std::random_device is used instead.
+ *
+ * @param fix_seed  true → reproducible seed; false → random seed.
+ * @return          Reference to a static std::mt19937 instance.
+ */
 std::mt19937 &rng(const bool fix_seed)
 {
     if (fix_seed)
@@ -282,12 +390,23 @@ std::mt19937 &rng(const bool fix_seed)
     }
 }
 
+/**
+ * @brief Set selected elements of a vector to a given value.
+ * @param v        Vector to modify in-place.
+ * @param indices  Indices of elements to set.
+ * @param value    Value to assign at each index.
+ */
 void fill_vector(dim1 &v, const vector<int> indices, const double value)
 {
     for (size_t i = 0; i < indices.size(); ++i)
         v[indices[i]] = value;
 }
 
+/**
+ * @brief Check whether the last element of a vector is NaN.
+ * @param vec  Input vector.
+ * @return     0 if no NaN detected, -1 if the last element is NaN.
+ */
 int find_nan(const dim1 &vec)
 {
     int ind = vec.size() - 1;
@@ -299,6 +418,14 @@ int find_nan(const dim1 &vec)
     return 0;
 }
 
+/**
+ * @brief Dense matrix–vector product y = mat * x[offset:].
+ *
+ * @param mat     N×N weight matrix.
+ * @param x       Input vector of length ≥ N + offset.
+ * @param offset  Starting index in @p x (default 0).
+ * @return        Result vector of length N.
+ */
 dim1 matvec(const dim2 &mat, const dim1 &x, const int offset = 0)
 {
     int N = mat.size();
@@ -314,6 +441,20 @@ dim1 matvec(const dim2 &mat, const dim1 &x, const int offset = 0)
     return y;
 }
 
+/**
+ * @brief Sparse matrix–vector product using a pre-computed adjacency list.
+ *
+ * Only iterates over non-zero entries listed in @p a, improving performance
+ * for sparse connectivity matrices.
+ *
+ * @param mat     N×N weight matrix (full storage, but only accessed at
+ *                positions in @p a).
+ * @param a       Adjacency list: a[i] contains the column indices j where
+ *                mat[i][j] != 0.
+ * @param x       Input vector of length ≥ N + offset.
+ * @param offset  Starting index in @p x (default 0).
+ * @return        Result vector of length N.
+ */
 dim1 matvec_s(const dim2 &mat, const dim2I &a, const dim1 &x, const int offset = 0)
 {
     int n = mat.size();
