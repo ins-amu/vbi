@@ -40,11 +40,11 @@ class TestVEPSDE(unittest.TestCase):
             'G': 1.0,
             'tau': 10.0,
             'eta': -1.5,
-            'noise_sigma': 0.1,
+            'noise_amp': 0.1,
             'iext': 0.0,
             'dt': 0.01,
-            'tend': 50.0,
-            'tcut': 0.0,
+            't_end': 50.0,
+            't_cut': 0.0,
             'noise_seed': 0,
             'record_step': 1,
             'method': 'euler',
@@ -175,8 +175,8 @@ class TestVEPSDE(unittest.TestCase):
     def test_run_simulation(self):
         """Test that simulation runs and produces expected output."""
         params = self.base_params.copy()
-        params['tend'] = 50.0
-        params['tcut'] = 0.0
+        params['t_end'] = 50.0
+        params['t_cut'] = 0.0
         
         model = VEP_sde(params)
         result = model.run()
@@ -205,7 +205,7 @@ class TestVEPSDE(unittest.TestCase):
         """Test that run works when seed=None (regression test)."""
         params = self.base_params.copy()
         params['seed'] = None
-        params['tend'] = 20.0
+        params['t_end'] = 20.0
         
         model = VEP_sde(params)
         
@@ -221,7 +221,7 @@ class TestVEPSDE(unittest.TestCase):
     def test_run_with_parameter_override(self):
         """Test running simulation with parameter override."""
         params = self.base_params.copy()
-        params['tend'] = 50.0
+        params['t_end'] = 50.0
         
         model = VEP_sde(params)
         
@@ -242,7 +242,7 @@ class TestVEPSDE(unittest.TestCase):
     def test_run_with_custom_initial_state(self):
         """Test running simulation with custom initial state."""
         params = self.base_params.copy()
-        params['tend'] = 20.0
+        params['t_end'] = 20.0
         
         model = VEP_sde(params)
         

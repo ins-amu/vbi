@@ -37,21 +37,20 @@ class VEP_sde(BaseModel):
 
         super().__init__()
         par = deepcopy(par)
-        
+
         # Backward compatibility mapping
         param_mapping = {
             'tend': 't_end',
-            'tcut': 't_cut', 
+            'tcut': 't_cut',
             'noise_sigma': 'noise_amp'
         }
-        
-        # Apply backward compatibility
+
         for old_name, new_name in param_mapping.items():
             if old_name in par:
-                warnings.warn(f"Parameter '{old_name}' is deprecated. Use '{new_name}' instead.", 
-                            DeprecationWarning, stacklevel=2)
+                warnings.warn(f"Parameter '{old_name}' is deprecated. Use '{new_name}' instead.",
+                              DeprecationWarning, stacklevel=2)
                 par[new_name] = par.pop(old_name)
-        
+
         self._par = self.get_default_parameters()
         self.valid_params = list(self._par.keys())
         self.check_parameters(par)
