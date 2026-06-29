@@ -961,7 +961,15 @@ def report_cfg(cfg: dict):
 
 
 def get_jar_location():
+    """Return the path to the bundled infodynamics.jar from JIDT.
 
+    ``infodynamics.jar`` is the Java Information Dynamics Toolkit (JIDT)
+    by Joseph T. Lizier, distributed under the GNU GPL v3.
+    Source: https://github.com/jlizier/jidt
+
+    Using JIDT requires Java JDK (>= 8) to be installed; see
+    :func:`init_jvm` and the installation guide for details.
+    """
     jar_file_name = "infodynamics.jar"
     jar_location = join(vbi.__file__, "feature_extraction")
     jar_location = jar_location.replace("__init__.py", "")

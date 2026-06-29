@@ -61,6 +61,28 @@ Core Dependencies
      - MIT
      - https://github.com/pytest-dev/pytest/blob/main/LICENSE
 
+Bundled Binary Dependencies
+---------------------------
+
+The following library is **bundled** inside the VBI package as a pre-compiled
+JAR file (``vbi/feature_extraction/infodynamics.jar``) and is not installed
+via pip.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 20 15 65
+
+   * - Library
+     - License
+     - License URL
+   * - `JIDT — Java Information Dynamics Toolkit <https://github.com/jlizier/jidt>`_
+     - GPL-3.0
+     - https://github.com/jlizier/jidt/blob/master/LICENCE.txt
+
+JIDT is used for information-theoretic feature extraction (transfer entropy,
+mutual information) via JPype.  It requires a Java JDK (>= 8) to be installed
+on the host system; see the :doc:`installation` guide for details.
+
 Optional / Inference Dependencies
 ----------------------------------
 

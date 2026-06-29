@@ -172,6 +172,53 @@ Verification
     vbi.tests()
     vbi.test_imports()
 
+Java JDK (for Information-Theoretic Features)
+----------------------------------------------
+
+Some feature-extraction functions in VBI use
+`JIDT — Java Information Dynamics Toolkit <https://github.com/jlizier/jidt>`_
+(bundled as ``infodynamics.jar``) via the `JPype <https://jpype.readthedocs.io>`_
+bridge.  These features include transfer entropy and mutual information estimators.
+
+A **Java JDK (version 8 or later)** must be installed for these functions to work.
+``JPype1`` is required as a Python bridge and must be installed separately:
+
+.. code-block:: bash
+
+    pip install JPype1
+
+**Install Java JDK:**
+
+- **Linux (Debian/Ubuntu):**
+
+  .. code-block:: bash
+
+      sudo apt-get install default-jdk
+
+- **macOS (via Homebrew):**
+
+  .. code-block:: bash
+
+      brew install openjdk
+
+- **Windows:** Download and install from https://adoptium.net
+
+**Verify your Java installation:**
+
+.. code-block:: bash
+
+    java -version
+
+If Java is installed but JPype cannot find it, set the ``JAVA_HOME`` environment
+variable to your JDK path.  For example on Linux:
+
+.. code-block:: bash
+
+    export JAVA_HOME=/usr/lib/jvm/default-java
+
+Information-theoretic features are optional — all other VBI functionality works
+without Java or JPype.
+
 Troubleshooting
 ---------------
 
