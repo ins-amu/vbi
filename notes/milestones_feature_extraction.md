@@ -8,6 +8,33 @@
 
 ---
 
+## The workflow bottleneck (why this milestone matters)
+
+**Observed in practice** (building the SBI/inference workflows in
+`docs/examples/workflows/`): the simulator backends themselves are fast and
+parallel — the sweeper batches/parallelizes the simulation loop (numba
+`prange`, C++ threads, CUDA kernel, JAX `vmap`). But once the workflow needs
+to go from "raw time series" to "feature vector + parameter row in a
+dataframe/file", it falls back to calling `FeaturePipeline.extract()` /
+`calc_features()` **once per sample, serially, in plain Python** (Tier-1).
+For a sweep of thousands of parameter sets this Python-loop feature step
+dominates wall time and erases the speedup the backend gave on the
+simulation side — the workflow ends up bottlenecked on serial Python feature
+extraction, not on simulation.
+
+Root cause: only the Numba backend has a Tier-2 *inline* path (`nb_extract`
+running feature accumulation inside the same `@njit`/`prange` loop as the
+simulation, see `features_utils_nb.py`). NumPy, C++, CUDA, and JAX all only
+have Tier-1 (simulate everything → materialize full time series → hand off
+to Python `FeaturePipeline` in a serial loop). This is exactly what MF2
+(more numba inline features), MF3 (JAX vmap inline), MF4 (CUDA inline), and
+MF5 (C++ inline) are meant to fix, and MF6 is meant to unify so workflow
+code doesn't need to know which tier is active. Until then, any workflow
+that needs more than a handful of samples on non-numba backends should
+expect feature extraction, not simulation, to be the bottleneck.
+
+---
+
 ## Current state (May 2026)
 
 ### What exists
@@ -29,6 +56,8 @@
 
 ### What is missing
 
+- **Serial Python feature extraction is the workflow bottleneck** on every
+  backend except Numba Tier-2 — see "The workflow bottleneck" above
 - JAX sweeper does not yet feed into `FeaturePipeline` inline (vmap-compatible)
 - C++ sweeper has Tier-1 Python post-processing but no inline C++ feature loop
 - CUDA sweeper has no inline feature extraction
