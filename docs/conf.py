@@ -18,15 +18,18 @@ extensions = [
     "sphinx_gallery.gen_gallery",
 ]
 
-# Scoped to these two scripts: they are the only simulator_models scripts
+# Scoped to these scripts: they are the only simulator_models scripts
 # fixed so far to run without a real __file__ and without a helpers.py
 # dependency (see docs/examples/simulator_models helper pattern). Widen
 # filename_pattern as more scripts are migrated
 # (notes/milestones_documentation.md, Step 4/5).
+# NOTE: mpr_demo.py imports tvb-library, which is NOT in docs/requirements.txt -
+# this works for a local build (tvb installed in this dev venv) but will break
+# the real RTD build until that's resolved (see conversation with user).
 sphinx_gallery_conf = {
     "examples_dirs": ["examples/simulator_models"],
     "gallery_dirs": ["auto_examples/simulator_models"],
-    "filename_pattern": r"kuramoto_demo\.py|model_equations\.py",
+    "filename_pattern": r"kuramoto_demo\.py|model_equations\.py|mpr_demo\.py",
     "ignore_pattern": r"helpers\.py",
     "plot_gallery": True,
     "download_all_examples": False,
