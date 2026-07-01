@@ -12,3 +12,5 @@ sphinx-autoapi
 sphinxcontrib-napoleon
 sphinxcontrib-bibtex
 furo
+sphinx-gallery
+Pillow

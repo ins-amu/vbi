@@ -192,6 +192,7 @@ Examples & Tutorials
 
    examples_overview
    Examples
+   auto_examples/simulator_models/index
 
 Inference Methods & Examples
 ----------------------------

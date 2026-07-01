@@ -10,6 +10,10 @@ build/
 _build/
 .eggs/
 
+# sphinx-gallery build artifacts
+docs/auto_examples/
+docs/sg_execution_times.rst
+
 # C extension build (SWIG)
 *_wrap.cpp
 *_wrap.cxx
@@ -67,3 +71,4 @@ e_*/
 _e/
 examples_dev/
 executed_notebooks/
+outputs/
