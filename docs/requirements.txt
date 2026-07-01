@@ -14,3 +14,4 @@ sphinxcontrib-bibtex
 furo
 sphinx-gallery
 Pillow
+sphinx-autobuild  # dev-only: `make livehtml` for a live-reloading local preview

@@ -18,14 +18,15 @@ extensions = [
     "sphinx_gallery.gen_gallery",
 ]
 
-# Scoped to kuramoto_demo.py only: it is the only simulator_models script
-# fixed so far to run without a real __file__ (see docs/examples/simulator_models
-# helper pattern). Widen filename_pattern as more scripts are migrated
+# Scoped to these two scripts: they are the only simulator_models scripts
+# fixed so far to run without a real __file__ and without a helpers.py
+# dependency (see docs/examples/simulator_models helper pattern). Widen
+# filename_pattern as more scripts are migrated
 # (notes/milestones_documentation.md, Step 4/5).
 sphinx_gallery_conf = {
     "examples_dirs": ["examples/simulator_models"],
     "gallery_dirs": ["auto_examples/simulator_models"],
-    "filename_pattern": r"kuramoto_demo\.py",
+    "filename_pattern": r"kuramoto_demo\.py|model_equations\.py",
     "ignore_pattern": r"helpers\.py",
     "plot_gallery": True,
     "download_all_examples": False,
@@ -34,6 +35,15 @@ sphinx_gallery_conf = {
         "# Install: pip install vbi\n"
     ),
     "thumbnail_size": (400, 280),
+}
+
+# ModelSpec._repr_html_ (see vbi/simulator/spec/model.py) embeds LaTeX
+# notes written with single-dollar inline math (e.g. "$\gamma < 0$"), which
+# matches Jupyter's default MathJax config but not Sphinx's - Sphinx only
+# enables \(...\) for inline math out of the box. Add $...$ so both venues
+# render identically.
+mathjax3_config = {
+    "tex": {"inlineMath": [["\\(", "\\)"], ["$", "$"]]},
 }
 
 source_suffix = ".rst"
@@ -111,6 +121,13 @@ def setup(app):
     app.connect("missing-reference", on_missing_reference)
     app.connect("autodoc-skip-member", autodoc_skip_member)
     app.connect("autodoc-process-docstring", process_docstring)
+
+    # sphinx.ext.mathjax only loads its JS on pages with real docutils math
+    # nodes (`.. math::`). ModelSpec._repr_html_ embeds LaTeX inside raw HTML
+    # (so it also works via Jupyter's rich-display protocol, not just Sphinx),
+    # which docutils never sees as "math" - so MathJax would silently not
+    # load on those pages without this.
+    app.set_html_assets_policy("always")
 
     # cpp_src = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "vbi", "models", "cpp", "_src"))
     # try:

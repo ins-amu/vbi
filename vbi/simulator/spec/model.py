@@ -1,5 +1,7 @@
 from __future__ import annotations
 import dataclasses
+import html
+import re
 from dataclasses import dataclass, field
 from typing import Literal
 import numpy as np
@@ -205,3 +207,67 @@ class ModelSpec:
             lines.append(f"| `{p.name}` | {_fmt_default(p.default)} | {p.description} |")
 
         _render("\n".join(lines))
+
+    def _repr_html_(self) -> str:
+        """
+        Rich HTML representation, used automatically when a bare ``ModelSpec``
+        is the last expression in a Jupyter cell or a sphinx-gallery code
+        block.  Equations use TeX display-math delimiters (``\\[ ... \\]``)
+        so MathJax renders them client-side in both venues.
+        """
+        def _inline(text: str) -> str:
+            # Minimal inline markdown -> HTML: **bold** and `code` spans.
+            # Math delimiters ($...$) are left untouched for MathJax.
+            text = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", text)
+            text = re.sub(r"`([^`]+)`", r"<code>\1</code>", text)
+            return text
+
+        parts: list[str] = [f"<h3>{html.escape(self.name)}</h3>"]
+        if self.reference:
+            parts.append(f"<p><em>{html.escape(self.reference)}</em></p>")
+
+        # --- Equations ---
+        parts.append("<p><strong>Equations</strong></p>")
+        eq_rows = [
+            f"\\dot{{{sv_name}}} &= {self.dfun_latex.get(sv_name, self.dfun_str[sv_name])}"
+            for sv_name in self.sv_names
+        ]
+        eq_body = " \\\\\n".join(eq_rows)
+        parts.append(f"\\[\n\\begin{{aligned}}\n{eq_body}\n\\end{{aligned}}\n\\]")
+
+        if self.latex_notes:
+            parts.append("<p><strong>where</strong></p>")
+            parts.append(f"<p>{_inline(self.latex_notes)}</p>")
+
+        coup = ", ".join(f"<code>{html.escape(c)}</code>" for c in self.cvar)
+        parts.append(f"<p><strong>Coupling variables:</strong> {coup}</p>")
+
+        # --- State variables table ---
+        sv_rows = "".join(
+            f"<tr><td><code>{html.escape(sv.name)}</code></td>"
+            f"<td>{sv.default_init}</td>"
+            f"<td>{'✓' if sv.noise else '-'}</td>"
+            f"<td>[{sv.lower_bound if sv.lower_bound is not None else '−∞'}, "
+            f"{sv.upper_bound if sv.upper_bound is not None else '+∞'}]</td></tr>"
+            for sv in self.state_variables
+        )
+        parts.append(
+            "<p><strong>State variables</strong></p>"
+            "<table><thead><tr><th>Name</th><th>Init</th><th>Noise</th>"
+            f"<th>Bounds</th></tr></thead><tbody>{sv_rows}</tbody></table>"
+        )
+
+        # --- Parameters table ---
+        p_rows = "".join(
+            f"<tr><td><code>{html.escape(p.name)}</code></td>"
+            f"<td>{html.escape(_fmt_default(p.default))}</td>"
+            f"<td>{html.escape(p.description)}</td></tr>"
+            for p in self.parameters
+        )
+        parts.append(
+            "<p><strong>Parameters</strong></p>"
+            "<table><thead><tr><th>Name</th><th>Default</th>"
+            f"<th>Description</th></tr></thead><tbody>{p_rows}</tbody></table>"
+        )
+
+        return "\n".join(parts)
