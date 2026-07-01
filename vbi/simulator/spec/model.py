@@ -165,7 +165,7 @@ class ModelSpec:
                 eq_rows.append(f"\\dot{{{sv_name}}} &= {rhs}")
             eq_body = " \\\\\n".join(eq_rows)
             eq_block = (
-                '<div style="text-align: left; padding: 0.4em 0">\n\n'
+                '<div style="text-align: left; padding: 0.4em 0; overflow-x: auto;">\n\n'
                 f"$$\n\\begin{{aligned}}\n{eq_body}\n\\end{{aligned}}\n$$\n\n"
                 "</div>"
             )
@@ -233,7 +233,14 @@ class ModelSpec:
             for sv_name in self.sv_names
         ]
         eq_body = " \\\\\n".join(eq_rows)
-        parts.append(f"\\[\n\\begin{{aligned}}\n{eq_body}\n\\end{{aligned}}\n\\]")
+        # Some models (e.g. LarterBreakspear) have a dfun wider than any
+        # reasonable page column - scroll horizontally instead of
+        # overflowing/clipping the layout.
+        parts.append(
+            '<div style="overflow-x: auto;">\n'
+            f"\\[\n\\begin{{aligned}}\n{eq_body}\n\\end{{aligned}}\n\\]\n"
+            "</div>"
+        )
 
         if self.latex_notes:
             parts.append("<p><strong>where</strong></p>")
