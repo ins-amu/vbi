@@ -76,3 +76,6 @@ _e/
 examples_dev/
 executed_notebooks/
 outputs/
+
+.clinerules
+.github/copilot-instructions.md
