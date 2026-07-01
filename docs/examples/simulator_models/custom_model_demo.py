@@ -125,7 +125,7 @@ args = parser.parse_args()
 
 from vbi.simulator import Simulator
 from vbi.simulator.spec import (
-    SimulationSpec, IntegratorSpec, CouplingSpec, MonitorSpec,
+    SimulationSpec, IntegratorSpec, CouplingSpec, MonitorSpec, Connectivity,
 )
 
 rng = np.random.default_rng(0)
