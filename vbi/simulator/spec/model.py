@@ -1,4 +1,5 @@
 from __future__ import annotations
+import dataclasses
 from dataclasses import dataclass, field
 from typing import Literal
 import numpy as np
@@ -80,6 +81,28 @@ class ModelSpec:
     @property
     def default_params(self) -> dict[str, float | np.ndarray]:
         return {p.name: p.default for p in self.parameters}
+
+    def with_init(self, **inits: float | np.ndarray) -> "ModelSpec":
+        """
+        Return a copy with the named state variables' initial conditions
+        overridden.
+
+        Example
+        -------
+        >>> kuramoto_with_init = kuramoto.with_init(theta=theta0)
+        """
+        unknown = set(inits) - set(self.sv_names)
+        if unknown:
+            raise ValueError(
+                f"Unknown state variable(s): {sorted(unknown)}. "
+                f"Available: {self.sv_names}"
+            )
+        new_state_variables = tuple(
+            dataclasses.replace(sv, default_init=inits[sv.name])
+            if sv.name in inits else sv
+            for sv in self.state_variables
+        )
+        return dataclasses.replace(self, state_variables=new_state_variables)
 
     def describe(self) -> None:
         """

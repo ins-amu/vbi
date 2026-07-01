@@ -1,5 +1,6 @@
 """
-Kuramoto model: VBI simulator vs pure-NumPy reference.
+Kuramoto Model Demo
+====================
 
 Verifies that the VBI KuramotoCoupling produces trajectories identical to a
 single self-contained NumPy implementation using the same Heun integrator.
@@ -12,11 +13,19 @@ where α (--alpha) is the frustration angle. α=0 gives the standard model.
 
 Run
 ---
+::
+
     python kuramoto_demo.py                        # 5-node complete graph
     python kuramoto_demo.py --n 10 --duration 1000
     python kuramoto_demo.py --delayed              # add 5 ms axonal delay
     python kuramoto_demo.py --alpha 0.5236         # frustrated  (α = π/6)
 """
+
+# %%
+# Setup
+# -----
+# Imports and path setup so the demo runs both as a standalone script and as
+# a sphinx-gallery example.
 
 from __future__ import annotations
 
@@ -33,7 +42,14 @@ import matplotlib.pyplot as plt
 
 from helpers import ensure_repo_on_path, complete_graph_weights
 
-ensure_repo_on_path(__file__)
+try:
+    _SCRIPT_PATH = Path(__file__)
+except NameError:
+    # sphinx-gallery execs this file without setting __file__; it already
+    # chdirs into the script's own directory first, so cwd is equivalent.
+    _SCRIPT_PATH = Path.cwd() / "kuramoto_demo.py"
+
+ensure_repo_on_path(_SCRIPT_PATH)
 
 from vbi.simulator import Simulator
 from vbi.simulator.models.kuramoto import kuramoto
@@ -44,9 +60,11 @@ from vbi.simulator.spec.simulation import SimulationSpec
 from vbi.simulator.spec.connectivity import Connectivity
 
 
-# ---------------------------------------------------------------------------
-# Pure-NumPy reference (single function, no VBI dependency)
-# ---------------------------------------------------------------------------
+# %%
+# Reference implementation (pure NumPy)
+# --------------------------------------
+# A single, dependency-free function that integrates the (frustrated)
+# Kuramoto model with Heun's method, including optional axonal delays.
 
 def kuramoto_heun(
     theta0: np.ndarray,
@@ -129,9 +147,11 @@ def kuramoto_heun(
     return t, theta
 
 
-# ---------------------------------------------------------------------------
-# VBI runner
-# ---------------------------------------------------------------------------
+# %%
+# VBI simulator
+# -------------
+# Builds a :class:`~vbi.simulator.Simulator` with a Kuramoto coupling and
+# Heun integrator, mirroring the reference implementation's setup.
 
 def run_vbi(
     theta0: np.ndarray,
@@ -144,13 +164,8 @@ def run_vbi(
     speed: float,
     alpha: float = 0.0,
 ) -> tuple[np.ndarray, np.ndarray]:
-    import dataclasses
-
-    sv_with_init = (dataclasses.replace(kuramoto.state_variables[0], default_init=theta0),)
-    model_with_init = dataclasses.replace(kuramoto, state_variables=sv_with_init)
-
     spec = SimulationSpec(
-        model=model_with_init,
+        model=kuramoto.with_init(theta=theta0),
         integrator=IntegratorSpec(method="heun", dt=dt),
         coupling=CouplingSpec(kind="kuramoto", alpha=alpha),
         monitors=(MonitorSpec(kind="raw"),),
@@ -167,9 +182,11 @@ def run_vbi(
     return t, theta
 
 
-# ---------------------------------------------------------------------------
-# Plotting
-# ---------------------------------------------------------------------------
+# %%
+# Comparison plot
+# ---------------
+# Plots per-node ``sin(θ)``, unwrapped phase, the Kuramoto order parameter
+# R(t), and the absolute error between the VBI and reference trajectories.
 
 def save_comparison_plot(
     t: np.ndarray,
@@ -239,13 +256,17 @@ def save_comparison_plot(
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out_path, dpi=120)
-    plt.close(fig)
     print(f"saved figure: {out_path}")
+    # Left open (not plt.close'd) so sphinx-gallery can capture it inline.
 
 
-# ---------------------------------------------------------------------------
-# Main
-# ---------------------------------------------------------------------------
+# %%
+# Run the comparison
+# -------------------
+# Runs both implementations with default parameters (5-node complete graph)
+# and reports the maximum/RMS phase error alongside the comparison plot.
+# Pass ``--n``, ``--delayed``, ``--alpha``, etc. on the command line to
+# change the setup.
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__,
@@ -260,7 +281,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--tract",    type=float, default=5.0,    help="tract length [mm]")
     p.add_argument("--seed",     type=int,   default=42)
     p.add_argument("--output", type=Path,
-                   default=Path(__file__).with_name("outputs") / "kuramoto_comparison.png")
+                   default=_SCRIPT_PATH.with_name("outputs") / "kuramoto_comparison.png")
     return p.parse_args()
 
 
