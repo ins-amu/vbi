@@ -29,7 +29,7 @@ extensions = [
 sphinx_gallery_conf = {
     "examples_dirs": ["examples/simulator_models"],
     "gallery_dirs": ["auto_examples/simulator_models"],
-    "filename_pattern": r"kuramoto_demo\.py|model_equations\.py|mpr_demo\.py",
+    "filename_pattern": r"kuramoto_demo\.py|model_equations\.py|mpr_demo\.py|wilson_cowan_demo\.py",
     "ignore_pattern": r"helpers\.py",
     "plot_gallery": True,
     "download_all_examples": False,
