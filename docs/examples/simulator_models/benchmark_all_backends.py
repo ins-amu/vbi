@@ -1,5 +1,8 @@
 """
-Backend sweep benchmark: NumPy · Numba (1T / NT) · C++ (serial / parallel) · CUDA · JAX.
+Backend Sweep Benchmark
+==========================
+
+NumPy · Numba (1T / NT) · C++ (serial / parallel) · CUDA · JAX.
 
 Strategy
 --------

@@ -1,5 +1,8 @@
 """
-Custom model demo - adding a user-defined model to the VBI simulator.
+Custom Model Demo
+==================
+
+Adding a user-defined model to the VBI simulator.
 
 This script shows the full workflow:
 

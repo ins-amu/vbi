@@ -1,4 +1,7 @@
 """
+NumPy vs Numba vs C++ Sweep Benchmark
+=======================================
+
 Benchmark: NumPy vs Numba vs C++ (serial and parallel) for parameter sweeps.
 
 NumPy runs sequentially in Python.

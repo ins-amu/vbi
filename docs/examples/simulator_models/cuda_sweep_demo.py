@@ -1,5 +1,8 @@
 """
-CUDA sweep demo - G sweep and same_noise control.
+CUDA Sweep Demo
+=================
+
+G sweep and same_noise control.
 
 Demonstrates two features added to the CUDA backend:
 

@@ -1,4 +1,7 @@
 """
+NumPy vs Numba Sweep Benchmark
+=================================
+
 Benchmark: NumPy vs Numba backend for parameter sweeps with feature extraction.
 
 NumPy sweeps serially (one simulation at a time).

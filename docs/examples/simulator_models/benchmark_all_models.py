@@ -1,4 +1,7 @@
 """
+All-Models Sweep Benchmark
+=============================
+
 Run the sweep benchmark for every model defined in MODELS and save one
 figure per model.
 

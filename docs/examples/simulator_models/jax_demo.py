@@ -1,7 +1,9 @@
 """
-JAX backend demo - differentiable brain-network simulator.
+JAX Backend Demo
+==================
 
-Demonstrates four unique capabilities of the JAX backend:
+Differentiable brain-network simulator. Demonstrates four unique
+capabilities of the JAX backend:
 
 1. Single-run simulation (Heun, with delays, subsample monitor)
 2. BOLD monitor (Balloon-Windkessel via lax.scan)

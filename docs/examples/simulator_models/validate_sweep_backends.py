@@ -1,5 +1,6 @@
 """
-Cross-backend sweep validation.
+Cross-Backend Sweep Validation
+=================================
 
 Checks that NumPy, Numba CPU, C++, CUDA (if available), and JAX all produce
 numerically consistent sweep results for the same model and parameters.
