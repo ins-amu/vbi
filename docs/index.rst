@@ -189,6 +189,7 @@ Examples & Tutorials
 
 .. toctree::
    :maxdepth: 1
+   :titlesonly:
 
    examples_overview
    Examples

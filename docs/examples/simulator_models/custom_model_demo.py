@@ -24,10 +24,17 @@ from pathlib import Path
 
 sys.dont_write_bytecode = True
 
-# Make sure the package root is importable when running from the examples dir.
-_ROOT = Path(__file__).resolve().parents[3]
-if str(_ROOT) not in sys.path:
-    sys.path.insert(0, str(_ROOT))
+try:
+    _SCRIPT_PATH = Path(__file__)
+except NameError:
+    # sphinx-gallery execs this file without setting __file__; it already
+    # chdirs into the script's own directory first, so cwd is equivalent.
+    _SCRIPT_PATH = Path.cwd() / "custom_model_demo.py"
+
+# Prefer the vbi living in this checkout over any other version already
+# installed (e.g. a different vbi checkout installed editable elsewhere).
+_repo_root = _SCRIPT_PATH.resolve().parents[3]
+sys.path.insert(0, str(_repo_root))
 
 import numpy as np
 
@@ -140,7 +147,7 @@ spec = SimulationSpec(
                                  noise_nsig=np.array([0.01])),
     coupling    = CouplingSpec("linear", a=0.05),
     monitors    = (MonitorSpec("tavg", period=1.0),),
-    weights     = W,
+    connectivity = Connectivity(W),
 )
 
 t, data = Simulator(spec, backend=args.backend).run(args.duration)["tavg"]
@@ -217,7 +224,7 @@ spec_plot = SimulationSpec(
     integrator = IntegratorSpec(method="heun", dt=0.1),
     coupling   = CouplingSpec("linear", a=0.0),   # isolated nodes
     monitors   = (MonitorSpec("raw"),),
-    weights    = W,
+    connectivity = Connectivity(W),
 )
 
 t_raw, raw = Simulator(spec_plot, backend=args.backend).run(args.duration)["raw"]
@@ -236,7 +243,7 @@ try:
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
-    out_dir = Path(__file__).with_name("outputs")
+    out_dir = _SCRIPT_PATH.with_name("outputs")
     out_dir.mkdir(parents=True, exist_ok=True)
     out_path = out_dir / "fitzhugh_nagumo_demo.png"
 

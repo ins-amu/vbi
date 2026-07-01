@@ -18,20 +18,46 @@ extensions = [
     "sphinx_gallery.gen_gallery",
 ]
 
-# Scoped to these scripts: they are the only simulator_models scripts
-# fixed so far to run without a real __file__ and without a helpers.py
-# dependency (see docs/examples/simulator_models helper pattern). Widen
-# filename_pattern as more scripts are migrated
-# (notes/milestones_documentation.md, Step 4/5).
-# NOTE: mpr_demo.py imports tvb-library, which is NOT in docs/requirements.txt -
-# this works for a local build (tvb installed in this dev venv) but will break
-# the real RTD build until that's resolved (see conversation with user).
+# Execute every script by default; only the ones below are permanently
+# excluded, each for a real technical reason (not "not yet migrated" - all
+# scripts in this directory are now self-contained, no helpers.py needed):
+#   - jax_demo.py: `jax` is an optional vbi extra (pip install vbi[jax]),
+#     not in docs/requirements.txt, and it calls sys.exit(1) if missing -
+#     which could crash the whole sphinx-gallery build, not just one page.
+#   - benchmark_all_backends.py, benchmark_all_models.py,
+#     benchmark_cpp_vs_numpy_numba.py, benchmark_numba_vs_numpy.py: need
+#     CUDA/JAX/a compiled C++ extension, and bake in wall-clock timings
+#     that would be meaningless on shared RTD build hardware. Show a real,
+#     pre-rendered plot instead - see reference_images/ and
+#     install_reference_images() below.
+#   - validate_sweep_backends.py: a pass/fail QA tool, not doc content.
+#   - cuda_sweep_demo.py: needs an actual CUDA GPU (RTD has none).
+# NOTE: mpr_demo.py and jansen_rit_demo.py import tvb-library, which is NOT
+# in docs/requirements.txt - this works for a local build (tvb installed in
+# this dev venv) but will break the real RTD build until that's resolved
+# (see conversation with user).
+_GALLERY_NOT_EXECUTED = (
+    "jax_demo", "benchmark_all_backends", "benchmark_all_models",
+    "benchmark_cpp_vs_numpy_numba", "benchmark_numba_vs_numpy",
+    "validate_sweep_backends", "cuda_sweep_demo",
+)
 sphinx_gallery_conf = {
     "examples_dirs": ["examples/simulator_models"],
     "gallery_dirs": ["auto_examples/simulator_models"],
-    "filename_pattern": r"kuramoto_demo\.py|model_equations\.py|mpr_demo\.py|wilson_cowan_demo\.py",
+    "filename_pattern": (
+        r"^(?!.*(?:" + "|".join(_GALLERY_NOT_EXECUTED) + r")\.py$).*\.py$"
+    ),
     "ignore_pattern": r"helpers\.py",
     "plot_gallery": True,
+    # Default (True) gives every `# %%` section its own toctree/sidebar
+    # entry - with our scripts reusing generic section names (Usage, Setup,
+    # Run the demo, Example output) across many pages, the sidebar fills up
+    # with ambiguous flat entries. One entry per page is clearer here.
+    "nested_sections": False,
+    # Hide `# sphinx_gallery_x = y` config-comment lines (e.g. dummy_images)
+    # from the rendered page - they're directives for the builder, not
+    # content for readers.
+    "remove_config_comments": True,
     "download_all_examples": False,
     "first_notebook_cell": (
         "# This notebook is auto-generated from vbi documentation.\n"
@@ -120,10 +146,39 @@ def on_missing_reference(app, env, node, contnode):
         return None
 
 
+def install_reference_images(app):
+    """
+    Copy pre-rendered reference plots into the exact path sphinx-gallery
+    expects for a script's "dummy image" (`# sphinx_gallery_dummy_images = N`),
+    so gallery pages for scripts we deliberately don't execute on RTD (CUDA/
+    JAX/benchmark demos - see filename_pattern) still show a real plot
+    instead of the generic placeholder.
+
+    Must run before sphinx-gallery's own "builder-inited" handler
+    (generate_gallery_rst, default priority) - registered at priority=1 to
+    guarantee that ordering. Source images live in
+    docs/examples/simulator_models/reference_images/ (the one directory
+    exempted from the repo's blanket `*.png` gitignore rule); destination is
+    the gitignored, regenerated-every-build docs/auto_examples/ tree.
+    """
+    src_dir = os.path.join(app.srcdir, "examples", "simulator_models", "reference_images")
+    dst_dir = os.path.join(app.srcdir, "auto_examples", "simulator_models", "images")
+    if not os.path.isdir(src_dir):
+        return
+    os.makedirs(dst_dir, exist_ok=True)
+    for name in os.listdir(src_dir):
+        src = os.path.join(src_dir, name)
+        dst = os.path.join(dst_dir, f"sphx_glr_{name}")
+        if os.path.isfile(src) and not os.path.isfile(dst):
+            import shutil
+            shutil.copyfile(src, dst)
+
+
 def setup(app):
     app.connect("missing-reference", on_missing_reference)
     app.connect("autodoc-skip-member", autodoc_skip_member)
     app.connect("autodoc-process-docstring", process_docstring)
+    app.connect("builder-inited", install_reference_images, priority=1)
 
     # sphinx.ext.mathjax only loads its JS on pages with real docutils math
     # nodes (`.. math::`). ModelSpec._repr_html_ embeds LaTeX inside raw HTML
