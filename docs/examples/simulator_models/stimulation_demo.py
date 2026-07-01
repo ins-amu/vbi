@@ -1,45 +1,73 @@
-"""Simple external-stimulation demo for the VBI NumPy backend.
-
-Run from the repository root:
-
-    python docs/examples/simulator_models/stimulation_demo.py
 """
+Stimulation Demo
+==================
+
+External stimulation with the VBI NumPy backend: a 10 ms pulse train
+targets a single node in an otherwise unconnected 5-node network, and the
+stimulated trajectory is compared against an unstimulated control run.
+
+Run
+---
+::
+
+    python stimulation_demo.py
+"""
+
+# %%
+# Setup
+# -----
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 import sys
 
 sys.dont_write_bytecode = True
 
-from helpers import ensure_repo_on_path, quiet_optional_imports
-
-ensure_repo_on_path(__file__)
-os.environ.setdefault("MPLCONFIGDIR", str(Path("/tmp") / "vbi_matplotlib"))
-
-import matplotlib
 import numpy as np
-
+import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-with quiet_optional_imports():
-    from vbi.simulator import Simulator
-    from vbi.simulator.models.generic_2d_oscillator import generic_2d_oscillator
-    from vbi.simulator.spec.coupling import CouplingSpec
-    from vbi.simulator.spec.integrator import IntegratorSpec
-    from vbi.simulator.spec.monitor import MonitorSpec
-    from vbi.simulator.spec.simulation import SimulationSpec
-    from vbi.simulator.spec.connectivity import Connectivity
-    from vbi.simulator.spec.stimulus import StimSpec
+try:
+    _SCRIPT_PATH = Path(__file__)
+except NameError:
+    # sphinx-gallery execs this file without setting __file__; it already
+    # chdirs into the script's own directory first, so cwd is equivalent.
+    _SCRIPT_PATH = Path.cwd() / "stimulation_demo.py"
 
+# Prefer the vbi living in this checkout over any other version already
+# installed (e.g. a different vbi checkout installed editable elsewhere).
+# Downloaded standalone copies of this script should `pip install vbi`
+# instead - see the first notebook cell.
+_repo_root = _SCRIPT_PATH.resolve().parents[3]
+sys.path.insert(0, str(_repo_root))
+
+from vbi.simulator import Simulator
+from vbi.simulator.models.generic_2d_oscillator import generic_2d_oscillator
+from vbi.simulator.spec.coupling import CouplingSpec
+from vbi.simulator.spec.integrator import IntegratorSpec
+from vbi.simulator.spec.monitor import MonitorSpec
+from vbi.simulator.spec.simulation import SimulationSpec
+from vbi.simulator.spec.connectivity import Connectivity
+from vbi.simulator.spec.stimulus import StimSpec
 
 N_NODES = 5
 DT = 0.1
 DURATION = 200.0
-backend = "numpy"
 
+
+def pulse_train(t_ms: float) -> float:
+    """A 10 ms pulse every 40 ms, starting at 20 ms."""
+    if t_ms < 20.0:
+        return 0.0
+    return 1.0 if (t_ms - 20.0) % 40.0 < 10.0 else 0.0
+
+
+# %%
+# VBI simulator
+# -------------
+# Stimulates only node 0; passing no stimulus gives the unstimulated control.
 
 def build_spec(stimulus: StimSpec | None = None) -> SimulationSpec:
     weights = np.zeros((N_NODES, N_NODES), dtype=np.float64)
@@ -53,29 +81,17 @@ def build_spec(stimulus: StimSpec | None = None) -> SimulationSpec:
     )
 
 
-def pulse_train(t_ms: float) -> float:
-    """A 10 ms pulse every 40 ms, starting at 20 ms."""
-    if t_ms < 20.0:
-        return 0.0
-    return 1.0 if (t_ms - 20.0) % 40.0 < 10.0 else 0.0
-
+# %%
+# Run the demo
+# -------------
 
 def main() -> None:
-    # Spatial pattern: stimulate only node 0.
     spatial_weights = np.zeros(N_NODES)
     spatial_weights[0] = 2.0
+    stimulus = StimSpec(sv_name="V", amplitude=spatial_weights, waveform=pulse_train)
 
-    stimulus = StimSpec(
-        sv_name="V",                # must be in models.cvar
-        amplitude=spatial_weights,
-        waveform=pulse_train,
-    )
-
-    t_stim, y_stim = Simulator(build_spec(stimulus), backend=backend).run(DURATION)["raw"]
-    t_ctrl, y_ctrl = Simulator(build_spec(), backend=backend).run(DURATION)["raw"]
-
-    out_path = Path(__file__).with_name("outputs") / f"stimulation_demo_{backend}.png"
-    out_path.parent.mkdir(parents=True, exist_ok=True)
+    t_stim, y_stim = Simulator(build_spec(stimulus), backend="numpy").run(DURATION)["raw"]
+    t_ctrl, y_ctrl = Simulator(build_spec(), backend="numpy").run(DURATION)["raw"]
 
     stim_waveform = np.array([pulse_train(t) for t in t_stim])
 
@@ -86,14 +102,16 @@ def main() -> None:
     ax.plot(t_stim, y_stim[:, 0, 4], color="tab:blue", label="node 4, unstimulated", alpha=0.5)
     ax.set_xlabel("time [ms]")
     ax.set_ylabel("V")
-    ax.set_title(f"Pulse-train stimulation with VBI {backend} backend")
+    ax.set_title("Pulse-train stimulation with VBI numpy backend")
     ax.legend(frameon=False)
     ax.grid(True, alpha=0.25)
     fig.tight_layout()
-    fig.savefig(out_path, dpi=160)
-    plt.close(fig)
 
-    print(f"VBI {backend} stimulation demo")
+    out_path = _SCRIPT_PATH.with_name("outputs") / "stimulation_comparison.png"
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out_path, dpi=160)
+
+    print("VBI numpy stimulation demo")
     print(f"raw shape: {y_stim.shape}  # (time, variable, node)")
     print(f"saved figure: {out_path}")
 

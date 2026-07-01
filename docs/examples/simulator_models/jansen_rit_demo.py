@@ -1,4 +1,22 @@
-"""Compare VBI simulator and TVB Jansen-Rit trajectories."""
+"""
+Jansen-Rit Model Demo
+=======================
+
+Compares the VBI simulator's Jansen-Rit cortical-column model against The
+Virtual Brain (TVB)'s own Jansen-Rit implementation, using the same Heun
+integrator and connectivity. Requires the optional ``tvb-library`` package.
+
+Run
+---
+::
+
+    python jansen_rit_demo.py                  # 6-node normalized complete graph
+    python jansen_rit_demo.py --duration 100
+"""
+
+# %%
+# Setup
+# -----
 
 from __future__ import annotations
 
@@ -9,223 +27,167 @@ import sys
 sys.dont_write_bytecode = True
 
 import numpy as np
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
 
-from helpers import (
-    comparison_metrics,
-    complete_graph_weights,
-    ensure_repo_on_path,
-    homogeneous_node_params,
-    make_tvb_connectivity,
-    quiet_optional_imports,
-    quiet_tvb,
-    save_state_comparison_plot,
-)
+try:
+    _SCRIPT_PATH = Path(__file__)
+except NameError:
+    # sphinx-gallery execs this file without setting __file__; it already
+    # chdirs into the script's own directory first, so cwd is equivalent.
+    _SCRIPT_PATH = Path.cwd() / "jansen_rit_demo.py"
 
-ensure_repo_on_path(__file__)
+# Prefer the vbi living in this checkout over any other version already
+# installed (e.g. a different vbi checkout installed editable elsewhere).
+# Downloaded standalone copies of this script should `pip install vbi`
+# instead - see the first notebook cell.
+_repo_root = _SCRIPT_PATH.resolve().parents[3]
+sys.path.insert(0, str(_repo_root))
 
-with quiet_optional_imports():
-    from vbi.simulator import Simulator
-    from vbi.simulator.models.jansen_rit import jansen_rit
-    from vbi.simulator.spec.coupling import CouplingSpec
-    from vbi.simulator.spec.integrator import IntegratorSpec
-    from vbi.simulator.spec.monitor import MonitorSpec
-    from vbi.simulator.spec.simulation import SimulationSpec
-    from vbi.simulator.spec.connectivity import Connectivity
+from vbi.simulator import Simulator
+from vbi.simulator.models.jansen_rit import jansen_rit
+from vbi.simulator.spec.coupling import CouplingSpec
+from vbi.simulator.spec.integrator import IntegratorSpec
+from vbi.simulator.spec.monitor import MonitorSpec
+from vbi.simulator.spec.simulation import SimulationSpec
+from vbi.simulator.spec.connectivity import Connectivity
 
-
-JR_PARAMS = {
-    "nn": 6,
-    "coupling_strength": 0.01,
-    "dt": 0.05,
-    "A": 3.25,
-    "B": 22.0,
-    "a": 0.1,
-    "b": 0.05,
-    "v0": 5.52,
-    "nu_max": 0.0025,
-    "r": 0.56,
-    "J": 135.0,
-    "a_1": 1.0,
-    "a_2": 1.0,
-    "a_3": 0.25,
-    "a_4": 0.25,
-    "mu": 0.04, # 0.24
-    "decimate": 20,
-}
+N_NODES = 6
+COUPLING_STRENGTH = 0.01
+DT = 0.05
+# Model parameters that differ from jansen_rit's own defaults.
+PARAM_OVERRIDES = {"a_2": 1.0, "mu": 0.04}
 
 
-def demo_weights(n_nodes: int) -> np.ndarray:
-    weights = complete_graph_weights(n_nodes)
-    row_sums = weights.sum(axis=1, keepdims=True)
-    row_sums[row_sums == 0.0] = 1.0
-    return weights / row_sums
+def normalized_complete_graph(n_nodes: int) -> np.ndarray:
+    """Complete graph with each row normalized to sum to 1."""
+    weights = np.ones((n_nodes, n_nodes), dtype=np.float64)
+    np.fill_diagonal(weights, 0.0)
+    return weights / weights.sum(axis=1, keepdims=True)
 
 
-def build_vbi_spec(method: str) -> SimulationSpec:
-    weights = demo_weights(JR_PARAMS["nn"])
-    param_names = (
-        "A", "B", "a", "b", "v0", "nu_max", "r", "J",
-        "a_1", "a_2", "a_3", "a_4", "mu",
-    )
-    node_params = homogeneous_node_params(
-        n_nodes=weights.shape[0],
-        params={name: JR_PARAMS[name] for name in param_names},
-        scalar_names=(),
-    )
+# %%
+# VBI simulator
+# -------------
 
-    # This demo compares deterministic VBI and TVB trajectories.
-    #
-    # For a VBI-only stochastic run, the JR model already marks y4 as the
-    # noisy state variable, so switch only the integrator:
-    #
-    #   IntegratorSpec(
-    #       method=method,
-    #       dt=JR_PARAMS["dt"],
-    #       stochastic=True,
-    #       noise_nsig=np.array([0.001]),  # σ, one value per noise_variable
-    #       noise_style="amplitude",       # σ * sqrt(dt) * N(0,1)
-    #       noise_seed=42,
-    #   )
-    #
-    # For a stochastic TVB comparison, run_tvb() must also use TVB's
-    # stochastic integrator and Additive noise. Use noise_style="tvb" on
-    # the VBI side if you want TVB-compatible nsig semantics.
-    return SimulationSpec(
+def run_vbi(duration: float) -> tuple[np.ndarray, np.ndarray]:
+    weights = normalized_complete_graph(N_NODES)
+
+    spec = SimulationSpec(
         model=jansen_rit,
-        integrator=IntegratorSpec(method=method, dt=JR_PARAMS["dt"]),
-        coupling=CouplingSpec(kind="linear", a=JR_PARAMS["coupling_strength"]),
+        integrator=IntegratorSpec(method="heun", dt=DT),
+        coupling=CouplingSpec(kind="linear", a=COUPLING_STRENGTH),
         monitors=(MonitorSpec(kind="raw"),),
         connectivity=Connectivity(weights, speed=1.0),
-        node_params=node_params,
+        node_params=PARAM_OVERRIDES,
     )
+    return Simulator(spec, backend="numpy").run(duration)["raw"]
 
 
-def run_vbi(duration: float, method: str) -> tuple[np.ndarray, np.ndarray]:
-    return Simulator(build_vbi_spec(method), backend="numpy").run(duration)["raw"]
+# %%
+# TVB reference
+# -------------
 
-
-def run_tvb(duration: float, method: str) -> np.ndarray:
+def run_tvb(duration: float) -> np.ndarray:
     try:
+        from tvb.datatypes.connectivity import Connectivity as TVBConnectivity
         from tvb.simulator.coupling import Linear
-        from tvb.simulator.integrators import EulerDeterministic, HeunDeterministic
+        from tvb.simulator.integrators import HeunDeterministic
         from tvb.simulator.models.jansen_rit import JansenRit
         from tvb.simulator.monitors import Raw
         from tvb.simulator.simulator import Simulator as TVBSimulator
     except ImportError as exc:
-        raise RuntimeError("TVB comparison requires the 'tvb' package") from exc
+        raise RuntimeError("TVB comparison requires the 'tvb-library' package") from exc
 
-    weights = demo_weights(JR_PARAMS["nn"])
-    n_nodes = weights.shape[0]
-    conn = make_tvb_connectivity(weights, speed=1.0)
+    weights = normalized_complete_graph(N_NODES)
 
-    tvb_model = JansenRit(
-        A=np.array([JR_PARAMS["A"]]),
-        B=np.array([JR_PARAMS["B"]]),
-        a=np.array([JR_PARAMS["a"]]),
-        b=np.array([JR_PARAMS["b"]]),
-        v0=np.array([JR_PARAMS["v0"]]),
-        nu_max=np.array([JR_PARAMS["nu_max"]]),
-        r=np.array([JR_PARAMS["r"]]),
-        J=np.array([JR_PARAMS["J"]]),
-        a_1=np.array([JR_PARAMS["a_1"]]),
-        a_2=np.array([JR_PARAMS["a_2"]]),
-        a_3=np.array([JR_PARAMS["a_3"]]),
-        a_4=np.array([JR_PARAMS["a_4"]]),
-        mu=np.array([JR_PARAMS["mu"]]),
+    conn = TVBConnectivity(
+        weights=weights,
+        tract_lengths=np.zeros_like(weights),
+        region_labels=np.array([str(i) for i in range(N_NODES)]),
+        centres=np.zeros((N_NODES, 3)),
+        speed=np.array([1.0]),
+    )
+    conn.configure()
+
+    model = JansenRit(
+        A=np.array([3.25]), B=np.array([22.0]), a=np.array([0.1]), b=np.array([0.05]),
+        v0=np.array([5.52]), nu_max=np.array([0.0025]), r=np.array([0.56]), J=np.array([135.0]),
+        a_1=np.array([1.0]), a_2=np.array([PARAM_OVERRIDES["a_2"]]),
+        a_3=np.array([0.25]), a_4=np.array([0.25]), mu=np.array([PARAM_OVERRIDES["mu"]]),
         variables_of_interest=("y0", "y1", "y2", "y3", "y4", "y5"),
     )
-    integrator_cls = {
-        "euler": EulerDeterministic,
-        "heun": HeunDeterministic,
-    }[method]
+    sim = TVBSimulator(
+        connectivity=conn,
+        model=model,
+        coupling=Linear(a=np.array([COUPLING_STRENGTH])),
+        integrator=HeunDeterministic(dt=DT),
+        monitors=[Raw()],
+        simulation_length=duration,
+    ).configure()
 
-    with quiet_tvb():
-        sim = TVBSimulator(
-            connectivity=conn,
-            model=tvb_model,
-            coupling=Linear(a=np.array([JR_PARAMS["coupling_strength"]])),
-            integrator=integrator_cls(dt=JR_PARAMS["dt"]),
-            monitors=[Raw()],
-            simulation_length=duration,
-        ).configure()
+    initial_state = np.zeros((model.nvar, N_NODES, 1))
+    sim.current_state[:] = initial_state
+    sim.history.buffer[:] = initial_state[model.cvar][np.newaxis, ...]
 
-        initial_state = np.zeros((tvb_model.nvar, n_nodes, 1))
-        sim.current_state[:] = initial_state
-        sim.history.buffer[:] = initial_state[tvb_model.cvar][np.newaxis, ...]
-
-        (_times, data), = sim.run()
-
-    return data[:, :, :, 0]
+    (_times, data), = sim.run()
+    return data[:, :, :, 0]  # (time, n_sv, n_nodes)
 
 
-def comparison_view(data: np.ndarray, n_plot_nodes: int) -> np.ndarray:
-    eeg = data[:, 1, :] - data[:, 2, :]
-    return np.stack((data[:, 0, :n_plot_nodes], eeg[:, :n_plot_nodes]), axis=1)
+# %%
+# Comparison plot
+# ---------------
+# ``y0`` and the "EEG-like" signal ``y1 - y2``, overlaid for every node.
 
+def comparison_plot(t: np.ndarray, vbi_data: np.ndarray, tvb_data: np.ndarray,
+                    out_path: Path) -> None:
+    vbi_eeg = vbi_data[:, 1, :] - vbi_data[:, 2, :]
+    tvb_eeg = tvb_data[:, 1, :] - tvb_data[:, 2, :]
+
+    fig, axes = plt.subplots(2, 1, figsize=(10, 6), sharex=True)
+    colors = plt.cm.tab10(np.linspace(0, 0.9, N_NODES))
+    for i in range(N_NODES):
+        axes[0].plot(t, tvb_data[:, 0, i], color=colors[i], lw=1.5, label=f"node {i}")
+        axes[0].plot(t, vbi_data[:, 0, i], color=colors[i], lw=0.8, ls="--")
+        axes[1].plot(t, tvb_eeg[:, i], color=colors[i], lw=1.5)
+        axes[1].plot(t, vbi_eeg[:, i], color=colors[i], lw=0.8, ls="--")
+    axes[0].set_ylabel("y0")
+    axes[0].set_title("Jansen-Rit - solid: TVB, dashed: VBI")
+    axes[0].legend(fontsize=8, ncol=N_NODES, loc="upper right")
+    axes[1].set_ylabel("y1 - y2 (EEG-like)")
+    axes[1].set_xlabel("time [ms]")
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out_path, dpi=120)
+    print(f"saved figure: {out_path}")
+
+
+# %%
+# Run the comparison
+# -------------------
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "--duration",
-        type=float,
-        default=25.0,
-        help="comparison duration in milliseconds",
-    )
-    parser.add_argument(
-        "--method",
-        choices=("euler", "heun"),
-        default="heun",
-        help="deterministic integrator used by both simulators",
-    )
-    parser.add_argument(
-        "--decimate",
-        type=int,
-        default=JR_PARAMS["decimate"],
-        help="plot every Nth raw sample",
-    )
-    parser.add_argument(
-        "--plot-nodes",
-        type=int,
-        default=6,
-        help="number of nodes to include in the overlay plot",
-    )
-    parser.add_argument(
-        "--output",
-        type=Path,
-        default=Path(__file__).with_name("outputs") / "jansen_rit_tvb_vbi_timeseries.png",
-        help="path for the comparison figure",
-    )
-    return parser.parse_args()
+    p = argparse.ArgumentParser(description=__doc__,
+                                formatter_class=argparse.RawDescriptionHelpFormatter)
+    p.add_argument("--duration", type=float, default=25.0, help="simulation time [ms]")
+    return p.parse_args()
 
 
 def main() -> None:
     args = parse_args()
-    times, vbi_data = run_vbi(duration=args.duration, method=args.method)
-    tvb_data = run_tvb(duration=args.duration, method=args.method)
-    metrics = comparison_metrics(reference=tvb_data, candidate=vbi_data)
-    scale = max(float(np.nanmax(np.abs(tvb_data))), 1.0)
-    relative_max_error = metrics["max_abs"] / scale
+    t, vbi_data = run_vbi(args.duration)
+    tvb_data = run_tvb(args.duration)
 
-    save_state_comparison_plot(
-        times=times,
-        left_data=comparison_view(vbi_data, args.plot_nodes),
-        right_data=comparison_view(tvb_data, args.plot_nodes),
-        out_path=args.output,
-        variable_names=("y0", "y1 - y2"),
-        title="Jansen-Rit trajectories: VBI simulator vs TVB",
-        decimate=args.decimate,
-    )
+    n = min(len(t), tvb_data.shape[0])
+    t, vbi_data, tvb_data = t[:n], vbi_data[:n], tvb_data[:n]
 
-    print("Jansen-Rit TVB comparison")
-    print(
-        f"nodes: {JR_PARAMS['nn']}, coupling: {JR_PARAMS['coupling_strength']}, "
-        f"dt: {JR_PARAMS['dt']} ms, mu: {JR_PARAMS['mu']}, C1: {JR_PARAMS['a_2'] * JR_PARAMS['J']}"
-    )
-    print(f"trajectory shape: {vbi_data.shape}  # (time, variable, node)")
-    print(f"max absolute error: {metrics['max_abs']:.6e}")
-    print(f"RMS error: {metrics['rms']:.6e}")
-    print(f"relative max error: {relative_max_error:.6e}")
-    print(f"saved figure: {args.output}")
+    err = np.abs(vbi_data - tvb_data)
+    print(f"Jansen-Rit  nodes={N_NODES}  coupling={COUPLING_STRENGTH}  dt={DT} ms  duration={args.duration} ms")
+    print(f"max |err|: {err.max():.3e}   rms |err|: {np.sqrt((err ** 2).mean()):.3e}")
+
+    comparison_plot(t, vbi_data, tvb_data,
+                    _SCRIPT_PATH.with_name("outputs") / "jansen_rit_comparison.png")
 
 
 if __name__ == "__main__":

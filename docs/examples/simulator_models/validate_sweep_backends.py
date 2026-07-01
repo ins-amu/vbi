@@ -29,15 +29,13 @@ warnings.filterwarnings(
     message="Grid size.*will likely result in GPU under-utilization",
 )
 
-# ---- repo path ----
+# Prefer the vbi living in this checkout over any other version already
+# installed (e.g. a different vbi checkout installed editable elsewhere).
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
-
-from helpers import ensure_repo_on_path
-ensure_repo_on_path(__file__)
 
 from vbi.simulator import Simulator, Sweeper
 from vbi.simulator.spec import (
-    SimulationSpec, IntegratorSpec, CouplingSpec, MonitorSpec,
+    SimulationSpec, IntegratorSpec, CouplingSpec, MonitorSpec, Connectivity,
 )
 from vbi.simulator.spec.sweep import SweepSpec
 
@@ -73,7 +71,7 @@ def _make_spec(model, n_nodes: int, dt: float, coup_a: float) -> SimulationSpec:
         integrator=IntegratorSpec(method="heun", dt=dt, stochastic=False),
         coupling=CouplingSpec("linear", a=coup_a),
         monitors=(MonitorSpec("raw"),),
-        weights=_weights(n_nodes),
+        connectivity=Connectivity(_weights(n_nodes)),
     )
 
 
@@ -191,7 +189,7 @@ def validate(
             integrator=IntegratorSpec(method="heun", dt=dt, stochastic=False),
             coupling=CouplingSpec("linear", a=coup_a),
             monitors=(MonitorSpec("subsample", period=max(dt * 10, 1.0)),),
-            weights=spec.weights,
+            connectivity=spec.connectivity,
         )
         jax_sweep_results = Sweeper(jax_spec, sweep_spec, backend="jax").run(duration)
         ref_sub = []

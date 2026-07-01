@@ -24,10 +24,21 @@ import sys
 import time
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
+sys.dont_write_bytecode = True
 
-from helpers import ensure_repo_on_path
-ensure_repo_on_path(__file__)
+try:
+    _SCRIPT_PATH = Path(__file__)
+except NameError:
+    # sphinx-gallery execs this file without setting __file__; it already
+    # chdirs into the script's own directory first, so cwd is equivalent.
+    _SCRIPT_PATH = Path.cwd() / "jax_demo.py"
+
+# Prefer the vbi living in this checkout over any other version already
+# installed (e.g. a different vbi checkout installed editable elsewhere).
+# Downloaded standalone copies of this script should `pip install vbi`
+# instead - see the first notebook cell.
+_repo_root = _SCRIPT_PATH.resolve().parents[3]
+sys.path.insert(0, str(_repo_root))
 
 import numpy as np
 

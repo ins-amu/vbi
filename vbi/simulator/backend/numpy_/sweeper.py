@@ -31,9 +31,7 @@ def _patch_spec(base: SimulationSpec, param_names: list[str],
         integrator=integrator,
         coupling=base.coupling,
         monitors=base.monitors,
-        weights=base.weights,
-        tract_lengths=base.tract_lengths,
-        speed=base.speed,
+        connectivity=base.connectivity,
         node_params=new_node_params,
         stimuli=base.stimuli,   # preserve stimuli from base spec
     )
