@@ -24,8 +24,6 @@ Run
 # %%
 # Setup
 # -----
-# Imports and path setup so the demo runs both as a standalone script and as
-# a sphinx-gallery example.
 
 from __future__ import annotations
 
@@ -40,8 +38,6 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-from helpers import ensure_repo_on_path, complete_graph_weights
-
 try:
     _SCRIPT_PATH = Path(__file__)
 except NameError:
@@ -49,7 +45,12 @@ except NameError:
     # chdirs into the script's own directory first, so cwd is equivalent.
     _SCRIPT_PATH = Path.cwd() / "kuramoto_demo.py"
 
-ensure_repo_on_path(_SCRIPT_PATH)
+# Prefer the vbi living in this checkout over any other version already
+# installed (e.g. a different vbi checkout installed editable elsewhere).
+# Downloaded standalone copies of this script should `pip install vbi`
+# instead - see the first notebook cell.
+_repo_root = _SCRIPT_PATH.resolve().parents[3]
+sys.path.insert(0, str(_repo_root))
 
 from vbi.simulator import Simulator
 from vbi.simulator.models.kuramoto import kuramoto
@@ -58,6 +59,13 @@ from vbi.simulator.spec.integrator import IntegratorSpec
 from vbi.simulator.spec.monitor import MonitorSpec
 from vbi.simulator.spec.simulation import SimulationSpec
 from vbi.simulator.spec.connectivity import Connectivity
+
+
+def complete_graph_weights(n_nodes: int) -> np.ndarray:
+    """Return a dense complete-graph weight matrix with zero diagonal."""
+    weights = np.ones((n_nodes, n_nodes), dtype=np.float64)
+    np.fill_diagonal(weights, 0.0)
+    return weights
 
 
 # %%
@@ -188,7 +196,7 @@ def run_vbi(
 # Plots per-node ``sin(θ)``, unwrapped phase, the Kuramoto order parameter
 # R(t), and the absolute error between the VBI and reference trajectories.
 
-def save_comparison_plot(
+def comparison_plot(
     t: np.ndarray,
     vbi_theta: np.ndarray,
     ref_theta: np.ndarray,
@@ -348,7 +356,7 @@ def main() -> None:
     print(f"omega: {np.round(omega, 3)}")
     print(f"max |err|: {max_err:.3e}   rms |err|: {rms_err:.3e}")
 
-    save_comparison_plot(t_ref, theta_vbi, theta_ref, args.output,
+    comparison_plot(t_ref, theta_vbi, theta_ref, args.output,
                          args.delayed, alpha=args.alpha)
 
 
