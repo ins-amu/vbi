@@ -164,6 +164,7 @@ Getting Started
    :maxdepth: 1
 
    installation
+   limitations
    docker_build
    docker_quickstart
 
