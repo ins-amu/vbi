@@ -141,6 +141,24 @@ Documentation Dependencies
      - MIT
      - https://github.com/JessicaTegner/pypandoc/blob/master/LICENSE
 
+Bundled Datasets
+----------------
+
+VBI ships a small sample structural connectivity dataset
+(``vbi/dataset/connectivity_84``) used by the tutorials and examples. See
+``vbi/dataset/README.md`` for full provenance details.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 20 15 65
+
+   * - Dataset
+     - License
+     - Source
+   * - connectivity_84 (Hagmann et al. 2008)
+     - CC BY 3.0
+     - Redistributed from `The Virtual Brain <https://github.com/the-virtual-brain/tvb-data>`_
+
 Build Dependencies
 ------------------
 
