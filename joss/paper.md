@@ -51,7 +51,7 @@ Understanding the principles and causal mechanisms underlying complex brain (dys
 
 VBI (https://github.com/ins-amu/vbi) is a Python-based toolkit tailored for probabilistic inference at the whole-brain scale. A lightweight version with minimal dependencies is available to run online in JupyterLab. It also leverages the flexibility of Python while harnessing the high performance of C++ for optimized computation and massive parallelization using CUDA on GPUs. VBI seamlessly integrates structural and functional neuroimaging data, providing space-efficient storage and memory-optimized batch processing. With its user-friendly API supporting:
 
-- **Whole-brain models**: Wilson-Cowan, Jansen-Rit, Stuart-Landau, Montbrió, Wong-Wang, and Epileptor.
+- **Whole-brain models**: Wilson-Cowan (@WilsonCowan1972), Jansen-Rit (@JansenRit1995), Stuart-Landau (@Cabral2011), Montbrió (@Montbrio2015), Wong-Wang (@Deco2013), and Epileptor (@Jirsa2014).
 - **Fast simulation**: Just-in-time compilation of models across Python/C++ and CPU/GPU devices.
 - **Feature extraction**: Functional connectivity (FC), functional connectivity dynamics (FCD), and power spectral density (PSD).
 - **Deep neural density estimators**: Masked autoregressive flows (MAFs; @Papamakarios2017), and neural spline flows (NSFs; @Durkan2019).
@@ -80,7 +80,7 @@ Near-term impact is reinforced by the EBRAINS integration, which provides ready-
 
 # AI Usage Disclosure
 
-Generative AI tools, specifically Claude (Anthropic) and ChatGPT/GPT models (OpenAI), were used mainly for language polishing and documentation drafting of this manuscript, and for minor code refactoring assistance. All scientific content, software design decisions, implementation, and validation results were conceived, written, and verified by the authors; the majority of the codebase was authored directly by the authors rather than produced through autonomous or "vibe coding" workflows.
+Generative AI tools, specifically Claude Sonnet models (Anthropic; @AnthropicSystemCard2025) and GPT-5 models (OpenAI; @OpenAIGPT5SystemCard2025), were used mainly for language polishing and documentation drafting of this manuscript, and for minor code refactoring assistance. All scientific content, software design decisions, implementation, and validation results were conceived, written, and verified by the authors; the majority of the codebase was authored directly by the authors rather than produced through autonomous or "vibe coding" workflows.
 
 # Methods
 
