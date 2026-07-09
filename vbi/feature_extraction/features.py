@@ -23,7 +23,7 @@ from vbi.feature_extraction.features_utils import (
     get_fcd,
     matrix_stat,
     compute_time,
-    init_jvm,
+    call_jidt,
     nat2bit,
     kde,
     gaussian,
@@ -58,11 +58,6 @@ try:
     import ssm
 except ImportError:
     ssm = None
-
-try:
-    import jpype as jp
-except ImportError:
-    jp = None
 
 
 def abs_energy(ts: np.ndarray, indices: List[int] = None, verbose=False):
@@ -1294,42 +1289,31 @@ def calc_mi(
     if ts.ndim == 1:
         assert False, "ts must be a 2d array"
 
-    init_jvm()
-    calcClass = jp.JPackage(
-        "infodynamics.measures.continuous.kraskov"
-    ).MutualInfoCalculatorMultiVariateKraskov2
-    calc = calcClass()
-    calc.setProperty("k", str(int(k)))
-    calc.setProperty("NUM_THREADS", str(int(num_threads)))
-    calc.setProperty("TIME_DIFF", str(int(time_diff)))
-    calc.initialise()
-    calc.startAddObservations()
-
     if source_indices is None:
         source_indices = np.arange(ts.shape[0])
     if target_indices is None:
         target_indices = np.arange(ts.shape[0])
 
     ts = ts.tolist()
+    pairs = []
     if mode == "all":
         for i in source_indices:
             for j in target_indices:
-                calc.addObservations(ts[i], ts[j])
+                pairs.append((ts[i], ts[j]))
 
     elif mode == "pairwise":
         assert len(source_indices) == len(target_indices)
         for i, j in zip(source_indices, target_indices):
-            calc.addObservations(ts[i], ts[j])
-    calc.finaliseAddObservations()
-    MI = calc.computeAverageLocalOfObservations()
+            pairs.append((ts[i], ts[j]))
 
-    if num_surrogates > 0:
-        NullDist = calc.computeSignificance(num_surrogates)
-        NullMean = NullDist.getMeanOfDistribution()
-        MI = MI - NullMean if (MI >= NullMean) else 0.0
-
-    MI = nat2bit(MI)
-    MI = MI if MI >= 0 else 0.0
+    MI = call_jidt(
+        "mi",
+        pairs=pairs,
+        k=k,
+        num_threads=num_threads,
+        time_diff=time_diff,
+        num_surrogates=num_surrogates,
+    )
     label = "mi"
 
     return [MI], [label]
@@ -1380,42 +1364,31 @@ def calc_te(
     if ts.shape[0] == 1:
         assert False, "ts must have more than one time series"
 
-    init_jvm()
-    calcClass = jp.JPackage(
-        "infodynamics.measures.continuous.kraskov"
-    ).TransferEntropyCalculatorKraskov
-    calc = calcClass()
-    calc.setProperty("NUM_THREADS", str(int(num_threads)))
-    calc.setProperty("DELAY", str(int(delay)))
-    calc.setProperty("AUTO_EMBED_RAGWITZ_NUM_NNS", "4")
-    calc.setProperty("k", str(int(k)))
-    calc.initialise()
-    calc.startAddObservations()
-
     if source_indices is None:
         source_indices = np.arange(ts.shape[0])
     if target_indices is None:
         target_indices = np.arange(ts.shape[0])
 
     ts = ts.tolist()
+    pairs = []
     if mode == "all":
         for i in source_indices:
             for j in target_indices:
-                calc.addObservations(ts[i], ts[j])
+                pairs.append((ts[i], ts[j]))
 
     elif mode == "pairwise":
         assert len(source_indices) == len(target_indices)
         for i, j in zip(source_indices, target_indices):
-            calc.addObservations(ts[i], ts[j])
-    calc.finaliseAddObservations()
-    te = calc.computeAverageLocalOfObservations()
+            pairs.append((ts[i], ts[j]))
 
-    if num_surrogates > 0:
-        NullDist = calc.computeSignificance(num_surrogates)
-        NullMean = NullDist.getMeanOfDistribution()
-        # NullStd = NullDist.getStdOfDistribution()
-        te = te - NullMean if (te >= NullMean) else 0.0
-    te = te if te >= 0 else 0.0
+    te = call_jidt(
+        "te",
+        pairs=pairs,
+        k=k,
+        delay=delay,
+        num_threads=num_threads,
+        num_surrogates=num_surrogates,
+    )
     label = "te"
 
     return [te], [label]
@@ -1461,25 +1434,11 @@ def calc_entropy(ts: np.ndarray, average: bool = False, verbose=False):
 
     _check_jpype_available()
     
-    init_jvm()
-
-    calcClass = jp.JPackage(
-        "infodynamics.measures.continuous.kozachenko"
-    ).EntropyCalculatorMultiVariateKozachenko
-    calc = calcClass()
-
-    values = []
     if not average:
-        for i in range(n):
-            calc.initialise()
-            calc.setObservations(ts[i, :])
-            value = nat2bit(calc.computeAverageLocalOfObservations())
-            values.append(value)
+        values = call_jidt("entropy", ts=ts.tolist(), average=False)
     else:
-        calc.initialise()
-        ts = ts.squeeze().flatten().tolist()
-        calc.setObservations(ts)
-        values = nat2bit(calc.computeAverageLocalOfObservations())
+        ts_flat = ts.squeeze().flatten().tolist()
+        values = call_jidt("entropy", ts=[ts_flat], average=True)
         labels = "entropy"
 
     return values, labels

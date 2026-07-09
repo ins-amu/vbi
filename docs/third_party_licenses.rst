@@ -80,8 +80,19 @@ via pip.
      - https://github.com/jlizier/jidt/blob/master/LICENCE.txt
 
 JIDT is used for information-theoretic feature extraction (transfer entropy,
-mutual information) via JPype.  It requires a Java JDK (>= 8) to be installed
-on the host system; see the :doc:`installation` guide for details.
+mutual information). It requires a Java JDK (>= 8) to be installed on the
+host system; see the :doc:`installation` guide for details.
+
+**GPL-3.0 isolation.** Because JIDT is GPL-3.0-licensed while VBI is
+Apache-2.0-licensed, VBI never embeds JIDT's JVM inside its own process.
+Instead, JIDT (via JPype) is run in a separate, independent OS process
+(``vbi/feature_extraction/jidt_worker.py``), launched on demand and
+communicating with the main VBI process only through a line-delimited
+JSON protocol over stdin/stdout. The two programs exchange plain numeric
+data across this narrow, well-defined interface rather than sharing an
+address space or linking against one another, so the GPL-3.0 copyleft
+terms that apply to the JIDT worker process do not extend to VBI's own
+Apache-2.0-licensed codebase.
 
 Optional / Inference Dependencies
 ----------------------------------
