@@ -1,3 +1,5 @@
+:orphan:
+
 .. raw:: html
 
    <link rel="stylesheet" type="text/css" href="_static/custom.css">

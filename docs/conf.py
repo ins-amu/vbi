@@ -98,9 +98,10 @@ nbsphinx_execute = 'never'
 default_role = "any"
 add_module_names = False
 html_theme = "furo"
-html_theme_options = {
-    "default_mode": "light",
-}
+# Furo defaults to the operating-system preference.  The base template override
+# selects light on a visitor's first load while preserving any choice made with
+# Furo's theme toggle in localStorage.
+templates_path = ["_templates"]
 pygments_style = "colorful"
 add_function_parentheses = True
 html_static_path = ['_static']
