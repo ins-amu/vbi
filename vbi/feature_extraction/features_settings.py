@@ -1,3 +1,9 @@
+"""Feature configuration loading and management for VBI.
+
+Provides utilities for loading, validating, and inspecting JSON-based
+feature configuration files that specify which feature functions to compute
+and their associated parameters.
+"""
 import json
 import vbi
 import types

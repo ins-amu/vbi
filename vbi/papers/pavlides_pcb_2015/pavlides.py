@@ -1,3 +1,10 @@
+"""Reproducibility script for Pavlides et al. (2015), PLOS Computational Biology.
+
+Reproduces simulation results from:
+Pavlides, A. et al. (2015). Computational models describing possible mechanisms
+for generation of excessive beta oscillations in Parkinson's disease.
+*PLOS Computational Biology*, 11(12), e1004609.
+"""
 import os
 import os.path
 import numpy as np

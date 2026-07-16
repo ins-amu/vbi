@@ -1,3 +1,13 @@
+"""Wilson-Cowan neural mass model — Numba JIT-compiled backend.
+
+Implements the Wilson-Cowan (1972) equations for coupled excitatory/inhibitory
+neural populations across a whole-brain network.
+
+Reference
+---------
+Wilson, H.R. & Cowan, J.D. (1972). Excitatory and inhibitory interactions
+in localized populations of model neurons. *Biophysical Journal*, 12(1), 1–24.
+"""
 
 import warnings
 import numpy as np

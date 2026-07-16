@@ -1,3 +1,13 @@
+"""Virtual Epileptic Patient (VEP) model — C++/SWIG backend Python wrapper.
+
+Python interface to the SWIG-wrapped C++ VEP implementation for large-scale
+epilepsy simulations.
+
+Reference
+---------
+Jirsa, V.K. et al. (2014). On the nature of seizure dynamics.
+*Brain*, 137(8), 2210–2230.
+"""
 import os
 import numpy as np
 from copy import deepcopy
@@ -27,21 +37,20 @@ class VEP_sde(BaseModel):
 
         super().__init__()
         par = deepcopy(par)
-        
+
         # Backward compatibility mapping
         param_mapping = {
             'tend': 't_end',
-            'tcut': 't_cut', 
+            'tcut': 't_cut',
             'noise_sigma': 'noise_amp'
         }
-        
-        # Apply backward compatibility
+
         for old_name, new_name in param_mapping.items():
             if old_name in par:
-                warnings.warn(f"Parameter '{old_name}' is deprecated. Use '{new_name}' instead.", 
-                            DeprecationWarning, stacklevel=2)
+                warnings.warn(f"Parameter '{old_name}' is deprecated. Use '{new_name}' instead.",
+                              DeprecationWarning, stacklevel=2)
                 par[new_name] = par.pop(old_name)
-        
+
         self._par = self.get_default_parameters()
         self.valid_params = list(self._par.keys())
         self.check_parameters(par)

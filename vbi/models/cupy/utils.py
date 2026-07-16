@@ -1,3 +1,8 @@
+"""Utility functions for CuPy-based VBI model backends.
+
+Provides helper routines for GPU array handling, adjacency-list construction,
+and other shared operations used across the CuPy model implementations.
+"""
 import numpy as np
 
 try:

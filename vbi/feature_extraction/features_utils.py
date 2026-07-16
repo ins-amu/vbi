@@ -1,4 +1,21 @@
+"""Low-level utility functions and helpers for VBI feature extraction.
+
+Provides signal-processing helpers, JIDT JVM initialisation, statistical
+utilities, and other shared routines used by the feature-extraction modules.
+
+JIDT dependency
+---------------
+Some functions use the Java Information Dynamics Toolkit (JIDT) via JPype.
+``infodynamics.jar`` is bundled with VBI; a Java JDK (>= 8) and the
+``JPype1`` Python package must be installed separately.  See the
+installation guide for details.
+"""
 import vbi
+import atexit
+import json
+import subprocess
+import sys
+import threading
 import scipy
 import numpy as np
 from os.path import join
@@ -1058,7 +1075,15 @@ def report_cfg(cfg: dict):
 
 
 def get_jar_location():
+    """Return the path to the bundled infodynamics.jar from JIDT.
 
+    ``infodynamics.jar`` is the Java Information Dynamics Toolkit (JIDT)
+    by Joseph T. Lizier, distributed under the GNU GPL v3.
+    Source: https://github.com/jlizier/jidt
+
+    Using JIDT requires Java JDK (>= 8) to be installed; see
+    :func:`init_jvm` and the installation guide for details.
+    """
     jar_file_name = "infodynamics.jar"
     jar_location = join(vbi.__file__, "feature_extraction")
     jar_location = jar_location.replace("__init__.py", "")
@@ -1070,20 +1095,93 @@ def get_jar_location():
 def init_jvm():
     """
     Initialize Java Virtual Machine for information theory calculations.
-    
+
+    This is called from within the JIDT worker subprocess (see
+    ``vbi.feature_extraction.jidt_worker``), never from the main VBI
+    process; see :func:`call_jidt` for why.
+
     Raises
     ------
     ImportError
         If JPype is not available
     """
     _check_jpype_available()
-    
+
     jar_location = get_jar_location()
 
     if jp.isJVMStarted():
         return
     else:
         jp.startJVM(jp.getDefaultJVMPath(), "-ea", "-Djava.class.path=" + jar_location)
+
+
+# ---------------------------------------------------------------------------
+# JIDT (infodynamics.jar) is GPL-3.0-licensed. To avoid embedding its JVM
+# in-process (which would link GPL-3.0 code into VBI's own Apache-2.0
+# process via JPype), JIDT is run in an independent OS process
+# (``jidt_worker.py``). The two programs only exchange numeric data over a
+# line-delimited JSON pipe -- a well-defined, arm's-length interface -- so
+# the main VBI process itself never links against GPL-3.0 code. See
+# ``docs/third_party_licenses.rst`` for details.
+# ---------------------------------------------------------------------------
+
+_jidt_process = None
+_jidt_lock = threading.Lock()
+
+
+def _get_jidt_process():
+    """Lazily launch (or relaunch, if it has died) the JIDT worker process."""
+    global _jidt_process
+    with _jidt_lock:
+        if _jidt_process is None or _jidt_process.poll() is not None:
+            _check_jpype_available()
+            _jidt_process = subprocess.Popen(
+                [sys.executable, "-m", "vbi.feature_extraction.jidt_worker"],
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                bufsize=1,
+            )
+            atexit.register(_shutdown_jidt_process)
+        return _jidt_process
+
+
+def _shutdown_jidt_process():
+    """Terminate the JIDT worker subprocess, if running."""
+    global _jidt_process
+    proc, _jidt_process = _jidt_process, None
+    if proc is not None and proc.poll() is None:
+        try:
+            proc.stdin.close()
+            proc.wait(timeout=5)
+        except Exception:
+            proc.kill()
+
+
+def call_jidt(op: str, **payload):
+    """Send one request to the JIDT worker subprocess and return its result.
+
+    Parameters
+    ----------
+    op : str
+        One of ``"mi"``, ``"te"``, ``"entropy"``.
+    **payload
+        Request-specific arguments, JSON-serialised and sent to the worker.
+    """
+    proc = _get_jidt_process()
+    request = {"op": op, **payload}
+    with _jidt_lock:
+        proc.stdin.write(json.dumps(request) + "\n")
+        proc.stdin.flush()
+        line = proc.stdout.readline()
+    if not line:
+        stderr = proc.stderr.read()
+        raise RuntimeError(f"JIDT worker process terminated unexpectedly.\n{stderr}")
+    response = json.loads(line)
+    if not response["ok"]:
+        raise RuntimeError(f"JIDT worker error: {response['error']}")
+    return response["result"]
 
 
 def nat2bit(x):

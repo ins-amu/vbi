@@ -1,3 +1,13 @@
+"""Kuramoto oscillator model — C++/SWIG backend Python wrapper.
+
+Python interface to the SWIG-wrapped C++ Kuramoto model with stochastic
+noise, phase lags, and OpenMP parallelism.
+
+Reference
+---------
+Kuramoto, Y. (1984). *Chemical Oscillations, Waves, and Turbulence.*
+Springer, Berlin.
+"""
 import numpy as np
 
 from vbi.models.cpp.base import BaseModel

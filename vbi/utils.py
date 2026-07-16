@@ -1,3 +1,8 @@
+"""General-purpose utility functions for VBI.
+
+Provides helpers for parameter handling, functional connectivity computation,
+dependency checking, timing, and console output used across VBI submodules.
+"""
 import os
 import time
 import numpy as np

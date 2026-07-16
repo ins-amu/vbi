@@ -1,3 +1,4 @@
+"""Tests for the MPR model Numba backend."""
 import unittest
 import numpy as np
 import networkx as nx

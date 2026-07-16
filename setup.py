@@ -64,46 +64,17 @@ class OptionalBuildExt(build_ext):
             
             subprocess.run(cmd, check=True)
 
-
-def get_compile_args():
-    """Get platform-specific compile arguments."""
-    if platform.system() == "Windows":
-        # MSVC flags - conservative optimization
-        return ["/O2", "/openmp", "/std:c++11", "/EHsc"]
-    else:
-        # GCC flags - safe optimizations for numerical code
-        return [
-            "-std=c++11",              # C++11 standard
-            "-O2",                     # Safe optimization level
-            "-fPIC",                   # Position independent code
-            "-fopenmp",                # OpenMP support
-            "-march=native",           # Optimize for current CPU architecture
-            "-fno-strict-aliasing",    # Avoid pointer aliasing issues (safer for numerical code)
-            "-Wno-sign-compare",       # Suppress signed/unsigned comparison warnings (we'll fix critical ones manually)
-            "-Wno-unused-variable",    # Suppress unused variable warnings (safe to ignore)
-            "-Wno-reorder"             # Suppress member initialization order warnings (safe to ignore)
-        ]
-
-
-def get_link_args():
-    """Get platform-specific link arguments."""
-    if platform.system() == "Windows":
-        return []  # OpenMP linking is handled automatically on Windows with /openmp
-    else:
-        return ["-fopenmp"]
+SRC_DIR = "vbi/models/cpp/_src"
 
 
 def create_extension(model):
-    """Create a C++ extension for a model with platform-specific settings."""
-    src_dir = "vbi/models/cpp/_src"
-    
     return Extension(
         f"vbi.models.cpp._src._{model}",
-        sources=[os.path.join(src_dir, f"{model}_wrap.cxx")],  # Use .cxx extension
-        include_dirs=[src_dir],
-        extra_compile_args=get_compile_args(),
-        extra_link_args=get_link_args(),
-        language="c++"
+        sources=[f"{SRC_DIR}/{model}_wrap.cxx"],
+        include_dirs=[SRC_DIR],
+        extra_compile_args=["-std=c++11", "-O2", "-fPIC", "-fopenmp"],
+        extra_link_args=["-fopenmp"],
+        language="c++",
     )
 
 
@@ -159,16 +130,16 @@ def get_extensions():
     extensions = []
     for filename in os.listdir(src_dir):
         if filename.endswith(".i"):
-            model = filename.split(".")[0]
-            extensions.append(create_extension(model))
-    
-    return extensions
+            extensions.append(create_extension(filename.split(".")[0]))
 
 
 def get_package_data():
     """Get package data, excluding .so files when C++ compilation is skipped."""
     skip, _ = should_skip_cpp()
-    base_data = {"vbi": ["models/pytorch/data/*"]}
+    base_data = {
+        "vbi": ["models/pytorch/data/*"],
+        "vbi.feature_extraction": ["*.json", "*.jar"],
+    }
     if skip:
         base_data["vbi.models.cpp._src"] = ["*.h", "*.i", "*.py"]
     else:

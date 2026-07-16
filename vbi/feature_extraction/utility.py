@@ -1,4 +1,9 @@
-﻿import logging
+"""Signal-processing and array utility functions for VBI feature extraction.
+
+Provides Numba-accelerated and pure-NumPy helpers for windowing, filtering,
+downsampling, and other preprocessing steps used in the feature pipeline.
+"""
+import logging
 import numpy as np
 import pandas as pd
 from typing import Union, List

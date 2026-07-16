@@ -1,3 +1,8 @@
+"""Generic Hopf Bifurcation (GHB) oscillator model — CuPy GPU-accelerated backend.
+
+GPU implementation of a network of Hopf bifurcation oscillators for modelling
+near-critical brain dynamics.
+"""
 import tqdm
 import cupy as cp
 from copy import copy

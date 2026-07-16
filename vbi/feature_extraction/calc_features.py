@@ -1,3 +1,9 @@
+"""High-level batch feature computation for VBI.
+
+Provides a unified interface for computing feature vectors from simulated
+or empirical time series, driven by a JSON configuration that specifies
+which feature functions to evaluate and with which parameters.
+"""
 import os
 import vbi
 import sys

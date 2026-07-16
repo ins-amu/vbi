@@ -1,3 +1,8 @@
+"""Utility functions for the TVBK (TVB-Kernel) VBI backend.
+
+Provides helper routines for interfacing with the TVB-Kernel library,
+including matrix conversion, parameter mapping, and simulation bookkeeping.
+"""
 import tvbk as m
 import numpy as np
 import scipy.sparse

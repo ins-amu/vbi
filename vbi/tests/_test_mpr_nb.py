@@ -1,3 +1,4 @@
+"""Disabled/draft tests for the MPR Numba backend (not collected by default)."""
 import unittest
 import numpy as np
 import networkx as nx

@@ -1,3 +1,4 @@
+"""Tests for VBI feature-extraction functions."""
 import unittest
 import numpy as np
 import pytest

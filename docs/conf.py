@@ -1,9 +1,22 @@
 import sys
 import os
 import subprocess
+import shutil
 # Import version directly from _version.py instead of using setuptools_scm
 sys.path.insert(0, os.path.abspath(".."))
 from vbi._version import __version__
+
+if not shutil.which("pandoc"):
+    try:
+        import pypandoc
+    except ImportError:
+        pass
+    else:
+        os.environ["PATH"] = (
+            os.path.dirname(pypandoc.get_pandoc_path())
+            + os.pathsep
+            + os.environ.get("PATH", "")
+        )
 
 needs_sphinx = "0.2"
 

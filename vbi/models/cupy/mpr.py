@@ -1,3 +1,13 @@
+"""Montbrió-Pazó-Roxin (MPR) mean-field model — CuPy GPU-accelerated backend.
+
+Implements the MPR model for whole-brain network simulations on NVIDIA GPUs,
+with optional BOLD haemodynamic output.
+
+Reference
+---------
+Montbrió, E., Pazó, D., & Roxin, A. (2015). Macroscopic description for
+networks of spiking neurons. *Physical Review X*, 5(2), 021028.
+"""
 import os
 import tqdm
 import logging

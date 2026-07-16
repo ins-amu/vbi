@@ -1,3 +1,13 @@
+"""Simulation-based inference (SBI) utilities for VBI.
+
+Wraps the ``sbi`` library to provide a streamlined interface for training and
+evaluating neural posterior estimators (SNPE, SNLE, SNRE) on VBI simulation
+outputs.
+
+.. note::
+    Requires ``torch`` and ``sbi`` to be installed
+    (``pip install vbi[inference]``).
+"""
 # Check for required dependencies with informative error messages
 try:
     import torch

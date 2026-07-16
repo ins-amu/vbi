@@ -1,3 +1,14 @@
+"""Jansen-Rit neural mass model — Numba JIT-compiled backend.
+
+Implements the Jansen-Rit (1995) model for a network of cortical columns
+using Numba-accelerated stochastic differential equation integration.
+
+Reference
+---------
+Jansen, B.H. & Rit, V.G. (1995). Electroencephalogram and visual evoked
+potential generation in a mathematical model of coupled cortical columns.
+*Biological Cybernetics*, 73(4), 357–366.
+"""
 import warnings
 import numpy as np
 from typing import Dict, Any

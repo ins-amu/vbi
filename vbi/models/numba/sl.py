@@ -1,3 +1,8 @@
+"""Stuart-Landau (Hopf normal form) oscillator model — Numba JIT-compiled backend.
+
+Implements a network of Stuart-Landau (complex Ginzburg-Landau) oscillators,
+useful for studying amplitude and phase dynamics near a Hopf bifurcation.
+"""
 import numpy as np
 from copy import copy
 from numba import njit

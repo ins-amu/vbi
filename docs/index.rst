@@ -164,6 +164,7 @@ Getting Started
    :maxdepth: 1
 
    installation
+   limitations
    docker_build
    docker_quickstart
 
@@ -174,6 +175,14 @@ Publications & Citations
    :maxdepth: 1
 
    publication
+
+Third-Party Licenses
+--------------------
+
+.. toctree::
+   :maxdepth: 1
+
+   third_party_licenses
 
 Brain Models
 ------------

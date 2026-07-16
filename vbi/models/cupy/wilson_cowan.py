@@ -1,3 +1,13 @@
+"""Wilson-Cowan neural mass model — CuPy GPU-accelerated backend.
+
+Implements the Wilson-Cowan (1972) model for coupled excitatory/inhibitory
+populations across a whole-brain network on NVIDIA GPUs.
+
+Reference
+---------
+Wilson, H.R. & Cowan, J.D. (1972). Excitatory and inhibitory interactions
+in localized populations of model neurons. *Biophysical Journal*, 12(1), 1–24.
+"""
 import os
 import tqdm
 import logging

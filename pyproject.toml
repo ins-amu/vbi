@@ -10,8 +10,8 @@ build-backend = "setuptools.build_meta"
 name = "vbi"
 dynamic = ["version"]
 description = "Virtual brain inference - fast simulation and parameter estimation."
-requires-python = ">=3.10"
-license = { text = "MIT" }
+requires-python = ">=3.8"
+license = { text = "Apache-2.0" }
 authors = [
     { name = "Abolfazl Ziaeemehr",  email = "a.ziaeemehr@gmail.com" },
     { name = "Meysam Hashemi",      email = "meysam.hashemi@gmail.com" },
@@ -21,7 +21,7 @@ readme = "README.md"
 classifiers = [
     "Programming Language :: Python :: 3",
     "Topic :: Scientific/Engineering :: Information Analysis",
-    "License :: OSI Approved :: MIT License",
+    "License :: OSI Approved :: Apache Software License",
     "Operating System :: OS Independent",
 ]
 
@@ -99,6 +99,12 @@ sbi-gpu = [
 
 # ---- Convenience bundles ----
 
+# Time-series feature extraction (catch22 features)
+# Install:  pip install vbi[features]
+features = [
+    "pycatch22",
+]
+
 # Everything a researcher needs on a CPU workstation
 # Install:  pip install vbi[full-cpu]
 full-cpu = [
@@ -108,6 +114,7 @@ full-cpu = [
     "jaxlib>=0.4",
     "sbi>=0.22",
     "torch>=2.0",
+    "pycatch22",
 ]
 
 # Full install including GPU libraries (assumes CUDA toolkit is present)
@@ -120,6 +127,7 @@ full-gpu = [
     "sbi>=0.22",
     "torch>=2.0",
     "cupy",
+    "pycatch22",
 ]
 
 # ---- Development and CI ----
@@ -149,6 +157,7 @@ docs = [
     "nbsphinx",
     "furo",
     "nbconvert",
+    "pypandoc_binary",
 ]
 
 # ---- Legacy aliases (kept for backward compatibility) ----

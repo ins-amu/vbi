@@ -1,3 +1,4 @@
+"""Tests for the Generic Hopf Bifurcation (GHB) model CuPy backend."""
 import unittest
 import numpy as np
 import networkx as nx

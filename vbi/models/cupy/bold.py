@@ -1,3 +1,13 @@
+"""Balloon-Windkessel haemodynamic (BOLD) model — CuPy GPU-accelerated backend.
+
+GPU implementation of the Balloon-Windkessel model for converting simulated
+neural activity to fMRI BOLD signals.
+
+Reference
+---------
+Friston, K.J. et al. (2000). Nonlinear responses in fMRI: the Balloon model,
+Volterra kernels, and other hemodynamics. *NeuroImage*, 12(4), 466–477.
+"""
 import numpy as np
 
 
