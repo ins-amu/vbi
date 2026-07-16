@@ -2,6 +2,15 @@ import sys
 import os
 import subprocess
 import shutil
+
+# RTD has no GPU, and gallery/notebook execution here should match that
+# environment. Also sidesteps local cuDNN/driver mismatches (JAX crashing
+# with "RET_CHECK failure ... dnn_support != nullptr" when a machine's GPU
+# driver is older than what the installed cuDNN expects) that have nothing
+# to do with whether the example itself is correct. Must be set before any
+# vbi/jax import triggers CUDA initialization.
+os.environ.setdefault("JAX_PLATFORMS", "cpu")
+
 # Import version directly from _version.py instead of using setuptools_scm
 sys.path.insert(0, os.path.abspath(".."))
 from vbi._version import __version__
