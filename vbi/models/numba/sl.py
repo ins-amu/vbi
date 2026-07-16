@@ -104,7 +104,7 @@ class ParSL:
 # --------------------------------
 # Stuart-Landau dynamics
 # --------------------------------
-@njit
+@njit(cache=True)
 def f_sl(Z, delays_state, W, a, omega, G):
     """
     Compute the Stuart-Landau equations with delayed coupling.
@@ -156,7 +156,7 @@ def f_sl(Z, delays_state, W, a, omega, G):
 # --------------------------------
 # Heun SDE integrator for complex variables
 # --------------------------------
-@njit
+@njit(cache=True)
 def heun_sde_sl(Z, delays_state, W, P):
     """
     Heun method for the stochastic Stuart-Landau model with delays.
@@ -613,7 +613,7 @@ class SL_sde(BaseNumbaModel):
 # Helper functions
 # --------------------------------
 
-@njit
+@njit(cache=True)
 def set_initial_state_sl(nn, seed=-1):
     """
     Generate random initial conditions for the Stuart-Landau model.
@@ -646,7 +646,7 @@ def set_seed_compat(x):
     np.random.seed(x)
 
 
-@njit
+@njit(cache=True)
 def reset_numba_rng(seed):
     """Reset numba's random number generator."""
     np.random.seed(seed)

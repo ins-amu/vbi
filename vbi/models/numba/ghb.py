@@ -14,7 +14,7 @@ from vbi.models.numba.base import BaseNumbaModel
 warnings.simplefilter("ignore", category=NumbaPerformanceWarning)
 
 
-@njit(nogil=True)
+@njit(nogil=True, cache=True)
 def run(P, times):
     """
     Run the Generic Hopf Bifurcation model simulation.

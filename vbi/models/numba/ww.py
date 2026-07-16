@@ -430,7 +430,7 @@ class ParWW:
 # Wong–Wang dynamics (Numba)
 # -----------------------------
 
-@njit
+@njit(cache=True)
 def firing_rate(current, a, b, d):
     """
     Compute the firing rate using the Wong-Wang transfer function.
@@ -469,7 +469,7 @@ def firing_rate(current, a, b, d):
     return out
 
 
-@njit
+@njit(cache=True)
 def f_ww(S, t, P):
     """
     Compute the right-hand side of the Wong-Wang full model equations.

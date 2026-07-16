@@ -26,7 +26,7 @@ warnings.simplefilter("ignore", category=NumbaPerformanceWarning)
 # ------------------------------
 
 
-@njit
+@njit(cache=True)
 def seed_rng(seed: int):
     """
     Seed the NumPy random number generator for reproducible results.
@@ -134,7 +134,7 @@ class ParVEP:
 # ------------------------------
 
 
-@njit
+@njit(cache=True)
 def f_vep(x, t, P):
     """
     Right-hand side of VEP dynamics equations.
@@ -174,7 +174,7 @@ def f_vep(x, t, P):
     return dxdt
 
 
-@njit
+@njit(cache=True)
 def euler_step(x, t, P):
     """
     Perform one Euler integration step with additive noise.
@@ -199,7 +199,7 @@ def euler_step(x, t, P):
     return x + P.dt * dxdt + noise
 
 
-@njit
+@njit(cache=True)
 def heun_step(x, t, P):
     """
     Perform one Heun integration step with additive noise.
@@ -229,7 +229,7 @@ def heun_step(x, t, P):
     return x + 0.5 * P.dt * (k1 + k2) + noise
 
 
-@njit
+@njit(cache=True)
 def set_initial_state_jit(nn: int, seed: int):
     """
     Generate random initial state for VEP model.
@@ -265,7 +265,7 @@ def set_initial_state_jit(nn: int, seed: int):
 # ------------------------------
 
 
-@njit
+@njit(cache=True)
 def _integrate(P):
     """
     Main integration driver for VEP model simulation.
