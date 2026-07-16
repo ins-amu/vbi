@@ -200,9 +200,7 @@ class CppSweeper:
                 integrator=patched_int,
                 coupling=spec.coupling,
                 monitors=spec.monitors,
-                weights=spec.weights,
-                tract_lengths=spec.tract_lengths,
-                speed=spec.speed,
+                connectivity=spec.connectivity,
                 node_params=spec.node_params,
             )
             noise_data, noise_sv_idx = get_noise_data(patched_spec, n_steps)
