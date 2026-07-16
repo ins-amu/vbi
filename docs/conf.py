@@ -55,12 +55,16 @@ _GALLERY_NOT_EXECUTED = (
     "validate_sweep_backends", "cuda_sweep_demo",
 )
 sphinx_gallery_conf = {
-    "examples_dirs": ["../examples/simulator_models"],
-    "gallery_dirs": ["auto_examples/simulator_models"],
+    "examples_dirs": ["../examples/simulator_models", "../examples/workflows"],
+    "gallery_dirs": ["auto_examples/simulator_models", "auto_examples/workflows"],
     "filename_pattern": (
         r"^(?!.*(?:" + "|".join(_GALLERY_NOT_EXECUTED) + r")\.py$).*\.py$"
     ),
-    "ignore_pattern": r"helpers\.py",
+    # examples/workflows/ has other in-progress SBI scripts parked under
+    # _e/ (gitignored, not doc-ready) alongside the one that is
+    # (damp_oscillator_demo.py). ignore_pattern (unlike filename_pattern)
+    # skips the gallery page entirely rather than showing it unexecuted.
+    "ignore_pattern": r"helpers\.py|/_e/",
     "plot_gallery": True,
     # Default (True) gives every `# %%` section its own toctree/sidebar
     # entry - with our scripts reusing generic section names (Usage, Setup,

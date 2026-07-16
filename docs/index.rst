@@ -201,6 +201,7 @@ Examples & Demos
    :titlesonly:
 
    auto_examples/simulator_models/index
+   auto_examples/workflows/index
    legacy_examples
 
 

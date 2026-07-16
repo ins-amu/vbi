@@ -63,11 +63,15 @@ from vbi.feature_extraction import (
 from vbi.inference import (
     VBIInference,
     BoxUniform,
-    pairplot,
-    plot_loss,
+    pairplot
 )
 
-OUT = Path(__file__).parent / "outputs/damped_oscillator"
+try:
+    _SCRIPT_DIR = Path(__file__).parent
+except NameError:
+    _SCRIPT_DIR = Path.cwd()
+
+OUT = _SCRIPT_DIR / "outputs/damped_oscillator"
 OUT.mkdir(exist_ok=True)
 
 print("=" * 62)
