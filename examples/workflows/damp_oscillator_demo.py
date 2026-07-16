@@ -145,7 +145,7 @@ print(f"  Time-series → {OUT/'do_vbi_timeseries.png'}")
 cfg = get_features_by_domain("statistical")
 cfg = get_features_by_given_names(cfg, ["calc_mean", "calc_std"])
 
-pipeline = FeaturePipeline(
+feature_pipeline = FeaturePipeline(
     cfg,
     signal="raw",
     t_cut=T_CUT,
@@ -153,7 +153,7 @@ pipeline = FeaturePipeline(
 )
 
 # Confirm feature labels on the true-parameter run
-labels, values = pipeline.extract(result_true)
+labels, values = feature_pipeline.extract(result_true)
 print(f"\n  Feature labels  : {labels}")
 print(f"  True obs values : {np.round(values, 4)}")
 print(f"  (4 features: std_x, std_y, mean_x, mean_y)")
@@ -166,20 +166,22 @@ prior = BoxUniform(
     param_names=["a", "b"],
 )
 
+training = TrainingOptions(
+    batch_size=256,
+    learning_rate=5e-4,
+    stop_after_epochs=20,
+    max_epochs=500,
+)
+
 # ── 5 - Build InferencePipeline ────────────────────────────────────────────────
 
 inf = InferencePipeline(
     sim_spec=sim_spec,
     prior=prior,
-    feature_pipeline=pipeline,
+    feature_pipeline=feature_pipeline,
     integrator_backend=integrator_backend,
     engine=SNPE(prior, density_estimator=MAF(backend="auto")),
-    training=TrainingOptions(
-        batch_size=256,
-        learning_rate=5e-4,
-        stop_after_epochs=20,
-        max_epochs=500,
-    ),
+    training=training,
     show_progress_bars=True,
 )
 print(f"\n  {inf}")
