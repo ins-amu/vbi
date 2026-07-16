@@ -12,6 +12,7 @@ from vbi.simulator.spec.simulation import SimulationSpec
 from vbi.simulator.spec.integrator import IntegratorSpec
 from vbi.simulator.spec.coupling import CouplingSpec
 from vbi.simulator.spec.monitor import MonitorSpec
+from vbi.simulator.spec.connectivity import Connectivity
 
 from vbi.simulator.models.mpr import mpr
 from vbi.simulator.models.jansen_rit import jansen_rit
@@ -41,7 +42,7 @@ def _make_spec(model, n_nodes=8, dt=0.1, seed=0, coup_a=0.05):
         integrator=IntegratorSpec(method="heun", dt=dt, stochastic=False),
         coupling=CouplingSpec(kind="linear", a=coup_a, b=0.0),
         monitors=(MonitorSpec(kind="raw"),),
-        weights=_make_weights(n_nodes, seed),
+        connectivity=Connectivity(weights=_make_weights(n_nodes, seed)),
     )
 
 
@@ -97,7 +98,7 @@ def test_jr_cpp_stoch():
         ),
         coupling=CouplingSpec(kind="linear", a=0.01, b=0.0),
         monitors=(MonitorSpec(kind="raw"),),
-        weights=_make_weights(6),
+        connectivity=Connectivity(weights=_make_weights(6)),
     )
     sim = Simulator(spec, backend="cpp")
     _, d = sim.run(100.0)["raw"]
@@ -127,7 +128,7 @@ def test_wc_cpp_stoch():
         ),
         coupling=CouplingSpec(kind="linear", a=0.05, b=0.0),
         monitors=(MonitorSpec(kind="raw"),),
-        weights=_make_weights(8),
+        connectivity=Connectivity(weights=_make_weights(8)),
     )
     sim = Simulator(spec, backend="cpp")
     _, d = sim.run(100.0)["raw"]
@@ -148,7 +149,7 @@ def test_mpr_euler_cpp_vs_numpy():
         integrator=IntegratorSpec(method="euler", dt=0.001, stochastic=False),
         coupling=CouplingSpec(kind="linear", a=0.1, b=0.0),
         monitors=(MonitorSpec(kind="raw"),),
-        weights=_make_weights(8),
+        connectivity=Connectivity(weights=_make_weights(8)),
     )
     sim_np  = Simulator(spec, backend="numpy")
     sim_cpp = Simulator(spec, backend="cpp")
@@ -180,7 +181,7 @@ def test_rww_cpp_stoch():
         ),
         coupling=CouplingSpec(kind="linear", a=0.02, b=0.0),
         monitors=(MonitorSpec(kind="raw"),),
-        weights=_make_weights(6),
+        connectivity=Connectivity(weights=_make_weights(6)),
     )
     sim = Simulator(spec, backend="cpp")
     _, d = sim.run(100.0)["raw"]
@@ -212,7 +213,7 @@ def test_wwex_cpp_stoch():
         ),
         coupling=CouplingSpec(kind="linear", a=0.02, b=0.0),
         monitors=(MonitorSpec(kind="raw"),),
-        weights=_make_weights(6),
+        connectivity=Connectivity(weights=_make_weights(6)),
     )
     sim = Simulator(spec, backend="cpp")
     _, d = sim.run(100.0)["raw"]
@@ -241,9 +242,7 @@ def test_mpr_cpp_vs_numpy_with_delays():
         integrator=IntegratorSpec(method="heun", dt=0.01, stochastic=False),
         coupling=CouplingSpec(kind="linear", a=0.05, b=0.0),
         monitors=(MonitorSpec(kind="raw"),),
-        weights=W,
-        tract_lengths=TL,
-        speed=4.0,
+        connectivity=Connectivity(weights=W, tract_lengths=TL, speed=4.0),
     )
     sim_np  = Simulator(spec, backend="numpy")
     sim_cpp = Simulator(spec, backend="cpp")
