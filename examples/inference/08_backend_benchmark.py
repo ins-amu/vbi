@@ -15,7 +15,7 @@ Expected runtimes (CPU):
   vbi jax     – first run slower (JIT); subsequent steps faster
 
 Run with:
-    python docs/examples/inference/08_backend_benchmark.py
+    python examples/inference/08_backend_benchmark.py
 """
 
 import contextlib

@@ -40,7 +40,7 @@ latex/
 
 # Pre-rendered reference plots for gallery pages that aren't live-executed
 # on RTD (e.g. CUDA/benchmark demos) - see docs/conf.py's dummy-image hook.
-!docs/examples/simulator_models/reference_images/*.png
+!examples/simulator_models/reference_images/*.png
 
 # Binary and serialized output
 *.pt

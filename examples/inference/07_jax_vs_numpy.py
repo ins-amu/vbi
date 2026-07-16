@@ -13,7 +13,7 @@ times are most useful for checking that both backends run end-to-end.
 By default this runs MAF and MDN.  NumPy NSF is much slower because its spline
 transform is differentiated by autograd; include it explicitly with:
 
-    VBI_DEMO7_ESTIMATORS=maf,mdn,nsf python docs/examples/inference/07_jax_vs_numpy.py
+    VBI_DEMO7_ESTIMATORS=maf,mdn,nsf python examples/inference/07_jax_vs_numpy.py
 
 Expected runtime: < 30 seconds.
 """

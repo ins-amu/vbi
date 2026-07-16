@@ -11,7 +11,7 @@ without visual inspection.
 source /path/to/vbienv/bin/activate
 # or: uv run python ...
 
-for f in docs/examples/inference/0*.py; do
+for f in examples/inference/0*.py; do
     echo "=== $f ===" && python "$f" 2>/dev/null | grep -E "✓|✗|error|coverage"
 done
 ```

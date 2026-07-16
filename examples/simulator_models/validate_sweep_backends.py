@@ -32,7 +32,7 @@ warnings.filterwarnings(
 
 # Prefer the vbi living in this checkout over any other version already
 # installed (e.g. a different vbi checkout installed editable elsewhere).
-sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from vbi.simulator import Simulator, Sweeper
 from vbi.simulator.spec import (

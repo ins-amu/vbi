@@ -33,7 +33,7 @@ except NameError:
 
 # Prefer the vbi living in this checkout over any other version already
 # installed (e.g. a different vbi checkout installed editable elsewhere).
-_repo_root = _SCRIPT_PATH.resolve().parents[3]
+_repo_root = _SCRIPT_PATH.resolve().parents[2]
 sys.path.insert(0, str(_repo_root))
 
 import numpy as np

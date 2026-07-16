@@ -55,7 +55,7 @@ _GALLERY_NOT_EXECUTED = (
     "validate_sweep_backends", "cuda_sweep_demo",
 )
 sphinx_gallery_conf = {
-    "examples_dirs": ["examples/simulator_models"],
+    "examples_dirs": ["../examples/simulator_models"],
     "gallery_dirs": ["auto_examples/simulator_models"],
     "filename_pattern": (
         r"^(?!.*(?:" + "|".join(_GALLERY_NOT_EXECUTED) + r")\.py$).*\.py$"
@@ -171,11 +171,11 @@ def install_reference_images(app):
     Must run before sphinx-gallery's own "builder-inited" handler
     (generate_gallery_rst, default priority) - registered at priority=1 to
     guarantee that ordering. Source images live in
-    docs/examples/simulator_models/reference_images/ (the one directory
+    examples/simulator_models/reference_images/ (the one directory
     exempted from the repo's blanket `*.png` gitignore rule); destination is
     the gitignored, regenerated-every-build docs/auto_examples/ tree.
     """
-    src_dir = os.path.join(app.srcdir, "examples", "simulator_models", "reference_images")
+    src_dir = os.path.join(app.srcdir, "..", "examples", "simulator_models", "reference_images")
     dst_dir = os.path.join(app.srcdir, "auto_examples", "simulator_models", "images")
     if not os.path.isdir(src_dir):
         return

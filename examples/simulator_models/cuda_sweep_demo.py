@@ -29,7 +29,7 @@ from pathlib import Path
 import numpy as np
 
 sys.dont_write_bytecode = True
-sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 try:
     from numba import cuda as _cuda

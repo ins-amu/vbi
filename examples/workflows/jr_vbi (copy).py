@@ -76,6 +76,7 @@ from vbi.inference import (
     VBIInference,
     BoxUniform,
     pairplot,
+    simulate_for_vbi_sweep_cached,
 )
 
 from vbi.feature_extraction import FeaturePruner
@@ -92,6 +93,14 @@ def parse_args():
         "--reuse-simulations",
         action="store_true",
         help="Load saved theta/x from the checkpoint and skip the training sweep.",
+    )
+    parser.add_argument(
+        "--simulate-only",
+        action="store_true",
+        help=(
+            "Run the cached simulation sweep, skip feature extraction/training, "
+            "and exit. Useful for timing simulation plus cache writing."
+        ),
     )
     return parser.parse_args()
 
@@ -129,7 +138,7 @@ DT = 0.1  # ms
 FS_HZ = 1000.0 / DT
 DURATION = 2500.0  # ms
 T_CUT = 500.0  # ms
-SIM_BACKEND = "numba"
+INTEGRATOR_BACKEND = "numba"
 INFERENCE_BACKEND = "vbi"
 
 # True parameters for the reference run: G=1.5, a_2=1.0 (C1=135)
@@ -167,38 +176,7 @@ sim_spec = SimulationSpec(
     },
 )
 
-# ── 4 - Reference run at true parameters ───────────────────────────────────────
-
-sim_spec_true = SimulationSpec(
-    model=jansen_rit,
-    integrator=integrator,
-    coupling=CouplingSpec("jr_sigmoidal"),
-    monitors=(MonitorSpec("raw"),),
-    connectivity=conn,
-    node_params={
-        "mu": np.full(N_NODES, MU),
-        "a_2": np.full(N_NODES, A2_TRUE),
-        "G": G_TRUE,
-    },
-)
-
-print(
-    f"\n  Reference simulation  G={G_TRUE}, a_2={A2_TRUE} " f"(C1={A2_TRUE * J:.0f})…",
-    flush=True,
-)
-result_true = Simulator(sim_spec_true, backend=SIM_BACKEND).run(DURATION)
-t_obs, ts_obs = result_true["raw"]  # (T, n_sv, N)
-
-plot_jr_timeseries_psd(
-    t_obs,
-    ts_obs,
-    FS_HZ,
-    title=f"True dynamics  G={G_TRUE}, a_2={A2_TRUE} (C1={A2_TRUE*J:.0f})",
-    out_path=OUT_DIR / "jr_vbi_timeseries.png",
-    t_window_ms=(DURATION - 500, DURATION),
-)
-print(f"  Time-series → {OUT_DIR/'jr_vbi_timeseries.png'}")
-# ── 5 - Feature pipeline ───────────────────────────────────────────────────────
+# ── 4 - Feature pipeline ───────────────────────────────────────────────────────
 
 pipeline = build_jr_spectral_pipeline(
     FS_HZ,
@@ -208,11 +186,48 @@ pipeline = build_jr_spectral_pipeline(
     pruner=FeaturePruner(min_std=1e-4, max_corr=0.98),
 )
 
-labels, values = pipeline.extract(result_true)
-print(f"\n  Feature dim    : {len(labels)}")
-print(f"  Feature labels : {labels}")
-print(f"  x_obs          : {np.round(values, 4)}")
-x_obs = values
+labels = []
+x_obs = None
+
+if not ARGS.simulate_only:
+    # ── 5 - Reference run at true parameters ───────────────────────────────────
+
+    sim_spec_true = SimulationSpec(
+        model=jansen_rit,
+        integrator=integrator,
+        coupling=CouplingSpec("jr_sigmoidal"),
+        monitors=(MonitorSpec("raw"),),
+        connectivity=conn,
+        node_params={
+            "mu": np.full(N_NODES, MU),
+            "a_2": np.full(N_NODES, A2_TRUE),
+            "G": G_TRUE,
+        },
+    )
+
+    print(
+        f"\n  Reference simulation  G={G_TRUE}, a_2={A2_TRUE} "
+        f"(C1={A2_TRUE * J:.0f})…",
+        flush=True,
+    )
+    result_true = Simulator(sim_spec_true, backend=INTEGRATOR_BACKEND).run(DURATION)
+    t_obs, ts_obs = result_true["raw"]  # (T, n_sv, N)
+
+    plot_jr_timeseries_psd(
+        t_obs,
+        ts_obs,
+        FS_HZ,
+        title=f"True dynamics  G={G_TRUE}, a_2={A2_TRUE} (C1={A2_TRUE*J:.0f})",
+        out_path=OUT_DIR / "jr_vbi_timeseries.png",
+        t_window_ms=(DURATION - 500, DURATION),
+    )
+    print(f"  Time-series → {OUT_DIR/'jr_vbi_timeseries.png'}")
+
+    labels, values = pipeline.extract(result_true)
+    print(f"\n  Feature dim    : {len(labels)}")
+    print(f"  Feature labels : {labels}")
+    print(f"  x_obs          : {np.round(values, 4)}")
+    x_obs = values
 
 # ── 6 - Prior ──────────────────────────────────────────────────────────────────
 
@@ -235,8 +250,8 @@ if ARGS.reuse_simulations:
         prior=prior,
         pipeline=pipeline,
         density_estimator="maf",
-        sim_backend=SIM_BACKEND,
-        backend="auto",
+        integrator_backend=INTEGRATOR_BACKEND,
+        estimator_backend="auto",
         inference_backend=INFERENCE_BACKEND,
         show_progress_bars=True,
     )
@@ -268,8 +283,8 @@ else:
         prior=prior,
         pipeline=pipeline,
         density_estimator="maf",
-        sim_backend=SIM_BACKEND,
-        backend="auto",
+        integrator_backend=INTEGRATOR_BACKEND,
+        estimator_backend="auto",
         inference_backend=INFERENCE_BACKEND,
         show_progress_bars=True,
     )
@@ -278,6 +293,25 @@ else:
     # ── 8 - Simulate + train + posterior ───────────────────────────────────────
 
     print(f"\n  Simulating {N_SIM} × {DURATION} ms …", flush=True)
+    if ARGS.simulate_only:
+        theta, x, _, _ = simulate_for_vbi_sweep_cached(
+            sim_spec=sim_spec,
+            prior=prior,
+            pipeline=pipeline,
+            num_simulations=N_SIM,
+            duration=DURATION,
+            seed=0,
+            n_workers=8,
+            cache_dir=CACHE_DIR,
+            chunk_size=8,
+            sim_backend=INTEGRATOR_BACKEND,
+            show_progress_bars=True,
+            extract_features_after=False,
+        )
+        print(f"  theta {theta.shape}   x {x.shape}  (features skipped)")
+        print("  Exiting after cached simulation sweep.", flush=True)
+        raise SystemExit(0)
+
     theta, x = inf.simulate(
         N_SIM,
         DURATION,

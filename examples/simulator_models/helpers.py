@@ -12,7 +12,7 @@ from typing import Iterator
 import numpy as np
 
 
-def ensure_repo_on_path(file: str, parents_up: int = 3) -> Path:
+def ensure_repo_on_path(file: str, parents_up: int = 2) -> Path:
     """Add the repository root inferred from ``file`` to ``sys.path``."""
     repo_root = Path(file).resolve().parents[parents_up]
     if str(repo_root) not in sys.path:

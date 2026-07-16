@@ -67,7 +67,7 @@ from vbi.inference import (
     plot_loss,
 )
 
-OUT = Path(__file__).parent / "outputs"
+OUT = Path(__file__).parent / "outputs/damped_oscillator"
 OUT.mkdir(exist_ok=True)
 
 print("=" * 62)
@@ -218,7 +218,7 @@ print("=" * 62)
 print(f"  Model    : DampedOscillator  (N=1, no coupling)")
 print(f"  Backend  : {integrator_backend} (sim) + auto (inference)")
 print(f"  Monitor  : raw")
-print(f"  Features : {labels}  (voi="all" → both SVs)")
+print(f"  Features : {labels}  (voi='all' → both SVs)")
 print(f"  N sims   : {N_SIM}  ×  {DURATION} ms")
 print(f"  True θ   : a={THETA_TRUE[0]}, b={THETA_TRUE[1]}")
 print(f"  Post mean: {np.round(samples.mean(0), 4)}")

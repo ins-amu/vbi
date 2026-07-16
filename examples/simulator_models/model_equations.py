@@ -32,7 +32,7 @@ except NameError:
 # installed (e.g. a different vbi checkout installed editable elsewhere).
 # Downloaded standalone copies of this script should `pip install vbi`
 # instead - see the first notebook cell.
-_repo_root = _SCRIPT_PATH.resolve().parents[3]
+_repo_root = _SCRIPT_PATH.resolve().parents[2]
 sys.path.insert(0, str(_repo_root))
 
 from vbi.simulator.models import (

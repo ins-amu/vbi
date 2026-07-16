@@ -373,7 +373,7 @@ The container includes example notebooks. Access them via JupyterLab:
     # Start Jupyter and navigate to examples
     ./run-vbi.sh jupyter
     
-    # In JupyterLab, look for the docs/examples/ directory
+    # In JupyterLab, look for the examples/ directory
 
 You can also list examples programmatically:
 
@@ -381,7 +381,7 @@ You can also list examples programmatically:
 
     # List available examples
     import os
-    examples_dir = "/app/docs/examples"
+    examples_dir = "/app/examples"
     example_files = [f for f in os.listdir(examples_dir) if f.endswith('.ipynb')]
     print("Available examples:")
     for example in example_files:
