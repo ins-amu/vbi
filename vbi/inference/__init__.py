@@ -28,8 +28,9 @@ With::
     theta = theta_np   # plain numpy - nothing else changes
 """
 
-from ._api            import SNPE, SNLE, set_jax_device
-from ._vbi_inference  import VBIInference
+from ._api               import SNPE, SNLE, set_jax_device
+from ._inference_pipeline import InferencePipeline, use_sbi
+from ._training        import TrainingOptions
 from ._mcmc       import MetropolisHastings, HMC, NUTS, r_hat, effective_sample_size
 from ._prior      import (
     BoxUniform, Gaussian, CustomPrior,
@@ -50,6 +51,9 @@ from ._estimators import (
     MAFEstimator,
     MAFEstimator0,
     NSFEstimator,
+    MAF,
+    MDN,
+    NSF,
 )
 from ._diagnostics import (
     run_sbc,
@@ -72,7 +76,9 @@ __all__ = [
     "SNLE",
     "set_jax_device",
     # End-to-end workflow
-    "VBIInference",
+    "InferencePipeline",
+    "use_sbi",
+    "TrainingOptions",
     # Priors
     "BoxUniform",
     "Gaussian",
@@ -100,6 +106,10 @@ __all__ = [
     "MAFEstimator",
     "MAFEstimator0",
     "NSFEstimator",
+    # Backend-selecting estimator factories
+    "MAF",
+    "MDN",
+    "NSF",
     # MCMC samplers (MI4)
     "MetropolisHastings",
     "HMC",

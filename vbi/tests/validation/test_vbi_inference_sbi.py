@@ -1,5 +1,5 @@
 """
-Tests for VBIInference with inference_backend='sbi' - Step 8 of MI6.
+Tests for InferencePipeline with inference_backend='sbi' - Step 8 of MI6.
 
 All tests are skipped if sbi/torch is not installed.
 """
@@ -9,7 +9,7 @@ from vbi.simulator.spec import MonitorSpec
 from vbi.feature_extraction import (
     FeaturePipeline, get_features_by_domain, get_features_by_given_names,
 )
-from vbi.inference import VBIInference, BoxUniform
+from vbi.inference import InferencePipeline, BoxUniform, use_sbi
 from .conftest import make_mpr_spec
 
 sbi   = pytest.importorskip("sbi",   reason="sbi not installed")
@@ -32,18 +32,17 @@ DURATION = 200.0
 
 
 def _make_sbi_inf():
-    return VBIInference(
+    return InferencePipeline(
         sim_spec          = _make_spec(),
         prior             = PRIOR,
         pipeline          = _stat_pipeline(),
-        density_estimator = "maf",
         integrator_backend = "numpy",
-        inference_backend = "sbi",
+        engine            = use_sbi(PRIOR, "maf", show_progress_bars=False),
         show_progress_bars = False,
     )
 
 
-class TestVBIInferenceSBIBackend:
+class TestInferencePipelineSBIBackend:
 
     def test_repr_shows_sbi(self):
         inf = _make_sbi_inf()
@@ -91,7 +90,7 @@ class TestVBIInferenceSBIBackend:
         assert lp.shape == (5,)
 
     def test_prior_to_sbi_box_uniform(self):
-        from vbi.inference._vbi_inference import _prior_to_sbi
+        from vbi.inference._inference_pipeline import _prior_to_sbi
         sbi_prior = _prior_to_sbi(PRIOR)
         # sbi BoxUniform should sample correctly
         s = sbi_prior.sample((10,))
@@ -99,7 +98,7 @@ class TestVBIInferenceSBIBackend:
 
     def test_prior_to_sbi_generic(self):
         from vbi.inference import Gaussian
-        from vbi.inference._vbi_inference import _prior_to_sbi
+        from vbi.inference._inference_pipeline import _prior_to_sbi
         g = Gaussian(np.zeros(2), np.ones(2))
         sbi_prior = _prior_to_sbi(g)
         s = sbi_prior.sample((5,))
@@ -118,33 +117,33 @@ class TestVBIInferenceSBIBackend:
         theta_orig, _ = inf.simulate(N_SIM, DURATION, seed=5)
         inf.save(tmp_path / "ckpt.npz")
 
-        inf2 = VBIInference.load(
+        inf2 = InferencePipeline.load(
             tmp_path / "ckpt.npz",
             sim_spec = _make_spec(),
             pipeline = _stat_pipeline(),
             prior    = PRIOR,
         )
-        assert inf2._inference_backend == "sbi"
+        assert inf2._is_sbi
         theta2, _, _ = inf2.get_simulations()
         np.testing.assert_array_almost_equal(
             theta_orig.astype(np.float32), theta2, decimal=5
         )
 
-    def test_inference_engine_kwarg(self):
-        """Pass an explicit sbi SNPE object via inference_engine."""
+    def test_engine_kwarg_with_explicit_sbi_object(self):
+        """Pass an explicit sbi SNPE object via engine."""
         from sbi.inference import SNPE as _SBI_SNPE
-        from vbi.inference._vbi_inference import _prior_to_sbi
+        from vbi.inference._inference_pipeline import _prior_to_sbi
 
         torch_prior = _prior_to_sbi(PRIOR)
         sbi_snpe    = _SBI_SNPE(prior=torch_prior, density_estimator="maf",
                                 show_progress_bars=False)
-        inf = VBIInference(
+        inf = InferencePipeline(
             sim_spec        = _make_spec(),
             prior           = PRIOR,
             pipeline        = _stat_pipeline(),
             integrator_backend = "numpy",
-            inference_engine = sbi_snpe,
+            engine          = sbi_snpe,
         )
-        assert inf._inference_backend == "sbi"
+        assert inf._is_sbi
         theta, x = inf.simulate(N_SIM, DURATION, seed=6)
         assert theta.shape[0] == N_SIM

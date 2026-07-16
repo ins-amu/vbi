@@ -18,6 +18,7 @@ Migration from sbi:
 from __future__ import annotations
 
 import logging
+import sys
 from typing import Literal, Union
 
 import numpy as np
@@ -27,6 +28,23 @@ from ._posterior   import Posterior
 from ._backends    import resolve_backend, get_estimator_map, set_jax_device
 
 log = logging.getLogger(__name__)
+
+
+def _is_estimator_instance(obj) -> bool:
+    """
+    True if ``obj`` is an already-built density-estimator instance (numpy
+    ``ConditionalDensityEstimator`` or JAX ``JaxConditionalDensityEstimator``,
+    e.g. from ``vbi.inference.MAF``/``MDN``/``NSF``).
+
+    Checks the JAX base only if its module is already imported, so
+    constructing a plain numpy ``SNPE`` never forces a ``jax`` import.
+    """
+    if isinstance(obj, ConditionalDensityEstimator):
+        return True
+    jax_base_mod = sys.modules.get("vbi.inference._backends.jax_.base_jax")
+    if jax_base_mod is not None:
+        return isinstance(obj, jax_base_mod.JaxConditionalDensityEstimator)
+    return False
 
 
 class SNPE:
@@ -67,7 +85,7 @@ class SNPE:
     def __init__(
         self,
         prior=None,
-        density_estimator: Union[Literal["maf", "mdn", "nsf"], callable] = "maf",
+        density_estimator: Union[Literal["maf", "mdn", "nsf"], callable, ConditionalDensityEstimator] = "maf",
         backend: str = "auto",
         device: str | None = None,
         show_progress_bars: bool = True,
@@ -77,29 +95,37 @@ class SNPE:
         """
         Parameters
         ----------
-        density_estimator : 'maf' | 'mdn' | 'nsf' | callable
+        density_estimator : 'maf' | 'mdn' | 'nsf' | callable | ConditionalDensityEstimator
             Architecture to use.  Alternatively, pass a zero-argument
             callable (factory) that returns a ``ConditionalDensityEstimator``
-            instance, e.g.::
+            instance, or an already-constructed instance directly, e.g.::
 
                 SNPE(prior, density_estimator=lambda: MAFEstimator(n_flows=6))
                 SNPE(prior, density_estimator=MyCustomEstimator)
+                SNPE(prior, density_estimator=MAF(n_flows=6, backend="jax"))
 
-            When a callable is given, ``backend`` is ignored for estimator
-            construction (the factory is responsible for its own backend).
+            When a factory or instance is given, ``backend`` is ignored for
+            estimator construction (it is responsible for its own backend).
         """
         _valid = ("maf", "mdn", "nsf")
-        _is_factory = callable(density_estimator) and not isinstance(density_estimator, str)
-        if not _is_factory and density_estimator not in _valid:
+        _is_instance = _is_estimator_instance(density_estimator)
+        _is_factory = (
+            not _is_instance
+            and callable(density_estimator)
+            and not isinstance(density_estimator, str)
+        )
+        if not _is_instance and not _is_factory and density_estimator not in _valid:
             raise ValueError(
                 f"density_estimator={density_estimator!r} not supported. "
-                f"Choose from: {list(_valid)}, or pass a callable factory."
+                f"Choose from: {list(_valid)}, or pass a callable factory "
+                f"or a ConditionalDensityEstimator instance."
             )
         if device is not None:
             set_jax_device(device)
         self._prior_obj        = prior
-        self._de_type          = density_estimator   # str or callable factory
+        self._de_type          = density_estimator   # str, factory, or instance
         self._de_is_factory    = _is_factory
+        self._de_is_instance   = _is_instance
         self._backend          = resolve_backend(backend)
         self._show_progress    = show_progress_bars
         self._embedding_net    = embedding_net
@@ -269,7 +295,9 @@ class SNPE:
 
         # Build fresh estimator (or reuse existing on warm start)
         if not resume_training or self._estimator is None:
-            if self._de_is_factory:
+            if self._de_is_instance:
+                self._estimator = self._de_type
+            elif self._de_is_factory:
                 self._estimator = self._de_type()
             else:
                 de_map = get_estimator_map(self._backend)

@@ -1,9 +1,9 @@
 """
-Damped Oscillator — end-to-end SBI with VBIInference
-=====================================================
+Damped Oscillator — end-to-end SBI with InferencePipeline
+===========================================================
 
 Uses the ``damped_oscillator`` ModelSpec registered in the new VBI simulator
-pipeline, so the full ``VBIInference`` workflow applies — the same object
+pipeline, so the full ``InferencePipeline`` workflow applies — the same object
 that drives MPR, JR, WC, etc.
 
 The model
@@ -32,7 +32,7 @@ Workflow
 --------
 1. Build SimulationSpec (single node, no coupling).
 2. Define prior and feature pipeline.
-3. Build VBIInference.
+3. Build InferencePipeline.
 4. Simulate + train MAF + build posterior (single round).
 5. Plot loss and pairplot.
 
@@ -61,7 +61,10 @@ from vbi.feature_extraction import (
     get_features_by_given_names,
 )
 from vbi.inference import (
-    VBIInference,
+    InferencePipeline,
+    SNPE,
+    MAF,
+    TrainingOptions,
     BoxUniform,
     pairplot
 )
@@ -75,7 +78,7 @@ OUT = _SCRIPT_DIR / "outputs/damped_oscillator"
 OUT.mkdir(exist_ok=True)
 
 print("=" * 62)
-print("Damped Oscillator  —  VBIInference end-to-end pipeline")
+print("Damped Oscillator  —  InferencePipeline end-to-end pipeline")
 print("=" * 62)
 
 # ── 1 - SimulationSpec (single node, no coupling) ─────────────────────────────
@@ -163,15 +166,20 @@ prior = BoxUniform(
     param_names=["a", "b"],
 )
 
-# ── 5 - Build VBIInference ────────────────────────────────────────────────────
+# ── 5 - Build InferencePipeline ────────────────────────────────────────────────
 
-inf = VBIInference(
+inf = InferencePipeline(
     sim_spec=sim_spec,
     prior=prior,
-    pipeline=pipeline,
-    density_estimator="maf",
+    feature_pipeline=pipeline,
     integrator_backend=integrator_backend,
-    estimator_backend="auto",
+    engine=SNPE(prior, density_estimator=MAF(backend="auto")),
+    training=TrainingOptions(
+        batch_size=256,
+        learning_rate=5e-4,
+        stop_after_epochs=20,
+        max_epochs=500,
+    ),
     show_progress_bars=True,
 )
 print(f"\n  {inf}")
@@ -185,12 +193,7 @@ theta, x = inf.simulate(N_SIM, DURATION, seed=0)
 print(f"  theta {theta.shape}   x {x.shape}")
 
 print("  Training MAF …", flush=True)
-estimator = inf.train(
-    training_batch_size=256,
-    learning_rate=5e-4,
-    stop_after_epochs=20,
-    max_num_epochs=500,
-)
+estimator = inf.train()   # uses the TrainingOptions passed above
 print(
     f"  Best val loss : {estimator.best_val_loss:.4f}  (epoch {estimator.best_epoch})"
 )

@@ -1,5 +1,5 @@
 """
-Tests for VBIInference core - Step 3 of MI6.
+Tests for InferencePipeline core - Step 3 of MI6.
 """
 import inspect
 import numpy as np
@@ -11,7 +11,7 @@ from vbi.feature_extraction import (
     get_features_by_domain,
     get_features_by_given_names,
 )
-from vbi.inference import VBIInference, BoxUniform
+from vbi.inference import InferencePipeline, BoxUniform
 from .conftest import make_mpr_spec
 
 
@@ -35,7 +35,7 @@ DURATION = 200.0
 
 
 def _make_inf():
-    return VBIInference(
+    return InferencePipeline(
         sim_spec          = _make_spec(),
         prior             = PRIOR,
         pipeline          = _stat_pipeline(),
@@ -46,7 +46,7 @@ def _make_inf():
     )
 
 
-class TestVBIInferenceCore:
+class TestInferencePipelineCore:
 
     def test_snpe_train_defaults_match_sbi_style(self):
         from vbi.inference._api import SNPE
@@ -67,7 +67,7 @@ class TestVBIInferenceCore:
     def test_repr(self):
         inf = _make_inf()
         r = repr(inf)
-        assert "VBIInference" in r
+        assert "InferencePipeline" in r
         assert "maf" in r
 
     def test_simulate_returns_shapes(self):
@@ -170,7 +170,7 @@ class TestVBIInferenceCore:
             chunk_size=N_SIM,
         )
         # Re-extract with the same pipeline via static method
-        theta2, x2 = VBIInference.extract_from_cache(
+        theta2, x2 = InferencePipeline.extract_from_cache(
             tmp_path / "cache", _stat_pipeline()
         )
         assert theta2.shape[0] == N_SIM
@@ -193,7 +193,7 @@ class TestVBIInferenceCore:
         assert est is not None
 
 
-class TestVBIInferenceSaveLoad:
+class TestInferencePipelineSaveLoad:
 
     def test_save_creates_file(self, tmp_path):
         inf = _make_inf()
@@ -212,7 +212,7 @@ class TestVBIInferenceSaveLoad:
         theta_orig, x_orig = inf.simulate(N_SIM, DURATION, seed=12)
         inf.save(tmp_path / "ckpt.npz")
 
-        inf2 = VBIInference.load(
+        inf2 = InferencePipeline.load(
             tmp_path / "ckpt.npz",
             sim_spec = _make_spec(),
             pipeline = _stat_pipeline(),
@@ -231,7 +231,7 @@ class TestVBIInferenceSaveLoad:
         inf.simulate(N_SIM, DURATION, seed=13)
         inf.save(tmp_path / "ckpt.npz")
 
-        inf2 = VBIInference.load(
+        inf2 = InferencePipeline.load(
             tmp_path / "ckpt.npz",
             sim_spec = _make_spec(),
             pipeline = _stat_pipeline(),
@@ -246,7 +246,7 @@ class TestVBIInferenceSaveLoad:
         est_orig = inf.train(stop_after_epochs=3, max_num_epochs=5)
         inf.save(tmp_path / "ckpt.npz")
 
-        inf2 = VBIInference.load(
+        inf2 = InferencePipeline.load(
             tmp_path / "ckpt.npz",
             sim_spec = _make_spec(),
             pipeline = _stat_pipeline(),
@@ -270,7 +270,7 @@ class TestVBIInferenceSaveLoad:
         s_orig    = post_orig.sample((30,), x=x_obs, seed=99)
 
         inf.save(tmp_path / "ckpt.npz")
-        inf2 = VBIInference.load(
+        inf2 = InferencePipeline.load(
             tmp_path / "ckpt.npz",
             sim_spec = _make_spec(),
             pipeline = _stat_pipeline(),
@@ -287,7 +287,7 @@ class TestVBIInferenceSaveLoad:
         inf.simulate(N_SIM, DURATION, seed=16)
         inf.save(tmp_path / "ckpt.npz")   # no train() call
 
-        inf2 = VBIInference.load(
+        inf2 = InferencePipeline.load(
             tmp_path / "ckpt.npz",
             sim_spec = _make_spec(),
             pipeline = _stat_pipeline(),
@@ -299,7 +299,7 @@ class TestVBIInferenceSaveLoad:
     def test_load_restores_feature_pruner_state(self, tmp_path):
         pipeline = _stat_pipeline()
         pipeline.pruner = FeaturePruner(min_std=1e-4, max_corr=0.98)
-        inf = VBIInference(
+        inf = InferencePipeline(
             sim_spec=_make_spec(),
             prior=PRIOR,
             pipeline=pipeline,
@@ -317,7 +317,7 @@ class TestVBIInferenceSaveLoad:
 
         pipeline2 = _stat_pipeline()
         pipeline2.pruner = FeaturePruner()
-        inf2 = VBIInference.load(
+        inf2 = InferencePipeline.load(
             tmp_path / "ckpt.npz",
             sim_spec=_make_spec(),
             pipeline=pipeline2,
@@ -331,7 +331,7 @@ class TestVBIInferenceSaveLoad:
     def test_load_attaches_saved_feature_pruner(self, tmp_path):
         pipeline = _stat_pipeline()
         pipeline.pruner = FeaturePruner(min_std=1e-4, max_corr=0.98)
-        inf = VBIInference(
+        inf = InferencePipeline(
             sim_spec=_make_spec(),
             prior=PRIOR,
             pipeline=pipeline,
@@ -345,7 +345,7 @@ class TestVBIInferenceSaveLoad:
 
         pipeline2 = _stat_pipeline()
         assert pipeline2.pruner is None
-        VBIInference.load(
+        InferencePipeline.load(
             tmp_path / "ckpt.npz",
             sim_spec=_make_spec(),
             pipeline=pipeline2,

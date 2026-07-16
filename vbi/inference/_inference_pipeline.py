@@ -1,5 +1,5 @@
 """
-VBIInference - end-to-end SBI workflow object.  MI6.
+InferencePipeline - end-to-end SBI workflow object.  MI6.
 
 Owns the full loop: prior sampling → sweep simulation → feature extraction
 → SNPE training → posterior.  Raw recordings can optionally be cached to
@@ -162,6 +162,27 @@ def _unpack_estimator(d, EstCls):
     return est
 
 
+def _snpe_de_key(snpe) -> str:
+    """
+    Best-effort short key ('maf' | 'mdn' | 'nsf') for a vbi SNPE engine's
+    density estimator, used for checkpoint metadata / reconstruction on
+    ``load()``.  Works regardless of whether ``density_estimator`` was
+    given to ``SNPE`` as a string, factory, or instance.
+    """
+    from ._backends import get_estimator_map
+    from ._api import _is_estimator_instance
+
+    de_map = get_estimator_map(snpe._backend)
+    est = snpe._estimator
+    if est is None and _is_estimator_instance(snpe._de_type):
+        est = snpe._de_type
+    if est is not None:
+        for key, cls in de_map.items():
+            if isinstance(est, cls):
+                return key
+    return snpe._de_type if isinstance(snpe._de_type, str) else "maf"
+
+
 # ---------------------------------------------------------------------------
 # Config-loading helpers  (Step 5)
 # ---------------------------------------------------------------------------
@@ -301,12 +322,12 @@ def _unpack_pruner(d, pipeline) -> None:
 # SBC simulator helper  (Step 6)
 # ---------------------------------------------------------------------------
 
-def _make_simulator_fn(sim_spec, prior, pipeline, integrator_backend, duration):
+def _make_simulator_fn(sim_spec, prior, feature_pipeline, integrator_backend, duration):
     """
     Return a callable ``theta_1d -> x_1d`` suitable for :func:`run_sbc`.
 
     Each call patches the SimulationSpec with the given parameter values,
-    runs one simulation, and extracts features via the pipeline.
+    runs one simulation, and extracts features via the feature pipeline.
     """
     from vbi.simulator.spec.sweep import SweepSpec
     from vbi.simulator.api import Sweeper
@@ -318,7 +339,7 @@ def _make_simulator_fn(sim_spec, prior, pipeline, integrator_backend, duration):
         sweep_spec = SweepSpec(
             params      = theta_1d[None, :],   # (1, d_theta)
             param_names = tuple(param_names),
-            pipeline    = pipeline,
+            pipeline    = feature_pipeline,
         )
         sweeper = Sweeper(sim_spec, sweep_spec, backend=integrator_backend)
         labels, values = sweeper.run(duration)
@@ -339,7 +360,7 @@ def _prior_to_sbi(prior):
         import torch
     except ImportError as e:
         raise ImportError(
-            "inference_backend='sbi' requires PyTorch. "
+            "the sbi engine requires PyTorch. "
             "Install with:  pip install torch"
         ) from e
     from vbi.inference._prior import BoxUniform as _VBIBoxUniform
@@ -377,18 +398,29 @@ def _prior_to_sbi(prior):
     return _TorchWrapper(prior)
 
 
-def _setup_sbi_engine(prior, density_estimator: str, inference_engine, show_progress_bars: bool):
-    """Initialise (or return) an sbi SNPE engine."""
+def use_sbi(prior, density_estimator: str = "maf", show_progress_bars: bool = True):
+    """
+    Build an ``sbi.inference.SNPE`` engine wired up with a vbi prior, for use
+    as ``InferencePipeline(..., engine=use_sbi(prior))``.
+
+    Parameters
+    ----------
+    prior : prior object
+        Converted to a torch-compatible distribution internally.
+    density_estimator : 'maf' | 'mdn' | 'nsf'
+    show_progress_bars : bool
+
+    Returns
+    -------
+    sbi.inference.SNPE
+    """
     try:
         from sbi.inference import SNPE as _SBI_SNPE
     except ImportError as e:
         raise ImportError(
-            "inference_backend='sbi' requires the 'sbi' package. "
+            "use_sbi() requires the 'sbi' package. "
             "Install with:  pip install sbi"
         ) from e
-
-    if inference_engine is not None:
-        return inference_engine
 
     torch_prior = _prior_to_sbi(prior)
     return _SBI_SNPE(
@@ -448,91 +480,98 @@ class _NumpyPosteriorWrapper:
         return f"_NumpyPosteriorWrapper({self.sbi_posterior!r})"
 
 
-class VBIInference:
+class InferencePipeline:
     """
     End-to-end VBI inference workflow.
 
     Owns the full loop: prior sampling → sweep simulation → feature
     extraction → SNPE training → posterior.
 
+    The training/posterior engine is a single object (``engine``): either a
+    ``vbi.inference.SNPE`` instance (torch-free, default) or an
+    ``sbi.inference.SNPE`` instance (via ``vbi.inference.use_sbi``).  All
+    architecture/backend/embedding-net choices live on that object, not on
+    ``InferencePipeline`` itself - construct it explicitly for anything but the
+    default MAF/auto-backend estimator.
+
     Parameters
     ----------
     sim_spec : SimulationSpec
     prior : prior object
         Must expose ``._resolved_param_names``, ``.sample()``, ``.log_prob()``.
-    pipeline : FeaturePipeline
-    density_estimator : 'maf' | 'mdn' | 'nsf'
+    feature_pipeline : FeaturePipeline
+        Extracts features from raw simulation output.
     integrator_backend : str
         Backend for the Sweeper ('numpy' | 'numba' | 'cuda' | 'jax').
-    estimator_backend : str
-        Backend for the density estimator ('auto' | 'numpy' | 'jax').
     show_progress_bars : bool
-    embedding_net : EmbeddingNet | None
+    engine : SNPE | sbi.inference.SNPE | None
+        Pre-built inference engine to use for training and posterior.
+        ``None`` (default) builds ``vbi.inference.SNPE(prior, density_estimator="maf",
+        backend="auto")``.  Pass a ``vbi.inference.SNPE`` instance to pick a
+        different architecture/backend/embedding net (see ``vbi.inference.MAF``/
+        ``MDN``/``NSF``), or an ``sbi.inference.SNPE`` instance (e.g. via
+        ``vbi.inference.use_sbi``) to run training/posterior through the
+        ``sbi`` package instead.
+    training : TrainingOptions | None
+        Default training options, used by ``train()`` when called without
+        arguments.  Overridable per-call via ``train(options=...)`` or
+        ``train(**kwargs)``.
 
     Examples
     --------
-    >>> inf = VBIInference(sim_spec, prior, pipeline)
+    >>> inf = InferencePipeline(sim_spec, prior, feature_pipeline)
     >>> theta, x = inf.simulate(num_simulations=2000, duration=5000.0)
     >>> est = inf.train(training_batch_size=256, stop_after_epochs=30)
     >>> post = inf.build_posterior(est)
     >>> samples = post.sample((1000,), x=x_obs)
     >>> inf.save("run.npz")
+
+    >>> from vbi.inference import SNPE, MAF, TrainingOptions, use_sbi
+    >>> inf = InferencePipeline(
+    ...     sim_spec, prior, feature_pipeline,
+    ...     engine=SNPE(prior, density_estimator=MAF(n_flows=5, hidden_units=64, backend="jax")),
+    ...     training=TrainingOptions(batch_size=256, learning_rate=5e-4, max_epochs=200),
+    ... )
+    >>> inf = InferencePipeline(sim_spec, prior, feature_pipeline, engine=use_sbi(prior))
     """
 
     def __init__(
         self,
         sim_spec,
         prior,
-        pipeline,
-        density_estimator: str = "maf",
+        feature_pipeline,
         integrator_backend: str = "numba",
-        estimator_backend: str = "auto",
         show_progress_bars: bool = True,
-        embedding_net=None,
-        inference_backend: str = "vbi",
-        inference_engine=None,
+        engine=None,
+        training=None,
     ):
-        """
-        Parameters
-        ----------
-        inference_backend : 'vbi' | 'sbi'
-            Which inference engine to use for training and posterior.
-            'vbi' (default) uses the built-in torch-free SNPE.
-            'sbi' uses ``sbi.inference.SNPE`` - requires ``sbi`` and ``torch``
-            to be installed.
-        inference_engine : sbi.inference.SNPE | None
-            Pass a pre-configured sbi SNPE object directly.  When set,
-            ``inference_backend`` is ignored and the given object is used.
-            The prior is taken from ``prior`` (converted to torch).
-        """
         self._sim_spec            = sim_spec
         self._prior               = prior
-        self._pipeline            = pipeline
+        self._pipeline            = feature_pipeline
         self._integrator_backend  = integrator_backend
-        self._de_type             = density_estimator
         self._show_progress_bars  = show_progress_bars
         self._feature_labels: list[str] | None = None
         self._param_names:    list[str] | None = None
-        self._default_train_kwargs: dict       = {}
+        self._default_train_kwargs: dict       = \
+            training.to_kwargs() if training is not None else {}
         self._last_estimator                   = None
         self._sim_rounds: list[tuple]          = []   # (theta, x) per simulate() call
 
-        if inference_engine is not None or inference_backend == "sbi":
-            self._inference_backend = "sbi"
-            self._snpe              = None
-            self._sbi_engine        = _setup_sbi_engine(
-                prior, density_estimator, inference_engine, show_progress_bars,
-            )
-        else:
-            self._inference_backend = "vbi"
-            self._sbi_engine        = None
-            self._snpe              = SNPE(
+        if engine is None:
+            engine = SNPE(
                 prior               = prior,
-                density_estimator   = density_estimator,
-                backend             = estimator_backend,
+                density_estimator   = "maf",
+                backend             = "auto",
                 show_progress_bars  = show_progress_bars,
-                embedding_net       = embedding_net,
             )
+
+        self._is_sbi = not isinstance(engine, SNPE)
+        if self._is_sbi:
+            self._sbi_engine = engine
+            self._snpe       = None
+        else:
+            self._sbi_engine = None
+            self._snpe       = engine
 
     # ------------------------------------------------------------------
     # Core workflow
@@ -622,7 +661,7 @@ class VBIInference:
         self._sim_rounds.append((theta.copy(), x.copy()))
 
         # Append to the active inference engine
-        if self._inference_backend == "vbi":
+        if not self._is_sbi:
             self._snpe.append_simulations(theta, x, proposal=proposal)
         else:
             import torch
@@ -635,13 +674,15 @@ class VBIInference:
 
         return theta, x
 
-    def train(self, **train_kwargs):
+    def train(self, options=None, **train_kwargs):
         """
         Train the density estimator on all accumulated simulations.
 
         Keyword arguments are forwarded to ``SNPE.train()`` (vbi backend) or
-        ``sbi.SNPE.train()`` (sbi backend).  Any kwargs stored via
-        ``from_config`` serve as defaults and can be overridden here.
+        ``sbi.SNPE.train()`` (sbi backend).  Defaults come from the
+        ``training=`` passed at construction (or ``from_config``'s
+        ``training:`` block); ``options`` (a ``TrainingOptions``) overrides
+        those, and explicit ``**train_kwargs`` override both.
 
         Returns
         -------
@@ -652,12 +693,15 @@ class VBIInference:
             raise RuntimeError(
                 "No simulations available.  Call simulate() before train()."
             )
-        merged = {**self._default_train_kwargs, **train_kwargs}
+        merged = {**self._default_train_kwargs}
+        if options is not None:
+            merged.update(options.to_kwargs())
+        merged.update(train_kwargs)
         # Propagate show_progress_bars as verbose unless caller set it explicitly
         if "verbose" not in merged:
             merged["verbose"] = self._show_progress_bars
 
-        if self._inference_backend == "vbi":
+        if not self._is_sbi:
             self._last_estimator = self._snpe.train(**merged)
         else:
             # sbi kwarg names overlap substantially with vbi's; pass all through
@@ -686,7 +730,7 @@ class VBIInference:
             Only used by the vbi backend.
         """
         est = estimator if estimator is not None else self._last_estimator
-        if self._inference_backend == "vbi":
+        if not self._is_sbi:
             return self._snpe.build_posterior(
                 density_estimator=est, sample_with=sample_with, **kwargs
             )
@@ -722,7 +766,7 @@ class VBIInference:
         param_names: list[str] | tuple[str, ...] | None = None,
         feature_labels: list[str] | tuple[str, ...] | None = None,
         proposal=None,
-    ) -> "VBIInference":
+    ) -> "InferencePipeline":
         """
         Append precomputed ``(theta, x)`` pairs to the active inference engine.
 
@@ -749,7 +793,7 @@ class VBIInference:
 
         self._sim_rounds.append((theta.copy(), x.copy()))
 
-        if self._inference_backend == "vbi":
+        if not self._is_sbi:
             self._snpe.append_simulations(theta, x, proposal=proposal)
         else:
             import torch
@@ -799,7 +843,7 @@ class VBIInference:
         For the sbi backend, the trained estimator is written to a companion
         ``<stem>_sbi.pt`` file next to the ``.npz``.
 
-        NOT saved: ``sim_spec`` and ``pipeline`` - supply them on load.
+        NOT saved: ``sim_spec`` and ``feature_pipeline`` - supply them on load.
 
         Parameters
         ----------
@@ -818,40 +862,41 @@ class VBIInference:
             data["sim__x_all"]     = x_all
 
         # -- estimator state (vbi backend only) --------------------------------
-        if self._inference_backend == "vbi" and self._last_estimator is not None:
+        if not self._is_sbi and self._last_estimator is not None:
             _pack_estimator(self._last_estimator, data)
-        elif self._inference_backend == "sbi" and self._last_estimator is not None:
+        elif self._is_sbi and self._last_estimator is not None:
             import torch
             sbi_path = path.with_name(path.stem + "_sbi.pt")
             torch.save(self._last_estimator, sbi_path)
-            log.info("VBIInference sbi estimator saved to %s", sbi_path)
+            log.info("InferencePipeline sbi estimator saved to %s", sbi_path)
 
         _pack_pruner(getattr(self._pipeline, "pruner", None), data)
 
         # -- metadata --------------------------------------------------------
         data["meta__feature_labels"]    = np.array("|".join(self._feature_labels or []))
         data["meta__param_names"]       = np.array("|".join(self._param_names or []))
-        data["meta__density_estimator"] = np.array(self._de_type)
+        de_key = _snpe_de_key(self._snpe) if not self._is_sbi else "maf"
+        data["meta__density_estimator"] = np.array(de_key)
         data["meta__integrator_backend"] = np.array(self._integrator_backend)
-        data["meta__inference_backend"]  = np.array(self._inference_backend)
+        data["meta__inference_backend"]  = np.array("sbi" if self._is_sbi else "vbi")
         data["meta__n_rounds"]          = np.array(len(self._sim_rounds))
         # VBI-only: persist the resolved estimator backend string
         vbi_backend = self._snpe._backend if self._snpe is not None else "numpy"
         data["meta__backend"]           = np.array(vbi_backend)
 
         np.savez(path, **data)
-        log.info("VBIInference saved to %s", path)
+        log.info("InferencePipeline saved to %s", path)
 
     @classmethod
     def load(
         cls,
         path,
         sim_spec,
-        pipeline,
+        feature_pipeline,
         prior=None,
         show_progress_bars: bool = True,
-        embedding_net=None,
-    ) -> "VBIInference":
+        engine=None,
+    ) -> "InferencePipeline":
         """
         Restore from a checkpoint written by ``save()``.
 
@@ -859,13 +904,17 @@ class VBIInference:
         ----------
         path : str | Path
         sim_spec : SimulationSpec
-        pipeline : FeaturePipeline  may differ from the saved one
+        feature_pipeline : FeaturePipeline  may differ from the saved one
         prior : prior object | None
             Required to call ``build_posterior()`` after load.
+        engine : SNPE | sbi.inference.SNPE | None
+            Override the engine reconstructed from checkpoint metadata
+            (e.g. to load with a different embedding net).  ``None`` (default)
+            rebuilds the same architecture/backend that was saved.
 
         Returns
         -------
-        VBIInference  fully reconstructed - ``train()`` and
+        InferencePipeline  fully reconstructed - ``train()`` and
                       ``build_posterior()`` work immediately.
         """
         from ._backends import resolve_backend, get_estimator_map
@@ -882,16 +931,24 @@ class VBIInference:
         inference_backend  = str(d["meta__inference_backend"]) \
                              if "meta__inference_backend" in d else "vbi"
 
+        if engine is None:
+            if inference_backend == "sbi":
+                engine = use_sbi(prior, de_type, show_progress_bars)
+            else:
+                engine = SNPE(
+                    prior               = prior,
+                    density_estimator   = de_type,
+                    backend             = estimator_backend,
+                    show_progress_bars  = show_progress_bars,
+                )
+
         inf = cls(
             sim_spec           = sim_spec,
             prior              = prior,
-            pipeline           = pipeline,
-            density_estimator  = de_type,
+            feature_pipeline   = feature_pipeline,
             integrator_backend = integrator_backend,
-            estimator_backend  = estimator_backend,
             show_progress_bars = show_progress_bars,
-            embedding_net      = embedding_net,
-            inference_backend  = inference_backend,
+            engine             = engine,
         )
 
         fl_raw = str(d["meta__feature_labels"])
@@ -905,7 +962,7 @@ class VBIInference:
             theta_all = np.asarray(d["sim__theta_all"])
             x_all     = np.asarray(d["sim__x_all"])
             # Re-inject into the active engine
-            if inf._inference_backend == "vbi":
+            if not inf._is_sbi:
                 inf._snpe.append_simulations(theta_all, x_all, exclude_invalid_x=False)
             else:
                 import torch
@@ -916,23 +973,23 @@ class VBIInference:
             # Restore backend-agnostic round storage (single round)
             inf._sim_rounds = [(theta_all.astype(np.float64), x_all.astype(np.float64))]
 
-        if "est__param_dim" in d and inf._inference_backend == "vbi":
+        if "est__param_dim" in d and not inf._is_sbi:
             backend_resolved = resolve_backend(estimator_backend)
             de_map           = get_estimator_map(backend_resolved)
             EstCls           = de_map[de_type]
             est = _unpack_estimator(d, EstCls)
             inf._last_estimator  = est
             inf._snpe._estimator = est
-        elif inf._inference_backend == "sbi":
+        elif inf._is_sbi:
             sbi_path = path.with_name(path.stem + "_sbi.pt")
             if sbi_path.exists():
                 import torch
                 inf._last_estimator = torch.load(sbi_path, weights_only=False)
-                log.info("VBIInference sbi estimator loaded from %s", sbi_path)
+                log.info("InferencePipeline sbi estimator loaded from %s", sbi_path)
 
         n_sims = sum(r[0].shape[0] for r in inf._sim_rounds)
         log.info(
-            "VBIInference loaded from %s  (n_sims=%d, estimator=%s)",
+            "InferencePipeline loaded from %s  (n_sims=%d, estimator=%s)",
             path, n_sims,
             "restored" if inf._last_estimator is not None else "not found",
         )
@@ -943,9 +1000,9 @@ class VBIInference:
     # ------------------------------------------------------------------
 
     @classmethod
-    def from_config(cls, config) -> "VBIInference":
+    def from_config(cls, config) -> "InferencePipeline":
         """
-        Build a ``VBIInference`` from a YAML/JSON config file or dict.
+        Build a ``InferencePipeline`` from a YAML/JSON config file or dict.
 
         Parameters
         ----------
@@ -996,16 +1053,20 @@ class VBIInference:
         pipeline = _parse_pipeline(cfg["pipeline"])
 
         infer_cfg = cfg.get("inference", {})
+        de_type = infer_cfg.get("density_estimator", "maf")
+        estimator_backend = infer_cfg.get("estimator_backend",
+                                          infer_cfg.get("backend", "auto"))
+        if infer_cfg.get("inference_backend", "vbi") == "sbi":
+            engine = use_sbi(prior, de_type)
+        else:
+            engine = SNPE(prior=prior, density_estimator=de_type, backend=estimator_backend)
         inf = cls(
             sim_spec          = sim_spec,
             prior             = prior,
-            pipeline          = pipeline,
-            density_estimator = infer_cfg.get("density_estimator", "maf"),
-            inference_backend  = infer_cfg.get("inference_backend", "vbi"),
+            feature_pipeline  = pipeline,
             integrator_backend = infer_cfg.get("integrator_backend",
                                                infer_cfg.get("sim_backend", "numba")),
-            estimator_backend  = infer_cfg.get("estimator_backend",
-                                               infer_cfg.get("backend", "auto")),
+            engine             = engine,
         )
         inf._default_train_kwargs = dict(infer_cfg.get("training", {}))
         return inf
@@ -1132,10 +1193,11 @@ class VBIInference:
 
     def __repr__(self) -> str:
         n_sims = sum(r[0].shape[0] for r in self._sim_rounds)
+        engine = self._sbi_engine if self._is_sbi else self._snpe
+        kind   = "sbi" if self._is_sbi else "vbi"
         return (
-            f"VBIInference("
-            f"density_estimator={self._de_type!r}, "
-            f"inference_backend={self._inference_backend!r}, "
+            f"InferencePipeline("
+            f"engine={kind}:{type(engine).__name__}, "
             f"integrator_backend={self._integrator_backend!r}, "
             f"n_rounds={len(self._sim_rounds)}, "
             f"n_sims={n_sims})"

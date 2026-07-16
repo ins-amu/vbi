@@ -1,5 +1,5 @@
 """
-Tests for VBIInference diagnostic helpers - Step 6 of MI6.
+Tests for InferencePipeline diagnostic helpers - Step 6 of MI6.
 """
 import numpy as np
 import pytest
@@ -7,7 +7,7 @@ from vbi.simulator.spec import MonitorSpec
 from vbi.feature_extraction import (
     FeaturePipeline, get_features_by_domain, get_features_by_given_names,
 )
-from vbi.inference import VBIInference, BoxUniform
+from vbi.inference import InferencePipeline, BoxUniform
 from .conftest import make_mpr_spec
 
 
@@ -27,7 +27,7 @@ DURATION = 200.0
 
 
 def _trained_inf():
-    inf = VBIInference(
+    inf = InferencePipeline(
         sim_spec=_make_spec(), prior=PRIOR, pipeline=_stat_pipeline(),
         integrator_backend="numpy", estimator_backend="numpy", show_progress_bars=False,
     )
@@ -45,7 +45,7 @@ class TestPlotLoss:
         assert hasattr(fig, "savefig")    # it's a matplotlib Figure
 
     def test_raises_before_train(self):
-        inf = VBIInference(
+        inf = InferencePipeline(
             sim_spec=_make_spec(), prior=PRIOR, pipeline=_stat_pipeline(),
             integrator_backend="numpy", estimator_backend="numpy", show_progress_bars=False,
         )
@@ -63,7 +63,7 @@ class TestPairplot:
         assert hasattr(fig, "savefig")
 
     def test_raises_before_train(self):
-        inf = VBIInference(
+        inf = InferencePipeline(
             sim_spec=_make_spec(), prior=PRIOR, pipeline=_stat_pipeline(),
             integrator_backend="numpy", estimator_backend="numpy", show_progress_bars=False,
         )
@@ -79,7 +79,7 @@ class TestRunSBC:
             inf.run_sbc()
 
     def test_raises_before_train(self):
-        inf = VBIInference(
+        inf = InferencePipeline(
             sim_spec=_make_spec(), prior=PRIOR, pipeline=_stat_pipeline(),
             integrator_backend="numpy", estimator_backend="numpy", show_progress_bars=False,
         )
@@ -100,7 +100,7 @@ class TestRunSBC:
         assert result["ranks"].shape[1] == 2    # one column per parameter
 
     def test_make_simulator_fn(self):
-        from vbi.inference._vbi_inference import _make_simulator_fn
+        from vbi.inference._inference_pipeline import _make_simulator_fn
         sim_fn = _make_simulator_fn(
             _make_spec(), PRIOR, _stat_pipeline(), "numpy", DURATION
         )

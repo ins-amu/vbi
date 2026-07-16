@@ -93,7 +93,7 @@ fitzhugh_nagumo = ModelSpec(
 # ---------------------------------------------------------------------------
 #
 # register_model() adds the model to the global lookup table used by
-# SimulationSpec.from_dict() and VBIInference.from_config().
+# SimulationSpec.from_dict() and InferencePipeline.from_config().
 # Call it once, before any from_dict()/from_config() that references this model.
 #
 # The first alias you supply becomes the string to use in the config file:
@@ -180,7 +180,7 @@ print()
 #
 # After register_model(), any config-dict or YAML file can reference the
 # model by the registered alias.  This is the path used by
-# VBIInference.from_config() as well.
+# InferencePipeline.from_config() as well.
 
 config = {
     "model": "fitzhugh_nagumo",    # registered alias
