@@ -32,7 +32,6 @@ Complete Example List
    examples/mpr_sde_numba
    examples/mpr_sde_numba_cde
    examples/mpr_sde_cpp
-   examples/mpr_tvbk
    examples/jansen_rit_sde_cpp
    examples/jansen_rit_sde_cupy
    examples/jansen_rit_sde_numba

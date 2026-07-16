@@ -97,7 +97,6 @@ High-performance simulations using C++ backend with SBI and CDE inference:
 .. toctree::
    :maxdepth: 1
 
-   examples/mpr_tvbk
    examples/rww_sde_torch_kong
 
 Quick Start Guide
