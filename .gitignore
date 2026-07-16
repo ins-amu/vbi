@@ -12,6 +12,7 @@ _build/
 
 # sphinx-gallery build artifacts
 docs/auto_examples/
+docs/examples/
 docs/sg_execution_times.rst
 
 # C extension build (SWIG)

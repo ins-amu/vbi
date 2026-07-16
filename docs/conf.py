@@ -160,6 +160,41 @@ def on_missing_reference(app, env, node, contnode):
         return None
 
 
+def sync_examples(app):
+    """
+    Copy the top-level examples/ tree into docs/examples/ before anything
+    else reads the source directory.
+
+    examples/ was moved out of docs/ to the repo root so it's a single
+    canonical, non-doc-tooling location. nbsphinx, unlike sphinx-gallery's
+    examples_dirs, requires notebooks to physically live inside the Sphinx
+    source directory to resolve toctree entries and inline output images.
+    A docs/examples symlink pointing outside srcdir was tried first, but
+    nbsphinx computes each generated image's path via the notebook's
+    *resolved* (symlink-followed) location - since that location is outside
+    docs/, the relative path to docs/_build/doctrees/nbsphinx/ came out
+    wrong ("../_build/..." resolving to the repo root instead of docs/),
+    breaking every notebook's inline output images. A real, gitignored copy
+    avoids that entirely.
+
+    Must run before sphinx-gallery's/nbsphinx's own document discovery -
+    registered at priority=0, ahead of install_reference_images (priority=1).
+    """
+    src_dir = os.path.join(app.srcdir, "..", "examples")
+    dst_dir = os.path.join(app.srcdir, "examples")
+    if not os.path.isdir(src_dir):
+        return
+    if os.path.islink(dst_dir):
+        os.unlink(dst_dir)
+    elif os.path.isdir(dst_dir):
+        shutil.rmtree(dst_dir)
+    shutil.copytree(
+        src_dir,
+        dst_dir,
+        ignore=shutil.ignore_patterns("__pycache__", "outputs", "sbi-logs", "*.pyc"),
+    )
+
+
 def install_reference_images(app):
     """
     Copy pre-rendered reference plots into the exact path sphinx-gallery
@@ -192,6 +227,7 @@ def setup(app):
     app.connect("missing-reference", on_missing_reference)
     app.connect("autodoc-skip-member", autodoc_skip_member)
     app.connect("autodoc-process-docstring", process_docstring)
+    app.connect("builder-inited", sync_examples, priority=0)
     app.connect("builder-inited", install_reference_images, priority=1)
 
     # sphinx.ext.mathjax only loads its JS on pages with real docutils math
