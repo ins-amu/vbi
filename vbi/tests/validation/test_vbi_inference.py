@@ -11,7 +11,7 @@ from vbi.feature_extraction import (
     get_features_by_domain,
     get_features_by_given_names,
 )
-from vbi.inference import InferencePipeline, BoxUniform
+from vbi.inference import InferencePipeline, BoxUniform, SNPE
 from .conftest import make_mpr_spec
 
 
@@ -38,10 +38,9 @@ def _make_inf():
     return InferencePipeline(
         sim_spec          = _make_spec(),
         prior             = PRIOR,
-        pipeline          = _stat_pipeline(),
-        density_estimator = "maf",
+        feature_pipeline  = _stat_pipeline(),
         integrator_backend = "numpy",
-        estimator_backend  = "numpy",
+        engine             = SNPE(PRIOR, density_estimator="maf", backend="numpy"),
         show_progress_bars = False,
     )
 
@@ -215,7 +214,7 @@ class TestInferencePipelineSaveLoad:
         inf2 = InferencePipeline.load(
             tmp_path / "ckpt.npz",
             sim_spec = _make_spec(),
-            pipeline = _stat_pipeline(),
+            feature_pipeline = _stat_pipeline(),
             prior    = PRIOR,
         )
         theta2, x2, _ = inf2.get_simulations()
@@ -234,7 +233,7 @@ class TestInferencePipelineSaveLoad:
         inf2 = InferencePipeline.load(
             tmp_path / "ckpt.npz",
             sim_spec = _make_spec(),
-            pipeline = _stat_pipeline(),
+            feature_pipeline = _stat_pipeline(),
             prior    = PRIOR,
         )
         assert inf2._param_names    == ["G", "eta"]
@@ -249,7 +248,7 @@ class TestInferencePipelineSaveLoad:
         inf2 = InferencePipeline.load(
             tmp_path / "ckpt.npz",
             sim_spec = _make_spec(),
-            pipeline = _stat_pipeline(),
+            feature_pipeline = _stat_pipeline(),
             prior    = PRIOR,
         )
         assert inf2._last_estimator is not None
@@ -273,7 +272,7 @@ class TestInferencePipelineSaveLoad:
         inf2 = InferencePipeline.load(
             tmp_path / "ckpt.npz",
             sim_spec = _make_spec(),
-            pipeline = _stat_pipeline(),
+            feature_pipeline = _stat_pipeline(),
             prior    = PRIOR,
         )
         post2 = inf2.build_posterior()
@@ -290,7 +289,7 @@ class TestInferencePipelineSaveLoad:
         inf2 = InferencePipeline.load(
             tmp_path / "ckpt.npz",
             sim_spec = _make_spec(),
-            pipeline = _stat_pipeline(),
+            feature_pipeline = _stat_pipeline(),
             prior    = PRIOR,
         )
         assert inf2._last_estimator is None
@@ -302,10 +301,9 @@ class TestInferencePipelineSaveLoad:
         inf = InferencePipeline(
             sim_spec=_make_spec(),
             prior=PRIOR,
-            pipeline=pipeline,
-            density_estimator="maf",
+            feature_pipeline=pipeline,
             integrator_backend="numpy",
-            estimator_backend="numpy",
+            engine=SNPE(PRIOR, density_estimator="maf", backend="numpy"),
             show_progress_bars=False,
         )
         inf.simulate(N_SIM, DURATION, seed=17)
@@ -320,7 +318,7 @@ class TestInferencePipelineSaveLoad:
         inf2 = InferencePipeline.load(
             tmp_path / "ckpt.npz",
             sim_spec=_make_spec(),
-            pipeline=pipeline2,
+            feature_pipeline=pipeline2,
             prior=PRIOR,
         )
 
@@ -334,10 +332,9 @@ class TestInferencePipelineSaveLoad:
         inf = InferencePipeline(
             sim_spec=_make_spec(),
             prior=PRIOR,
-            pipeline=pipeline,
-            density_estimator="maf",
+            feature_pipeline=pipeline,
             integrator_backend="numpy",
-            estimator_backend="numpy",
+            engine=SNPE(PRIOR, density_estimator="maf", backend="numpy"),
             show_progress_bars=False,
         )
         inf.simulate(N_SIM, DURATION, seed=18)
@@ -348,7 +345,7 @@ class TestInferencePipelineSaveLoad:
         InferencePipeline.load(
             tmp_path / "ckpt.npz",
             sim_spec=_make_spec(),
-            pipeline=pipeline2,
+            feature_pipeline=pipeline2,
             prior=PRIOR,
         )
 

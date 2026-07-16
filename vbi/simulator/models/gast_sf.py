@@ -14,7 +14,7 @@ gast_sf = ModelSpec(
     parameters=(
         Parameter("tau",   1.0,      "Characteristic time constant"),
         Parameter("tau_A", 10.0,     "Adaptation time scale"),
-        Parameter("alpha", 10.0,     "Adaptation rate"),
+        Parameter("alpha", 1.0,      "Adaptation rate"),
         Parameter("I",     0.0,      "External homogeneous current"),
         Parameter("Delta", 2.0,      "Half-width of heterogeneous noise"),
         Parameter("J",     21.2132,  "Synaptic weight"),

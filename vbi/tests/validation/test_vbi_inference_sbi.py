@@ -35,7 +35,7 @@ def _make_sbi_inf():
     return InferencePipeline(
         sim_spec          = _make_spec(),
         prior             = PRIOR,
-        pipeline          = _stat_pipeline(),
+        feature_pipeline  = _stat_pipeline(),
         integrator_backend = "numpy",
         engine            = use_sbi(PRIOR, "maf", show_progress_bars=False),
         show_progress_bars = False,
@@ -120,7 +120,7 @@ class TestInferencePipelineSBIBackend:
         inf2 = InferencePipeline.load(
             tmp_path / "ckpt.npz",
             sim_spec = _make_spec(),
-            pipeline = _stat_pipeline(),
+            feature_pipeline = _stat_pipeline(),
             prior    = PRIOR,
         )
         assert inf2._is_sbi
@@ -140,7 +140,7 @@ class TestInferencePipelineSBIBackend:
         inf = InferencePipeline(
             sim_spec        = _make_spec(),
             prior           = PRIOR,
-            pipeline        = _stat_pipeline(),
+            feature_pipeline = _stat_pipeline(),
             integrator_backend = "numpy",
             engine          = sbi_snpe,
         )
