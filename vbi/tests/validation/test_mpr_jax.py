@@ -325,8 +325,7 @@ class TestSweep:
             integrator=IntegratorSpec(method="heun", dt=0.1),
             coupling=CouplingSpec("linear", a=1.0),
             monitors=(MonitorSpec("subsample", period=1.0),),
-            weights=W,
-            tract_lengths=D,
+            connectivity=Connectivity(weights=W, tract_lengths=D),
             node_params={"G": G_val},
         )
         _, single_data = _jx_sim(spec_g, 200.0)["subsample"]
