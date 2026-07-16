@@ -11,6 +11,7 @@ to keep accumulated error well below rtol=1e-2.
 For long-run comparisons the stochastic moment tests (mean/std) are used
 instead of trajectory matching.
 """
+from vbi.simulator.spec.connectivity import Connectivity
 import time
 
 import numpy as np
@@ -111,8 +112,8 @@ class TestDeterministicMatchesNumPy:
             integrator=IntegratorSpec(method="heun", dt=0.1),
             coupling=CouplingSpec("linear", a=1.0),
             monitors=(MonitorSpec("raw"),),
-            weights=W,
-            tract_lengths=None,  # zero delays
+            connectivity=Connectivity(weights=W, tract_lengths=None),
+              # zero delays
         )
         _, d_np = _np_sim(spec, 200.0)["raw"]
         _, d_jx = _jx_sim(spec, 200.0)["raw"]
@@ -145,8 +146,8 @@ class TestStochasticMoments:
                 ),
                 coupling=spec.coupling,
                 monitors=spec.monitors,
-                weights=spec.weights,
-                tract_lengths=spec.tract_lengths,
+                connectivity=Connectivity(weights=spec.weights, tract_lengths=spec.tract_lengths),
+
             )
             _, d_np = _np_sim(spec_s, 500.0)["subsample"]
             _, d_jx = _jx_sim(spec_s, 500.0)["subsample"]
@@ -199,8 +200,8 @@ class TestGradient:
             integrator=IntegratorSpec(method="heun", dt=0.1),
             coupling=CouplingSpec("linear", a=1.0),
             monitors=(MonitorSpec("subsample", period=1.0),),
-            weights=W,
-            tract_lengths=D,
+            connectivity=Connectivity(weights=W, tract_lengths=D),
+
         )
 
         sim = JaxSimulator()
@@ -231,8 +232,8 @@ class TestBoldMonitor:
             integrator=IntegratorSpec(method="heun", dt=0.1),
             coupling=CouplingSpec("linear", a=1.0),
             monitors=(MonitorSpec("bold", tr=tr),),
-            weights=W,
-            tract_lengths=D,
+            connectivity=Connectivity(weights=W, tract_lengths=D),
+
         )
 
     def test_bold_shape(self):
@@ -288,8 +289,8 @@ class TestSweep:
             integrator=IntegratorSpec(method="heun", dt=0.1),
             coupling=CouplingSpec("linear", a=1.0),
             monitors=(MonitorSpec("subsample", period=1.0),),
-            weights=W,
-            tract_lengths=D,
+            connectivity=Connectivity(weights=W, tract_lengths=D),
+
         )
         sweep_spec = SweepSpec(params={"G": np.linspace(1.0, 4.0, n_G)})
         results = Sweeper(spec, sweep_spec, backend="jax").run(500.0)
@@ -309,8 +310,8 @@ class TestSweep:
             integrator=IntegratorSpec(method="heun", dt=0.1),
             coupling=CouplingSpec("linear", a=1.0),
             monitors=(MonitorSpec("subsample", period=1.0),),
-            weights=W,
-            tract_lengths=D,
+            connectivity=Connectivity(weights=W, tract_lengths=D),
+
         )
         G_val = 2.0
         sweep_spec = SweepSpec(params={"G": np.array([G_val])})
@@ -344,8 +345,8 @@ class TestSweep:
             integrator=IntegratorSpec(method="heun", dt=0.1),
             coupling=CouplingSpec("linear", a=1.0),
             monitors=(MonitorSpec("bold", tr=2000.0),),
-            weights=W,
-            tract_lengths=D,
+            connectivity=Connectivity(weights=W, tract_lengths=D),
+
         )
         sweep_spec = SweepSpec(params={"G": np.linspace(1.0, 4.0, n_G)})
         results = Sweeper(spec, sweep_spec, backend="jax").run(6000.0)
@@ -365,7 +366,7 @@ class TestSweep:
                                       noise_nsig=np.array([1e-2, 1e-2])),
             coupling=CouplingSpec("linear", a=0.0),   # no coupling → pure noise
             monitors=(MonitorSpec("subsample", period=1.0),),
-            weights=W, tract_lengths=None,
+            connectivity=Connectivity(weights=W, tract_lengths=None),
         )
         sweep_spec = SweepSpec(
             params={"G": np.linspace(1.0, 4.0, n_G)},
@@ -393,7 +394,7 @@ class TestSweep:
                                       noise_nsig=np.array([1e-2, 1e-2])),
             coupling=CouplingSpec("linear", a=0.0),   # no coupling → pure noise
             monitors=(MonitorSpec("subsample", period=1.0),),
-            weights=W, tract_lengths=None,
+            connectivity=Connectivity(weights=W, tract_lengths=None),
         )
         sweep_spec = SweepSpec(
             params={"G": np.linspace(1.0, 4.0, n_G)},
@@ -415,8 +416,8 @@ class TestSweep:
             integrator=IntegratorSpec(method="heun", dt=0.1),
             coupling=CouplingSpec("linear", a=1.0),
             monitors=(MonitorSpec("subsample", period=1.0),),
-            weights=W,
-            tract_lengths=D,
+            connectivity=Connectivity(weights=W, tract_lengths=D),
+
         )
         sweep_spec = SweepSpec(params={"G": np.linspace(0.5, 5.0, n_samples)})
         sweeper = Sweeper(spec, sweep_spec, backend="jax")

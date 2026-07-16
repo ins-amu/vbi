@@ -4,6 +4,7 @@ M1 validation: Numba CPU backend for the new models.
 Gold standard: NumPy baseline (validated in test_new_models_numpy.py).
 All Numba results must match NumPy to rtol=1e-4 (deterministic).
 """
+from vbi.simulator.spec.connectivity import Connectivity
 import numpy as np
 import pytest
 
@@ -55,8 +56,8 @@ def _spec(model, n_nodes=4, dt=0.01, coup_a=0.05, method="heun",
                                   stochastic=stochastic, noise_nsig=noise_nsig),
         coupling=CouplingSpec("linear", a=coup_a),
         monitors=(MonitorSpec("raw"),),
-        weights=W,
-        tract_lengths=tract_lengths,
+        connectivity=Connectivity(weights=W, tract_lengths=tract_lengths),
+
         node_params=node_params or {},
     )
 
@@ -206,7 +207,7 @@ def test_heterogeneous_params_numba_matches_numpy(model, param, values, dt):
         integrator=IntegratorSpec(method="heun", dt=dt),
         coupling=CouplingSpec("linear", a=0.0),
         monitors=(MonitorSpec("raw"),),
-        weights=np.zeros((n, n)),
+        connectivity=Connectivity(weights=np.zeros((n, n))),
         node_params={param: values},
     )
     _, d_np = _np(spec, 30.0)
@@ -235,9 +236,9 @@ class TestKuramotoCouplingNumba:
             integrator=IntegratorSpec(method="heun", dt=dt),
             coupling=CouplingSpec("kuramoto"),
             monitors=(MonitorSpec("raw"),),
-            weights=W,
-            tract_lengths=tract_lengths,
-            speed=speed,
+            connectivity=Connectivity(weights=W, tract_lengths=tract_lengths, speed=speed),
+
+
             node_params={"omega": omega, "G": G},
         )
 
@@ -269,7 +270,7 @@ class TestKuramotoCouplingNumba:
             integrator=IntegratorSpec(method="euler", dt=0.01),
             coupling=CouplingSpec("kuramoto"),
             monitors=(MonitorSpec("raw"),),
-            weights=W,
+            connectivity=Connectivity(weights=W),
             node_params={"omega": omega, "G": 0.5},
         )
         _, d_np = _np(spec, 30.0)
@@ -295,9 +296,9 @@ class TestKuramotoCouplingNumba:
             integrator=IntegratorSpec(method="heun", dt=0.01),
             coupling=CouplingSpec("kuramoto"),
             monitors=(MonitorSpec("raw"),),
-            weights=W,
-            tract_lengths=tract,
-            speed=1.0,
+            connectivity=Connectivity(weights=W, tract_lengths=tract, speed=1.0),
+
+
             node_params={"omega": omega, "G": 0.5},
         )
         _, d_np = _np(spec, 30.0)
@@ -325,7 +326,7 @@ def test_sweep_numba_matches_numpy(model, sweep_param, values, dt, coup_a):
         integrator=IntegratorSpec(method="heun", dt=dt),
         coupling=CouplingSpec("linear", a=coup_a),
         monitors=(MonitorSpec("raw"),),
-        weights=_weights(n_nodes),
+        connectivity=Connectivity(weights=_weights(n_nodes)),
     )
     sweep_spec = SweepSpec(params={sweep_param: values})
 

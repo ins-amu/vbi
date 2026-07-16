@@ -1,3 +1,4 @@
+from vbi.simulator.spec.connectivity import Connectivity
 import numpy as np
 import pytest
 from vbi.simulator.spec import (
@@ -35,7 +36,7 @@ def make_mpr_spec(n_nodes: int = 2, dt: float = 0.01,
                                    stochastic=stochastic, noise_nsig=nsig),
         coupling=CouplingSpec("linear", a=1.0),
         monitors=monitors,
-        weights=W,
-        tract_lengths=D,
-        speed=4.0,
+        connectivity=Connectivity(weights=W, tract_lengths=D, speed=4.0),
+
+
     )

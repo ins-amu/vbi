@@ -1,6 +1,7 @@
 """
 M0 validation: NumPy sweeper - shape, consistency, and pipeline hooks.
 """
+from vbi.simulator.spec.connectivity import Connectivity
 import numpy as np
 import pytest
 from vbi.simulator import Simulator, Sweeper
@@ -138,8 +139,8 @@ class TestSweepConsistency:
         direct_spec = SimulationSpec(
             model=spec.model, integrator=spec.integrator,
             coupling=spec.coupling, monitors=spec.monitors,
-            weights=spec.weights, tract_lengths=spec.tract_lengths,
-            speed=spec.speed,
+            connectivity=Connectivity(weights=spec.weights, tract_lengths=spec.tract_lengths, speed=spec.speed),
+
             node_params={"G": 2.0},
         )
         direct_result = Simulator(direct_spec, backend="numpy").run(100.0)
@@ -174,8 +175,8 @@ class TestSweepNewContracts:
         stim_spec = SimulationSpec(
             model=base.model, integrator=base.integrator,
             coupling=base.coupling, monitors=base.monitors,
-            weights=base.weights, tract_lengths=base.tract_lengths,
-            speed=base.speed,
+            connectivity=Connectivity(weights=base.weights, tract_lengths=base.tract_lengths, speed=base.speed),
+
             stimuli=(stim,),
         )
 

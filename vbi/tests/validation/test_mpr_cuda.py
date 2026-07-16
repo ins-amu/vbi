@@ -29,6 +29,7 @@ test_cuda_sweep_80_nodes_finite    - brain-scale N=80
 test_cuda_sweep_pipeline_shape     - pipeline mode, shape + finite
 test_cuda_sweep_throughput         - benchmark, informational only
 """
+from vbi.simulator.spec.connectivity import Connectivity
 import time
 
 import numpy as np
@@ -91,8 +92,8 @@ def _spec(model=mpr, n_nodes=10, dt=0.01, coup_a=0.1,
                                   stochastic=stochastic, noise_nsig=noise_nsig),
         coupling=CouplingSpec("linear", a=coup_a),
         monitors=(MonitorSpec("raw"),),
-        weights=W,
-        tract_lengths=tract_lengths,
+        connectivity=Connectivity(weights=W, tract_lengths=tract_lengths),
+
     )
 
 
@@ -177,7 +178,7 @@ def test_cuda_single_model_isolated(model, dt):
         integrator=IntegratorSpec(method="heun", dt=dt, stochastic=False),
         coupling=CouplingSpec("linear", a=0.0),   # isolated - no coupling
         monitors=(MonitorSpec("raw"),),
-        weights=W,
+        connectivity=Connectivity(weights=W),
     )
     _, d_nb   = Simulator(spec, backend="numba").run(10.0)["raw"]
     _, d_cuda = Simulator(spec, backend="cuda").run(10.0)["raw"]
@@ -317,7 +318,7 @@ def test_cuda_sweep_pipeline_shape():
         integrator=IntegratorSpec(method="heun", dt=0.01),
         coupling=CouplingSpec("linear", a=0.1),
         monitors=(MonitorSpec("tavg", period=1.0),),
-        weights=_weights(n_nodes),
+        connectivity=Connectivity(weights=_weights(n_nodes)),
     )
     cfg = get_features_by_domain("statistical")
     cfg = get_features_by_given_names(cfg, ["calc_mean", "calc_std"])
@@ -378,7 +379,7 @@ def test_cuda_new_models_stochastic(model, dt, coup_a):
                                   noise_nsig=np.full(n_noise, 1e-4)),
         coupling=CouplingSpec("linear", a=coup_a),
         monitors=(MonitorSpec("raw"),),
-        weights=_weights(6),
+        connectivity=Connectivity(weights=_weights(6)),
     )
     _, d = Simulator(spec, backend="cuda").run(20.0)["raw"]
     assert np.isfinite(d).all(), f"{model.name}: stochastic CUDA output not finite"
@@ -401,7 +402,7 @@ def test_cuda_sweep_throughput(n_nodes, n_samples, duration, capsys):
         integrator=IntegratorSpec(method="heun", dt=0.1, stochastic=False),
         coupling=CouplingSpec("linear", a=0.1),
         monitors=(MonitorSpec("tavg", period=1.0),),
-        weights=_weights(n_nodes),
+        connectivity=Connectivity(weights=_weights(n_nodes)),
     )
     sweep_spec = SweepSpec(params={"eta": np.linspace(-5.5, -4.0, n_samples)})
 
@@ -435,7 +436,7 @@ def test_cuda_same_noise_true_identical_trajectories():
                                   noise_seed=42),
         coupling=CouplingSpec("linear", a=0.1),
         monitors=(MonitorSpec("raw"),),
-        weights=_weights(6),
+        connectivity=Connectivity(weights=_weights(6)),
     )
     # Two samples with the same parameter - shared noise must make them identical.
     sweep_spec = SweepSpec(params={"eta": np.array([-4.6, -4.6])}, same_noise=True)
@@ -460,7 +461,7 @@ def test_cuda_same_noise_false_independent_trajectories():
                                   noise_seed=42),
         coupling=CouplingSpec("linear", a=0.1),
         monitors=(MonitorSpec("raw"),),
-        weights=_weights(6),
+        connectivity=Connectivity(weights=_weights(6)),
     )
     sweep_spec = SweepSpec(params={"eta": np.array([-4.6, -4.6])}, same_noise=False)
     results = Sweeper(spec, sweep_spec, backend="cuda").run(20.0)
@@ -484,7 +485,7 @@ def test_cuda_sweep_G_outputs_differ():
         integrator=IntegratorSpec(method="heun", dt=0.1),
         coupling=CouplingSpec("linear", a=1.0),
         monitors=(MonitorSpec("raw"),),
-        weights=_weights(6, seed=7),
+        connectivity=Connectivity(weights=_weights(6, seed=7)),
     )
     sweep_spec = SweepSpec(params={"G": G_values})
     results = Sweeper(spec, sweep_spec, backend="cuda").run(20.0)
@@ -511,14 +512,14 @@ def test_cuda_sweep_G_matches_fixed_spec():
         integrator=IntegratorSpec(method="heun", dt=0.1),
         coupling=CouplingSpec("linear", a=G_fixed),
         monitors=(MonitorSpec("raw"),),
-        weights=W,
+        connectivity=Connectivity(weights=W),
     )
     spec_sweep = SimulationSpec(
         model=mpr,
         integrator=IntegratorSpec(method="heun", dt=0.1),
         coupling=CouplingSpec("linear", a=1.0),
         monitors=(MonitorSpec("raw"),),
-        weights=W,
+        connectivity=Connectivity(weights=W),
     )
     sweep_spec = SweepSpec(params={"G": np.array([G_fixed])})
 

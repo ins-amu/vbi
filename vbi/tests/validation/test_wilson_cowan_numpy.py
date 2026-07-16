@@ -2,6 +2,7 @@
 M0 validation: NumPy backend - deterministic Wilson-Cowan.
 """
 
+from vbi.simulator.spec.connectivity import Connectivity
 import numpy as np
 import pytest
 
@@ -55,9 +56,9 @@ def make_wc_spec(
         integrator=IntegratorSpec(method=method, dt=dt),
         coupling=CouplingSpec("linear", a=coupling_strength),
         monitors=(MonitorSpec("raw"),),
-        weights=weights,
-        tract_lengths=tract_lengths,
-        speed=1.0,
+        connectivity=Connectivity(weights=weights, tract_lengths=tract_lengths, speed=1.0),
+
+
         node_params={
             name: np.full(weights.shape[0], value)
             for name, value in WC_PARAMS.items()

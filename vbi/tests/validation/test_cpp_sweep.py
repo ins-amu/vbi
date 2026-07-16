@@ -7,6 +7,7 @@ C++ sweeper tests.
 4. C++ sweep raw output matches Numba sweep (cross-backend validation).
 5. Pipeline mode produces correct shapes and values.
 """
+from vbi.simulator.spec.connectivity import Connectivity
 import numpy as np
 import pytest
 
@@ -46,7 +47,7 @@ def _base_spec(model, n_nodes=6, dt=0.1, coup_a=0.05):
         integrator=IntegratorSpec(method="heun", dt=dt, stochastic=False),
         coupling=CouplingSpec(kind="linear", a=coup_a, b=0.0),
         monitors=(MonitorSpec(kind="raw"),),
-        weights=_weights(n_nodes),
+        connectivity=Connectivity(weights=_weights(n_nodes)),
     )
 
 
@@ -75,7 +76,7 @@ def test_serial_sweep_matches_individual_runs(model, param_name, values, coup_a,
             integrator=spec.integrator,
             coupling=spec.coupling,
             monitors=spec.monitors,
-            weights=spec.weights,
+            connectivity=Connectivity(weights=spec.weights),
             node_params={param_name: float(val)},
         )
         sim = Simulator(patched, backend="cpp")
@@ -175,7 +176,7 @@ def test_stochastic_sweep_unique_trajectories():
         ),
         coupling=CouplingSpec(kind="linear", a=0.1, b=0.0),
         monitors=(MonitorSpec(kind="raw"),),
-        weights=_weights(5),
+        connectivity=Connectivity(weights=_weights(5)),
     )
     # All eta identical - only noise differs between runs (same_noise=False)
     sweep_spec = SweepSpec(params={"eta": np.full(4, -4.6)}, same_noise=False)
@@ -301,7 +302,7 @@ def test_cpp_sweep_pipeline_shape():
         integrator=IntegratorSpec(method="heun", dt=0.01, stochastic=False),
         coupling=CouplingSpec(kind="linear", a=0.1, b=0.0),
         monitors=(MonitorSpec(kind="tavg", period=1.0),),
-        weights=_weights(n_nodes),
+        connectivity=Connectivity(weights=_weights(n_nodes)),
     )
     cfg = get_features_by_domain("statistical")
     cfg = get_features_by_given_names(cfg, ["calc_mean", "calc_std"])
@@ -333,7 +334,7 @@ def test_cpp_sweep_pipeline_matches_numpy_sweep():
         integrator=IntegratorSpec(method="heun", dt=0.01, stochastic=False),
         coupling=CouplingSpec(kind="linear", a=0.1, b=0.0),
         monitors=(MonitorSpec(kind="tavg", period=1.0),),
-        weights=_weights(n_nodes),
+        connectivity=Connectivity(weights=_weights(n_nodes)),
     )
     cfg = get_features_by_domain("statistical")
     cfg = get_features_by_given_names(cfg, ["calc_mean", "calc_std"])

@@ -7,6 +7,7 @@ test_cpp_matches_numpy        - deterministic single run, rtol=1e-4
 test_cpp_stoch_runs           - stochastic run completes without error
 test_cpp_cache_reuse          - second build_or_load returns in < 200 ms
 """
+from vbi.simulator.spec.connectivity import Connectivity
 import time
 import numpy as np
 import pytest
@@ -45,7 +46,7 @@ def _build_spec(n_nodes=10, dt=0.01, stochastic=False, seed=0):
         integrator=integrator,
         coupling=CouplingSpec(kind="linear", a=0.1, b=0.0),
         monitors=(MonitorSpec(kind="raw"),),
-        weights=W,
+        connectivity=Connectivity(weights=W),
     )
 
 

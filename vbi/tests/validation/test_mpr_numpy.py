@@ -2,6 +2,7 @@
 M0 validation: NumPy backend - deterministic and stochastic MPR.
 Tests correctness of integrators, ring buffer, coupling, monitors.
 """
+from vbi.simulator.spec.connectivity import Connectivity
 import numpy as np
 import pytest
 from vbi.simulator import Simulator
@@ -85,9 +86,9 @@ class TestMultiNodeDeterministic:
             model=spec.model, integrator=spec.integrator,
             coupling=CouplingSpec("linear", a=1.0),
             monitors=spec.monitors,
-            weights=np.zeros((2, 2)),
-            tract_lengths=np.zeros((2, 2)),
-            speed=spec.speed,
+            connectivity=Connectivity(weights=np.zeros((2, 2)), tract_lengths=np.zeros((2, 2)), speed=spec.speed),
+
+
         )
         _, data = Simulator(zero_spec).run(200.0)["raw"]
         # Both nodes start from same default_init → should stay identical
@@ -296,9 +297,9 @@ def _make_vbi_tvb_reference_spec(weights, dt, method):
         integrator=IntegratorSpec(method=method, dt=dt),
         coupling=CouplingSpec("linear", a=1.0),
         monitors=(MonitorSpec("raw"),),
-        weights=weights,
-        tract_lengths=np.zeros_like(weights),
-        speed=1.0,
+        connectivity=Connectivity(weights=weights, tract_lengths=np.zeros_like(weights), speed=1.0),
+
+
         node_params=params,
     )
 
@@ -431,7 +432,7 @@ class TestNewContracts:
                                       stochastic=True, noise_nsig=np.array([5e-4])),
             coupling=CouplingSpec("linear", a=1.0),
             monitors=(MonitorSpec("tavg", period=1.0),),
-            weights=np.array([[0.0, 0.5], [0.5, 0.0]]),
+            connectivity=Connectivity(weights=np.array([[0.0, 0.5], [0.5, 0.0]])),
         )
         result = Simulator(spec, backend="numpy").run(10.0)
         assert "tavg" in result
@@ -445,7 +446,7 @@ class TestNewContracts:
                                       noise_nsig=np.array([1e-3, 1e-3, 1e-3])),  # mpr has 2 sv
             coupling=CouplingSpec("linear", a=1.0),
             monitors=(MonitorSpec("tavg", period=1.0),),
-            weights=np.array([[0.0, 0.5], [0.5, 0.0]]),
+            connectivity=Connectivity(weights=np.array([[0.0, 0.5], [0.5, 0.0]])),
         )
         with pytest.raises(ValueError, match="noise_nsig length"):
             Simulator(spec, backend="numpy")   # build() is called in __init__
@@ -459,7 +460,7 @@ class TestNewContracts:
                 integrator=IntegratorSpec(),
                 coupling=CouplingSpec("linear", a=1.0),
                 monitors=(MonitorSpec("raw"),),
-                weights=np.ones((2, 3)),
+                connectivity=Connectivity(weights=np.ones((2, 3))),
             )
 
     def test_spec_mismatched_tract_lengths_raises(self):
@@ -469,8 +470,8 @@ class TestNewContracts:
                 integrator=IntegratorSpec(),
                 coupling=CouplingSpec("linear", a=1.0),
                 monitors=(MonitorSpec("raw"),),
-                weights=np.zeros((2, 2)),
-                tract_lengths=np.zeros((3, 3)),
+                connectivity=Connectivity(weights=np.zeros((2, 2)), tract_lengths=np.zeros((3, 3))),
+
             )
 
     def test_spec_negative_tract_lengths_raises(self):
@@ -480,8 +481,8 @@ class TestNewContracts:
                 integrator=IntegratorSpec(),
                 coupling=CouplingSpec("linear", a=1.0),
                 monitors=(MonitorSpec("raw"),),
-                weights=np.zeros((2, 2)),
-                tract_lengths=np.array([[0.0, -1.0], [0.0, 0.0]]),
+                connectivity=Connectivity(weights=np.zeros((2, 2)), tract_lengths=np.array([[0.0, -1.0], [0.0, 0.0]])),
+
             )
 
     def test_spec_nonpositive_speed_raises(self):
@@ -491,8 +492,8 @@ class TestNewContracts:
                 integrator=IntegratorSpec(),
                 coupling=CouplingSpec("linear", a=1.0),
                 monitors=(MonitorSpec("raw"),),
-                weights=np.zeros((2, 2)),
-                speed=0.0,
+                connectivity=Connectivity(weights=np.zeros((2, 2)), speed=0.0),
+
             )
 
     def test_spec_list_weights_coerced(self):
@@ -502,7 +503,7 @@ class TestNewContracts:
             integrator=IntegratorSpec(),
             coupling=CouplingSpec("linear", a=1.0),
             monitors=(MonitorSpec("tavg", period=1.0),),
-            weights=[[0.0, 0.5], [0.5, 0.0]],
+            connectivity=Connectivity(weights=[[0.0, 0.5], [0.5, 0.0]]),
         )
         assert isinstance(spec.weights, np.ndarray)
 

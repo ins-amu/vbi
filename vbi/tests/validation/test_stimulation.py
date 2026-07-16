@@ -9,6 +9,7 @@ Verifies that StimSpec injection works correctly and consistently:
   - no-stimulus baseline is unaffected (zero stim = no change)
   - frustrated Kuramoto (alpha) with stimulus
 """
+from vbi.simulator.spec.connectivity import Connectivity
 import dataclasses
 
 import numpy as np
@@ -47,7 +48,7 @@ def _kuramoto_spec(n, theta0, omega, G, stim=(), dt=0.01):
         integrator=IntegratorSpec(method="heun", dt=dt),
         coupling=CouplingSpec("kuramoto"),
         monitors=(MonitorSpec("raw"),),
-        weights=W,
+        connectivity=Connectivity(weights=W),
         node_params={"omega": np.full(n, float(omega)), "G": G},
         stimuli=stim,
     )
@@ -60,7 +61,7 @@ def _mpr_spec(n, stim=(), dt=0.01):
         integrator=IntegratorSpec(method="heun", dt=dt),
         coupling=CouplingSpec("linear", a=0.1),
         monitors=(MonitorSpec("raw"),),
-        weights=W,
+        connectivity=Connectivity(weights=W),
         stimuli=stim,
     )
 
@@ -238,7 +239,7 @@ class TestBackendConsistency:
             integrator=IntegratorSpec(method="heun", dt=0.01),
             coupling=CouplingSpec("kuramoto"),
             monitors=(MonitorSpec("raw"),),
-            weights=W, tract_lengths=tract, speed=1.0,
+            connectivity=Connectivity(weights=W, tract_lengths=tract, speed=1.0),
             node_params={"omega": np.ones(n), "G": 0.5},
             stimuli=(stim,),
         )
@@ -336,7 +337,7 @@ class TestFrustratedKuramotoWithStim:
             integrator=IntegratorSpec(method="heun", dt=0.01),
             coupling=CouplingSpec("kuramoto", alpha=np.pi / 4),
             monitors=(MonitorSpec("raw"),),
-            weights=W,
+            connectivity=Connectivity(weights=W),
             node_params={"omega": np.ones(n), "G": 0.5},
             stimuli=(stim,),
         )

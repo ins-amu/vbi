@@ -7,6 +7,7 @@ matching keys, sensible bounds, etc.
 
 Any model bug that manifests before a single integration step is caught here.
 """
+from vbi.simulator.spec.connectivity import Connectivity
 import pytest
 import numpy as np
 
@@ -219,7 +220,7 @@ def test_dfun_evaluates_finite_at_defaults(model):
         integrator=IntegratorSpec(method="heun", dt=0.01),
         coupling=CouplingSpec("linear", a=0.0),
         monitors=(MonitorSpec("raw"),),
-        weights=W,
+        connectivity=Connectivity(weights=W),
     )
     dfun = build_dfun(model)
     params = _build_params(spec)
@@ -249,7 +250,7 @@ def test_dfun_evaluates_finite_at_zero(model):
         integrator=IntegratorSpec(method="heun", dt=0.01),
         coupling=CouplingSpec("linear", a=0.0),
         monitors=(MonitorSpec("raw"),),
-        weights=np.zeros((n_nodes, n_nodes)),
+        connectivity=Connectivity(weights=np.zeros((n_nodes, n_nodes))),
     )
     dfun = build_dfun(model)
     params = _build_params(spec)

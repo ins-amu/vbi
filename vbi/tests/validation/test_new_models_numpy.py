@@ -7,6 +7,7 @@ Each test:
   3. Asserts trajectory match to rtol=1e-6 when TVB is available.
   4. Always asserts output is finite and has the right shape.
 """
+from vbi.simulator.spec.connectivity import Connectivity
 import numpy as np
 import pytest
 
@@ -47,9 +48,9 @@ def _run_vbi(model, n_nodes=3, dt=0.01, duration=10.0,
         integrator=IntegratorSpec(method="heun", dt=dt, stochastic=False),
         coupling=CouplingSpec("linear", a=coup_a),
         monitors=(MonitorSpec("raw"),),
-        weights=W,
-        tract_lengths=tract_lengths,
-        speed=speed,
+        connectivity=Connectivity(weights=W, tract_lengths=tract_lengths, speed=speed),
+
+
         node_params=node_params or {},
     )
     return Simulator(spec, backend="numpy").run(duration)["raw"]
@@ -87,7 +88,7 @@ class TestNewModelsSmoke:
             integrator=IntegratorSpec(method="euler", dt=0.01, stochastic=False),
             coupling=CouplingSpec("linear", a=0.05),
             monitors=(MonitorSpec("raw"),),
-            weights=W,
+            connectivity=Connectivity(weights=W),
         )
         _, d = Simulator(spec, backend="numpy").run(10.0)["raw"]
         assert np.isfinite(d).all(), f"{model.name}: euler output not finite"
@@ -102,7 +103,7 @@ class TestNewModelsSmoke:
             ),
             coupling=CouplingSpec("linear", a=0.05),
             monitors=(MonitorSpec("raw"),),
-            weights=W,
+            connectivity=Connectivity(weights=W),
         )
         _, d = Simulator(spec, backend="numpy").run(10.0)["raw"]
         assert np.isfinite(d).all()
@@ -185,7 +186,7 @@ class TestGeneric2dOscillatorVsTVB:
             integrator=IntegratorSpec(method="heun", dt=dt, stochastic=False),
             coupling=CouplingSpec("linear", a=coup_a),
             monitors=(MonitorSpec("raw"),),
-            weights=W,
+            connectivity=Connectivity(weights=W),
         )
         _, vbi_data = Simulator(spec, backend="numpy").run(duration)["raw"]
         tvb_data = _tvb_sim(TVB_G2d, n_nodes, W, dt, duration, coup_a,
@@ -210,7 +211,7 @@ class TestKuramotoVsTVB:
             integrator=IntegratorSpec(method="heun", dt=dt, stochastic=False),
             coupling=CouplingSpec("linear", a=coup_a),
             monitors=(MonitorSpec("raw"),),
-            weights=W,
+            connectivity=Connectivity(weights=W),
         )
         _, vbi_data = Simulator(spec, backend="numpy").run(duration)["raw"]
         tvb_data = _tvb_sim(TVB_Kuramoto, n_nodes, W, dt, duration, coup_a)
@@ -234,7 +235,7 @@ class TestSupHopfVsTVB:
             integrator=IntegratorSpec(method="heun", dt=dt, stochastic=False),
             coupling=CouplingSpec("linear", a=coup_a),
             monitors=(MonitorSpec("raw"),),
-            weights=W,
+            connectivity=Connectivity(weights=W),
         )
         _, vbi_data = Simulator(spec, backend="numpy").run(duration)["raw"]
         tvb_data = _tvb_sim(TVB_SupHopf, n_nodes, W, dt, duration, coup_a,
@@ -259,7 +260,7 @@ class TestLarterBreakspearVsTVB:
             integrator=IntegratorSpec(method="heun", dt=dt, stochastic=False),
             coupling=CouplingSpec("linear", a=coup_a),
             monitors=(MonitorSpec("raw"),),
-            weights=W,
+            connectivity=Connectivity(weights=W),
         )
         _, vbi_data = Simulator(spec, backend="numpy").run(duration)["raw"]
         tvb_data = _tvb_sim(TVB_LB, n_nodes, W, dt, duration, coup_a,
@@ -284,7 +285,7 @@ class TestCoombesByrne2DVsTVB:
             integrator=IntegratorSpec(method="heun", dt=dt, stochastic=False),
             coupling=CouplingSpec("linear", a=coup_a),
             monitors=(MonitorSpec("raw"),),
-            weights=W,
+            connectivity=Connectivity(weights=W),
         )
         _, vbi_data = Simulator(spec, backend="numpy").run(duration)["raw"]
         tvb_data = _tvb_sim(TVB_CB2D, n_nodes, W, dt, duration, coup_a)
@@ -316,7 +317,7 @@ class TestGastSDVsTVB:
             integrator=IntegratorSpec(method="heun", dt=dt, stochastic=False),
             coupling=CouplingSpec("linear", a=coup_a),
             monitors=(MonitorSpec("raw"),),
-            weights=W,
+            connectivity=Connectivity(weights=W),
         )
         _, vbi_data = Simulator(spec, backend="numpy").run(duration)["raw"]
         tvb_data = _tvb_sim(TVB_GSD, n_nodes, W, dt, duration, coup_a,
@@ -348,7 +349,7 @@ class TestGastSFVsTVB:
             integrator=IntegratorSpec(method="heun", dt=dt, stochastic=False),
             coupling=CouplingSpec("linear", a=coup_a),
             monitors=(MonitorSpec("raw"),),
-            weights=W,
+            connectivity=Connectivity(weights=W),
         )
         _, vbi_data = Simulator(spec, backend="numpy").run(duration)["raw"]
         tvb_data = _tvb_sim(TVB_GSF, n_nodes, W, dt, duration, coup_a,

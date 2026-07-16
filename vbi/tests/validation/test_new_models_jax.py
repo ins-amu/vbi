@@ -15,6 +15,7 @@ Models covered
 
 MPR is tested in test_mpr_jax.py.
 """
+from vbi.simulator.spec.connectivity import Connectivity
 import numpy as np
 import pytest
 
@@ -68,8 +69,8 @@ def _spec(model, n_nodes=4, dt=0.1, coup_a=0.05, method="heun",
                                   stochastic=stochastic, noise_nsig=noise_nsig),
         coupling=CouplingSpec("linear", a=coup_a),
         monitors=(MonitorSpec("subsample", period=max(dt * 10, 1.0)),),
-        weights=W,
-        tract_lengths=tract_lengths,
+        connectivity=Connectivity(weights=W, tract_lengths=tract_lengths),
+
         node_params=node_params or {},
     )
 
@@ -239,7 +240,7 @@ def test_jax_sweep_shape(model, sweep_param, values, dt, coup_a):
         integrator=IntegratorSpec(method="heun", dt=dt),
         coupling=CouplingSpec("linear", a=coup_a),
         monitors=(MonitorSpec("subsample", period=max(dt * 10, 1.0)),),
-        weights=_weights(n_nodes),
+        connectivity=Connectivity(weights=_weights(n_nodes)),
     )
     sweep_spec = SweepSpec(params={sweep_param: values})
     results = Sweeper(spec, sweep_spec, backend="jax").run(20.0)
@@ -266,7 +267,7 @@ def test_jax_sweep_matches_numpy_sweep(model, sweep_param, values, dt, coup_a):
         integrator=IntegratorSpec(method="heun", dt=dt),
         coupling=CouplingSpec("linear", a=coup_a),
         monitors=(MonitorSpec("subsample", period=max(dt * 10, 1.0)),),
-        weights=_weights(n_nodes),
+        connectivity=Connectivity(weights=_weights(n_nodes)),
     )
     sweep_spec = SweepSpec(params={sweep_param: values})
     np_results = Sweeper(spec, sweep_spec, backend="numpy").run(20.0)

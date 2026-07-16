@@ -7,6 +7,7 @@ running the full JR model with jr_sigmoidal coupling produces different (and
 correct) results compared to the old difference-then-sigmoid convention.
 """
 
+from vbi.simulator.spec.connectivity import Connectivity
 import numpy as np
 import pytest
 
@@ -173,9 +174,9 @@ def _jr_spec(n_nodes, coupling_kind, tract_lengths=None):
         integrator=IntegratorSpec(method="heun", dt=0.05),
         coupling=CouplingSpec(coupling_kind),
         monitors=(MonitorSpec("raw"),),
-        weights=W,
-        tract_lengths=tract_lengths,
-        speed=4.0,
+        connectivity=Connectivity(weights=W, tract_lengths=tract_lengths, speed=4.0),
+
+
         node_params={"mu": np.full(n_nodes, 0.22), "G": 1.5},
     )
 

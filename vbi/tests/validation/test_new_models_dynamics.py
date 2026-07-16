@@ -11,6 +11,7 @@ These tests verify that each model produces the correct physics:
 All tests use the NumPy backend (backend="numpy") so they are independent
 of Numba/C++ compilation.
 """
+from vbi.simulator.spec.connectivity import Connectivity
 import dataclasses
 
 import numpy as np
@@ -44,7 +45,7 @@ def _isolated_spec(model, n_nodes=1, dt=0.01, node_params=None):
         integrator=IntegratorSpec(method="heun", dt=dt, stochastic=False),
         coupling=CouplingSpec("linear", a=0.0),
         monitors=(MonitorSpec("raw"),),
-        weights=np.zeros((n_nodes, n_nodes)),
+        connectivity=Connectivity(weights=np.zeros((n_nodes, n_nodes))),
         node_params=node_params or {},
     )
 
@@ -86,7 +87,7 @@ class TestLinearDynamics:
             integrator=IntegratorSpec(method="heun", dt=dt),
             coupling=CouplingSpec("linear", a=0.0),
             monitors=(MonitorSpec("raw"),),
-            weights=np.zeros((1, 1)),
+            connectivity=Connectivity(weights=np.zeros((1, 1))),
             node_params={"gamma": gamma},
         )
         t, d = _run(spec2, duration)
@@ -108,7 +109,7 @@ class TestLinearDynamics:
             integrator=IntegratorSpec(method="heun", dt=0.01),
             coupling=CouplingSpec("linear", a=0.0),
             monitors=(MonitorSpec("raw"),),
-            weights=np.zeros((1, 1)),
+            connectivity=Connectivity(weights=np.zeros((1, 1))),
             node_params={"gamma": -10.0},
         )
         t, d = _run(spec2, 5.0)
@@ -142,7 +143,7 @@ class TestKuramotoDynamics:
             integrator=IntegratorSpec(method="heun", dt=dt),
             coupling=CouplingSpec("linear", a=0.0),
             monitors=(MonitorSpec("raw"),),
-            weights=np.zeros((1, 1)),
+            connectivity=Connectivity(weights=np.zeros((1, 1))),
             node_params={"omega": omega},
         )
         t, d = _run(spec, duration)
@@ -166,7 +167,7 @@ class TestKuramotoDynamics:
             integrator=IntegratorSpec(method="heun", dt=0.01),
             coupling=CouplingSpec("linear", a=0.0),
             monitors=(MonitorSpec("raw"),),
-            weights=np.zeros((n, n)),
+            connectivity=Connectivity(weights=np.zeros((n, n))),
             node_params={"omega": omegas},
         )
         t, d = _run(spec, duration)
@@ -206,9 +207,9 @@ class TestKuramotoCoupling:
             integrator=IntegratorSpec(method="heun", dt=dt),
             coupling=CouplingSpec("kuramoto"),
             monitors=(MonitorSpec("raw"),),
-            weights=W,
-            tract_lengths=tract_lengths,
-            speed=speed,
+            connectivity=Connectivity(weights=W, tract_lengths=tract_lengths, speed=speed),
+
+
             node_params={"omega": np.full(n, float(omega)), "G": G},
         )
 
@@ -241,7 +242,7 @@ class TestKuramotoCoupling:
                 integrator=IntegratorSpec(method="heun", dt=dt),
                 coupling=coup,
                 monitors=(MonitorSpec("raw"),),
-                weights=W,
+                connectivity=Connectivity(weights=W),
                 node_params={"omega": omega, "G": G},
             )
             return Simulator(spec, backend="numpy").run(duration)["raw"][1]
@@ -263,7 +264,7 @@ class TestKuramotoCoupling:
             integrator=IntegratorSpec(method="heun", dt=0.01),
             coupling=CouplingSpec("kuramoto"),
             monitors=(MonitorSpec("raw"),),
-            weights=np.ones((n, n), dtype=float) - np.eye(n),
+            connectivity=Connectivity(weights=np.ones((n, n), dtype=float) - np.eye(n)),
             node_params={"omega": np.ones(n), "G": 1.0},
         )
         t, d = self._run(spec, 0.1)
@@ -301,7 +302,7 @@ class TestKuramotoCoupling:
             integrator=IntegratorSpec(method="heun", dt=0.01),
             coupling=CouplingSpec("kuramoto"),
             monitors=(MonitorSpec("raw"),),
-            weights=W, tract_lengths=tract, speed=1.0,
+            connectivity=Connectivity(weights=W, tract_lengths=tract, speed=1.0),
             node_params={"omega": np.ones(n), "G": 0.5},
         )
         _, d_np = Simulator(spec, backend="numpy").run(30.0)["raw"]
@@ -323,7 +324,7 @@ class TestSupHopfDynamics:
             integrator=IntegratorSpec(method="heun", dt=0.01),
             coupling=CouplingSpec("linear", a=0.0),
             monitors=(MonitorSpec("raw"),),
-            weights=np.zeros((1, 1)),
+            connectivity=Connectivity(weights=np.zeros((1, 1))),
             node_params={"a": -2.0, "omega": 1.0},
         )
         # Start off-centre
@@ -338,7 +339,7 @@ class TestSupHopfDynamics:
             integrator=IntegratorSpec(method="heun", dt=0.01),
             coupling=CouplingSpec("linear", a=0.0),
             monitors=(MonitorSpec("raw"),),
-            weights=np.zeros((1, 1)),
+            connectivity=Connectivity(weights=np.zeros((1, 1))),
             node_params={"a": -2.0, "omega": 1.0},
         )
         t, d = _run(spec2, 50.0)
@@ -359,7 +360,7 @@ class TestSupHopfDynamics:
             integrator=IntegratorSpec(method="heun", dt=0.01),
             coupling=CouplingSpec("linear", a=0.0),
             monitors=(MonitorSpec("raw"),),
-            weights=np.zeros((1, 1)),
+            connectivity=Connectivity(weights=np.zeros((1, 1))),
             node_params={"a": a_val, "omega": 1.0},
         )
         t, d = _run(spec, 500.0)
@@ -388,7 +389,7 @@ class TestGeneric2dOscillatorDynamics:
             integrator=IntegratorSpec(method="heun", dt=0.1),
             coupling=CouplingSpec("linear", a=0.0),
             monitors=(MonitorSpec("raw"),),
-            weights=np.zeros((1, 1)),
+            connectivity=Connectivity(weights=np.zeros((1, 1))),
         )
         t, d = _run(spec, 2000.0)
         # Check convergence: last 10% of trajectory should have small variance
@@ -410,7 +411,7 @@ class TestGeneric2dOscillatorDynamics:
             integrator=IntegratorSpec(method="heun", dt=0.1),
             coupling=CouplingSpec("linear", a=0.0),
             monitors=(MonitorSpec("raw"),),
-            weights=np.zeros((1, 1)),
+            connectivity=Connectivity(weights=np.zeros((1, 1))),
         )
         t, d = _run(spec, 5000.0)
         V_fp = d[-1, 0, 0]
@@ -427,7 +428,7 @@ class TestGeneric2dOscillatorDynamics:
             integrator=IntegratorSpec(method="heun", dt=0.01),
             coupling=CouplingSpec("linear", a=0.0),
             monitors=(MonitorSpec("raw"),),
-            weights=np.zeros((1, 1)),
+            connectivity=Connectivity(weights=np.zeros((1, 1))),
             node_params={"a": 2.0},
         )
         t, d = _run(spec, 500.0)
@@ -443,14 +444,14 @@ class TestGeneric2dOscillatorDynamics:
             integrator=IntegratorSpec(method="heun", dt=0.1),
             coupling=CouplingSpec("linear", a=0.0, b=0.0),
             monitors=(MonitorSpec("raw"),),
-            weights=np.zeros((1, 1)),
+            connectivity=Connectivity(weights=np.zeros((1, 1))),
         )
         spec_with_coup = SimulationSpec(
             model=generic_2d_oscillator,
             integrator=IntegratorSpec(method="heun", dt=0.1),
             coupling=CouplingSpec("linear", a=0.0, b=1.0),
             monitors=(MonitorSpec("raw"),),
-            weights=np.zeros((1, 1)),
+            connectivity=Connectivity(weights=np.zeros((1, 1))),
         )
         _, d0 = _run(spec_no_coup, 2000.0)
         _, d1 = _run(spec_with_coup, 2000.0)
@@ -465,7 +466,7 @@ class TestGeneric2dOscillatorDynamics:
             integrator=IntegratorSpec(method="heun", dt=0.1),
             coupling=CouplingSpec("linear", a=0.0),
             monitors=(MonitorSpec("raw"),),
-            weights=np.zeros((n, n)),
+            connectivity=Connectivity(weights=np.zeros((n, n))),
             node_params={"I": np.array([0.0, 0.5, 1.0])},
         )
         t, d = _run(spec, 2000.0)
@@ -489,7 +490,7 @@ class TestLarterBreakspearDynamics:
             integrator=IntegratorSpec(method="heun", dt=0.1),
             coupling=CouplingSpec("linear", a=0.0),
             monitors=(MonitorSpec("raw"),),
-            weights=np.zeros((1, 1)),
+            connectivity=Connectivity(weights=np.zeros((1, 1))),
             node_params={"d_V": 0.5},
         )
         t, d = _run(spec, 500.0)
@@ -505,7 +506,7 @@ class TestLarterBreakspearDynamics:
             integrator=IntegratorSpec(method="heun", dt=0.1),
             coupling=CouplingSpec("linear", a=0.0),
             monitors=(MonitorSpec("raw"),),
-            weights=np.zeros((1, 1)),
+            connectivity=Connectivity(weights=np.zeros((1, 1))),
             node_params={"d_V": 0.57},
         )
         t, d = _run(spec, 2000.0)
@@ -521,7 +522,7 @@ class TestLarterBreakspearDynamics:
             integrator=IntegratorSpec(method="heun", dt=0.05),
             coupling=CouplingSpec("linear", a=0.0),
             monitors=(MonitorSpec("raw"),),
-            weights=np.zeros((3, 3)),
+            connectivity=Connectivity(weights=np.zeros((3, 3))),
         )
         t, d = _run(spec, 100.0)
         assert np.isfinite(d).all(), "LarterBreakspear: non-finite output"
@@ -539,7 +540,7 @@ class TestCoombesByrne2DDynamics:
             integrator=IntegratorSpec(method="heun", dt=0.01),
             coupling=CouplingSpec("linear", a=0.05),
             monitors=(MonitorSpec("raw"),),
-            weights=np.abs(np.random.default_rng(0).standard_normal((6, 6))) * 0.1,
+            connectivity=Connectivity(weights=np.abs(np.random.default_rng(0).standard_normal((6, 6))) * 0.1),
         )
         t, d = _run(spec, 100.0)
         assert np.all(d[:, 0, :] >= 0.0), "CoombesByrne2D: r went negative"
@@ -558,7 +559,7 @@ class TestCoombesByrne2DDynamics:
             integrator=IntegratorSpec(method="heun", dt=0.001),
             coupling=CouplingSpec("linear", a=0.0),
             monitors=(MonitorSpec("raw"),),
-            weights=np.zeros((1, 1)),
+            connectivity=Connectivity(weights=np.zeros((1, 1))),
             node_params={"Delta": 1.0},
         )
         t, d = _run(spec, 5.0)
@@ -577,14 +578,14 @@ class TestCoombesByrne2DDynamics:
             integrator=IntegratorSpec(method="heun", dt=0.01),
             coupling=CouplingSpec("linear", a=0.0),
             monitors=(MonitorSpec("raw"),),
-            weights=W,
+            connectivity=Connectivity(weights=W),
         )
         spec_with_coup = SimulationSpec(
             model=coombes_byrne_2d,
             integrator=IntegratorSpec(method="heun", dt=0.01),
             coupling=CouplingSpec("linear", a=0.5),
             monitors=(MonitorSpec("raw"),),
-            weights=W,
+            connectivity=Connectivity(weights=W),
         )
         _, d0 = _run(spec_no_coup, 20.0)
         _, d1 = _run(spec_with_coup, 20.0)
@@ -604,7 +605,7 @@ class TestGastAdaptationDynamics:
             integrator=IntegratorSpec(method="heun", dt=0.01),
             coupling=CouplingSpec("linear", a=0.0),
             monitors=(MonitorSpec("raw"),),
-            weights=np.zeros((4, 4)),
+            connectivity=Connectivity(weights=np.zeros((4, 4))),
         )
         t, d = _run(spec, 50.0)
         assert np.all(d[:, 0, :] >= 0.0), "GastSD: r went negative"
@@ -616,7 +617,7 @@ class TestGastAdaptationDynamics:
             integrator=IntegratorSpec(method="heun", dt=0.01),
             coupling=CouplingSpec("linear", a=0.0),
             monitors=(MonitorSpec("raw"),),
-            weights=np.zeros((4, 4)),
+            connectivity=Connectivity(weights=np.zeros((4, 4))),
         )
         t, d = _run(spec, 50.0)
         assert np.all(d[:, 0, :] >= 0.0), "GastSF: r went negative"
@@ -629,7 +630,7 @@ class TestGastAdaptationDynamics:
                 integrator=IntegratorSpec(method="heun", dt=0.01),
                 coupling=CouplingSpec("linear", a=0.0),
                 monitors=(MonitorSpec("raw"),),
-                weights=np.zeros((1, 1)),
+                connectivity=Connectivity(weights=np.zeros((1, 1))),
             )
             _, d = _run(spec, 50.0)
             return d
@@ -646,7 +647,7 @@ class TestGastAdaptationDynamics:
             integrator=IntegratorSpec(method="heun", dt=0.01),
             coupling=CouplingSpec("linear", a=0.0),
             monitors=(MonitorSpec("raw"),),
-            weights=np.zeros((1, 1)),
+            connectivity=Connectivity(weights=np.zeros((1, 1))),
         )
         t, d = _run(spec, 50.0)
         # r (index 0) should be positive somewhere → B (index 3) should vary
@@ -670,7 +671,7 @@ class TestGastAdaptationDynamics:
                 integrator=IntegratorSpec(method="heun", dt=0.01),
                 coupling=CouplingSpec("linear", a=0.1),
                 monitors=(MonitorSpec("raw"),),
-                weights=W,
+                connectivity=Connectivity(weights=W),
                 node_params={"cr": cr, "cv": cv},
             )
 
@@ -711,9 +712,9 @@ def test_with_delays(model, dt, coup_a):
         integrator=IntegratorSpec(method="heun", dt=dt),
         coupling=CouplingSpec("linear", a=coup_a),
         monitors=(MonitorSpec("raw"),),
-        weights=W,
-        tract_lengths=D,
-        speed=4.0,
+        connectivity=Connectivity(weights=W, tract_lengths=D, speed=4.0),
+
+
     )
     t, d = Simulator(spec, backend="numpy").run(20.0)["raw"]
     assert np.isfinite(d).all(), f"{model.name}: non-finite output with delays"
