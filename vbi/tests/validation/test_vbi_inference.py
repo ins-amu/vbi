@@ -67,7 +67,7 @@ class TestInferencePipelineCore:
         inf = _make_inf()
         r = repr(inf)
         assert "InferencePipeline" in r
-        assert "maf" in r
+        assert "vbi:SNPE" in r
 
     def test_simulate_returns_shapes(self):
         inf = _make_inf()
