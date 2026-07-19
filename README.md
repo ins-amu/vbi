@@ -60,6 +60,8 @@ pip install vbi[inference]         # With parameter inference
 pip install vbi[inference-gpu]     # Full functionality with GPU support
 ```
 
+👉 Ready to try it out? Start with a working example: [Introduction & Feature Extraction](https://vbi.readthedocs.io/latest/examples/intro_feature.html).
+
 ### Installation Options
 
 - **`pip install vbi`** - Light version with CPU simulation only  
