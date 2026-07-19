@@ -97,7 +97,7 @@ vbi.test_imports()
                                          
   Package      Version       Status        
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 
-  vbi          v0.2.1        ✅ Available  
+  vbi          v0.4.3        ✅ Available  
   numpy        1.24.4        ✅ Available  
   scipy        1.10.1        ✅ Available  
   matplotlib   3.7.5         ✅ Available  
