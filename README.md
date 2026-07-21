@@ -60,11 +60,7 @@ pip install vbi[inference]         # With parameter inference
 pip install vbi[inference-gpu]     # Full functionality with GPU support
 ```
 
-### Installation Options
-
-- **`pip install vbi`** - Light version with CPU simulation only  
-- **`pip install vbi[inference]`** - Adds parameter inference capabilities  
-- **`pip install vbi[inference-gpu]`** - Full functionality with GPU acceleration  
+👉 Ready to try it out? Start with a working example: [Introduction & Feature Extraction](https://vbi.readthedocs.io/latest/examples/intro_feature.html).
 
 ### Using Docker
 
@@ -101,7 +97,7 @@ vbi.test_imports()
                                          
   Package      Version       Status        
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 
-  vbi          v0.2.1        ✅ Available  
+  vbi          v0.4.3        ✅ Available  
   numpy        1.24.4        ✅ Available  
   scipy        1.10.1        ✅ Available  
   matplotlib   3.7.5         ✅ Available  
