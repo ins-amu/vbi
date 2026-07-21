@@ -281,7 +281,7 @@ class ParWC:
         self.shift_sigmoid = shift_sigmoid
 
 
-@njit
+@njit(cache=True)
 def sigmoid_vec(x, a, b, c, shift_sigmoid):
     """
     Vectorized sigmoidal transfer function for Wilson-Cowan model.
@@ -320,7 +320,7 @@ def sigmoid_vec(x, a, b, c, shift_sigmoid):
     return y
 
 
-@njit
+@njit(cache=True)
 def f_wc(x, t, P):
     """
     Compute the right-hand side of the Wilson-Cowan neural mass model.
@@ -385,7 +385,7 @@ def f_wc(x, t, P):
     return dxdt
 
 
-@njit
+@njit(cache=True)
 def heun_sde(x, t, P):
     dt = P.dt
     coeff = P.noise_amp * np.sqrt(dt)
@@ -398,7 +398,7 @@ def heun_sde(x, t, P):
     return x_out
 
 
-@njit
+@njit(cache=True)
 def set_initial_state(nn, seed=-1):
     if seed >= 0:
         set_seed_compat(seed)

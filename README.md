@@ -2,12 +2,12 @@
 [![Documentation Status](https://readthedocs.org/projects/vbi/badge/?version=latest)](https://vbi.readthedocs.io/latest/)
 [![DOI](https://zenodo.org/badge/681090816.svg)](https://doi.org/10.5281/zenodo.14795543)
 [![Docker Build](https://github.com/ins-amu/vbi/actions/workflows/docker-image.yml/badge.svg)](https://github.com/ins-amu/vbi/actions/workflows/docker-image.yml)
-<!-- [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/ins-amu/vbi/main?labpath=docs/examples/intro.ipynb) -->
+<!-- [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/ins-amu/vbi/main?labpath=examples/intro.ipynb) -->
 
 
 # VBI: Virtual Brain Inference
 ---
-[Getting Started](https://github.com/ins-amu/vbi/tree/main/docs/examples) |
+[Getting Started](https://github.com/ins-amu/vbi/tree/main/examples) |
 [Documentation](https://vbi.readthedocs.io/latest/) | 
 
 <p align="center">
@@ -115,7 +115,7 @@ vbi.test_imports()
 ## Getting Started
 
 - **📚 [Documentation](https://vbi.readthedocs.io/latest/)** - Complete guides and API reference
-- **🎯 [Examples](https://github.com/ins-amu/vbi/tree/main/docs/examples)** - Jupyter notebooks with tutorials
+- **🎯 [Examples](https://github.com/ins-amu/vbi/tree/main/examples)** - Jupyter notebooks with tutorials
 - **🚀 [Quick Start](https://vbi.readthedocs.io/latest/examples_overview.html)** - Choose your computational backend
 
 ### Interactive Examples
@@ -134,6 +134,12 @@ Try these examples directly in your browser using Google Colab:
 | MPR SDE | <a href="https://colab.research.google.com/github/Ziaeemehr/vbi_paper/blob/main/docs/examples/mpr_sde_numba_cde.ipynb" target="_parent"><img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/></a> |
 | Damped Oscillator | <a href="https://colab.research.google.com/github/Ziaeemehr/vbi_paper/blob/main/docs/examples/damp_oscillator_cde.ipynb" target="_parent"><img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/></a> |
 
+
+## Upcoming: Unified API (v0.5)
+
+VBI is transitioning to a unified `vbi.simulator` and `vbi.inference` API that works consistently across all computational backends (NumPy, Numba, CUDA, C++). The current model-specific paths remain fully supported during this transition.
+
+> Documentation is in progress and will be published alongside the stable release. For the full transition plan, see [notes/README.md](notes/README.md).
 
 ## Feedback and Contributions
 

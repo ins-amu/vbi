@@ -134,7 +134,7 @@ class ParRWW:
 # -----------------------------
 # Transfer function H(x)
 # -----------------------------
-@njit
+@njit(cache=True)
 def H(x, a, b, d):
     u = a * x - b
     out = np.zeros_like(x)
@@ -150,7 +150,7 @@ def H(x, a, b, d):
 # -----------------------------
 # RHS of reduced model
 # -----------------------------
-@njit
+@njit(cache=True)
 def f_rww(S, t, P):
     nn = P.nn
     # recurrent & global input
@@ -163,7 +163,7 @@ def f_rww(S, t, P):
 # -----------------------------
 # Heun SDE integrator
 # -----------------------------
-@njit
+@njit(cache=True)
 def heun_sde(S, t, P):
     dt = P.dt
     nn = P.nn
@@ -414,7 +414,7 @@ class RWW_sde(BaseNumbaModel):
 # API helpers
 # -----------------------------
 
-@njit
+@njit(cache=True)
 def set_initial_state(nn, seed=-1):
     """
     Generate random initial conditions for the Reduced Wong-Wang model.
@@ -446,6 +446,6 @@ def set_seed_compat(x):
     """Numba-compatible random seed setter."""
     np.random.seed(x)
 
-@njit
+@njit(cache=True)
 def reset_numba_rng(seed):
     np.random.seed(seed)

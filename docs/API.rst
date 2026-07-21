@@ -193,22 +193,6 @@ vbi.models.pytorch.rww_sde_kong
         :undoc-members:
 
 
-TVB-K models 
-------------
-
-vbi.models.tvbk.tvbk_wrapper
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    .. automodule:: vbi.models.tvbk.tvbk_wrapper
-        :members:
-        :undoc-members:
-
-vbi.models.tvbk.utils
-~~~~~~~~~~~~~~~~~~~~~
-    .. automodule:: vbi.models.tvbk.utils
-        :members:
-        :undoc-members:
-
-
 Core VBI modules
 ----------------
 
@@ -261,6 +245,12 @@ vbi.feature_extraction.features_settings
 vbi.feature_extraction.features_utils
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     .. automodule:: vbi.feature_extraction.features_utils
+        :members:
+        :undoc-members:
+
+vbi.feature_extraction.features_utils_jax
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    .. automodule:: vbi.feature_extraction.features_utils_jax
         :members:
         :undoc-members:
 

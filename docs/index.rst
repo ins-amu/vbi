@@ -192,22 +192,18 @@ Brain Models
 
    models
 
-Inference Methods & Examples
-----------------------------
+
+Examples & Demos
+----------------
 
 .. toctree::
    :maxdepth: 1
+   :titlesonly:
 
-   inference_examples
+   auto_examples/simulator_models/index
+   auto_examples/workflows/index
+   legacy_examples
 
-Examples & Tutorials
---------------------
-
-.. toctree::
-   :maxdepth: 1
-
-   examples_overview
-   Examples
 
 API Reference
 -------------
@@ -224,6 +220,3 @@ Indices and tables
 * :ref:`genindex`
 * :ref:`modindex`
 * :ref:`search`
-
-
-

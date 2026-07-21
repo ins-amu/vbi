@@ -44,7 +44,7 @@ def _as_1d_array_like(x, nn):
     raise ValueError("Parameter must be scalar or 1D array of length nn")
 
 
-@njit
+@njit(cache=True)
 def set_initial_state_jr(nn, seed=-1):
     """
     Initial state for JR: stack 6*n vectors.
@@ -206,7 +206,7 @@ def S_sigmoid(x, vmax, r, v0):
     return vmax / (1.0 + np.exp(z_clipped))
 
 
-@njit
+@njit(cache=True)
 def f_jr(x, t, P):
     """
     Compute the right-hand side of the Jansen-Rit differential equations.
@@ -266,7 +266,7 @@ def f_jr(x, t, P):
     return dxdt
 
 
-@njit
+@njit(cache=True)
 def heun_sde(x, t, P):
     """
     Perform one step of Heun's method for stochastic differential equations.

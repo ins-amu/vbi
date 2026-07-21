@@ -39,8 +39,7 @@ RUN python -m pip install --upgrade pip
 RUN pip install --no-cache-dir \
     hatchling \
     setuptools>=45 \
-    wheel \
-    swig>=4.0
+    wheel
 
 ## Install PyTorch with CUDA 12.x wheels before project install (ensures GPU-enabled torch)
 ## See: https://pytorch.org/get-started/locally/  (cu121 wheels work with CUDA 12.1+ runtime, works on 12.2 base)
@@ -50,6 +49,9 @@ RUN pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cu12
 COPY . .
 
 RUN pip install .[all-docker] --no-cache-dir
+
+# Compile C++ SWIG modules for the container's Python version
+RUN cd vbi/models/cpp/_src && make parallel
 
 # Install CuPy for CUDA 12.x
 RUN pip install --no-cache-dir cupy-cuda12x

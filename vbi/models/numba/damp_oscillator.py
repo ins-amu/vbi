@@ -103,7 +103,7 @@ class Param:
         self.initial_state = initial_state
 
 
-@njit
+@njit(cache=True)
 def _f_sys(x, P):
     """
     System function for the damped oscillator model.
@@ -130,7 +130,7 @@ def _f_sys(x, P):
                         x[0]*x[1] - x[1] - b * x[1] * x[1]])
 
 
-@njit
+@njit(cache=True)
 def euler(x, P):
     """
     Euler integration method for the damped oscillator.
@@ -151,7 +151,7 @@ def euler(x, P):
     """
     return x + P.dt * _f_sys(x, P)
 
-@njit
+@njit(cache=True)
 def heun(x, P):
     """
     Heun's integration method for the damped oscillator.
@@ -176,7 +176,7 @@ def heun(x, P):
     k1 = _f_sys(x1, P)
     return x + 0.5 * P.dt * (k0 + k1)
 
-@njit 
+@njit(cache=True)
 def rk4(x, P):
     """
     Fourth-order Runge-Kutta integration method for the damped oscillator.
@@ -203,7 +203,7 @@ def rk4(x, P):
     return x + P.dt * (k1 + 2 * k2 + 2 * k3 + k4) / 6.0
 
 
-@njit
+@njit(cache=True)
 def _integrate(x, P, intg=euler):
     """
     Main integration function with burn-in period.

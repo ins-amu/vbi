@@ -23,7 +23,6 @@ from typing import Union
 from copy import deepcopy
 import scipy.stats as stats
 from numpy import linalg as LA
-from sklearn.decomposition import PCA
 
 # Optional torch import
 try:
@@ -284,11 +283,12 @@ def get_fc(ts, masks=None, positive=False, fc_fucntion="corrcoef"):
 
 def get_fcd(
     ts,
-    TR=1,
-    win_len=30,
-    positive=False,
+    tr: float | int | None = None,
+    win_len: float | int = 30,
+    positive: bool = False,
     masks=None,
-    #!TODO: add overlap
+    overlap: float | None = None,
+    TR: float | None = None,  # Deprecated, kept for backward compatibility
 ):
     """
     Compute dynamic functional connectivity.
@@ -298,43 +298,139 @@ def get_fcd(
 
     ts: numpy.ndarray [n_regions, n_timepoints]
         Input signal
-    win_len: int
-        sliding window length in samples, default is 30
-    TR: int
-        repetition time. It refers to the amount of time that
-        passes between consecutive acquired brain volumes during
-        functional magnetic resonance imaging (fMRI) scans.
+    tr: int, float, optional
+        Repetition time in any time unit (milliseconds, seconds, etc.).
+        This parameter sets the unit for `win_len` and `overlap`.
+        Default is 1 (dimensionless, treating window parameters as sample counts).
+    win_len: int, float
+        Sliding window length in the same units as `tr`.
+        For example, if tr=1ms and win_len=30, the window is 30ms.
+        If tr=1 (default), win_len is in sample units.
+        Default is 30.
     positive: bool
-        if True, only positive values of FC are considered.
-        default is False
-    masks: dict
-        dictionary of masks to compute FCD on.
-        default is None, which means that FCD is computed on the full matrix.
-        see also `hbt.utility.make_mask` and `hbt.utility.get_masks`.
+        If True, only positive values of FC are considered (negative correlations set to 0).
+        Default is False.
+    masks: dict, optional
+        Dictionary of masks to compute FCD on.
+        Default is None, which means that FCD is computed on the full matrix.
+        See also `hbt.utility.make_mask` and `hbt.utility.get_masks`.
+    overlap: float, optional
+        Overlap between consecutive windows as a fraction (0.0 to 1.0).
+        - overlap=0.0: no overlap (stride = win_len, non-overlapping windows)
+        - overlap=0.5: 50% overlap (stride = win_len/2)
+        - overlap=0.9: 90% overlap (stride = win_len/10, high overlap)
+        - overlap=1.0: maximum overlap (stride = 1 sample)
+        - If None (default): uses stride of 1 sample (equivalent to overlap=1.0, backward compatible)
+        
+        **Intuitive rule**: Higher overlap value = MORE overlap between windows
+        
+        Examples:
+            - overlap=0.0 with win_len=30 → stride=30 (no overlap)
+            - overlap=0.5 with win_len=30 → stride=15 (50% overlap)
+            - overlap=0.95 with win_len=30 → stride≈2 (95% overlap)
+    TR: int, optional
+        **Deprecated**. Use `tr` instead. Kept for backward compatibility.
 
     Returns
     -------
-        FCD: ndarray
-            matrix of functional connectivity dynamics
+        FCD: dict
+            Dictionary of functional connectivity dynamics matrices, one for each mask.
+            Each FCD is a square matrix of size (n_windows, n_windows) representing
+            correlations between windowed FC patterns over time.
+    
+    Notes
+    -----
+    All temporal parameters (`tr`, `win_len`) must use the same time unit:
+    - milliseconds: tr=2, win_len=6000, overlap=0.95
+    - seconds: tr=0.002, win_len=6, overlap=0.95
+    - dimensionless (sample counts): tr=1, win_len=30, overlap=0.9
+    
+    The `overlap` parameter is always a fraction (0-1), independent of units.
+    
+    Examples
+    --------
+    >>> import numpy as np
+    >>> ts = np.random.randn(5, 200)  # 5 regions, 200 timepoints
+    >>> 
+    >>> # Maximum overlap (backward compatible, stride=1)
+    >>> fcd = get_fcd(ts, tr=1, win_len=30)  # or overlap=1.0
+    >>> 
+    >>> # 90% overlap (high overlap, intuitive!)
+    >>> fcd = get_fcd(ts, tr=1, win_len=30, overlap=0.9)
+    >>> 
+    >>> # 50% overlap (moderate)
+    >>> fcd = get_fcd(ts, tr=1, win_len=30, overlap=0.5)
+    >>> 
+    >>> # No overlap
+    >>> fcd = get_fcd(ts, tr=1, win_len=30, overlap=0.0)
+    >>> 
+    >>> # Using milliseconds: TR=2ms, 60ms windows with 95% overlap
+    >>> fcd = get_fcd(ts, tr=2, win_len=60, overlap=0.95)
     """
+    # Handle backward compatibility for TR parameter
+    if TR is not None and tr is None:
+        import warnings
+        warnings.warn(
+            "Parameter 'TR' is deprecated and will be removed in a future version. "
+            "Please use 'tr' instead.",
+            DeprecationWarning,
+            stacklevel=2
+        )
+        tr = TR
+    elif TR is not None and tr is not None:
+        raise ValueError("Cannot specify both 'TR' and 'tr'. Please use 'tr' only.")
+    elif tr is None:
+        tr = 1  # Default value
+    
     if not isinstance(ts, np.ndarray):
         ts = np.array(ts)
 
     ts = ts.T
     n_samples, n_nodes = ts.shape
+    
+    # Calculate window length in samples
+    win_len_samples = int(win_len / tr)
+    
     # check if lenght of the time series is enough
-    if n_samples < 2 * win_len:
+    if n_samples < 2 * win_len_samples:
         raise ValueError(
-            f"get_fcd: Length of the time series should be at least 2 times of win_len. n_samples: {n_samples}, win_len: {win_len}"
+            f"get_fcd: Length of the time series should be at least 2 times of win_len. n_samples: {n_samples}, win_len: {win_len_samples}"
         )
 
     mask_full = np.ones((n_nodes, n_nodes))
     if masks is None:
         masks = {"full": mask_full}
 
+    # Determine stride based on overlap (fraction-based)
+    if overlap is None:
+        # Backward compatible: maximum overlap with stride=1
+        stride = 1
+    else:
+        # Validate overlap is in [0, 1]
+        if not (0.0 <= overlap <= 1.0):
+            raise ValueError(
+                f"get_fcd: overlap must be between 0.0 and 1.0, got {overlap}"
+            )
+        
+        # Calculate stride from overlap fraction
+        # overlap=0 → stride=win_len (no overlap)
+        # overlap=1 → stride=1 (maximum overlap)
+        # overlap=0.5 → stride=win_len/2 (50% overlap)
+        if overlap == 1.0:
+            stride = 1
+        else:
+            stride = max(1, int(win_len_samples * (1.0 - overlap)))
+
+    
+    # Generate windowed data with the specified stride
     windowed_data = np.lib.stride_tricks.sliding_window_view(
-        ts, (int(win_len / TR), n_nodes), axis=(0, 1)
+        ts, (win_len_samples, n_nodes), axis=(0, 1)
     ).squeeze()
+    
+    # Apply stride if not 1
+    if stride > 1:
+        windowed_data = windowed_data[::stride]
+    
     n_windows = windowed_data.shape[0]
     fc_stream = np.asarray(
         [np.corrcoef(windowed_data[i, :, :], rowvar=False) for i in range(n_windows)]
@@ -926,6 +1022,7 @@ def matrix_stat(
 
     if pca_num_components:
         try: 
+            from sklearn.decomposition import PCA
             pca = PCA(n_components=pca_num_components)
             pca_a = pca.fit_transform(A)
         except:

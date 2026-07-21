@@ -50,7 +50,7 @@ MPR_DEFAULTS = {
 }
 
 
-@njit
+@njit(cache=True)
 def f_mpr(x, t, P):
     """
     Compute the right-hand side of the Montbrió neural mass model.
@@ -99,7 +99,7 @@ def f_mpr(x, t, P):
     return dxdt
 
 
-@njit
+@njit(cache=True)
 def heun_sde(x, t, P):
     """
     Perform one step of Heun's method for stochastic differential equations.
@@ -138,7 +138,7 @@ def heun_sde(x, t, P):
     return x
 
 
-@njit
+@njit(cache=True)
 def do_bold_step(r_in, s, f, ftilde, vtilde, qtilde, v, q, dtt, P):
     """
     Perform one step of BOLD signal computation using the Balloon-Windkessel model.
@@ -695,7 +695,7 @@ class MPR_sde(BaseNumbaModel):
         return integrate(self.P, self.B)
 
 
-@njit
+@njit(cache=True)
 def set_initial_state(nn, seed=None):
     """
     Generate random initial state for the Montbrió model.

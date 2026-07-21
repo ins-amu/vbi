@@ -15,6 +15,11 @@ from multiprocessing import Pool
 import vbi.feature_extraction.features
 from vbi.feature_extraction.features_settings import Data_F
 
+# Cache resolved callables (name → fn) and loaded features_path modules (path → module).
+# eval() and importlib.reload() each run at most once per function/path per process.
+_func_cache: dict = {}
+_loaded_paths: set = set()
+
 
 def calc_features(
     ts: np.ndarray,
@@ -48,12 +53,13 @@ def calc_features(
 
     features_path = cfg["features_path"] if ("features_path" in cfg.keys()) else None
 
-    if features_path:
+    if features_path and features_path not in _loaded_paths:
         module_name = features_path.split(os.sep)[-1][:-3]
         sys.path.append(features_path[: -len(features_path.split(os.sep)[-1]) - 1])
         exec("import " + module_name)
         importlib.reload(sys.modules[features_path.split(os.sep)[-1][:-3]])
         exec("from " + module_name + " import *")
+        _loaded_paths.add(features_path)
 
     # module = sys.modules[module_name]
     # print(module.calc_mean)
@@ -91,7 +97,13 @@ def calc_features(
 
                 if preprocess is not None:
                     ts = preprocess(ts, **preprocess_args)
-                val, lab = eval(func)(ts, **params)
+                if func not in _func_cache:
+                    if features_path:
+                        _mod = sys.modules[features_path.split(os.sep)[-1][:-3]]
+                        _func_cache[func] = getattr(_mod, func)
+                    else:
+                        _func_cache[func] = eval(func)
+                val, lab = _func_cache[func](ts, **params)
 
                 if isinstance(val, (np.ndarray, list)):
                     labels.extend(lab)

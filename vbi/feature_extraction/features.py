@@ -1710,7 +1710,8 @@ def spectrum_moments(
 
     info, n = prepare_input_ts(ts)
     if not info:
-        return [np.nan] * n, [f"spectrum_moment_{i}" for i in range(n)]
+        n_moments = len(moments)
+        return [np.nan] * n_moments, [f"spectrum_moment_{i}" for i in moments]
     else:
         ts = n
         ts = ts - ts.mean(axis=1, keepdims=True)

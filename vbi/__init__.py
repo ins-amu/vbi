@@ -31,22 +31,25 @@ from ._version import __version__
 tests = run_tests
 
 
-from .feature_extraction.calc_features import (
-    extract_features_df,
-    extract_features_list,
-    extract_features,
-    calc_features,
-)
+try:
+    from .feature_extraction.calc_features import (
+        extract_features_df,
+        extract_features_list,
+        extract_features,
+        calc_features,
+    )
 
-from .feature_extraction.features_settings import (
-    get_features_by_given_names,
-    get_features_by_domain,
-    update_cfg,
-    add_feature,
-    add_features_from_json,
-)
+    from .feature_extraction.features_settings import (
+        get_features_by_given_names,
+        get_features_by_domain,
+        update_cfg,
+        add_feature,
+        add_features_from_json,
+    )
 
-from .feature_extraction.features_utils import report_cfg
+    from .feature_extraction.features_utils import report_cfg
+except Exception:
+    pass
 from .utils import LoadSample, timer, display_time, BoxUniform
 
 # Always available numpy-based functions
@@ -101,7 +104,7 @@ except ImportError:
 try:
     from .sbi_inference import Inference
     _INFERENCE_AVAILABLE = True
-except ImportError:
+except Exception:
     _INFERENCE_AVAILABLE = False
     
     class Inference:

@@ -1,25 +1,131 @@
-name: Test
+name: Tests
 
-on: [push]
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
 
 jobs:
-  test:
+  # -------------------------------------------------------------------------
+  # Fast CI - runs on every push / PR (~3 min)
+  # Covers: spec correctness, NumPy baselines, pipeline.
+  # Skips:  Numba JIT, C++ compilation, dynamics simulations, CUDA.
+  # -------------------------------------------------------------------------
+  fast:
+    name: Fast tests (no JIT / no compiler)
     runs-on: ubuntu-latest
+
     steps:
-    - uses: actions/checkout@v2
-    - name: Set up Python
-      uses: actions/setup-python@v2
-      with:
-        python-version: "3.10"
-    - name: Install system dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y build-essential swig
+      - uses: actions/checkout@v4
 
-    - name: Install Python package (compiles C++ extensions)
-      run: |
-        python -m pip install -e .[inference]
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
 
-    - name: Run tests
-      run: |
-        python -m pytest
+      - name: Install core + CI dependencies
+        run: |
+          pip install --upgrade pip
+          # Core simulation deps only - no mako/pybind11 (no C++ backend needed)
+          pip install ".[ci]"
+          # Explicit install guards against setup.py/pyproject.toml metadata merge
+          # issues where setup.py's missing install_requires can shadow pyproject.toml deps.
+          pip install "autograd>=1.6"
+
+      - name: Fast tests  (not slow, not cuda)
+        run: |
+          pytest vbi/tests/validation/ \
+            -m "not slow and not cuda_fast and not cuda_slow" \
+            --ignore=vbi/tests/validation/test_mpr_cuda.py \
+            -q --tb=short
+
+  # -------------------------------------------------------------------------
+  # Full CI - runs only on push to main or develop (~15 min)
+  # Covers everything except CUDA (no GPU on GitHub hosted runners).
+  # -------------------------------------------------------------------------
+  full:
+    name: Full tests (Numba + C++)
+    runs-on: ubuntu-latest
+    if: |
+      github.ref == 'refs/heads/main' ||
+      github.ref == 'refs/heads/develop' ||
+      github.ref == 'refs/heads/vbi_develop_auto'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install system dependencies (C++ backend)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y build-essential cmake
+
+      - name: Install all CPU dependencies
+        run: |
+          pip install --upgrade pip
+          pip install ".[cpp,dev]"
+
+      - name: Cache Numba JIT artifacts
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/numba
+          key: numba-${{ runner.os }}-py312-${{ hashFiles('vbi/simulator/backend/numba_/**/*.py') }}
+          restore-keys: numba-${{ runner.os }}-py312-
+
+      - name: Cache VBI C++ compiled modules
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/vbi/cpp
+          key: vbi-cpp-${{ runner.os }}-${{ hashFiles('vbi/simulator/backend/cpp/_src/**') }}
+          restore-keys: vbi-cpp-${{ runner.os }}-
+
+      - name: Full tests  (skip CUDA - no GPU on hosted runner)
+        env:
+          NUMBA_CACHE_DIR: ~/.cache/numba
+        run: |
+          pytest vbi/tests/validation/ \
+            --ignore=vbi/tests/validation/test_mpr_cuda.py \
+            -q --tb=short
+
+  # -------------------------------------------------------------------------
+  # CUDA tests - requires a self-hosted GPU runner.
+  # Trigger manually or on tags (uncomment to enable on push to main).
+  # -------------------------------------------------------------------------
+  cuda:
+    name: CUDA tests (GPU runner required)
+    runs-on: self-hosted          # replace with your GPU runner label
+    if: false                     # set to true when a GPU runner is available
+    # if: github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install ".[cpp,dev]"
+
+      - name: Fast CUDA tests
+        run: |
+          pytest vbi/tests/validation/test_mpr_cuda.py \
+            -m cuda_fast \
+            -q --tb=short
+
+      - name: Full CUDA tests
+        run: |
+          pytest vbi/tests/validation/test_mpr_cuda.py \
+            -q --tb=short
