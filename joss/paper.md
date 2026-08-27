@@ -49,14 +49,14 @@ Understanding the principles and causal mechanisms underlying complex brain (dys
 
 # Statement of Need
 
-VBI (https://github.com/ins-amu/vbi) is a Python-based toolkit tailored for probabilistic inference at the whole-brain scale. A lightweight version with minimal dependencies is available to run online in JupyterLab (@Kluyver2016jupyter). It also leverages the flexibility of Python while harnessing the high performance of C++ for optimized computation and massive parallelization using CUDA on GPUs. VBI seamlessly integrates structural and functional neuroimaging data, providing space-efficient storage and memory-optimized batch processing. With its user-friendly API supporting:
+VBI (https://github.com/ins-amu/vbi) is a Python-based toolkit tailored for probabilistic inference at the whole-brain scale. A lightweight version with minimal dependencies is available to run online in JupyterLab [@Kluyver2016jupyter]. It also leverages the flexibility of Python while harnessing the high performance of C++ for optimized computation and massive parallelization using CUDA on GPUs. VBI seamlessly integrates structural and functional neuroimaging data, providing space-efficient storage and memory-optimized batch processing. With its user-friendly API supporting:
 
-- **Whole-brain models**: Wilson-Cowan (@WilsonCowan1972), Jansen-Rit (@JansenRit1995), Stuart-Landau (@Cabral2011), Montbrió (@Montbrio2015), Wong-Wang (@Deco2013), and Epileptor (@Jirsa2014).
+- **Whole-brain models**: Wilson-Cowan [@WilsonCowan1972], Jansen-Rit [@JansenRit1995], Stuart-Landau [@Cabral2011], Montbrió [@Montbrio2015], Wong-Wang [@Deco2013], and Epileptor [@Jirsa2014].
 - **Fast simulation**: Just-in-time compilation of models across Python/C++ and CPU/GPU devices.
 - **Feature extraction**: Functional connectivity (FC), functional connectivity dynamics (FCD), and power spectral density (PSD).
-- **Deep neural density estimators**: Masked autoregressive flows (MAFs; @Papamakarios2017), and neural spline flows (NSFs; @Durkan2019).
+- **Deep neural density estimators**: Masked autoregressive flows [MAFs\; @Papamakarios2017], and neural spline flows [NSFs\; @Durkan2019].
 
-Traditional methods such as Markov Chain Monte Carlo (MCMC) and Approximate Bayesian Computation (ABC) face significant challenges in this context [@Sisson2007]. Gradient-free MCMC struggles in high-dimensional settings. Gradient-based approaches, meanwhile, often have difficulty converging for bistable systems with switching dynamics, often requiring extensive tuning [@Betancourt2013b] and computational resources [@Hashemi2020]. ABC suffers from the curse of dimensionality and relies on predefined thresholds for sample acceptance, leading to inefficiencies and potential biases when rejecting samples that fall outside narrow criteria [@Jha2022]. VBI leverages advanced Simulation-based Inference (SBI; @cranmer2020frontier), which sidesteps these issues by using only forward simulations and training deep neural density estimators to directly approximate posterior distributions [@gonccalves2020training ; @hashemi2023amortized]. This approach enhances efficiency, scalability, and robustness for inverting complex whole-brain models [@hashemi2024simulation].
+Traditional methods such as Markov Chain Monte Carlo (MCMC) and Approximate Bayesian Computation (ABC) face significant challenges in this context [@Sisson2007]. Gradient-free MCMC struggles in high-dimensional settings. Gradient-based approaches, meanwhile, often have difficulty converging for bistable systems with switching dynamics, often requiring extensive tuning [@Betancourt2013b] and computational resources [@Hashemi2020]. ABC suffers from the curse of dimensionality and relies on predefined thresholds for sample acceptance, leading to inefficiencies and potential biases when rejecting samples that fall outside narrow criteria [@Jha2022]. VBI leverages advanced Simulation-based Inference [SBI\; @cranmer2020frontier], which sidesteps these issues by using only forward simulations and training deep neural density estimators to directly approximate posterior distributions [@gonccalves2020training ; @hashemi2023amortized]. This approach enhances efficiency, scalability, and robustness for inverting complex whole-brain models [@hashemi2024simulation].
 
 Designed for researchers and clinical applications, VBI enables personalized simulations of normal and pathological brain activity, aiding in distinguishing healthy from diseased states, and potentially informing clinical decision making. By addressing the efficient and scalable probabilistic inverse problem, VBI leverages high-performance computing for parallel processing of large-scale datasets [@Ziaeemehr2025].
 
@@ -68,7 +68,7 @@ No single existing tool combines the components needed for scalable, amortized i
 
 # Software Design
 
-**Design goals and trade-offs.** VBI was designed to solve the inverse problem for whole-brain models under realistic computational constraints. The primary goals were scalability to large simulation budgets, support for amortized probabilistic inference, and modularity across models, features, and inference algorithms. A key trade-off concerned flexibility versus performance: while pure Python implementations simplify extensibility, they are insufficient for large-scale simulation-based inference. VBI therefore adopts a hybrid design, exposing a Python API while relying on just-in-time compilation and GPU acceleration for performance-critical components. This choice enables rapid prototyping while achieving up to 100× speedups compared to CPU-based single core implementations.
+**Design goals and trade-offs.** VBI was designed to solve the inverse problem for whole-brain models under realistic computational constraints. The primary goals were scalability to large simulation budgets, support for amortized probabilistic inference, and modularity across models, features, and inference algorithms. A key trade-off concerned flexibility versus performance: while pure Python implementations simplify extensibility, they are insufficient for large-scale simulation-based inference. VBI therefore adopts a hybrid design, exposing a Python API while relying on just-in-time compilation and GPU acceleration for performance-critical components. This choice enables rapid prototyping while achieving up to 100× speedups compared to CPU-based single core implementations, as benchmarked in [@Ziaeemehr2025].
 
 **Architecture.** The toolkit is organized around three decoupled layers: (1) simulators for whole-brain neural mass models, (2) feature-extraction operators for neuroimaging-derived statistics, and (3) inference backends based on simulation-based inference. Clear interfaces between these layers allow users to independently exchange models, features, or density estimators. Deployment on EBRAINS further motivated containerized, dependency-light components and a JupyterLab-based execution model, which was later extended with a graphical workflow editor for non-programmatic interaction.
 
@@ -80,7 +80,7 @@ Near-term impact is reinforced by the EBRAINS integration, which provides ready-
 
 # AI Usage Disclosure
 
-Generative AI tools, specifically Claude Sonnet models (Anthropic; @AnthropicSystemCard2025) and GPT-5 models (OpenAI; @OpenAIGPT5SystemCard2025), were used mainly for language polishing and documentation drafting of this manuscript, and for minor code refactoring assistance. All scientific content, software design decisions, implementation, and validation results were conceived, written, and verified by the authors; the majority of the codebase was authored directly by the authors rather than produced through autonomous or "vibe coding" workflows.
+Generative AI tools, specifically Claude Sonnet 4.5 [@AnthropicSystemCard2025] and GPT-5.1 [@OpenAIGPT5SystemCard2025], were used mainly for language polishing and documentation drafting of this manuscript, and for minor code refactoring assistance. All scientific content, software design decisions, implementation, and validation results were conceived, written, and verified by the authors; the majority of the codebase was authored directly by the authors rather than produced through autonomous or "vibe coding" workflows.
 
 # Methods
 
@@ -110,8 +110,8 @@ Together, these yield a training dataset $\{(\vec{\theta}_i, \vec{x}_i)\}_{i=1}^
 The VBI workflow comprises:
 
 1. **Fast simulation**: generating data associated with various neuroimaging recordings.
-2. **Feature extraction**: Computing statistical, spatiotemporal, and other features.
-3. **Efficient Inference**: Amortized training of deep neural density estimators.
+2. **Feature extraction**: computing statistical, spatiotemporal, and other features.
+3. **Efficient inference**: amortized training of deep neural density estimators.
 
 ### Evaluation of Posterior Fit
 
@@ -125,15 +125,15 @@ where $\bar{\theta}$ is the posterior mean, $\theta^\ast$ is the true parameter,
 
 ![Overview of the VBI workflow: (**A**) A personalized connectome is built using diffusion tensor imaging and a brain parcellation atlas. (**B**) This forms the basis to build a virtual brain model, given control parameters sampled from a prior distribution. (**C**) VBI simulates time series data associated with neuroimaging recordings. (**D**) Data features (such as FC, FCD, PSD) are extracted from simulations. (**E**) Deep neural density estimators are trained on parameter-feature pairs to learn the family of posterior distributions over model parameters. (**F**) The trained network rapidly approximates the posterior for any new observation. (**G**) A flowchart of the VBI modules illustrates the pipeline’s modularity and flexibility, allowing seamless integration of different simulators, feature extraction, and inference tools.](Fig1.png)
 
-### EBRAINS integration
+### EBRAINS Integration
 
-EBRAINS is an open research infrastructure that integrates data, tools, and computational resources for brain-related research, with interoperability as a central design principle. From the perspective of the VBI project, EBRAINS serves as a deployment environment in which the VBI toolbox can be installed after each release and subsequently shared with the broader research community. This mode of deployment enhances reproducibility and lowers the barrier to entry for users without programming expertise, as it enables direct access to the tools through a running JupyterLab environment at lab.ebrains.eu. To further improve usability, we are also developing a graphical user interface (GUI) for VBI components, allowing users to configure simulation workflows through drag-and-drop interactions. This interface is implemented as a JupyterLab extension.
+EBRAINS is an open research infrastructure that integrates data, tools, and computational resources for brain-related research, with interoperability as a central design principle. From the perspective of the VBI project, EBRAINS serves as a deployment environment in which the VBI toolkit can be installed after each release and subsequently shared with the broader research community. This mode of deployment enhances reproducibility and lowers the barrier to entry for users without programming expertise, as it enables direct access to the tools through a running JupyterLab environment at lab.ebrains.eu. To further improve usability, we are also developing a graphical user interface (GUI) for VBI components, allowing users to configure simulation workflows through drag-and-drop interactions. This interface is implemented as a JupyterLab extension.
 
 ![VBI components exposed as graphical boxes in tvb-ext-xircuits.](Fig2.png)
 
 
 # Acknowledgements
 
-This project/research has received funding from the European Union's Horizon Europe Programme under the Specific Grant Agreement No. 101147319 (EBRAINS 2.0 Project), No. 101137289 (Virtual Brain Twin Project),  No. 101057429 (project environMENTAL), and government grant managed by the Agence Nationale de la Recherche reference ANR-22-PESN-0012 (France 2030 program). The funders had no role in study design, data collection and analysis, decision to publish, or preparation of the manuscript. 
+This project/research has received funding from the European Union's Horizon Europe Programme under the Specific Grant Agreement No. 101147319 (EBRAINS 2.0 Project), No. 101137289 (Virtual Brain Twin Project),  No. 101057429 (project environMENTAL), and a government grant managed by the Agence Nationale de la Recherche reference ANR-22-PESN-0012 (France 2030 program). The funders had no role in study design, data collection and analysis, decision to publish, or preparation of the manuscript. 
 
 # References
