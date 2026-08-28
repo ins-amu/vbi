@@ -1,11 +1,22 @@
 cff-version: 1.2.0
-message: "If you use this software, please cite it using the metadata below."
+message: "If you use this software, please cite our article in the Journal of Open Source Software."
 title: "Virtual Brain Inference (VBI) toolkit on EBRAINS"
 version: 0.4.4
 date-released: "2026-08-04"
+doi: 10.5281/zenodo.21792498
 license: Apache-2.0
 repository-code: "https://github.com/ins-amu/vbi"
 url: "https://vbi.readthedocs.io/"
+contact:
+  - family-names: Ziaeemehr
+    given-names: Abolfazl
+    orcid: "https://orcid.org/0000-0002-4696-9947"
+  - family-names: Jirsa
+    given-names: Viktor
+    orcid: "https://orcid.org/0000-0002-8251-8860"
+  - family-names: Hashemi
+    given-names: Meysam
+    orcid: "https://orcid.org/0000-0001-5289-9837"
 authors:
   - family-names: Ziaeemehr
     given-names: Abolfazl
@@ -31,3 +42,35 @@ authors:
     given-names: Meysam
     orcid: "https://orcid.org/0000-0001-5289-9837"
     affiliation: "Aix Marseille Univ, INSERM, INS, Institut de Neurosciences des Systèmes, Marseille, France"
+preferred-citation:
+  type: article
+  title: "Virtual Brain Inference (VBI) toolkit on EBRAINS"
+  authors:
+    - family-names: Ziaeemehr
+      given-names: Abolfazl
+      orcid: "https://orcid.org/0000-0002-4696-9947"
+    - family-names: Domide
+      given-names: Lia
+      orcid: "https://orcid.org/0000-0002-4822-2046"
+    - family-names: Woodman
+      given-names: Marmaduke
+      orcid: "https://orcid.org/0000-0002-8410-4581"
+    - family-names: Petkoski
+      given-names: Spase
+      orcid: "https://orcid.org/0000-0003-4540-6293"
+    - family-names: Jirsa
+      given-names: Viktor
+      orcid: "https://orcid.org/0000-0002-8251-8860"
+    - family-names: Hashemi
+      given-names: Meysam
+      orcid: "https://orcid.org/0000-0001-5289-9837"
+  date-published: 2026-08-27
+  doi: 10.21105/joss.10612
+  issn: 2475-9066
+  issue: 124
+  journal: "Journal of Open Source Software"
+  publisher:
+    name: "Open Journals"
+  start: 10612
+  volume: 11
+  url: "https://joss.theoj.org/papers/10.21105/joss.10612"
