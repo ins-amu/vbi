@@ -48,17 +48,18 @@ neuroscience research.
 
 ### Quick Start
 
-```bash
-# Create conda environment (recommended)
-conda create --name vbi python=3.10
-conda activate vbi
+If `uv` is not already installed, run `pip install uv` (see the [uv installation guide](https://docs.astral.sh/uv/getting-started/installation/) for alternatives).
 
+```bash
+# Create and activate a virtual environment
+uv venv --python 3.10
+source .venv/bin/activate
 
 # Install VBI
 export SKIP_CPP=1                  # To skip C++ compilation
-pip install vbi                    # Light version (CPU only)
-pip install vbi[inference]         # With parameter inference
-pip install vbi[inference-gpu]     # Full functionality with GPU support
+uv pip install vbi                 # Light version (CPU only)
+uv pip install "vbi[inference]"    # With parameter inference
+uv pip install "vbi[inference-gpu]" # Full functionality with GPU support
 ```
 
 👉 Ready to try it out? Start with a working example: [Introduction & Feature Extraction](https://vbi.readthedocs.io/latest/examples/intro_feature.html).

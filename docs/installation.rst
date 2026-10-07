@@ -8,21 +8,24 @@ Installation Guide
 From Quick Start to Advanced Options
 ------------------------------------
 
-Create conda environment (recommended):
+If ``uv`` is not already installed, run ``pip install uv`` (see the `uv installation guide <https://docs.astral.sh/uv/getting-started/installation/>`_ for alternatives).
+
+Create and activate a virtual environment:
 
 .. code-block:: bash
 
-    conda create --name vbi python=3.10
-    conda activate vbi
+    uv venv --python 3.10
+    source .venv/bin/activate
 
 Install VBI:
 
 .. code-block:: bash
 
-    pip install vbi                    # Light version (CPU only)
-    pip install vbi[light-gpu]         # Light + Cupy
-    pip install vbi[inference]         # With (sbi, PyTorch)
-    pip install vbi[all]               # Full (sbi, PyTorch, Cupy)
+    export SKIP_CPP=1                   # To skip C++ compilation
+    uv pip install vbi                  # Light version (CPU only)
+    uv pip install "vbi[light-gpu]"     # Light + CuPy
+    uv pip install "vbi[inference]"     # With (SBI, PyTorch)
+    uv pip install "vbi[inference-gpu]" # Full functionality with GPU support
 
 Installation Options
 --------------------
@@ -34,16 +37,16 @@ Installation Options
    * - **Command**
      - **Includes**
      - **Best For**
-   * - ``pip install vbi``
+   * - ``uv pip install vbi``
      - CPU simulation, feature extraction, CDE-based inference
      - Avoiding heavy dependencies
-   * - ``pip install vbi[light-gpu]``
+   * - ``uv pip install "vbi[light-gpu]"``
      - Everything + Cupy
      - GPU simulation
-   * - ``pip install vbi[inference]``
+   * - ``uv pip install "vbi[inference]"``
      - Everything + PyTorch, SBI
      - Parameter inference (CPU)
-   * - ``pip install vbi[inference-gpu]``
+   * - ``uv pip install "vbi[inference-gpu]"``
      - Everything + GPU acceleration
      - Full functionality with GPU
 
@@ -67,13 +70,15 @@ Installation From Source
 
     git clone https://github.com/ins-amu/vbi.git
     cd vbi
-    pip install .
+    uv venv --python 3.10
+    source .venv/bin/activate
+    uv pip install .
 
 For development:
 
 .. code-block:: bash
 
-    pip install -e .[all]
+    uv pip install -e ".[all]"
 
 Platform-Specific Instructions
 -------------------------------
@@ -161,7 +166,9 @@ Windows installation is automatic - C++ compilation is automatically skipped:
 
 .. code-block:: bash
 
-    pip install vbi
+    uv venv --python 3.10
+    .venv\Scripts\activate
+    uv pip install vbi
 
 Verification
 ------------
@@ -185,7 +192,7 @@ A **Java JDK (version 8 or later)** must be installed for these functions to wor
 
 .. code-block:: bash
 
-    pip install JPype1
+    uv pip install JPype1
 
 **Install Java JDK:**
 
@@ -225,12 +232,12 @@ Troubleshooting
 **C++ Compilation Issues**
 
 Note: the package is configured with SKIP_CPP=0 by default (C++ extensions are enabled).
-If you want to skip compilation of C++ components, set SKIP_CPP=1 when installing from source or via pip, for example:
+If you want to skip compilation of C++ components, set SKIP_CPP=1 when installing from source or via ``uv pip``, for example:
 
 .. code-block:: bash
 
     export SKIP_CPP=1
-    pip install vbi
+    uv pip install vbi
 
 **Common Issues**
 

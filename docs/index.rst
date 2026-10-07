@@ -28,20 +28,23 @@ Installation
 
 **Quick Start:**
 
-First, create a conda environment:
+If ``uv`` is not already installed, run ``pip install uv`` (see the `uv installation guide <https://docs.astral.sh/uv/getting-started/installation/>`_ for alternatives).
+
+First, create and activate a virtual environment:
 
 .. code-block:: bash
 
-    conda create --name vbi python=3.10
-    conda activate vbi
+    uv venv --python 3.10
+    source .venv/bin/activate
 
 Then install VBI:
 
 .. code-block:: bash
 
-    pip install vbi                    # Light version (CPU only)
-    pip install vbi[inference]         # With parameter inference  
-    pip install vbi[inference-gpu]     # Full functionality with GPU
+    export SKIP_CPP=1                  # To skip C++ compilation
+    uv pip install vbi                 # Light version (CPU only)
+    uv pip install "vbi[inference]"    # With parameter inference
+    uv pip install "vbi[inference-gpu]" # Full functionality with GPU
 
 **Verify Installation:**
 
@@ -224,6 +227,5 @@ Indices and tables
 * :ref:`genindex`
 * :ref:`modindex`
 * :ref:`search`
-
 
 
